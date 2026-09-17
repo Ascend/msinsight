@@ -70,6 +70,11 @@ jest.mock('../AscendUnit', () => {
                 super('LLC Cache', metadata);
             }
         },
+        ThreadingStateUnit: class extends MockUnit {
+            constructor(metadata: Record<string, unknown>) {
+                super('Thread State', metadata);
+            }
+        },
     };
 });
 
@@ -336,6 +341,59 @@ const createThreadingTree = (): InsightMetaData<'card'> => ({
     }],
 });
 
+const createThreadStateTree = (): InsightMetaData<'card'> => ({
+    type: 'card',
+    dataSource,
+    metadata: {
+        cardId: 'Threading',
+        dbPath: 'threading.db',
+        dataSource,
+    } as never,
+    children: [{
+        type: 'process',
+        dataSource,
+        metadata: {
+            cardId: 'Threading',
+            dbPath: 'threading.db',
+            dataSource,
+            processId: '1000',
+            processName: 'Process_1000',
+            metaType: 'THREADING_ANALYSIS',
+        },
+        children: [{
+            type: 'thread',
+            dataSource,
+            metadata: {
+                cardId: 'Threading',
+                dbPath: 'threading.db',
+                dataSource,
+                processId: '1000',
+                processName: 'Process_1000',
+                threadId: '10001',
+                threadName: 'Thread_10001',
+                metaType: 'THREADING_ANALYSIS',
+            },
+            children: [{
+                type: 'counter',
+                dataSource,
+                metadata: {
+                    cardId: 'Threading',
+                    dbPath: 'threading.db',
+                    dataSource,
+                    processId: '1000',
+                    processName: 'Process_1000',
+                    threadId: '10001',
+                    threadName: 'Thread State',
+                    dataType: ['Active', 'Sync Wait', 'Preemption', 'Unknown'],
+                    metaType: 'THREADING_ANALYSIS',
+                    metricGroup: 'thread_state',
+                    bucketWidthNs: 500_000_000,
+                },
+            }],
+        }],
+    }],
+});
+
 describe('timeline unit metadata expansion', () => {
     afterEach(() => {
         clearParentMap();
@@ -554,6 +612,43 @@ describe('timeline unit metadata expansion', () => {
             expect(thread.children?.[0].metadata.bucketWidthNs).toBe(500_000_000);
             expect(thread.children?.[0].metadata.metricGroup).toBe('llc_cache');
         });
+    });
+
+    it.each(['', 'future_metric'])('ignores unrecognized Threading metric group %s', (metricGroup) => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createThreadStateTree();
+        const counter = metadataTree.children?.[0].children?.[0].children?.[0];
+        if (counter === undefined) { throw new Error('Missing fixture counter'); }
+        counter.metadata.metricGroup = metricGroup;
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+        expect(cardUnit.children?.[0].children?.[0].children ?? []).toHaveLength(0);
+    });
+
+    it('creates a Thread State lane after an existing LLC child', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createThreadStateTree();
+        const children = metadataTree.children?.[0].children?.[0].children;
+        if (children === undefined) { throw new Error('Missing fixture children'); }
+        children.unshift({
+            ...children[0],
+            metadata: {
+                ...children[0].metadata, metricGroup: 'llc_cache', threadName: 'LLC Cache',
+            },
+        });
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        expect(cardUnit.children).toHaveLength(1);
+        const processUnit = cardUnit.children?.[0];
+        expect(processUnit?.children).toHaveLength(1);
+        const threadUnit = processUnit?.children?.[0];
+        expect(threadUnit?.metadata.threadId).toBe('10001');
+        expect(threadUnit?.children).toHaveLength(2);
+        expect(threadUnit?.children?.[0].name).toBe('LLC Cache');
+        expect(threadUnit?.children?.[1].name).toBe('Thread State');
+        expect(threadUnit?.children?.[1].metadata.metricGroup).toBe('thread_state');
     });
 });
 
