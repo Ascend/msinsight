@@ -2842,4 +2842,4 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 MindStudio Insight工具提供了一套完整的数据采集和转化脚本，能够采集Linux Kernel ftrace数据，并将其转换为支持的json文件格式；同时，该工具还支持将转换后的Linux Kernel ftrace数据和Profiling的数据同时导入，实现在同一界面展示两种数据，便于联合分析，从而提高Host Bound问题定位的效率。
 
-Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.md)》。
+Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md)》。
