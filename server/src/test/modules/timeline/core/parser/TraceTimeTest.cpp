@@ -159,3 +159,38 @@ TEST_F(TraceTimeTest, TestTwoHostAndManyRanksWithTimeDurationNotSame) {
     const uint64_t expectTime = 9;
     EXPECT_EQ(startTime, expectTime);
 }
+
+/**
+ * 全量DB基线卡使用 Baseline_<rankId>，offset 应回退到原始 rankId 的起点
+ */
+TEST_F(TraceTimeTest, TestBaselineCardIdFallsBackToOriginalRankOffset) {
+    const uint64_t ubuntuMin = 1000;
+    const uint64_t ubuntuMax = 7000;
+    const uint64_t node1Min = 25800;
+    const uint64_t node1Max = 32000;
+    TraceTime::Instance().UpdateCardMinTimestamp("ubuntu22048", ubuntuMin);
+    TraceTime::Instance().UpdateCardMinTimestamp("node10", node1Min);
+    TraceTime::Instance().UpdateCardTimeDuration("ubuntu22048", ubuntuMin, ubuntuMax);
+    TraceTime::Instance().UpdateCardTimeDuration("node10", node1Min, node1Max);
+
+    const uint64_t expectOffset = node1Min - ubuntuMin;
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("node10"), expectOffset);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("Baseline_node10"), expectOffset);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("ubuntu22048"), 0);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("Baseline_ubuntu22048"), 0);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileId("Baseline_node10"), expectOffset);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("Baseline_unknown"), 0);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("Baseline_"), 0);
+}
+
+/**
+ * 若 Baseline_ 标识自身已登记时间戳，优先使用该标识，不覆盖为原始 rank 的值
+ */
+TEST_F(TraceTimeTest, TestBaselineCardIdPrefersOwnRegisteredTimestamp) {
+    const uint64_t originalMin = 1000;
+    const uint64_t baselineMin = 4000;
+    TraceTime::Instance().UpdateCardMinTimestamp("rank0", originalMin);
+    TraceTime::Instance().UpdateCardMinTimestamp("Baseline_rank0", baselineMin);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("rank0"), 0);
+    EXPECT_EQ(TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("Baseline_rank0"), baselineMin - originalMin);
+}
