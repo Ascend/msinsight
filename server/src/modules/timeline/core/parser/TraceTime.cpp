@@ -17,10 +17,23 @@
  */
 #include "pch.h"
 #include "TraceTime.h"
+#include <string_view>
 
 namespace Dic {
 namespace Module {
 namespace Timeline {
+namespace {
+constexpr std::string_view BASELINE_CARD_PREFIX = "Baseline_";
+
+std::string GetOriginalRankIdIfBaselineCard(const std::string &fileId) {
+    if (fileId.size() > BASELINE_CARD_PREFIX.size() &&
+        fileId.compare(0, BASELINE_CARD_PREFIX.size(), BASELINE_CARD_PREFIX.data(), BASELINE_CARD_PREFIX.size()) == 0) {
+        return fileId.substr(BASELINE_CARD_PREFIX.size());
+    }
+    return "";
+}
+}
+
 TraceTime &TraceTime::Instance() {
     static TraceTime instance;
     return instance;
@@ -88,20 +101,33 @@ std::vector<std::pair<std::string, uint64_t>> TraceTime::ComputeCardMinTimeInfo(
 
 uint64_t TraceTime::GetOffsetByFileId(const std::string &fileId) {
     std::unique_lock<std::mutex> lock(mutex);
-    if (cardTimeDurationMap.count(fileId) == 0) {
-        return 0;
+    auto it = cardTimeDurationMap.find(fileId);
+    if (it == cardTimeDurationMap.end()) {
+        const std::string originalRankId = GetOriginalRankIdIfBaselineCard(fileId);
+        if (!originalRankId.empty()) {
+            it = cardTimeDurationMap.find(originalRankId);
+        }
+        if (it == cardTimeDurationMap.end()) {
+            return 0;
+        }
     }
-    std::pair<uint64_t, uint64_t> targetTime = cardTimeDurationMap[fileId];
-    return ComputetargetOffset(targetTime);
+    return ComputetargetOffset(it->second);
 }
 
 uint64_t TraceTime::GetOffsetByFileIdUsingMinTimestamp(const std::string &fileId) {
     std::unique_lock<std::mutex> lock(mutex);
-    if (rankMinTimestampMap.find(fileId) == rankMinTimestampMap.end()) {
-        return 0;
+    auto it = rankMinTimestampMap.find(fileId);
+    if (it == rankMinTimestampMap.end()) {
+        // 全量DB基线卡使用 Baseline_<rankId> 作为内部标识，时间戳仍登记在原始 rankId 上
+        const std::string originalRankId = GetOriginalRankIdIfBaselineCard(fileId);
+        if (!originalRankId.empty()) {
+            it = rankMinTimestampMap.find(originalRankId);
+        }
+        if (it == rankMinTimestampMap.end()) {
+            return 0;
+        }
     }
-    // 已判断不为空
-    uint64_t deviceMinTimestamp = rankMinTimestampMap[fileId];
+    uint64_t deviceMinTimestamp = it->second;
     if (deviceMinTimestamp > minTimestamp) {
         return deviceMinTimestamp - minTimestamp;
     }

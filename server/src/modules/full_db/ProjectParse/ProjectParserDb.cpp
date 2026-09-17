@@ -521,6 +521,14 @@ void ProjectParserDb::ParserBaseline(
     }
     if (isParsed) {
         ServerLog::Info("Baseline has parsed.");
+        auto database = GetTraceDbConnect(file);
+        if (database == nullptr) {
+            ServerLog::Error("Failed to get baseline database when updating start time. cardId:", baselineInfo.cardId);
+            return;
+        }
+        // 已解析的基线文件不会再走 Parse(cardId)，需把 SESSION 起点登记到 Baseline_ 标识上，
+        // 避免 Memory/Timeline 用 cardId 取 offset 时回退到可能冲突的原始 rankId。
+        database->UpdateStartTime(baselineInfo.cardId);
         return;
     }
     FullDb::FullDbParser::Instance().Parse(std::vector<std::string>{baselineInfo.cardId}, file);
