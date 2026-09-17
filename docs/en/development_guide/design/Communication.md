@@ -68,3 +68,13 @@ This document describes the data sources, interface commands, and frontend/backe
 - The images in the tables are retained to assist in quickly locating UI elements, but they are not the sole source of information.
 
 - The DB scenario support status of `sortOpNames`, the specific algorithms for expert advice, and the complete response fields of each interface may vary according to the source code and test results.
+
+## 3. Communication Thumbnail Keyboard Navigation
+
+`CommunicationTimeAnalysisChart.tsx` handles keyboard events while the chart is focused and delegates viewport calculations to `communicationChartNavigation.ts` in the same directory. Navigation dispatches ECharts `dataZoom` actions with index 0 for time and index 1 for Rank. The existing WebGL listener refreshes the rendering; no backend API is added.
+
+- W/S zoom the visible time range by a factor of 1.2. A/D pan by 10% of that range, clamped to the full extent.
+- Shift+W/S zoom the Rank axis using whole rows, keeping at least one row visible. Up/Down pan by approximately 10% of the visible rows, with a minimum of one row and support for an inverted axis.
+- The zoom anchor comes from the pointer position within the plotting rectangle, falling back to the view center outside the plot. Reset restores both axes to 0%-100% in one batch action.
+- Shortcuts require focus on the chart itself. Composition input, child-control events, Ctrl/Meta/Alt combinations, loading states, and open context menus are excluded. Esc releases focus.
+- A `datazoom` listener updates the reset icon state and is removed when the chart is disposed. Coverage is in `CommunicationTimeAnalysisChart.test.tsx` and `communicationChartNavigation.test.ts`.

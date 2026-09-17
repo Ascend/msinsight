@@ -209,7 +209,12 @@ const CommunicationAnalysisCom = (props: {[propName: string]: any}): JSX.Element
                 {/* 通信用时分析 */}
                 <div className={'communication'} style={{ display: conditions.type === AnalysisType.COMMUNICATION_DURATION_ANALYSIS ? 'block' : 'none' }}>
                     <div>
-                        <CollapsiblePanel title={t('sessionTitle.Communication')}>
+                        <CollapsiblePanel title={<>
+                            {t('sessionTitle.Communication')}
+                            <Tooltip title={<div style={{ padding: '1rem' }}>{t('thumbnailNavigation.help')}</div>}>
+                                <HelpIcon style={{ cursor: 'pointer', marginLeft: '3px' }} height={20} width={20}/>
+                            </Tooltip>
+                        </>}>
                             <CommunicationTimeAnalysisChart dataSource={showData.analysisChartData}
                                 loading={operatorLoading} onAlignmentChange={onOperatorAlignment} session={session}/>
 
