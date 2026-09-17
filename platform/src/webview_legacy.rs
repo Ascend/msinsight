@@ -279,7 +279,9 @@ pub fn run_script(
         .with_title("MindStudio Insight")
         .with_maximized(true)
         .build(&event_loop)
-        .expect("Error occurred when create App window");
+        .map_err(|error| {
+            std::io::Error::new(std::io::ErrorKind::Other, error)
+        })?;
 
     let resource_path = Arc::new(root_path.to_path_buf());
     let log_path = Arc::new(cache_path.to_path_buf());

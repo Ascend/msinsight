@@ -349,9 +349,9 @@ pub fn run_script(
     init_macos_menu();
 
     // EventLoop dispatches window events but does not own the Window.
-    let window = window_builder
-        .build(&event_loop)
-        .expect("Error occurred when create App window");
+    let window = window_builder.build(&event_loop).map_err(|error| {
+        std::io::Error::new(std::io::ErrorKind::Other, error)
+    })?;
 
     let resource_path = Arc::new(root_path.to_path_buf());
 
