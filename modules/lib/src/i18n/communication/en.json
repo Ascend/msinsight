@@ -6,6 +6,11 @@
     "Show in Communication": "Show in Communication",
     "Align according to selected operator": "Align according to selected operator",
     "Restore default state": "Restore default state",
+    "thumbnailNavigation": {
+      "focusHint": "Click the chart to use keyboard navigation",
+      "activeHint": "W/S: time zoom · A/D: pan left/right · Shift+W/S: Rank zoom · ↑/↓: pan up/down · Esc: exit",
+      "help": "Click the chart first. W/S zoom the time axis; A/D pan left/right; Shift+W/S show fewer/more Ranks; Up/Down pan by whole Ranks. Zoom follows the pointer inside the plot, or the view center otherwise. Hold a key to repeat. Esc exits keyboard navigation. Reset Zoom restores both axes."
+    },
     "bandwidth": "Bandwidth",
     "transitSize": "TransitSize",
     "transportType": "TransportType",
