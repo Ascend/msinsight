@@ -58,3 +58,13 @@
 - `text` 与 `db` 仅表示数据来源不同，页面能力和接口命名保持一致。
 - 表格中的图片仍保留，用于辅助快速定位 UI，但不作为唯一信息来源。
 - `sortOpNames` 的 DB 场景支持情况、专家建议的具体算法、每个接口的完整响应字段，需以源码和测试结果为准。
+
+## 3. 通信算子缩略图键盘导航
+
+`CommunicationTimeAnalysisChart.tsx` 在图表聚焦时处理键盘事件，调用同目录下的 `communicationChartNavigation.ts` 计算视窗并派发 ECharts `dataZoom`。横轴使用 `dataZoomIndex: 0`，纵轴使用 `dataZoomIndex: 1`，现有 WebGL 渲染监听器随缩放事件刷新画面，无新增后端接口。
+
+- W/S 按 1.2 倍缩放当前可见时间范围；A/D 按可见范围的 10% 平移，并限制在完整范围内。
+- Shift+W/S 缩放 Rank 轴，窗口按整数行计算，最少保留一行；上下方向键按可见行数的约 10% 平移，至少一行，并适配纵轴反向显示。
+- 鼠标锚点从绘图区矩形计算；鼠标离开绘图区时使用视窗中心。重置通过一个批量事件恢复两轴到 0%–100%。
+- 仅在图表自身获得焦点时处理快捷键，忽略输入法组合输入、子控件事件、Ctrl/Meta/Alt 组合键、加载状态和打开的右键菜单；Esc 释放焦点。
+- `datazoom` 监听器同步重置图标状态，随图表销毁解除注册。相关测试位于 `CommunicationTimeAnalysisChart.test.tsx` 和 `communicationChartNavigation.test.ts`。

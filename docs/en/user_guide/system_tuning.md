@@ -1063,13 +1063,13 @@ On the **Timeline** tab page, you can search for operators and APIs by name.
 
 - Click ![icon](./figures/system_tuning/en-us_image_0000002500040294.png) on the toolbar in the upper left corner of the page and click ![icon](./figures/system_tuning/en-us_image_0000002531920185.png) and ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) on the left of the search box to enable case-sensitive matching and full-word matching, respectively.
   - Click the dropdown menu in front of the search box to select different ranks for viewing, or select "ALL" to view all ranks. The system selects the first rank by default, as shown in [**Figure 2** Rank selection function](#rank-selection-function).
-  
+
       **Figure 2** Rank selection function<a id="rank-selection-function"></a>
 
       ![](./figures/system_tuning/search_operators_select_2.png "Card selection function")
-  
+
     - Click ![](./figures/system_tuning/en-us_image_0000002531920185.png) to enable case-sensitive matching. In the pop-up input box, enter the content to be searched and press Enter. Operators or APIs whose names contain the search term will be matched, as shown in [**Figure 3** Enabling case-sensitive or whole-word matching](#enabling-case-sensitive-matching-or-full-word-matching).
-  
+
       **Figure 3** Enabling case-sensitive matching or whole word matching<a id="enabling-case-sensitive-matching-or-full-word-matching"></a>
 
       ![Enabling case-sensitive matching or whole word matching](./figures/system_tuning/enable_case_or_whole_word_matching_1.png "Enabling case-sensitive matching or whole word matching")
@@ -1430,7 +1430,7 @@ On the **Timeline** tab page, you can hide or expand a unit.
     If hidden units exist at both the parent and child layers, right-click the **units hidden** row of the parent layer and choose **Show All** from the shortcut menu to display all hidden units at the parent layer, as shown in [**Figure 2** Showing hidden units](#Showing-hidden-units).
 
     **Figure 2** Showing hidden units <a id="Showing-hidden-units"></a>
-    
+
     ![](./figures/system_tuning/show_hidden_lanes_1.png "Showing hidden units")
 
 **Independent Displaying Python Call Stack Unit**
@@ -1450,13 +1450,13 @@ On the **Timeline** tab page, you can right-click to expand or collapse all unit
     If the selected unit and sub-units are already expanded, the **Expand all** option is not displayed in the shortcut menu.
 
     **Figure 4** Expand all <a id="Expand-all"></a>
-    
+
     ![](./figures/system_tuning/expand_all_children_1.png "Expand all")
 
 - Collapse all units: Right-click an expanded unit and choose **Collapse all** from the shortcut menu to collapse all sub-units under the selected unit. As shown in [**Figure 5** Collapse all](#Collapse-all), all units of rank 0 are collapsed.
 
     **Figure 5** Collapse all <a id="Collapse-all"></a>
-    
+
     ![](./figures/system_tuning/collapse_all_children_1.png "Collapse all")
 
 **Supporting Auto Unit Height**
@@ -1466,13 +1466,13 @@ On the **Timeline** tab page, you can right-click to enable or disable the auto 
 - Enable auto unit height: Right-click the expanded unit and choose **Enable auto unit height** from the shortcut menu. The unit height is automatically adjusted to adapt to the current page, as shown in [**Figure 6** Enable auto unit height](#Enable-auto-unit-height).
 
     **Figure 6** Enable auto unit height <a id="Enable-auto-unit-height"></a>
-    
+
     ![](./figures/system_tuning/enable_lane_height_auto_adjust_1.png "Enable auto unit height")
 
 - Disable auto unit height: Right-click a unit where the auto unit height function is enabled and choose **Disable auto unit height** from the shortcut menu. The auto unit height function is disabled, and the unit height is restored to the initial height, as shown in [**Figure 7** Disable auto unit height](#disable-auto-unit-height).
 
     **Figure 7** Disable auto unit height <a id="disable-auto-unit-height"></a>
-    
+
     ![Disable auto unit height](./figures/system_tuning/disable_lane_height_auto_adjust_1.png "Disable auto unit height")
 
 **Locking the Selected Area**
@@ -1502,7 +1502,7 @@ On the **Timeline** page, you can merge multiple Stream units for data analysis.
     On the same rank, select multiple Stream units to be merged, right-click the selected units, and choose **Merge Units** from the shortcut menu. The selected units are merged into a new unit, as shown in [**Figure 10** Merge Units](#Merge-Units). After the Stream units are merged, the flow function, operator search function, and operator redirection function can be used properly.
 
     **Figure 10** Merge Units<a id="Merge-Units"></a>
-    
+
     ![](./figures/system_tuning/merge_lanes_1.png "Merge Units")
 
 - Unmerging units
@@ -1510,7 +1510,7 @@ On the **Timeline** page, you can merge multiple Stream units for data analysis.
     To unmerge Stream units, right-click the merged Stream units and choose **Unmerge Units** from the shortcut menu, as shown in [**Figure 11** Unmerge Units](#Unmerge-Units).
 
     **Figure 11** Unmerge Units<a id="Unmerge-Units"></a>
-    
+
     ![](./figures/system_tuning/cancel_merge_lanes_1.png "Unmerge Units")
 
 #### Displaying System Functions
@@ -1758,7 +1758,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Click To Timeline|Click `Click` to go to the specific location of the operator in the timeline view. The details about the operator are displayed in area 4 (data pane).|
 
 - Ftrace Task Summary
-  
+
   **Ftrace Task Summary** provides statistical information on scheduling, context switch count, interrupt preemption count, and duration from Ftrace-collected data. It is used to help quickly identify key metrics such as top CPU-side time-consuming processes, top interrupt sources, and process preemption frequency, as shown in [**Figure 11** Ftrace Task Summary](#ftrace-task-summary). For field descriptions, see [**Table 10** Ftrace Task Summary field description](#ftrace-task-statistics-field-description).
 
   **Figure 11** Ftrace Task Summary<a id="ftrace-task-summary"></a>
@@ -2665,6 +2665,18 @@ Bandwidth description: displays the maximum, minimum, and average values of the 
   - Drag the slider below the communication operator thumbnail to move the thumbnail leftward or rightward.
   - If the communication operator thumbnail is not displayed in the default state, you can hold down **Shift** and press the left or right arrow key to move the thumbnail leftward or rightward.
   - Drag the slider on the right of the communication operator thumbnail to move the thumbnail upward or downward to view the operator.
+
+Click the communication operator thumbnail to use the following shortcuts. A rounded border indicates focus, and the question mark next to the title explains the controls.
+
+|Shortcut|Action|
+|--|--|
+|W / S|Zoom in / out on the time axis.|
+|A / D|Move the visible time range left / right.|
+|Shift + W / Shift + S|Zoom in / out on the Rank axis to show fewer / more Ranks.|
+|Up / Down arrow|Move up / down by whole Rank rows.|
+|Esc|Exit chart keyboard navigation.|
+
+Zoom is anchored at the pointer inside the plot, or at the view center when the pointer is outside the plot. Hold a key to repeat. Each time-axis zoom step uses a factor of 1.2, and each pan step moves 10% of the visible range. Click the Reset Zoom icon in the upper right to restore the full time range and all Ranks. The icon is disabled when both axes already show their full ranges.
 
 **Supporting Communication Operator Linkage**
 

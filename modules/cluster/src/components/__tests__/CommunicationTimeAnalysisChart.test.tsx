@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import CommunicationTimeAnalysisChart, {
     AnalysisChartData,
     consumeCommunicationChartZoomData,
@@ -21,6 +21,7 @@ jest.mock('react', () => {
 jest.mock('mobx-react-lite', () => ({ observer: (component: React.ComponentType) => component }));
 jest.mock('../../utils/eventBus', () => ({ useEventBus: jest.fn() }));
 jest.mock('../../connection', () => ({ __esModule: true, default: { send: jest.fn() } }));
+jest.mock('@insight/lib/icon', () => ({ ResetIcon: () => null }), { virtual: true });
 jest.mock('@insight/lib/theme', () => ({
     themeInstance: {
         getThemeType: () => ({ colorPalette: new Proxy({}, { get: () => '#000' }) }),
@@ -102,6 +103,57 @@ it('uses string rank values when positioning within ten thousand ranks', () => {
     });
 });
 
+it('handles shortcuts only while the chart is focused, and releases focus with Escape', () => {
+    const originalResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+    } as unknown as typeof ResizeObserver;
+    const chart = {
+        on: jest.fn(),
+        off: jest.fn(),
+        resize: jest.fn(),
+        setOption: jest.fn(),
+        getZr: () => ({ on: jest.fn(), off: jest.fn() }),
+        isDisposed: () => false,
+        containPixel: () => false,
+        getOption: () => ({ dataZoom: [{ start: 20, end: 60 }, { start: 0, end: 100 }], yAxis: [{ data: ['0', '1', '2', '3'] }] }),
+        dispatchAction: jest.fn(),
+    };
+    (insightUtils.getAdaptiveEchart as jest.Mock).mockReturnValue(chart);
+    global.session.selectedClusterPath = 'cluster';
+    global.session.clusterList = [{ name: 'cluster', path: 'cluster', parsed: true, durationParsed: true }];
+    const sizeSpy = jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    const heightSpy = jest.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(460);
+    const { container, unmount } = render(<CommunicationTimeAnalysisChart
+        dataSource={{ minTime: 0, maxTime: 100, data: [] }} session={global.session} loading={false}
+    />);
+    const chartDom = container.querySelector('#hccl') as HTMLDivElement;
+    fireEvent.keyDown(chartDom, { key: 'w' });
+    expect(chart.dispatchAction).not.toHaveBeenCalled();
+    act(() => chartDom.focus());
+    fireEvent.keyDown(chartDom, { key: 'w' });
+    expect(chart.dispatchAction).toHaveBeenLastCalledWith(expect.objectContaining({ dataZoomIndex: 0 }));
+    fireEvent.keyDown(chartDom, { key: 'W', shiftKey: true });
+    expect(chart.dispatchAction).toHaveBeenLastCalledWith(expect.objectContaining({ dataZoomIndex: 1 }));
+    chart.dispatchAction.mockClear();
+    fireEvent.keyDown(chartDom, { key: 'w', ctrlKey: true });
+    fireEvent.keyDown(chartDom, { key: 'w', isComposing: true });
+    const input = document.createElement('input');
+    chartDom.appendChild(input);
+    fireEvent.keyDown(input, { key: 'w' });
+    expect(chart.dispatchAction).not.toHaveBeenCalled();
+    fireEvent.keyDown(chartDom, { key: 'Escape' });
+    expect(document.activeElement).not.toBe(chartDom);
+    fireEvent.keyDown(chartDom, { key: 'w' });
+    expect(chart.dispatchAction).not.toHaveBeenCalled();
+    unmount();
+    sizeSpy.mockRestore();
+    heightSpy.mockRestore();
+    global.ResizeObserver = originalResizeObserver;
+});
+
 it('uses the latest operator data when a hidden chart initializes after becoming visible', () => {
     jest.useFakeTimers();
     const originalResizeObserver = global.ResizeObserver;
@@ -120,6 +172,7 @@ it('uses the latest operator data when a hidden chart initializes after becoming
         off: jest.fn(),
         getZr: jest.fn(() => ({ on: jest.fn(), off: jest.fn() })),
         isDisposed: jest.fn(() => false),
+        getOption: jest.fn(() => ({ dataZoom: [{ start: 0, end: 100 }, { start: 0, end: 100 }] })),
         setOption: jest.fn(),
         resize: jest.fn(),
     };
