@@ -895,10 +895,10 @@ bool TextTraceDatabase::QueryUnitsMetadata(
                     pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
                     pythonStack->metaData.maxDepth = 1;
                 }
-                processChildren.emplace_back(std::move(child));
                 if (pythonStack != nullptr) {
                     processChildren.emplace_back(std::move(pythonStack));
                 }
+                processChildren.emplace_back(std::move(child));
             }
             process->children = std::move(processChildren);
         }
