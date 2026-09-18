@@ -133,8 +133,6 @@ NUMA页面可展示：
 
 支持导入 msMemScope 采集的 DB 结果文件，以图形化方式展示 Device 内存申请释放生命周期、调用栈和内存拆解信息。
 
-## 5.1 设计目标
-
 TimeLine中增加泳道支持Platform Metric、线程数据、命中率数据呈现。
 
 ![image-20260804154215789](./figures/thread_analysis.png)

@@ -4,7 +4,11 @@
 
 MindStudio Insight是面向开发者的可视化调优工具，能够将性能数据以时序图、热力图等一些简单易懂的图表呈现，帮助开发者快速识别性能瓶颈，快速完成性能优化。本文主要介绍MindStudio Insight的安装方式。
 
-MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且支持通过JupyterLab插件方式安装使用。
+MindStudio Insight可在如下场景使用：
+
+- 支持在Windows、Linux和macOS系统上安装使用；<br>
+- 支持通过安装 JupyterLab 插件方式使用；<br>
+- 支持通过部署 Docker 镜像直接访问使用。
 
 ## 准备软件包
 
