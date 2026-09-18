@@ -9,6 +9,8 @@ import CommunicationTimeAnalysisChart, {
 } from '../communication/CommunicationTimeAnalysisChart';
 import { useEventBus } from '../../utils/eventBus';
 import * as insightUtils from '@insight/lib/utils';
+import i18n, { resources } from '@insight/lib/i18n';
+import { notification } from 'antd';
 
 const mockRefValues: Array<{ current: unknown }> = [];
 
@@ -302,4 +304,50 @@ it('downplays a highlighted slow operator after five seconds', () => {
         seriesIndex: 0,
         name: '0-Send',
     });
+});
+
+it('updates an open tail alignment tip when switching languages and keeps its dismiss action', async () => {
+    jest.useFakeTimers();
+    const originalLanguage = i18n.language;
+    const openSpy = jest.spyOn(notification, 'open').mockImplementation(() => {});
+    const closeSpy = jest.spyOn(notification, 'close').mockImplementation(() => {});
+    let slowRankHandler: ((params: unknown) => void) | undefined;
+    (useEventBus as jest.Mock).mockImplementation((event, handler) => {
+        if (event === 'onClickSlowRankOp') {
+            slowRankHandler = handler;
+        }
+    });
+
+    try {
+        await act(async () => { await i18n.changeLanguage('zhCN'); });
+        const chartView = render(<CommunicationTimeAnalysisChart
+            dataSource={{ minTime: 0, maxTime: 0, data: [] } as AnalysisChartData}
+            session={global.session}
+            loading={false}
+        />);
+        act(() => slowRankHandler?.({ startValue: 10, endValue: 20, rankId: '0', name: 'AllReduce' }));
+        expect(openSpy).toHaveBeenCalledTimes(1);
+        const tip = openSpy.mock.calls[0][0];
+        expect(tip).toEqual(expect.objectContaining({ duration: 5, placement: 'top' }));
+        const tipView = render(<><div>{tip.message}</div><div>{tip.description}</div>{tip.btn}</>);
+
+        for (const language of ['zhCN', 'enUS', 'zhCN'] as const) {
+            await act(async () => { await i18n.changeLanguage(language); });
+            const { tipTitle, tipDescription, dismiss } = resources[language].communication.alignment;
+            expect(tipView.getByText(tipTitle)).toBeTruthy();
+            expect(tipView.getByText(tipDescription)).toBeTruthy();
+            expect(tipView.getByRole('button', { name: dismiss })).toBeTruthy();
+        }
+
+        expect(openSpy).toHaveBeenCalledTimes(1);
+        fireEvent.click(tipView.getByRole('button', { name: resources.zhCN.communication.alignment.dismiss }));
+        expect(closeSpy).toHaveBeenCalledWith(tip.key);
+        tipView.unmount();
+        chartView.unmount();
+    } finally {
+        openSpy.mockRestore();
+        closeSpy.mockRestore();
+        await act(async () => { await i18n.changeLanguage(originalLanguage); });
+        jest.useRealTimers();
+    }
 });
