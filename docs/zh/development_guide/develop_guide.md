@@ -54,7 +54,7 @@
 | cluster | 概览（summary）、通信（communication） |
 | compute | 算子调优 |
 | framework | 基础功能（微前端基座） |
-| leaks | 内存泄露检查 |
+| leaks | 内存泄漏检查 |
 | memory | 内存 |
 | operator | 算子 |
 | reinforcement-learning | 强化学习 |

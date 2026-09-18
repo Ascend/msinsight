@@ -60,7 +60,7 @@ MindStudio Insight 围绕昇腾 AI 性能分析主路径提供多维可视化调
 
 ## 📦 安装指南
 
-介绍 MindStudio Insight 的环境依赖、软件包获取和安装方法，请参见《[MindStudio Insight 安装指南](./docs/zh/install_guide/mindstudio_insight_install_guide.md)》。
+MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时也提供 JupyterLab 插件和 Docker 镜像两种便捷的使用方式。具体环境依赖、软件包获取和安装方法，请参见《[MindStudio Insight 安装指南](./docs/zh/install_guide/mindstudio_insight_install_guide.md)》。
 
 ## 📘 使用指南
 
