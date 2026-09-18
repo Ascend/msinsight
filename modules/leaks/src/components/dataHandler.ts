@@ -43,6 +43,12 @@ import { isMemSnapshotSliceReadyForQuery } from '../utils/memSnapshotSlices';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
 
+const captureRequestContext = (session: any): (() => boolean) => {
+    const contextKey = createMemoryBlockContextKey(session);
+    const { deviceIds } = session;
+    return () => createMemoryBlockContextKey(session) === contextKey && session.deviceIds === deviceIds;
+};
+
 const getAllocationDataMaxSize = (data: AllocationData): number => {
     let maxSize = data.maxSize ?? 0;
     data.allocations.forEach(item => { maxSize = Math.max(maxSize, item.totalSize); });
@@ -139,7 +145,11 @@ export const getFuncNewData = async (
     }
     const requestSeq = (funcDataRequestSeqMap.get(session) ?? 0) + 1;
     funcDataRequestSeqMap.set(session, requestSeq);
-    const isLatestRequest = (): boolean => funcDataRequestSeqMap.get(session) === requestSeq && shouldApply();
+    if (session.deviceId === '' || session.module !== 'leaks') return;
+    const isCurrentContext = captureRequestContext(session);
+    const { threadId } = session;
+    const isLatestRequest = (): boolean => funcDataRequestSeqMap.get(session) === requestSeq &&
+        isCurrentContext() && session.threadId === threadId && shouldApply();
 
     runInAction(() => {
         session.loadingFunc = true;
@@ -359,7 +369,9 @@ export const getBarNewData = async (session: any): Promise<void> => {
     barDataRequestSeqMap.set(session, requestSeq);
     blockTableRequestSeqMap.set(session, (blockTableRequestSeqMap.get(session) ?? 0) + 1);
     eventTableRequestSeqMap.set(session, (eventTableRequestSeqMap.get(session) ?? 0) + 1);
-    const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq;
+    if (session.deviceId === '') return;
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq && isCurrentContext();
     if (!isMemSnapshotSliceReadyForQuery(session)) {
         workerDestroy();
         runInAction(() => {
@@ -645,6 +657,7 @@ export const preloadSnapshotSliceOverviews = async (
 };
 
 export const getNewDetailData = async (session: any): Promise<void> => {
+    if (session.deviceId === '' || session.module !== 'leaks') return;
     try {
         const memoryDatas = await getMemoryDetailData(session.deviceId, session.memoryStamp, session.eventType);
         runInAction(() => {
@@ -686,6 +699,7 @@ const handleThreshold = (blockParam: any, session: any): void => {
     });
 };
 export const getBlockTableData = async (session: any): Promise<void> => {
+    if (session.deviceId === '') return;
     if (!isMemSnapshotSliceReadyForQuery(session)) {
         return;
     }
@@ -786,6 +800,7 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
     }
 };
 export const getEventTableData = async (session: any): Promise<void> => {
+    if (session.deviceId === '') return;
     if (!isMemoryBlockLoadReady(session)) {
         runInAction(() => {
             session.eventsTableData = [];
