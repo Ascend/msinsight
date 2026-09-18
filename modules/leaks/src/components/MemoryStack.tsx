@@ -212,12 +212,16 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     }, [session.deviceIds, session.threadIds]);
 
     useEffect(() => {
-        if (session.deviceId === '' || session.threadFlag) return;
         debouncedFuncRangeRef.current?.cancel();
+        debouncedCommitRangeRef.current?.cancel();
+        funcRangeRequestSeqRef.current++;
+        if (session.threadFlag) return;
         selectedRangeRef.current = undefined;
         setSelectedRange(undefined);
+        if (session.deviceId === '') return;
         void getBarNewData(session);
-    }, [session.deviceId, session.eventType, session.threadId, session.selectedSliceIndex]);
+    }, [session.fileHash, session.module, session.deviceIds, session.deviceId,
+        session.eventType, session.threadId, session.selectedSliceIndex]);
 
     useEffect(() => {
         if (session.module !== 'memsnapshot' || session.deviceId === '' || !deviceSlices) {
