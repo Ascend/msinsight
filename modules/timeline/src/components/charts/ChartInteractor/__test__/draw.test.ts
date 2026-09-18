@@ -44,7 +44,7 @@ const createUnit = (metadata: Record<string, unknown>, children: InsightUnit[] =
     return unit;
 };
 
-const createScene = (dbPath?: string): {
+const createScene = (dbPath?: string, pythonPosition: 'above' | 'below' = 'above'): {
     card: InsightUnit;
     thread: InsightUnit;
     cann: InsightUnit;
@@ -62,7 +62,7 @@ const createScene = (dbPath?: string): {
     const thread = createUnit({ ...host, processName: 'Thread 1', threadId: '1' }, [acl, mstx]);
     thread.isExpanded = false;
     const python = createUnit({ ...host, processName: 'Thread 1', threadId: 'python_stack:4294967297' }, [], UnitHeight.STANDARD * 4);
-    const process = createUnit({ ...host, processName: 'Process 1' }, [thread, python]);
+    const process = createUnit({ ...host, processName: 'Process 1' }, pythonPosition === 'above' ? [python, thread] : [thread, python]);
     const stream = createUnit({ processId: 'device', threadId: 'stream0', dbPath }, [], UnitHeight.STANDARD * 4);
     const device = createUnit({ processId: 'device', dbPath }, [stream]);
     return {
@@ -114,14 +114,16 @@ const drawScene = (session: Session): jest.Mock => {
     return bezierCurveTo;
 };
 
-describe('link endpoints with a sibling Python Stack lane', () => {
+describe.each(['above', 'below'] as const)('link endpoints with Python Stack %s its sibling Thread', pythonPosition => {
+    const createOrderedScene = (dbPath?: string): ReturnType<typeof createScene> => createScene(dbPath, pythonPosition);
+    const pythonTop = (pythonPosition === 'above' ? 2 : 3) * (UnitHeight.UPPER + 1);
+    const threadTop = 2 * (UnitHeight.UPPER + 1) + (pythonPosition === 'above' ? UnitHeight.STANDARD * 4 + 1 : 0);
+
     it.each([undefined, 'rank0.db'])('anchors hidden CANN to the collapsed Thread (dbPath: %s)', dbPath => {
-        const { card, flow, pythonPoint } = createScene(dbPath);
+        const { card, flow, pythonPoint } = createOrderedScene(dbPath);
         const session = createSession([card], [flow, { ...flow, from: pythonPoint }]);
         const drawCurve = drawScene(session);
-        const threadTop = 2 * (UnitHeight.UPPER + 1);
-        const pythonTop = threadTop + UnitHeight.UPPER + 1;
-        const streamTop = pythonTop + UnitHeight.STANDARD * 4 + 1 + UnitHeight.UPPER + 1;
+        const streamTop = 4 * (UnitHeight.UPPER + 1) + UnitHeight.STANDARD * 4 + 1;
 
         expect(drawCurve).toHaveBeenCalledTimes(2);
         expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + threadTop + UnitHeight.UPPER / 2);
@@ -130,15 +132,15 @@ describe('link endpoints with a sibling Python Stack lane', () => {
     });
 
     it('uses the collapsed Thread anchor when all category links are drawn', () => {
-        const { card, flow } = createScene();
+        const { card, flow } = createOrderedScene();
         const drawCurve = drawScene(createSession([card], [flow], 'all'));
 
         expect(drawCurve).toHaveBeenCalledTimes(1);
-        expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + 2 * (UnitHeight.UPPER + 1) + UnitHeight.UPPER / 2);
+        expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + threadTop + UnitHeight.UPPER / 2);
     });
 
     it('updates the endpoint when the Thread is expanded and collapsed again', () => {
-        const { card, thread, flow } = createScene();
+        const { card, thread, flow } = createOrderedScene();
         const session = createSession([card], [flow]);
         drawScene(session);
         const collapsedHeight = getHeight(session, flow.from, 'rank0', flow.category);
@@ -147,7 +149,7 @@ describe('link endpoints with a sibling Python Stack lane', () => {
         drawScene(session);
         expect(processIsCol.get(getLaneProcessIdentity('rank0', flow.from.pid))).toBeUndefined();
         expect(getHeight(session, flow.from, 'rank0', flow.category)).toBe(
-            UNDRAW_HEIGHT + 3 * (UnitHeight.UPPER + 1) + 2.5 * UnitHeight.STANDARD,
+            UNDRAW_HEIGHT + threadTop + UnitHeight.UPPER + 1 + 2.5 * UnitHeight.STANDARD,
         );
 
         thread.isExpanded = false;
@@ -156,7 +158,7 @@ describe('link endpoints with a sibling Python Stack lane', () => {
     });
 
     it('keeps the CANN fallback when only CANN is collapsed and MSTX remains visible', () => {
-        const { card, thread, cann, flow, pythonPoint } = createScene();
+        const { card, thread, cann, flow, pythonPoint } = createOrderedScene();
         thread.children = [cann, ...(thread.children?.slice(1) ?? [])];
         thread.isExpanded = true;
         cann.isExpanded = false;
@@ -164,16 +166,30 @@ describe('link endpoints with a sibling Python Stack lane', () => {
         drawScene(session);
 
         expect(getHeight(session, flow.from, 'rank0', flow.category)).toBe(
-            UNDRAW_HEIGHT + 3 * (UnitHeight.UPPER + 1) + UnitHeight.UPPER / 2,
+            UNDRAW_HEIGHT + threadTop + UnitHeight.UPPER + 1 + UnitHeight.UPPER / 2,
         );
+        const expandedPythonTop = (pythonPosition === 'above' ? 2 : 6) * (UnitHeight.UPPER + 1);
         expect(getHeight(session, pythonPoint, 'rank0', flow.category)).toBe(
-            UNDRAW_HEIGHT + 6 * (UnitHeight.UPPER + 1) + 2.5 * UnitHeight.STANDARD,
+            UNDRAW_HEIGHT + expandedPythonTop + 2.5 * UnitHeight.STANDARD,
         );
     });
 
+    it('keeps distinct endpoints when both Python Stack and Thread are collapsed', () => {
+        const { card, python, flow, pythonPoint } = createOrderedScene();
+        python.isExpanded = false;
+        python.height = () => UnitHeight.COLL;
+        const session = createSession([card], [flow, { ...flow, from: pythonPoint }]);
+        const drawCurve = drawScene(session);
+        const collapsedThreadTop = 2 * (UnitHeight.UPPER + 1) + (pythonPosition === 'above' ? UnitHeight.COLL + 1 : 0);
+
+        expect(drawCurve).toHaveBeenCalledTimes(2);
+        expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + collapsedThreadTop + UnitHeight.UPPER / 2);
+        expect(drawCurve.mock.calls[1][1]).toBe(UNDRAW_HEIGHT + pythonTop + UnitHeight.COLL / 2);
+    });
+
     it('does not share collapsed anchors across source databases with the same process id', () => {
-        const first = createScene('first.db');
-        const second = createScene('second.db');
+        const first = createOrderedScene('first.db');
+        const second = createOrderedScene('second.db');
         second.thread.isExpanded = true;
         const session = createSession([first.card, second.card], [first.flow, second.flow]);
         const drawCurve = drawScene(session);
@@ -181,10 +197,10 @@ describe('link endpoints with a sibling Python Stack lane', () => {
 
         expect(drawCurve).toHaveBeenCalledTimes(2);
         expect(getHeight(session, first.flow.from, 'rank0', first.flow.category)).toBe(
-            UNDRAW_HEIGHT + 2 * (UnitHeight.UPPER + 1) + UnitHeight.UPPER / 2,
+            UNDRAW_HEIGHT + threadTop + UnitHeight.UPPER / 2,
         );
         expect(getHeight(session, second.flow.from, 'rank0', second.flow.category)).toBe(
-            UNDRAW_HEIGHT + firstCardHeight + 3 * (UnitHeight.UPPER + 1) + 2.5 * UnitHeight.STANDARD,
+            UNDRAW_HEIGHT + firstCardHeight + threadTop + UnitHeight.UPPER + 1 + 2.5 * UnitHeight.STANDARD,
         );
     });
 });

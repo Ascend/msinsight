@@ -1378,7 +1378,7 @@ TEST_F(DbTraceDatabaseTest, TestGetCounterUnitsAndDataTypesWhenACCPMU) {
     EXPECT_EQ(result, false);
 }
 
-TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
+TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataPlacesPythonStacksBeforeThreads)
 {
     std::recursive_mutex testMutex;
     MockDatabase2 database(testMutex);
@@ -1393,7 +1393,8 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
         "(100, 150, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
         "(110, 140, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1),"
         "(200, 260, 4294967298, 0, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
-        "(210, 250, 4294967298, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1);";
+        "(300, 360, 4294967299, 0, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
+        "(310, 350, 4294967299, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1);";
     const std::string stringData = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (1, 'PyTorch');";
     DatabaseTestCaseMockUtil::InsertData(db, pyData);
     DatabaseTestCaseMockUtil::InsertData(db, stringData);
@@ -1403,12 +1404,16 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     database.QueryUnitsMetadata("9", metaData);
     ASSERT_EQ(metaData.size(), 1);
-    ASSERT_EQ(metaData[0]->children.size(), 4);
+    ASSERT_EQ(metaData[0]->children.size(), 5);
+    EXPECT_EQ(metaData[0]->children[1]->metaData.threadId, "1");
+    EXPECT_EQ(metaData[0]->children[2]->metaData.threadId, "2");
+    EXPECT_EQ(metaData[0]->children[2]->type, "process");
+    EXPECT_EQ(metaData[0]->children[4]->metaData.threadId, "3");
     std::set<std::string> pythonStackThreadIds;
     std::set<std::string> pythonStackThreadNames;
-    for (size_t index = 0; index < metaData[0]->children.size(); index += 2) {
-        const auto &thread = metaData[0]->children[index];
-        const auto &pythonStack = metaData[0]->children[index + 1];
+    for (size_t index : {0U, 3U}) {
+        const auto &pythonStack = metaData[0]->children[index];
+        const auto &thread = metaData[0]->children[index + 1];
         ASSERT_NE(thread, nullptr);
         ASSERT_NE(pythonStack, nullptr);
         EXPECT_EQ(thread->type, "process");
@@ -1422,8 +1427,8 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
         pythonStackThreadIds.emplace(pythonStack->metaData.threadId);
         pythonStackThreadNames.emplace(pythonStack->metaData.threadName);
     }
-    EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:4294967297", "python_stack:4294967298"}));
-    EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 1", "Python Stack 2"}));
+    EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:4294967297", "python_stack:4294967299"}));
+    EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 1", "Python Stack 3"}));
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryThreadsWhenPythonStackThenReturnPythonStackTid)
