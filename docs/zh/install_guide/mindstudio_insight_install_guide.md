@@ -4,7 +4,11 @@
 
 MindStudio Insight是面向开发者的可视化调优工具，能够将性能数据以时序图、热力图等一些简单易懂的图表呈现，帮助开发者快速识别性能瓶颈，快速完成性能优化。本文主要介绍MindStudio Insight的安装方式。
 
-MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且支持通过JupyterLab插件方式安装使用。
+MindStudio Insight可在如下场景使用：
+
+- 支持在Windows、Linux和macOS系统上安装使用；<br>
+- 支持通过安装 JupyterLab 插件方式使用；<br>
+- 支持通过部署 Docker 镜像直接访问使用。
 
 ## 准备软件包
 
@@ -235,18 +239,18 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 | xorg-x11-xauth | CentOS、EulerOS和OpenEuler系统中，MindStudio Insight通过X11转发的依赖文件。当选择X11转发方式时，必选。 |
 | xfce4 | Ubuntu、CentOS、OpenEuler系统中，MindStudio Insight通过VNC转发的依赖文件。当选择VNC转发方式时，必选。 |
 | gnome-desktop | EulerOS系统中，MindStudio Insight通过VNC转发的依赖文件。当选择VNC转发方式时，必选。 |
-| click | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| networkx | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| jinja2 | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| PyYaml | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| tqdm | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| prettytable | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| ijson | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| xlsxwriter | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| sqlalchemy | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| numpy | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| pandas | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| psutil | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
+| click | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| networkx | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| jinja2 | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| PyYaml | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| tqdm | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| prettytable | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| ijson | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| xlsxwriter | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| sqlalchemy | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| numpy | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| pandas | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
+| psutil | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/requirements/build.txt)。 |
 
 **安装依赖**
 

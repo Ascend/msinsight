@@ -52,7 +52,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 - 支持导入算子打点数据文件，获取文件方式请参见《性能调优工具指南》中的“Ascend PyTorch Profiler”章节“msprof\_tx”相关内容，导入成功后会在时间线（Timeline）界面展示打点数据。
 - 当导入集群数据时，如果性能数据文件中包含cluster\_analysis\_output目录文件，导入成功后，概览（Summary）和通信（Communication）界面会根据cluster\_analysis\_output目录文件内容呈现相关信息；如果性能数据文件中不包含cluster\_analysis\_output目录文件，在MindStudio Insight工具中导入数据时，会生成对应的cluster\_analysis\_output目录文件。
 - 在集群场景下，使用Ascend PyTorch Profiler接口或者MindSpore Profiler接口采集到的性能数据，需要使用MindStudio Insight工具显示，则建议配置repeat=1，不推荐配置为0。如果repeat\>1，则需要将采集的性能数据文件夹分为repeat等份，按照文件夹名称中的时间戳先后将文件分别放到不同文件夹下重新导入，才可正常展示。
-- 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7)。
+- 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/docs/zh/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7)。
 - 支持导入含有ACLGraph构图过程数据的单个json文件。
 - 当导入数据的目录中同时存在单卡数据和集群数据，MindStudio Insight仅支持解析集群数据并进行可视化展示。
 - 支持profiling采集数据（.text格式和.db格式）和ftrace采集数据（.json格式和.db格式）联合导入，先添加其中一个采集方式的数据工程，再从该工程中添加另一个采集方式的数据文件。
@@ -218,9 +218,9 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 
 - npumonitor数据：支持导入npumonitor采集的性能数据。npumonitor是基于dynolog开源项目的轻量化在线监测工具，支持NPU Monitor（常态监测）和NPU Trace-dump（精准采集）两种模式，采集方式和安装指南请参见：
 
-  - 《[npumonitor工具特性说明](https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/user_guide/npumonitor_instruct.md)》
-  - 《[msMonitor产品文档](https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/quick_start/msmonitor_quick_start.md)》
-  - 《[msMonitor工具下载](https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/install_guide/msmonitor_install_guide.md)》
+  - 《[npumonitor工具特性说明](https://gitcode.com/Ascend/msmonitor/blob/26.2.0/docs/zh/user_guide/npumonitor_instruct.md)》
+  - 《[msMonitor产品文档](https://gitcode.com/Ascend/msmonitor/blob/26.2.0/docs/zh/quick_start/msmonitor_quick_start.md)》
+  - 《[msMonitor工具下载](https://gitcode.com/Ascend/msmonitor/blob/26.2.0/docs/zh/install_guide/msmonitor_install_guide.md)》
 
   性能数据文件详情请参见[表 9 性能数据文件详情表](#性能数据文件详情表)。
 
@@ -244,7 +244,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
     |场景|卡数量|导入数据|界面展示|
     |--|--|--|--|
     |小集群|不超过32卡。|可导入采集到的全部原始数据。|时间线（Timeline）<br>内存（Memory）<br>算子（Operator）<br>概览（Summary）<br>通信（Communication）|
-    |大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 18** cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
+    |大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 18** cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
 
     如果在大集群场景下，直接导入性能调优工具采集的全部原始数据，解析耗时较长，不建议直接导入。
 
@@ -252,7 +252,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 
 集群场景下，需要先使用性能调优工具采集各Rank的性能数据，再通过msprof-analyze工具对多Rank数据进行预处理，生成集群分析数据后导入MindStudio Insight工具进行可视化展示。
 
-> 以下内容来源于《[msprof-analyze工具](https://gitcode.com/Ascend/msprof-analyze/blob/master/README.md)》文档，如有更新请以源文档为准。
+> 以下内容来源于《[msprof-analyze工具](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/README.md)》文档，如有更新请以源文档为准。
 
 1. 安装msprof-analyze工具。
 
@@ -461,7 +461,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 
 - 集群精简数据，是基于ascend\_pytorch\_profiler\_\{_rank\_id_\}.db文件，提取通信类大算子数据，计算类关键函数和框架关键函数，将数据精简，节约内存，快速进行全局分析，导入集群精简数据后，MindStudio Insight工具只显示时间线（Timeline）界面。
 
-    集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考《[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)》，设置`-m filter_db`可参考《[recipe结果和cluster\_analysis.db交付件表结构说明](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)》中的“filter\_db”内容，集群数据精简功能只支持统一db场景。
+    集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考《[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.2.0/docs/zh/install_guide/msprof-analyze_install_guide.md)》，设置`-m filter_db`可参考《[recipe结果和cluster\_analysis.db交付件表结构说明](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)》中的“filter\_db”内容，集群数据精简功能只支持统一db场景。
 
 ## 时间线（Timeline）<a id="timeline"></a>
 
@@ -2842,4 +2842,4 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 MindStudio Insight工具提供了一套完整的数据采集和转化脚本，能够采集Linux Kernel ftrace数据，并将其转换为支持的json文件格式；同时，该工具还支持将转换后的Linux Kernel ftrace数据和Profiling的数据同时导入，实现在同一界面展示两种数据，便于联合分析，从而提高Host Bound问题定位的效率。
 
-Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.md)》。
+Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.md)》。

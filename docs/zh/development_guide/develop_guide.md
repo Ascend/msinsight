@@ -54,7 +54,7 @@
 | cluster | 概览（summary）、通信（communication） |
 | compute | 算子调优 |
 | framework | 基础功能（微前端基座） |
-| leaks | 内存泄露检查 |
+| leaks | 内存泄漏检查 |
 | memory | 内存 |
 | operator | 算子 |
 | reinforcement-learning | 强化学习 |
@@ -1205,7 +1205,7 @@ bash build/mindstudio_insight_gui_run.sh
 
 ##### Windows 环境
 
-- 安装依赖参考 [GUI 指导文档](https://gitcode.com/Ascend/msinsight/blob/master/e2e/README.md)
+- 安装依赖参考 [GUI 指导文档](https://gitcode.com/Ascend/msinsight/blob/26.2.0/e2e/README.md)
 
 ```bash
 cd e2e
@@ -1256,7 +1256,7 @@ npm run test:smoke
 
 ### 5.3 PR 模板
 
-请遵循 [Pull Request 模板](https://gitcode.com/Ascend/msinsight/blob/master/.gitcode/PULL_REQUEST_TEMPLATE.md) 填写以下内容：
+请遵循 [Pull Request 模板](https://gitcode.com/Ascend/msinsight/blob/26.2.0/.gitcode/PULL_REQUEST_TEMPLATE.md) 填写以下内容：
 
 - **PR 描述**：说明变更内容和变更原因，关联 issue 号（如有）
 - **面向用户的变更**：是否包含 API、UI 或其他行为变更

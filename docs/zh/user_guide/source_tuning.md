@@ -54,7 +54,7 @@ AscendC是SPMD模型，即多个核心上运行同一份kernel，用block_idx处
 
 **MTE2瓶颈**：CopyIn瓶颈
 
-MTE2主要负责将数据从GM、L2中将数据搬入L1、L0A/L0B，UB中， 如果流水图中MTE2长，计算流中空泡多，说明数据供给赶不上。
+MTE2主要负责将数据从GM、L2中搬入L1、L0A/L0B，UB中， 如果流水图中MTE2长，计算流中空泡多，说明数据供给赶不上。
 
 ```mermaid
 flowchart TD
