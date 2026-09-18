@@ -87,10 +87,40 @@ fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
 }
 
 fn terminate_server(child: &mut Child) {
-    let _ = child.kill();
-    let _ = child.wait();
+    let pid = child.id();
+    tracing::info!(
+        target: "msinsight_platform",
+        event = "backend_stop_requested",
+        pid
+    );
+    let kill_result = child.kill();
+    let wait_result = child.wait();
+    // u32::MAX 表示当前没有可清理的后端进程，避免关闭流程重复使用旧 PID。
     unsafe {
         PID = u32::MAX;
+    }
+
+    match (kill_result, wait_result) {
+        (Ok(()), Ok(status)) => tracing::info!(
+            target: "msinsight_platform",
+            event = "backend_stopped",
+            pid,
+            status = %status
+        ),
+        (Err(error), _) => tracing::error!(
+            target: "msinsight_platform",
+            event = "backend_stop_failed",
+            pid,
+            reason = "kill_failed",
+            error = %error
+        ),
+        (_, Err(error)) => tracing::error!(
+            target: "msinsight_platform",
+            event = "backend_stop_failed",
+            pid,
+            reason = "wait_failed",
+            error = %error
+        ),
     }
 }
 
