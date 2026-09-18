@@ -19,7 +19,7 @@ import * as echarts from 'echarts';
 
 import type { Session } from '../../entity/session';
 import React, { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Translation, useTranslation } from 'react-i18next';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { getBaselineName, getCompareName, Loading } from '../Common';
@@ -1267,11 +1267,11 @@ const CommunicationTimeAnalysisChart = observer(({
             notification.open({
                 key,
                 className: 'tail-align-notification',
-                message: i18n.t('alignment.tipTitle', { ns: 'communication' }),
-                description: i18n.t('alignment.tipDescription', { ns: 'communication' }),
+                message: <Translation ns="communication">{t => t('alignment.tipTitle')}</Translation>,
+                description: <Translation ns="communication">{t => t('alignment.tipDescription')}</Translation>,
                 btn: (
                     <Button size="small" onClick={() => notification.close(key)}>
-                        {i18n.t('alignment.dismiss', { ns: 'communication' })}
+                        <Translation ns="communication">{t => t('alignment.dismiss')}</Translation>
                     </Button>
                 ),
                 duration: 5,
