@@ -2108,10 +2108,10 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
                 child->children.insert(child->children.end(), std::make_move_iterator(afterPytorch.begin()),
                     std::make_move_iterator(afterPytorch.end()));
             }
-            processChildren.emplace_back(std::move(child));
             if (pythonStack != nullptr) {
                 processChildren.emplace_back(std::move(pythonStack));
             }
+            processChildren.emplace_back(std::move(child));
         }
         process->children = std::move(processChildren);
     }
