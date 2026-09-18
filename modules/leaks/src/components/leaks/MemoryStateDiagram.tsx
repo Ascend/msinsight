@@ -284,11 +284,16 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     };
 
     const getAllEventListData = async (session: Session): Promise<void> => {
+        if (session.module !== 'memsnapshot' || session.deviceId === '') return;
+        const { deviceId, deviceIds, fileHash, selectedSliceIndex } = session;
         runInAction(() => {
             session.loadingState = true;
         });
         currentRequestId = ++currentRequestId % 1000;
         const requestId = currentRequestId;
+        const isCurrentRequest = (): boolean => requestId === currentRequestId &&
+            session.module === 'memsnapshot' && session.deviceId === deviceId && session.deviceIds === deviceIds &&
+            session.fileHash === fileHash && session.selectedSliceIndex === selectedSliceIndex;
 
         let currentDataCount = 0;
         let currentPage = 1; // 初始页码设为 1
@@ -297,18 +302,18 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         let hasSwitchedToLargePage = false; // 标志位，表示是否已经切换到大页模式
 
         do {
-            if (requestId !== currentRequestId) {
+            if (!isCurrentRequest()) {
                 return;
             }
 
             const res = await getSnapshotEvent({
-                deviceId: session.deviceId,
+                deviceId,
                 currentPage,
                 pageSize,
-                sliceIndex: session.selectedSliceIndex,
+                sliceIndex: selectedSliceIndex,
             });
 
-            if (requestId !== currentRequestId) {
+            if (!isCurrentRequest()) {
                 return;
             }
 
@@ -359,6 +364,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     };
 
     const setMemoryStateData = (): void => {
+        if (session.module !== 'memsnapshot' || session.deviceId === '') return;
         const currentRow = dataSource[currentSelectRow];
         if (currentRow === undefined) {
             workerSetMemoryStateData({ data: [] });
@@ -400,7 +406,11 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         workerSetMemoryStateData({ data: [] });
         if (!blockLoadReady) return;
         getAllEventListData(session);
-    }, [session.deviceId, session.selectedSliceIndex, deviceIdsSignature, blockLoadReady]);
+        return () => {
+            currentRequestId++;
+        };
+    }, [session.fileHash, session.module, session.deviceIds, session.deviceId,
+        session.selectedSliceIndex, deviceIdsSignature, blockLoadReady]);
 
     useEffect(() => {
         const result = getMatchedIndexes();
