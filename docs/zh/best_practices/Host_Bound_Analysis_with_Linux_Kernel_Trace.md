@@ -6,7 +6,7 @@
 
 ![Host Bound 空泡示例](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/host-bound-bubble.png)
 
-分析 Host Bound 问题时，通常需要采集 Linux Kernel ftrace 数据来观察 CPU 上的进程调度情况。MindStudio Insight 提供了 [`ftrace_tools`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md)，其中 `trace_record.py` 用于采集 ftrace 数据，`trace_convert.py` 用于转换数据格式，`trace_analyze.py` 用于离线统计分析。这些脚本支持将 ftrace 数据与 Profiling 数据导入同一工程进行联合分析。
+分析 Host Bound 问题时，通常需要采集 Linux Kernel ftrace 数据来观察 CPU 上的进程调度情况。MindStudio Insight 提供了 [`ftrace_tools`](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md)，其中 `trace_record.py` 用于采集 ftrace 数据，`trace_convert.py` 用于转换数据格式，`trace_analyze.py` 用于离线统计分析。这些脚本支持将 ftrace 数据与 Profiling 数据导入同一工程进行联合分析。
 
 ## 定位思路
 
@@ -15,13 +15,13 @@
 3. 将原始 ftrace 数据优先转换为 MindStudio Insight 可导入的 SQLite DB；仅在已有 JSON 数据、需要 Chrome Trace JSON，或外部工具只支持 JSON 时使用 JSON 格式。
 4. 将转换后的 ftrace 数据和 Profiling 数据导入同一工程，结合 CPU Scheduling、Process Scheduling 和 Profiling 视图分析任务调度情况。
 
-> 容器场景下，推荐在宿主机采集 ftrace、在业务容器内采集 Profiling，两类数据无需在同一容器内采集。普通非特权容器通常无法直接采集 ftrace；若必须在容器内采集，需要满足额外的权限和 tracing 文件系统挂载要求，具体参见 [`ftrace_tools` README 的常见问题 8.5](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md#85-能否在容器内直接使用-ftrace-采集能力)。如果业务容器未使用宿主机 PID 命名空间，还需要按[容器场景采集](#4-容器场景采集)中的说明完成 PID 映射。
+> 容器场景下，推荐在宿主机采集 ftrace、在业务容器内采集 Profiling，两类数据无需在同一容器内采集。普通非特权容器通常无法直接采集 ftrace；若必须在容器内采集，需要满足额外的权限和 tracing 文件系统挂载要求，具体参见 [`ftrace_tools` README 的常见问题 8.5](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md#85-能否在容器内直接使用-ftrace-采集能力)。如果业务容器未使用宿主机 PID 命名空间，还需要按[容器场景采集](#4-容器场景采集)中的说明完成 PID 映射。
 
 ## 模型 Profiling 数据采集
 
 Profiling 数据采集方法请参考以下文档：
 
-- [MindStudio Profiler 工具指南](https://gitcode.com/Ascend/msprof/blob/master/README.md)
+- [MindStudio Profiler 工具指南](https://gitcode.com/Ascend/msprof/blob/26.2.0/README.md)
 - [msprof 采集通用命令](https://www.hiascend.com/document/detail/zh/canncommercial/latest/devaids/Profiling/atlasprofiling_16_0010.html)
 - [PyTorch 训练/在线推理场景性能分析](https://www.hiascend.com/document/detail/zh/canncommercial/latest/devaids/Profiling/atlasprofiling_16_0006.html)
 
@@ -73,8 +73,8 @@ ftrace 通常通过 tracefs 这一虚拟文件系统提供控制接口和跟踪�
 
 - 使用 Python 3.10 或更高版本。
 - 使用具备 ftrace 控制权限的 `root` 用户运行采集脚本。
-- 从 MindStudio Insight 仓库获取 [`scripts/ftrace_tools`](https://gitcode.com/Ascend/msinsight/tree/master/scripts/ftrace_tools) 目录中的脚本。
-- `trace-cmd` 是可选依赖，但本案例强烈推荐安装。脚本内置了回退方案：默认优先使用 `trace-cmd`，不可用时回退到直接读写 tracing 文件系统。回退方案的采集与转换方法请参见 [`ftrace_tools` README](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md)。
+- 从 MindStudio Insight 仓库获取 [`scripts/ftrace_tools`](https://gitcode.com/Ascend/msinsight/tree/26.2.0/scripts/ftrace_tools) 目录中的脚本。
+- `trace-cmd` 是可选依赖，但本案例强烈推荐安装。脚本内置了回退方案：默认优先使用 `trace-cmd`，不可用时回退到直接读写 tracing 文件系统。回退方案的采集与转换方法请参见 [`ftrace_tools` README](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md)。
 
 如需安装 `trace-cmd`，可执行：
 
@@ -96,17 +96,17 @@ sudo python trace_record.py --record_time=30 --cpu=0-15 --output=trace.dat
 
 在该采集窗口内启动业务并采集 Profiling 数据，确保两类数据的时间段重合。业务运行时间不确定时，可以设置 `--record_time=-1` 持续采集，待业务和 Profiling 采集结束后按 `Ctrl+C` 停止。
 
-完整参数、后端差异和事件丢失处理方法请参见 [`ftrace_tools` README 的“采集 ftrace 数据”章节](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md#3-采集-ftrace-数据)。
+完整参数、后端差异和事件丢失处理方法请参见 [`ftrace_tools` README 的“采集 ftrace 数据”章节](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md#3-采集-ftrace-数据)。
 
 ### 4. 容器场景采集
 
 推荐在宿主机采集 ftrace，在业务容器内采集 Profiling。如果容器未使用宿主机 PID 命名空间，需要在业务进程启动后，由能够看到宿主机 `/proc` 的采集端使用 `--NSpid` 生成 PID 映射，并在转换时通过 `--pid_mapping` 传入 `pid_mapping.json`。命令行参数 `--NSpid` 只在采集开始时扫描一次，因此启动 ftrace 前需要确保待映射的业务进程已经存在；如果业务进程会在采集期间动态创建，可使用程序化持续映射接口，具体用法参见下方 README 链接。
 
-容器内采集的权限和挂载要求、PID 映射命令及使用限制，请参见 [`ftrace_tools` README 的“容器 PID 映射”章节](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md#43-容器-pid-映射)和[常见问题 8.5](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md#85-能否在容器内直接使用-ftrace-采集能力)。
+容器内采集的权限和挂载要求、PID 映射命令及使用限制，请参见 [`ftrace_tools` README 的“容器 PID 映射”章节](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md#43-容器-pid-映射)和[常见问题 8.5](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md#85-能否在容器内直接使用-ftrace-采集能力)。
 
 ## ftrace 数据转换
 
-`trace_convert.py` 会解析原始 ftrace 数据，并导出 SQLite DB 或 Chrome Trace JSON。MindStudio Insight 联合分析推荐使用默认的 SQLite DB；JSON 主要用于兼容已有 JSON 数据、Chrome Trace JSON 或仅支持 JSON 的外部工具。完整参数和格式约束请参见 [`ftrace_tools` README 的“转换 ftrace 数据”章节](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md#4-转换-ftrace-数据)。
+`trace_convert.py` 会解析原始 ftrace 数据，并导出 SQLite DB 或 Chrome Trace JSON。MindStudio Insight 联合分析推荐使用默认的 SQLite DB；JSON 主要用于兼容已有 JSON 数据、Chrome Trace JSON 或仅支持 JSON 的外部工具。完整参数和格式约束请参见 [`ftrace_tools` README 的“转换 ftrace 数据”章节](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/ReadMe.zh-CN.md#4-转换-ftrace-数据)。
 
 例如，Profiling 数据位于 `result_dir/ctl_1418857_20251025030529768_ascend_pt`，`trace-cmd` 输出位于 `result_dir/trace.dat` 时，推荐的 DB 转换命令如下：
 
@@ -124,7 +124,7 @@ python trace_convert.py \
 
 ### 1. 场景与数据采集
 
-本次实验运行 vLLM 推理，并启动 32 个名为 `hb_hog00`～`hb_hog31` 的周期性 CPU 密集型任务。每个 `hb_hog*` 以 500 ms 为一个周期，其中约 400 ms 执行整数计算、约 100 ms 等待，从而形成重复的 CPU 忙碌区间。完整的 Fault/Fixed 构造、vLLM Profiling 启停、PID/TID 元数据记录和 `trace_marker` 标记逻辑，请参见 [`host_bound_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/examples/host_bound_fault_lab.py)。
+本次实验运行 vLLM 推理，并启动 32 个名为 `hb_hog00`～`hb_hog31` 的周期性 CPU 密集型任务。每个 `hb_hog*` 以 500 ms 为一个周期，其中约 400 ms 执行整数计算、约 100 ms 等待，从而形成重复的 CPU 忙碌区间。完整的 Fault/Fixed 构造、vLLM Profiling 启停、PID/TID 元数据记录和 `trace_marker` 标记逻辑，请参见 [`host_bound_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/examples/host_bound_fault_lab.py)。
 
 Python 主进程在导入 vLLM 和初始化模型前，调用 `os.sched_setaffinity(0, set(workload_cpus))` 将当前主线程限制到 `--workload-cpus` 指定的 CPU 集合，`--workload-cpus` 和 `--hog-cpus` 接受 Linux CPU-list 写法，例如 `120-127` 或 `120-123,128-131`，区间端点均包含在内。随后创建的 vLLM 进程和线程通常会初始继承这一 CPU 亲和性。
 
@@ -294,7 +294,7 @@ Process Scheduling 中的 `Runnable` 表示任务已经具备运行条件，但�
 
 ## 联合分析案例：定位网络 SoftIRQ 导致的 Host Bound
 
-本案例将构造即使用户态进程与 vLLM 工作核隔离，其引发的 `NET_RX` SoftIRQ 与 vLLM 关键任务共享 CPU 的场景，用于展示 SoftIRQ 直接占用 vLLM 工作核时较为隐蔽的 Host Bound。完整的 Fault/Fixed 构造、RPS 配置与恢复、vLLM Profiling 启停、SoftIRQ 统计和 `trace_marker` 标记逻辑，请参见 [`vllm_softirq_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py)。
+本案例将构造即使用户态进程与 vLLM 工作核隔离，其引发的 `NET_RX` SoftIRQ 与 vLLM 关键任务共享 CPU 的场景，用于展示 SoftIRQ 直接占用 vLLM 工作核时较为隐蔽的 Host Bound。完整的 Fault/Fixed 构造、RPS 配置与恢复、vLLM Profiling 启停、SoftIRQ 统计和 `trace_marker` 标记逻辑，请参见 [`vllm_softirq_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/26.2.0/scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py)。
 
 ### 1. 场景与数据采集
 

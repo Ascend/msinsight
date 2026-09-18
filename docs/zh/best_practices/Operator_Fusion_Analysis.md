@@ -43,7 +43,7 @@ Ascend C 提供了两种编程风格的 MatmulLeakyRelu 融合算子实现：
   source ${install_path}/cann/set_env.sh
   ```
 
-- 安装 msOpProf 算子调优工具，具体步骤请参见 [msOpProf 安装指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/install_guide/msopprof_install_guide.md)。
+- 安装 msOpProf 算子调优工具，具体步骤请参见 [msOpProf 安装指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/install_guide/msopprof_install_guide.md)。
 - 安装 MindStudio Insight 工具，具体步骤请参见 [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)。
 
 ### 获取并编译示例代码

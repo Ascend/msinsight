@@ -42,7 +42,7 @@ MindStudio Insight工具以图形化形式呈现device侧内存详细分配情�
 pip install msmemscope
 ```
 
-更多安装方式请参见[msMemScope工具安装指南](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/install%5Fguide/install%5Fguide.md)。
+更多安装方式请参见[msMemScope工具安装指南](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/install%5Fguide/install%5Fguide.md)。
 
 **数据采集**
 
@@ -51,14 +51,14 @@ pip install msmemscope
 | 采集方式 | 适用场景 | 采集命令示例 | 生成文件 |
 | --- | --- | --- | --- |
 | 命令行采集 | 通用命令行方式，适用于多种框架 | `msmemscope --output=./output python train.py` | memscope_dump_{timestamp}.db |
-| Python接口采集 | 需要自定义采集范围和参数项 | 参见[msMemScope Python接口采集](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#python接口采集功能介绍) | memscope_dump_{timestamp}.db |
-| mstx打点采集 | 结合mstx打点能力 | 参见[msMemScope mstx打点采集](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#mstx打点采集功能介绍) | memscope_dump_{timestamp}.db |
+| Python接口采集 | 需要自定义采集范围和参数项 | 参见[msMemScope Python接口采集](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/user%5Fguide/memory%5Fprofile.md#python接口采集功能介绍) | memscope_dump_{timestamp}.db |
+| mstx打点采集 | 结合mstx打点能力 | 参见[msMemScope mstx打点采集](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/user%5Fguide/memory%5Fprofile.md#mstx打点采集功能介绍) | memscope_dump_{timestamp}.db |
 
 > [!NOTE] 说明
 >
 > - `--events` 参数取值需至少包含 `alloc`、`free` 事件，否则无法生成内存块生命周期图。
 > - `--analysis` 参数取值包含 `decompose` 时，才会生成内存详情拆解图。
-> - 更多采集参数和用法请参见[msMemScope用户指南](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md)。
+> - 更多采集参数和用法请参见[msMemScope用户指南](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/user%5Fguide/memory%5Fprofile.md)。
 
 **数据导入**
 
@@ -107,7 +107,7 @@ torch_npu.npu.memory._dump_snapshot("model_memory_snapshot.pickle")
 
 ### MemScope 数据说明
 
-支持导入msMemScope工具采集到的db格式的内存结果文件，并以图形化形式呈现相关内容。db文件获取方式请参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”，支持导入的内存数据详情请参见[**表 1**  数据可视化依赖说明](#数据可视化依赖说明)。
+支持导入msMemScope工具采集到的db格式的内存结果文件，并以图形化形式呈现相关内容。db文件获取方式请参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”，支持导入的内存数据详情请参见[**表 1**  数据可视化依赖说明](#数据可视化依赖说明)。
 
 **表 1**  数据可视化依赖说明<a id="数据可视化依赖说明"></a>
 
@@ -327,7 +327,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
 
     > [!NOTE] 说明
     >
-    > 事件类型、事件子类型和名称字段的取值可参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”章节的msmemscope\_dump\_\{timestamp\}.csv结果文件说明。
+    > 事件类型、事件子类型和名称字段的取值可参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”章节的msmemscope\_dump\_\{timestamp\}.csv结果文件说明。
 
 - 选中详情：展示内存块的详细信息，如[**图 6**  选中详情](#选中详情)所示。
 
@@ -516,7 +516,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     > [!NOTE] 说明
     >
-    > 事件类型、事件子类型和名称字段的取值可参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”章节的memscope\_dump\_\{timestamp\}.csv结果文件说明。
+    > 事件类型、事件子类型和名称字段的取值可参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”章节的memscope\_dump\_\{timestamp\}.csv结果文件说明。
 
 - 选中详情：支持查看多个详情信息，可通过点击内存块生命周期图中的色块，内存池状态图左侧事件列表的事件以及内存池状态图中的色块查看详情信息。详情信息主要分为以下三类，包括：
   - 事件类型选中详情，如[**图 11**  事件类型选中详情](#事件类型选中详情)所示，字段解释如[**表 3**  事件类型选中详情字段说明](#事件类型选中详情字段说明)所示，基础事件信息在左侧区域呈现，具体事件信息可切换事件类型查看。
@@ -620,7 +620,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 **准备软件**
 
 - 下载MindStudio Insight工具并安装，请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)。
-- 安装msMemScope工具，安装操作请参见[msMemScope工具安装指南](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/install%5Fguide/install%5Fguide.md)。
+- 安装msMemScope工具，安装操作请参见[msMemScope工具安装指南](https://gitcode.com/Ascend/msmemscope/blob/26.2.0/docs/zh/install%5Fguide/install%5Fguide.md)。
 
 **准备数据**
 

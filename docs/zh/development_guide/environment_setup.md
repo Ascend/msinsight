@@ -631,7 +631,7 @@ python3 preprocess_third_party.py
 
 **Step 2. 指定 APP 签名证书（可选）**
 
-> 注意：请您确保已阅读并知悉 [LICENSE](https://gitcode.com/Ascend/msinsight/blob/master/docs/LICENSE) 要求。
+> 注意：请您确保已阅读并知悉 [LICENSE](https://gitcode.com/Ascend/msinsight/blob/26.2.0/docs/LICENSE) 要求。
 
 Insight macOS ARM 版本在构建出包时，会对产物 APP 进行 macOS 开发者证书签名。您可以通过环境变量配置签名证书。如不指定，缺省时使用临时证书签名，可能导致产物无法通过网络分发（本地调试运行不受影响）。
 

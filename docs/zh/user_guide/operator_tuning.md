@@ -19,7 +19,7 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 **环境准备**
 
 1. 安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)。
-2. 安装msOpProf算子调优工具，具体安装步骤请参见[msOpProf安装指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/install_guide/msopprof_install_guide.md)。
+2. 安装msOpProf算子调优工具，具体安装步骤请参见[msOpProf安装指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/install_guide/msopprof_install_guide.md)。
 
 **数据采集**
 
@@ -34,7 +34,7 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 >
 > - 上板采集需要真实NPU环境，仿真采集无需NPU但需指定芯片型号（`--soc-version`），可通过 `python3 -c "import acl; print(acl.get_soc_name())"` 获取。
 > - 两种模式互补，建议结合使用：上板采集获取真实性能数据，仿真采集获取指令级详细数据。
-> - 更多采集参数和用法请参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_simulator_user_guide.md)。
+> - 更多采集参数和用法请参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_simulator_user_guide.md)。
 
 **数据导入**
 
@@ -50,11 +50,11 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 
 |显示界面|文件名|说明|文件获取方式|
 |--|--|--|--|
-|时间线（Timeline）|trace.json|算子仿真指令流水图文件。|仅仿真模式。参见[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
-|时间线（Timeline）|visualize_data.bin|指令流水图可视化呈现文件。|上板+仿真模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
-|详情（Details）|visualize_data.bin|算子基础信息、计算单元负载和Roofline瓶颈分析等信息的可视化呈现文件。|仅上板模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)。|
-|源码（Source）|visualize_data.bin|仿真热点函数等信息可视化呈现文件。|上板+仿真模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
-|缓存（Cache）|visualize_data.bin|用户程序Kernel函数内的L2 Cache访问信息可视化呈现文件。|仅上板模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)。|
+|时间线（Timeline）|trace.json|算子仿真指令流水图文件。|仅仿真模式。参见[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
+|时间线（Timeline）|visualize_data.bin|指令流水图可视化呈现文件。|上板+仿真模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
+|详情（Details）|visualize_data.bin|算子基础信息、计算单元负载和Roofline瓶颈分析等信息的可视化呈现文件。|仅上板模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_user_guide.md)。|
+|源码（Source）|visualize_data.bin|仿真热点函数等信息可视化呈现文件。|上板+仿真模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
+|缓存（Cache）|visualize_data.bin|用户程序Kernel函数内的L2 Cache访问信息可视化呈现文件。|仅上板模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_user_guide.md)。|
 
 > [!NOTE] 说明
 > 同一个`visualize_data.bin`文件可同时包含多种可视化数据，导入后MindStudio Insight会自动识别并在对应界面展示。不同界面展示的数据内容取决于采集时使用的msopprof模式和参数。
