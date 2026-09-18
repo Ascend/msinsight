@@ -16,13 +16,21 @@
  * -------------------------------------------------------------------------
  */
 
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener};
+use std::{
+    net::{
+        Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6,
+        TcpListener, TcpStream,
+    },
+    time::Duration,
+};
 
 /// Inclusive local frontend-backend port range used by the desktop app.
 pub const FRONTEND_BACKEND_PORT_START: u16 = 9000;
 pub const FRONTEND_BACKEND_PORT_END: u16 = 9100;
 
 pub const NO_AVAILABLE_PORT_DIALOG_TITLE: &str = "Startup Failed";
+
+const SERVER_CONNECT_TIMEOUT: Duration = Duration::from_millis(50);
 
 pub fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
     // 探测系统是否支持 IPv6 loopback 绑定：若不支持则仅检测 IPv4，避免在禁用 IPv6 的环境失效
@@ -54,6 +62,19 @@ pub fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
     }
 
     None
+}
+
+/// Checks transport readiness only; the caller must also verify that the
+/// backend process it spawned is still alive.
+pub fn server_is_ready(port: u16) -> bool {
+    [
+        SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0)),
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)),
+    ]
+    .iter()
+    .any(|address| {
+        TcpStream::connect_timeout(address, SERVER_CONNECT_TIMEOUT).is_ok()
+    })
 }
 
 /// A Linux dialog tool counts as shown once it starts.
@@ -189,5 +210,24 @@ mod tests {
 
         let found = find_first_available_port(port, port);
         assert_eq!(found, Some(port));
+    }
+
+    #[test]
+    fn detects_ready_ipv4_server() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .expect("bind an ephemeral IPv4 loopback port");
+        let port = listener.local_addr().expect("read bound port").port();
+
+        assert!(server_is_ready(port));
+    }
+
+    #[test]
+    fn detects_ready_ipv6_server_when_supported() {
+        let Ok(listener) = TcpListener::bind((Ipv6Addr::LOCALHOST, 0)) else {
+            return;
+        };
+        let port = listener.local_addr().expect("read bound port").port();
+
+        assert!(server_is_ready(port));
     }
 }
