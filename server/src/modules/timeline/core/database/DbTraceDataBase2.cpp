@@ -550,18 +550,18 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
 
 bool DbTraceDataBase::AssembleUnitFlowOfTypeAsyncTaskQueue(const std::vector<FlowLocation> &pytorchFlowLocationList,
     const std::string &connectionId, Protocol::UnitFlowsBody &responseBody) {
-    // async_task_queue是PyTorch和PyTorch连线，要求PyTorch同connectionId算子至少有2个
-    if (pytorchFlowLocationList.size() < 2) {
+    std::vector<FlowLocation> queueFlowLocations;
+    for (const auto &location : pytorchFlowLocationList) {
+        if (StringUtil::StartWith(location.name, "Enqueue") || StringUtil::StartWith(location.name, "Dequeue")) {
+            queueFlowLocations.emplace_back(location);
+        }
+    }
+    // async_task_queue类型连线只允许Enqueue和Dequeue一对一
+    if (queueFlowLocations.size() < 2) {
         return false;
     }
-    // async_task_queue类型连线只允许一对一
-    if (!StringUtil::StartWith(pytorchFlowLocationList[0].name, "Enqueue")) {
-        return false;
-    }
-    UnitSingleFlow singleFlow{.cat = "async_task_queue",
-        .id = connectionId,
-        .from = pytorchFlowLocationList[0],
-        .to = pytorchFlowLocationList[1]};
+    UnitSingleFlow singleFlow{
+        .cat = "async_task_queue", .id = connectionId, .from = queueFlowLocations[0], .to = queueFlowLocations[1]};
     std::vector<UnitSingleFlow> flows{singleFlow};
     responseBody.unitAllFlows.push_back({.cat = singleFlow.cat, .flows = flows});
     return true;

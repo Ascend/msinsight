@@ -386,7 +386,8 @@ class DbSqlDefs {
                    " join operateConnIds on api.connectionId = operateConnIds.connectionId ");
         sql.append(" union select api.connectionId, 'async_npu' as cat from CONNECTION_IDS api " // pytorch侧
                    " join operateConnIds on api.connectionId = operateConnIds.connectionId union "
-                   " select conn.connectionId, case when ids.value like 'Enqueue%' then 'async_task_queue'"
+                   " select conn.connectionId, case when count(case when ids.value like 'Enqueue%' "
+                   " or ids.value like 'Dequeue%' then 1 end) > 1 then 'async_task_queue'"
                    " else 'fwdbwd' end as cat from CONNECTION_IDS conn join PYTORCH_API PA "
                    " on conn.id = PA.connectionId join STRING_IDS ids on ids.id = PA.name "
                    " group by conn.connectionId having count(1) > 1 ");
