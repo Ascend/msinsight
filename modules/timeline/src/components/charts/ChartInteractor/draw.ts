@@ -25,7 +25,6 @@ import { THUMB_WIDTH_PX } from '../../base';
 import { getTextParser } from '../TimelineAxis';
 import { TIME_LINE_AXIS_HEIGHT_PX } from '../../ChartContainer/ChartContainer';
 import type { DataBlock, FlowEvent } from '../../FilterLinkLine';
-import { hashToNumber } from '../../../utils/colorUtils';
 import { ChartDesc, UnitHeight } from '../../../entity/insight';
 import type { InsightUnit } from '../../../entity/insight';
 import {
@@ -37,7 +36,7 @@ import {
     getLaneThreadIdentityCandidates,
     type ThreadMetaData,
 } from '../../../entity/data';
-import { buildCardIdIndex, type CardIdIndex, colorPalette } from '../../../insight/units/utils';
+import { buildCardIdIndex, type CardIdIndex, getLinkLineColor } from '../../../insight/units/utils';
 import { handlerEmptyString } from '../../../utils/string';
 import { forEach, isNil } from 'lodash';
 import { calculateLinkLines, LinkLineData, checkIsValidArrow } from './calculateLinkLines';
@@ -798,7 +797,7 @@ export function checkLineIsVisible(data: Record<string, unknown>, checkedCategor
 function drawLinkLinesByLayer({ ctx, rawList, theme, session, category, units, cardIdIndex }: DrawLinesByLayerParams): void {
     const linkLineMap = calculateLinkLines(rawList, session, ctx, category, units, cardIdIndex);
     const sortedKeys = Object.keys(linkLineMap).sort((a, b) => Number(a) - Number(b));
-    const strokeStyle = theme.colorPalette[colorPalette[hashToNumber(category, colorPalette.length)]];
+    const strokeStyle = getLinkLineColor(category, theme);
     forEach(sortedKeys, (key) => batchDrawLinkLines(ctx, linkLineMap[key], strokeStyle, theme.selectedChartColor));
 }
 
