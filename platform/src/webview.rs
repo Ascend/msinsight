@@ -21,6 +21,7 @@ mod cleanup;
 pub mod webview2err;
 
 use crate::logging::RustLogLevel;
+use crate::resource::resolve_resource_path;
 use std::{borrow::Cow, fs::read, path::PathBuf, sync::Arc, process::Command};
 use std::path::Path;
 #[cfg(target_os = "macos")]
@@ -76,7 +77,19 @@ fn create_webview(
             let path = request.uri().path();
             let resource_name =
                 resource_name_for_log(path).unwrap_or("<redacted>");
-            let content = match read(resource_path.join(&path[1..]).as_path()) {
+            let resource = match resolve_resource_path(&resource_path, path) {
+                Ok(resource) => resource,
+                Err(_) => {
+                    tracing::warn!(
+                        target: "msinsight_platform",
+                        event = "resource_read_failed",
+                        resource_name,
+                        reason = "invalid_path"
+                    );
+                    return build_protocol_response(404, MIMETYPE_HTML, Cow::Borrowed(b"Not Found".as_slice()));
+                }
+            };
+            let content = match read(resource) {
                 Ok(content) => Cow::Owned(content),
                 Err(_) => {
                     tracing::warn!(
