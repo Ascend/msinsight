@@ -22,6 +22,7 @@ import {
     getTimeOffset as getCategoryTimeOffset,
     type CardIdIndex,
 } from './offset';
+import { hashToNumber } from '../../utils/colorUtils';
 
 export { buildCardIdIndex } from './offset';
 export type { CardIdIndex } from './offset';
@@ -40,6 +41,12 @@ export const colorPalette: Array<keyof Theme['colorPalette']> = [
     'amethystPurple',
     'limeGreen',
 ];
+
+export function getLinkLineColor(category: string, theme: Theme): string {
+    const colorKey = colorPalette[hashToNumber(category, colorPalette.length)];
+    return theme.colorPalette[colorKey];
+}
+
 export function getTimeOffset(session: Session, metaData: { cardId?: string; processId?: string; metaType?: string }, units: InsightUnit[] = [],
     timestampOffset?: Record<string, number>, cardIdIndex?: CardIdIndex): number {
     return getCategoryTimeOffset(session, metaData, units, timestampOffset, cardIdIndex);
