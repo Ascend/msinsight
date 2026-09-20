@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { useTheme } from '@emotion/react';
 import _, { debounce } from 'lodash';
 import { Button, Checkbox, Input, Tooltip } from '@insight/lib/components';
 import { observer } from 'mobx-react';
@@ -29,7 +30,7 @@ import { action, runInAction } from 'mobx';
 import { type InsightUnit, type LinkLines, ProjectType } from '../entity/insight';
 import { buildSingleLinkLines, CardUnit, normalizeCategoryFlowEvent, ProcessUnit } from '../insight/units/AscendUnit';
 import { customDebounce } from '../utils/customDebounce';
-import { getTimeOffset } from '../insight/units/utils';
+import { getLinkLineColor, getTimeOffset } from '../insight/units/utils';
 import {
     CardMetaData,
     getCardFlowQueryDbPaths,
@@ -75,9 +76,21 @@ const categoryMap: { [key: string]: string } = { MsTx: 'MSTX' };
 
 const FilterItem: React.FC<FilterItemProps> = observer(({ category, checkedCategories, setCheckedCategories, session }) => {
     const isChecked = checkedCategories.includes(category);
+    const categoryName = categoryMap[category] ?? category;
+    const categoryColor = getLinkLineColor(category, useTheme());
+    const categoryColorStyle: React.CSSProperties = {
+        display: 'inline-block',
+        width: 12,
+        height: 12,
+        marginRight: 8,
+        borderRadius: 3,
+        verticalAlign: -1,
+        backgroundColor: categoryColor,
+    };
+    const categoryLabel = <><span style={categoryColorStyle} />{categoryName}</>;
     if ((!session.isSimulation && checkedCategories.length >= 10) && !isChecked) {
         return (
-            <p style={{ marginBottom: 0 }}>
+            <p style={{ margin: '3px 0' }}>
                 <Checkbox
                     checked={false}
                     onChange={(): void => {
@@ -86,19 +99,19 @@ const FilterItem: React.FC<FilterItemProps> = observer(({ category, checkedCateg
                         });
                         message.warning(i18n.t('Line Warning', { ns: 'timeline' }));
                     }}>
-                    {categoryMap[category] ?? category}
+                    {categoryLabel}
                 </Checkbox>
             </p>
         );
     }
     return (
-        <p style={{ marginBottom: 0 }}>
+        <p style={{ margin: '3px 0' }}>
             <Checkbox
                 checked={isChecked}
                 onChange={(): void => {
                     setCheckedCategories(prev => isChecked ? prev.filter(cat => cat !== category) : prev.concat(category));
                 }}>
-                {categoryMap[category] ?? category}
+                {categoryLabel}
             </Checkbox>
         </p>
     );

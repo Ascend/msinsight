@@ -1950,6 +1950,97 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromMSTXToAscendHardware) {
     RestoreRepoFunc();
 }
 
+TEST_F(DbTraceDatabaseTest, TestInitConnectionCatsClassifiesDequeueAsAsyncTaskQueue) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE CANN_API(connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE COMMUNICATION_OP(connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE TASK(connectionId INTEGER, globalTaskId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE COMPUTE_TASK_INFO(globalTaskId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE CONNECTION_IDS(id INTEGER, connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE PYTORCH_API(connectionId INTEGER, name INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE STRING_IDS(id INTEGER, value TEXT);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE MSTX_EVENTS(connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO STRING_IDS VALUES (1, 'Dequeue@Conv2D'), (2, 'Dequeue@Relu');");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO PYTORCH_API VALUES (10, 1), (11, 2);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO CONNECTION_IDS VALUES (10, 99), (11, 99);");
+    database.SetDbPtr(db);
+
+    ASSERT_TRUE(database.InitConnectionCats());
+    std::vector<std::string> categories;
+    ASSERT_TRUE(database.QueryFlowCategoryList(categories, "0"));
+    ASSERT_EQ(categories.size(), 1);
+    EXPECT_EQ(categories[0], "async_task_queue");
+}
+
+TEST_F(DbTraceDatabaseTest, TestInitConnectionCatsClassifiesMixedQueueEndpointsAsAsyncTaskQueue) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE CANN_API(connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE COMMUNICATION_OP(connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE TASK(connectionId INTEGER, globalTaskId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE COMPUTE_TASK_INFO(globalTaskId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE CONNECTION_IDS(id INTEGER, connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE PYTORCH_API(connectionId INTEGER, name INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE STRING_IDS(id INTEGER, value TEXT);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE MSTX_EVENTS(connectionId INTEGER);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO STRING_IDS VALUES (1, 'ProfilerStep#8'), (2, 'Enqueue'), (3, 'Dequeue@Conv2D');");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO PYTORCH_API VALUES (10, 1), (11, 2), (12, 3);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO CONNECTION_IDS VALUES (10, 99), (11, 99), (12, 99);");
+    database.SetDbPtr(db);
+
+    ASSERT_TRUE(database.InitConnectionCats());
+    std::vector<std::string> categories;
+    ASSERT_TRUE(database.QueryFlowCategoryList(categories, "0"));
+    ASSERT_EQ(categories.size(), 1);
+    EXPECT_EQ(categories[0], "async_task_queue");
+}
+
+TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsClassifiesDequeueFirstAsAsyncTaskQueue) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_CONNECTION_IDS, TableName::DB_CANN_API,
+        TableName::DB_PYTORCH_API, TableName::DB_TASK, TableName::DB_NPU_INFO, TableName::DB_MSTX_EVENTS,
+        TableName::DB_COMMUNICATION_OP, TableName::DB_RANK_DEVICE_MAP, TableName::DB_STRING_IDS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO STRING_IDS(id, value) VALUES "
+        "(1, 'Dequeue@Conv2D'), (2, 'Enqueue'), (3, 'ProfilerStep#8');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO PYTORCH_API(startNs, endNs, globalTid, connectionId, name, type, depth) VALUES "
+        "(10, 60, 17738580008830245, 99, 3, 50002, 0), "
+        "(20, 40, 17738580008830245, 1, 1, 50002, 3), "
+        "(30, 50, 17738580008830245, 25, 2, 50002, 3);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO CONNECTION_IDS(id, connectionId) VALUES (1, 19), (25, 19), (99, 19);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NPU_INFO(id, name) VALUES (0, 'abc');");
+    DatabaseTestCaseMockUtil::InsertData(db, rankDeviceMapDataInsertForQueryUnitFlows);
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitFlowsParams requestParams;
+    requestParams.id = "1";
+    requestParams.metaType = "PYTORCH_API";
+    requestParams.rankId = "0";
+    Dic::Protocol::UnitFlowsBody responseBody;
+    MockNpuInfoRepoFunc();
+
+    ASSERT_TRUE(database.QueryUnitFlows(requestParams, responseBody, 0, 0));
+    ASSERT_EQ(responseBody.unitAllFlows.size(), 1);
+    EXPECT_EQ(responseBody.unitAllFlows[0].cat, "async_task_queue");
+    ASSERT_EQ(responseBody.unitAllFlows[0].flows.size(), 1);
+    EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].from.name, "Dequeue@Conv2D");
+    EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].to.name, "Enqueue");
+    RestoreRepoFunc();
+}
+
 // async_task_queue连线，修改前和修改后都能通过，只允许一对一，增加deque在前测试
 // fwdbwd连线，修改前和修改后都能通过，只允许一对一
 TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromPyTorchToPyTorchFlowTypeFwdBwd) {

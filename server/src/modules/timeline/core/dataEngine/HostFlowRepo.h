@@ -45,12 +45,12 @@ class HostFlowRepo {
     std::unique_ptr<CANNApiTable> cannApiTable = std::make_unique<CANNApiTable>();
     uint64_t QueryEnqueueNameId(const FlowQuery &flowQuery);
     std::vector<PytorchApiPO> QueryNotEnqueuePythonApi(const FlowQuery &flowQuery, uint64_t nameId);
+    std::vector<uint64_t> QueryNameIds(const FlowQuery &flowQuery, const std::string &namePattern);
+    std::vector<PytorchApiPO> QueryNonQueuePythonApi(
+        const FlowQuery &flowQuery, const std::vector<uint64_t> &queueNameIds);
     std::unordered_map<uint64_t, uint64_t> QueryConnectionIdMap(const FlowQuery &flowQuery);
-    std::vector<uint64_t> QueryEnqueueFlowConnectionIds(const FlowQuery &flowQuery, uint64_t nameId);
-    std::vector<uint64_t> QueryRealConnectionIds(
+    std::unordered_map<uint64_t, uint64_t> QueryConnectionIdMap(
         const FlowQuery &flowQuery, const std::vector<uint64_t> &pythonConnectionIds);
-    void QueryAllPythonConnectionIds(const FlowQuery &flowQuery, const std::vector<uint64_t> &realConnectionIds,
-        std::unordered_map<uint64_t, uint64_t> &connectionIdMap, std::vector<uint64_t> &allPythonConnectionIds);
 };
 }
 #endif // PROFILER_SERVER_HOSTFLOWREPO_H
