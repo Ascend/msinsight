@@ -21,6 +21,9 @@
 
 #[cfg(any(all(not(debug_assertions), feature = "default"), test))]
 mod local_port;
+#[cfg(any(all(not(debug_assertions), feature = "default"), test))]
+#[path = "webview/resource.rs"]
+mod resource;
 #[cfg(all(not(debug_assertions), feature = "default"))]
 mod default;
 #[cfg(all(not(debug_assertions), feature = "default"))]
