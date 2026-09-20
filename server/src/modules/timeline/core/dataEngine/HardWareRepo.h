@@ -52,7 +52,14 @@ class HardWareRepo : public IBaseSliceRepo, public IFindSliceByNameList {
 
     void QuerySliceShape(
         const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
-    void QuerySlicePmuInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, uint64_t globalTaskId);
+    void QuerySlicePmuInfo(
+        const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
+    void QueryPmuInfoWithTimestamp(
+        const SliceQuery &sliceQuery, const TaskPO &targetTask, std::vector<TaskPmuInfoPO> &matchedPOS);
+    void QueryAllPmuInfo(
+        const SliceQuery &sliceQuery, const TaskPO &targetTask, std::vector<TaskPmuInfoPO> &pmuInfoPOS);
+    void AppendPmuInfoToArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
+        const std::vector<TaskPmuInfoPO> &pmuInfoPOS);
     bool QueryMemoryInfo(
         const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
     static std::unique_ptr<SqlitePreparedStatement> PrepareStmtForQuerySimpleSliceWithOutNameByTrackId(

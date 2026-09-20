@@ -22,9 +22,11 @@
 #include "TextTableColum.h"
 namespace Dic::Module::Timeline {
 struct TaskPmuInfoPO {
-    uint64_t globalTaskId;
-    uint64_t name;
-    double value;
+    uint64_t id = 0;
+    uint64_t globalTaskId = 0;
+    uint64_t name = 0;
+    double value = 0;
+    uint64_t timestamp = 0;
 };
 
 class TaskPmuInfoTable : public Table<TaskPmuInfoPO> {
@@ -34,9 +36,9 @@ class TaskPmuInfoTable : public Table<TaskPmuInfoPO> {
 
   protected:
     const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
-        static std::unordered_map<std::string_view, assign> assignMap = {
+        static std::unordered_map<std::string_view, assign> assignMap = {{TaskPmuInfoColumn::ROW_ID, IdHandle},
             {TaskPmuInfoColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle}, {TaskPmuInfoColumn::NAME_ID, NameHandle},
-            {TaskPmuInfoColumn::VALUE_ID, ValueHandle}};
+            {TaskPmuInfoColumn::VALUE_ID, ValueHandle}, {TaskPmuInfoColumn::TIMESTAMP, TimestampHandle}};
         return assignMap;
     }
 
@@ -45,9 +47,11 @@ class TaskPmuInfoTable : public Table<TaskPmuInfoPO> {
         return tableName;
     }
 
+    static void IdHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void GlobalTaskIdHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void NameHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void ValueHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void TimestampHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 #endif // PROFILER_SERVER_TASKPMUINFOTABLE_H

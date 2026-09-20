@@ -122,6 +122,7 @@
       "Transit Size(MB)": "传输大小(MB)",
       "Bandwidth(GB/s)": "带宽(GB/s)",
       "Args": "参数",
+      "Ambiguous Field Hint": "原始采集数据中同一 globalTaskId 存在多个候选值，且缺少可用时间戳或无法与当前算子唯一匹配，因此当前取值仅供参考",
       "Sequence number": "序列号",
       "Fwd thread id": "转发线程ID",
       "Call stack": "调用栈",

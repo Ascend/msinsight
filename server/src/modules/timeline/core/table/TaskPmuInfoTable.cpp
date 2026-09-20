@@ -17,6 +17,10 @@
  */
 #include "TaskPmuInfoTable.h"
 namespace Dic::Module::Timeline {
+void TaskPmuInfoTable::IdHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    taskPmuInfoPO.id = resultSet->GetUint64(TaskPmuInfoColumn::ROW_ID);
+}
+
 void TaskPmuInfoTable::GlobalTaskIdHandle(
     TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     taskPmuInfoPO.globalTaskId = resultSet->GetUint64(TaskPmuInfoColumn::GLOBAL_TASK_ID);
@@ -28,5 +32,14 @@ void TaskPmuInfoTable::NameHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::uniqu
 
 void TaskPmuInfoTable::ValueHandle(TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     taskPmuInfoPO.value = resultSet->GetDouble(TaskPmuInfoColumn::VALUE_ID);
+}
+
+void TaskPmuInfoTable::TimestampHandle(
+    TaskPmuInfoPO &taskPmuInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    const auto &cols = resultSet->GetColumns();
+    auto it = cols.find(std::string(TaskPmuInfoColumn::TIMESTAMP));
+    if (it != cols.end()) {
+        taskPmuInfoPO.timestamp = resultSet->GetUint64(it->second);
+    }
 }
 }

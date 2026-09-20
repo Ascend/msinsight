@@ -45,7 +45,7 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
         "create TEMPORARY table if not exists COMMUNICATION_TASK_INFO( name INTEGER, "
         " globalTaskId INTEGER, taskType INTEGER, planeId INTEGER, groupName INTEGER, notifyId INTEGER,"
         " rdmaType INTEGER, srcRank INTEGER, dstRank INTEGER, transportType INTEGER, size INTEGER, "
-        " dataType INTEGER, linkType INTEGER, opId INTEGER);  "},
+        " dataType INTEGER, linkType INTEGER, opId INTEGER, timestampNs INTEGER);  "},
     {TABLE_COMPUTE_TASK_INFO,
         "create TEMPORARY table if not exists COMPUTE_TASK_INFO( name INTEGER, "
         " globalTaskId INTEGER primary key, blockNum INTEGER, mixBlockDim INTEGER, taskType INTEGER,"
