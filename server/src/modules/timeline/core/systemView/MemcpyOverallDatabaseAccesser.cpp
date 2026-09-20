@@ -82,13 +82,21 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPaged(uint64_t startTi
         return false;
     }
 
+    const auto [sortField, sortDir] = ParseSortParams(orderParam.orderBy, orderParam.GetNormalizeOrderType());
     if (dataType == DataType::TEXT) {
-        auto [sortField, sortDir] = ParseSortParams(orderParam.orderBy, orderParam.GetNormalizeOrderType());
         GetMemcpyDetailRecordsPagedFromText(
             absStart, absEnd, tid, memcpyType, current, pageSize, sortField, sortDir, records, total);
     } else if (dataType == DataType::DB) {
+        std::string orderSql = " ";
+        if (!orderParam.orderBy.empty() && !orderParam.orderType.empty()) {
+            // SQL identifiers and direction must come from parsed enums, never request text.
+            const std::string column = sortField == SortField::SIZE ? "size"
+                : sortField == SortField::DURATION                  ? "duration"
+                                                                    : "startTime";
+            orderSql = std::string(" ORDER BY ") + column + (sortDir == SortDirection::ASC ? " ASC " : " DESC ");
+        }
         GetMemcpyDetailRecordsPagedFromDb(
-            absStart, absEnd, tid, memcpyType, current, pageSize, orderParam.GenerateSql(), records, total);
+            absStart, absEnd, tid, memcpyType, current, pageSize, orderSql, records, total);
     } else {
         return false;
     }

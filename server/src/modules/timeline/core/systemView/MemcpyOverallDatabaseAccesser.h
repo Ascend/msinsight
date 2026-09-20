@@ -66,8 +66,8 @@ class MemcpyOverallDatabaseAccesser {
          * @param current: 页码（从1开始）
          * @param pageSize: 每页大小
          * @param orderParam:
-         *      orderParam.orderBy: 按什么值排序，可选：timestamp/duration/size
-         *      orderParam.orderType: 排序方式 ASC/DESC
+         *      orderParam.orderBy: 按什么值排序，可选：startTime/duration/size，兼容 timestamp
+         *      orderParam.orderType: 排序方式 ascend/Ascend/descend/Descend
          * @param[out] records: 当前页的Memcpy详细记录列表
          * @param[out] total 总记录数
          * @return 是否成功获取数据。当 startTime == endTime 时，查找全部数据
@@ -90,7 +90,7 @@ class MemcpyOverallDatabaseAccesser {
             field = SortField::SIZE;
         } else if (orderBy == "duration") {
             field = SortField::DURATION;
-        } else if (!orderBy.empty() && orderBy != "timestamp") {
+        } else if (!orderBy.empty() && orderBy != "startTime" && orderBy != "timestamp") {
             Server::ServerLog::Warn("Invalid orderBy field: " + orderBy + ", using default 'timestamp'");
         }
 
