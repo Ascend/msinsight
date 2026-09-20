@@ -173,14 +173,23 @@ def start_profiler_server():
         process = subprocess.Popen(command)  # nosec B603
         profiler_process[profiler_server_id] = process
     else:
-        # 设置执行权限
-        os.chmod(profiler_server_path, 0o550)  # nosec B103
+        # 已可执行则跳过；外部限制导致 chmod 失败时不中断启动
+        try:
+            if not os.access(profiler_server_path, os.X_OK):
+                os.chmod(profiler_server_path, 0o550)  # nosec B103
+        except OSError as e:
+            logging.warning(f"Failed to set execute permission on profiler_server, because {e}")
         server_dir = os.path.join(os.path.dirname(__file__), 'resources', 'profiler', 'server')
         env = os.environ.copy()
         env["LD_LIBRARY_PATH"] = f".:{env.get('LD_LIBRARY_PATH', '')}"
         command[0] = './profiler_server'
-        process = subprocess.Popen(command, cwd=server_dir, env=env)  # nosec B603
-        profiler_process[profiler_server_id] = process
+        try:
+            process = subprocess.Popen(command, cwd=server_dir, env=env)  # nosec B603
+            profiler_process[profiler_server_id] = process
+            return True
+        except OSError as e:
+            logging.error(f"Failed to start profiler server, because {e}")
+            return False
 
 
 def is_port_in_use(port):
@@ -213,7 +222,10 @@ def shutdown_hook(web_app):
 class IFrameConfigHandler(APIHandler):
     @tornado.web.authenticated
     def get(self):
-        start_profiler_server()
+        if start_profiler_server() is False:
+            self.set_status(500)
+            self.finish(json.dumps({"error": "Failed to start profiler server, please check it."}))
+            return
         # find available port
         global available_port
         # find start profiler server id
