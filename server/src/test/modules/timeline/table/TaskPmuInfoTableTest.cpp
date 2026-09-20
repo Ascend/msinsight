@@ -27,18 +27,24 @@ class TaskPmuInfoTableTest : public ::testing::Test {};
 
 TEST_F(TaskPmuInfoTableTest, GetPmuInfo) {
     sqlite3 *db = nullptr;
-    std::string sql = "CREATE TABLE TASK_PMU_INFO (globalTaskId INTEGER, name INTEGER, value NUMERIC)";
+    std::string sql =
+        "CREATE TABLE TASK_PMU_INFO (globalTaskId INTEGER, name INTEGER, value NUMERIC, timestampNs INTEGER)";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
-        "INSERT INTO \"main\".\"TASK_PMU_INFO\" (\"globalTaskId\", \"name\", \"value\") VALUES (1, 2, 3);";
+        "INSERT INTO \"main\".\"TASK_PMU_INFO\" (\"globalTaskId\", \"name\", \"value\", \"timestampNs\") "
+        "VALUES (1, 2, 3, 4);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<TaskPmuInfoPO> pmuInfos;
     TaskPmuInfoTable pmuInfoTable;
     const uint64_t expectSize = 1;
-    pmuInfoTable.Select(TaskPmuInfoColumn::GLOBAL_TASK_ID, TaskPmuInfoColumn::NAME_ID, TaskPmuInfoColumn::VALUE_ID)
+    pmuInfoTable
+        .Select(TaskPmuInfoColumn::ROW_ID, TaskPmuInfoColumn::GLOBAL_TASK_ID, TaskPmuInfoColumn::NAME_ID,
+            TaskPmuInfoColumn::VALUE_ID, TaskPmuInfoColumn::TIMESTAMP)
         .ExcuteQuery(db, pmuInfos);
     EXPECT_EQ(pmuInfos.size(), expectSize);
     EXPECT_EQ(pmuInfos.at(0).globalTaskId, 1); // 1
     EXPECT_EQ(pmuInfos.at(0).name, 2); // 2
     EXPECT_EQ(pmuInfos.at(0).value, 3); // 3
+    EXPECT_EQ(pmuInfos.at(0).timestamp, 4); // 4
+    EXPECT_EQ(pmuInfos.at(0).id, 1);
 }

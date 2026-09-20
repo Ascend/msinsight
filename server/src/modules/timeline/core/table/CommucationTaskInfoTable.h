@@ -38,6 +38,7 @@ struct CommucationTaskInfoPO {
     uint64_t linkType = 0;
     double bandwidth = 0;
     uint64_t opId = 0;
+    uint64_t timestamp = 0;
 };
 class CommucationTaskInfoTable : public Table<CommucationTaskInfoPO> {
   public:
@@ -58,7 +59,8 @@ class CommucationTaskInfoTable : public Table<CommucationTaskInfoPO> {
             {CommucationTaskInfoColumn::TRANSPORT_TYPE, TransportTypeHandle},
             {CommucationTaskInfoColumn::SIZE, SizeHandle}, {CommucationTaskInfoColumn::DATA_TYPE, DataTypeHandle},
             {CommucationTaskInfoColumn::LINK_TYPE, LinkTypeHandle},
-            {CommucationTaskInfoColumn::BANDWIDTH, BandwidthHandle}, {CommucationTaskInfoColumn::OP_ID, OpIdHandle}};
+            {CommucationTaskInfoColumn::BANDWIDTH, BandwidthHandle}, {CommucationTaskInfoColumn::OP_ID, OpIdHandle},
+            {CommucationTaskInfoColumn::TIMESTAMP, TimestampHandle}};
 
         return assignMap;
     }
@@ -97,6 +99,8 @@ class CommucationTaskInfoTable : public Table<CommucationTaskInfoPO> {
     static void OpIdHandle(
         CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void BandwidthHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void TimestampHandle(
         CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }

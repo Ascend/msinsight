@@ -28,11 +28,11 @@ TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping) {
     std::string sql =
         "CREATE TABLE COMMUNICATION_TASK_INFO (name INTEGER,globalTaskId INTEGER,taskType INTEGER,planeId "
         "INTEGER,groupName INTEGER,notifyId INTEGER,rdmaType INTEGER,srcRank INTEGER,dstRank INTEGER,transportType "
-        "INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,opId INTEGER);";
+        "INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,opId INTEGER,timestampNs INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
-    std::string sqlInsert = "INSERT INTO COMMUNICATION_TASK_INFO (name, globalTaskId, taskType, planeId, groupName, "
-                            "notifyId,rdmaType,srcRank,dstRank,transportType,size,dataType,linkType,opId) VALUES (1, "
-                            "2,3,4,5,6,7,8,9,10,11,12,13,14);";
+    std::string sqlInsert = "INSERT INTO COMMUNICATION_TASK_INFO (name,globalTaskId,taskType,planeId,groupName,"
+                            "notifyId,rdmaType,srcRank,dstRank,transportType,size,dataType,linkType,opId,timestampNs) "
+                            "VALUES (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPOs;
     Dic::Protocol::CommucationTaskInfoTable commucationTaskInfoTable;
@@ -47,6 +47,7 @@ TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping) {
         .Select(CommucationTaskInfoColumn::DST_RANK, CommucationTaskInfoColumn::TRANSPORT_TYPE)
         .Select(CommucationTaskInfoColumn::SIZE, CommucationTaskInfoColumn::DATA_TYPE)
         .Select(CommucationTaskInfoColumn::OP_ID, CommucationTaskInfoColumn::LINK_TYPE)
+        .Select(CommucationTaskInfoColumn::TIMESTAMP)
         .ExcuteQuery(db, commucationTaskInfoPOs);
     EXPECT_EQ(commucationTaskInfoPOs.size(), expectSize);
     EXPECT_EQ(commucationTaskInfoPOs[index].id, initInt);
@@ -64,4 +65,5 @@ TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping) {
     EXPECT_EQ(commucationTaskInfoPOs[index].dataType, initInt++);
     EXPECT_EQ(commucationTaskInfoPOs[index].linkType, initInt++);
     EXPECT_EQ(commucationTaskInfoPOs[index].opId, initInt++);
+    EXPECT_EQ(commucationTaskInfoPOs[index].timestamp, initInt++);
 }

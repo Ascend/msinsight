@@ -82,4 +82,13 @@ void CommucationTaskInfoTable::BandwidthHandle(
     CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     commucationTaskInfoPO.bandwidth = resultSet->GetDouble(CommucationTaskInfoColumn::BANDWIDTH);
 }
+
+void CommucationTaskInfoTable::TimestampHandle(
+    CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    const auto &cols = resultSet->GetColumns();
+    auto it = cols.find(std::string(CommucationTaskInfoColumn::TIMESTAMP));
+    if (it != cols.end()) {
+        commucationTaskInfoPO.timestamp = resultSet->GetUint64(it->second);
+    }
+}
 }

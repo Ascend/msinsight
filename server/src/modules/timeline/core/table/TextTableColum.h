@@ -106,9 +106,11 @@ constexpr std::string_view MODEL_ID = "modelId";
 }
 
 namespace TaskPmuInfoColumn {
+constexpr std::string_view ROW_ID = "rowid";
 constexpr std::string_view GLOBAL_TASK_ID = "globalTaskId";
 constexpr std::string_view NAME_ID = "name";
 constexpr std::string_view VALUE_ID = "value";
+constexpr std::string_view TIMESTAMP = "timestampNs";
 }
 
 namespace CommucationTaskInfoColumn {
@@ -128,6 +130,7 @@ constexpr std::string_view DATA_TYPE = "dataType";
 constexpr std::string_view LINK_TYPE = "linkType";
 constexpr std::string_view BANDWIDTH = "bandwidth";
 constexpr std::string_view OP_ID = "opId";
+constexpr std::string_view TIMESTAMP = "timestampNs";
 }
 
 namespace CommucationTaskOpColumn {

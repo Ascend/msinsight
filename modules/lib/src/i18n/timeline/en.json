@@ -122,6 +122,7 @@
       "Transit Size(MB)": "Transit Size(MB)",
       "Bandwidth(GB/s)": "Bandwidth(GB/s)",
       "Args": "Args",
+      "Ambiguous Field Hint": "The original profiling data contains multiple candidate values for the same globalTaskId, but has no usable timestamp or cannot be uniquely matched to the current slice. The displayed value is for reference only.",
       "Sequence number": "Sequence number",
       "Fwd thread id": "Fwd thread id",
       "Call stack": "Call stack",

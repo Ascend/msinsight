@@ -25,7 +25,8 @@ import type { Session } from '../entity/session';
 import type { SingleDataDesc } from '../entity/insight';
 import { useSelectedDataDetailUpdater } from './details/hooks';
 import type { AscendSliceDetail } from '../entity/data';
-import { CaretDownIcon } from '@insight/lib/icon';
+import { AlarmIcon, CaretDownIcon } from '@insight/lib/icon';
+import { Tooltip } from '@insight/lib/components';
 import { safeJSONParse } from '@insight/lib/utils';
 import { ResizeTable } from '@insight/lib/resize';
 import { getDefaultColumData, getPageData, queryTableDataDetails } from './detailViews/Common';
@@ -201,7 +202,7 @@ const RidMoreTable = observer(({ card, value, bottomHeight }: RidMoreProps) => {
     />;
 });
 
-const ArgsData = observer(({ data, linkUpdater }: { data: AscendSliceDetail; linkUpdater?: (data: string) => void}): JSX.Element => {
+export const ArgsData = observer(({ data, linkUpdater }: { data: AscendSliceDetail; linkUpdater?: (data: string) => void}): JSX.Element => {
     const argsJson = data.args;
     const [isHiddenArgs, setHidden] = useState(false);
     const { t } = useTranslation('timeline', { keyPrefix: 'sliceDetail' });
@@ -213,15 +214,31 @@ const ArgsData = observer(({ data, linkUpdater }: { data: AscendSliceDetail; lin
         return <></>;
     }
     const breakKeys = ['Call stack', 'code'];
+    // 后端在字段取值不保证对应当前算子时下发 _ambiguousKeys；所有 _ 前缀 key 都是协议标记，不渲染为参数行
+    const ambiguousFields: string[] = Array.isArray(args._ambiguousKeys) ? args._ambiguousKeys : [];
+    const displayKeys = Object.keys(args).filter((key) => !key.startsWith('_'));
     return <div>
         <StyledSliceArgsDiv>
             <CaretDownIcon
                 onClick={ (): void => setHidden(!isHiddenArgs) } style={{ margin: '-2px 0 0 8px', float: 'left', transform: `rotate(${!isHiddenArgs ? 0 : '-90deg'}) translate(${!isHiddenArgs ? '-2' : '1'}px, ${!isHiddenArgs ? '0' : '-2'}px)`, cursor: 'pointer' }}/>
             <div style={{ fontWeight: 'bold', margin: '8px 0 0 8px' }}>{t('Args')}</div>
             {!isHiddenArgs
-                ? Object.keys(args).map(key => {
+                ? displayKeys.map(key => {
                     return <StyledSliceArgsRow key={key}>
-                        <div className="key">{key}</div>
+                        <div className="key">
+                            {key}
+                            {ambiguousFields.includes(key) &&
+                                <Tooltip
+                                    title={t('Ambiguous Field Hint')}
+                                    placement={'right'}
+                                    overlayStyle={{ maxWidth: '400px' }}>
+                                    {/* AlarmIcon 内部会覆盖 style 里的 margin 并自带 marginTop 2px，间距与对齐统一由外层 span 控制 */}
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle', marginLeft: '6px', marginTop: '-2px', cursor: 'help' }}>
+                                        <AlarmIcon width={12} height={12}/>
+                                    </span>
+                                </Tooltip>
+                            }
+                        </div>
                         <div className="value">
                             { breakKeys.includes(key) ? createContentWithBreaks(args[key]) : createContentNormal(args[key], linkUpdater) }
                         </div>
