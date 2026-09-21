@@ -30,6 +30,7 @@ import { TooltipComponent, type TooltipProps } from './TooltipComp';
 import type { ThreadMetaData } from '../../entity/data';
 import { Spin } from 'antd';
 import { getSelectedThreadId } from '../../utils/selectionContext';
+import { getOffsetSide } from '../../insight/units/offset';
 
 type StackStatusChartProps = ChartProps<'stackStatus'>;
 type OverflowType = 'hidden' | 'ellipsis';
@@ -275,6 +276,7 @@ interface MouseUpFuncParams {
 }
 const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, unit, metadata, onClick }: MouseUpFuncParams): void => {
     const clickedData = findDataByXY({ x: e.offsetX, y: e.offsetY }, datasState, rangeAndDomain, rowHeight, session.endTimeAll ?? 0);
+    const unitMetadata = unit.metadata as ThreadMetaData;
     if (clickedData !== undefined) {
         clickedData.showSelectedData = true; // 强制设置优先显示“选中详情”
     }
@@ -286,6 +288,7 @@ const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, unit, 
                 processId: (metadata as ThreadMetaData).processId ?? '',
                 timestamp: clickedData.originalStartTime as number,
                 metaType: (metadata as ThreadMetaData).metaType ?? '',
+                offsetSide: getOffsetSide(unitMetadata.metaType, unitMetadata.offsetSide),
             }
             : undefined;
         session.selectedDataUnit = clickedData === undefined ? undefined : unit;

@@ -85,11 +85,11 @@ export function applyAlignmentResult(
     return true;
 }
 
-function getSelectedOffsetDelta(session: Session, params: QueryTimelineOffsetParams, baseOffset: number): number {
+function getSelectedOffsetDelta(session: Session, rankId: string, selectedSide: OffsetSide, baseOffset: number): number {
     if (!Number.isFinite(baseOffset)) {
         return 0;
     }
-    return getCardSideOffset(session, params.rankId, getOffsetSide(params.metaType)) - baseOffset;
+    return getCardSideOffset(session, rankId, selectedSide) - baseOffset;
 }
 
 function buildRequestParams(session: Session, alignType: TimelineAlignmentType): QueryTimelineOffsetParams | undefined {
@@ -122,13 +122,15 @@ async function alignByOperator(
         message.warning(i18n.t('timeline:contextMenu.AlignOperatorRawStartNotReady'));
         return;
     }
+    const metadata = getSelectedUnit(session)?.metadata as Partial<ThreadMetaData> | undefined;
+    const selectedSide = getOffsetSide(params.metaType, session.selectedData?.offsetSide ?? metadata?.offsetSide);
     const hide = message.loading(i18n.t('timeline:contextMenu.Calculating Offset'), 0);
     try {
         const res = await queryTimelineOffset(params);
         runInAction(() => {
             applyAlignmentResult(session, res.result, {
-                selectedSide: getOffsetSide(params.metaType),
-                offsetDelta: getSelectedOffsetDelta(session, params, res.baseOffset),
+                selectedSide,
+                offsetDelta: getSelectedOffsetDelta(session, params.rankId, selectedSide, res.baseOffset),
             });
         });
     } catch {
@@ -163,7 +165,9 @@ export const actionAlignByOperatorRight = register({
 
 export const actionAlignByOperator = register({
     name: 'alignByOperator',
-    label: 'timeline:contextMenu.Time Alignment',
+    label: (session, t) => t(session.benchMarkData !== undefined
+        ? 'timeline:contextMenu.Align to Base Slice'
+        : 'timeline:contextMenu.Time Alignment'),
     visible: isOperatorAlignVisible,
     perform: (): void => {},
     subMode: true,

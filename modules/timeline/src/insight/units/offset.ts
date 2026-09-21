@@ -67,8 +67,8 @@ export function buildCardIdIndex(units: InsightUnit[]): CardIdIndex {
     return cardIdIndex;
 }
 
-export function getOffsetSide(metaType?: string): OffsetSide {
-    return DEVICE_META_TYPES.has(metaType ?? '') ? OFFSET_SIDE.DEVICE : OFFSET_SIDE.HOST;
+export function getOffsetSide(metaType?: string, offsetSide?: OffsetSide): OffsetSide {
+    return offsetSide ?? (DEVICE_META_TYPES.has(metaType ?? '') ? OFFSET_SIDE.DEVICE : OFFSET_SIDE.HOST);
 }
 
 export function getCardOffsetKey(
@@ -102,7 +102,7 @@ export function getTimeOffset(
     }
     const key = getCardOffsetKey(session, {
         cardId: metadata.cardId,
-        side: metadata.offsetSide ?? getOffsetSide(metadata.metaType),
+        side: getOffsetSide(metadata.metaType, metadata.offsetSide),
     }, units, cardIdIndex);
     return (timestampOffset ?? session.unitsConfig.offsetConfig.timestampOffset)[key] ?? 0;
 }

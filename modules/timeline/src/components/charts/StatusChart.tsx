@@ -28,6 +28,7 @@ import { useBatchedRender, useClick, useData, useHoverPosX, useRangeAndDomain } 
 import { TooltipComponent, type TooltipProps } from './TooltipComp';
 import type { ThreadMetaData } from '../../entity/data';
 import type { InsightUnit } from '../../entity/insight';
+import { getOffsetSide } from '../../insight/units/offset';
 
 type StatusChartProps = ChartProps<'status'>;
 interface DrawParams {
@@ -142,9 +143,15 @@ export const StatusChart = observer(({
     const hoveredData = useMemo(() => findDataByX(mousePosX, dataState, rangeAndDomain), [mousePosX, dataState, rangeAndDomain]);
     const handleMouseUp = (e: MouseEvent): void => {
         const clickedData = findDataByX(e.offsetX, dataState, rangeAndDomain);
+        const unitMetadata = unit.metadata as ThreadMetaData;
         runInAction(() => {
             session.selectedData = clickedData
-                ? { ...clickedData, threadId: (metadata as ThreadMetaData).threadId ?? '', processId: (metadata as ThreadMetaData).processId ?? '' }
+                ? {
+                    ...clickedData,
+                    threadId: (metadata as ThreadMetaData).threadId ?? '',
+                    processId: (metadata as ThreadMetaData).processId ?? '',
+                    offsetSide: getOffsetSide(unitMetadata.metaType, unitMetadata.offsetSide),
+                }
                 : undefined;
             session.selectedDataUnit = clickedData === undefined ? undefined : unit;
             if (!session.selectedData) {

@@ -16,7 +16,10 @@
  * -------------------------------------------------------------------------
  */
 
+import { message } from 'antd';
+import i18n from '@insight/lib/i18n';
 import type { InsightUnit } from '../entity/insight';
+import type { OffsetSide } from '../insight/units/offset';
 import { Session, type SelectedDataType } from '../entity/session';
 import {
     actionAlignByOperator,
@@ -25,9 +28,11 @@ import {
     applyAlignmentResult,
 } from './actionAlignByOperator';
 import { queryTimelineOffset } from '../api/request';
+import type { QueryTimelineOffsetResult } from '../api/interface';
 import {
     actionAlignToBenchmarkLeft,
     actionAlignToBenchmarkRight,
+    actionClearBenchmarkSlice,
     actionSetBenchmarkSlice,
 } from './actionSetBenchmarkSlice';
 
@@ -38,11 +43,15 @@ jest.mock('../api/request', () => ({
 jest.mock('antd', () => ({
     message: {
         loading: (): (() => void) => () => {},
-        warning: (): void => {},
+        warning: jest.fn(),
     },
 }));
 
 const queryTimelineOffsetMock = queryTimelineOffset as jest.MockedFunction<typeof queryTimelineOffset>;
+const TEXT_SIDES: Array<{ side: OffsetSide; otherSide: OffsetSide; baseOffset: number; targetOffset: number }> = [
+    { side: 'host', otherSide: 'device', baseOffset: 10, targetOffset: 20 },
+    { side: 'device', otherSide: 'host', baseOffset: 80, targetOffset: 90 },
+];
 
 function createCard(cardId: string): InsightUnit {
     return { metadata: { cardId } } as unknown as InsightUnit;
@@ -59,13 +68,14 @@ function createSession(): Session {
     return currentSession;
 }
 
-function createActionSession(metaType: string): Session {
+function createActionSession(metaType: string, offsetSide?: OffsetSide): Session {
     const base = {
         metadata: {
             cardId: 'base',
             processId: 'base-pid',
             dbPath: 'base.db',
             metaType,
+            offsetSide,
         },
     } as unknown as InsightUnit;
     const currentSession = new Session({ units: [base, createCard('target')] });
@@ -76,6 +86,7 @@ function createActionSession(metaType: string): Session {
         threadId: 'base-tid',
         name: 'operator',
         metaType,
+        offsetSide,
         rawStartTime: '100',
         startTime: 100,
         duration: 20,
@@ -89,8 +100,8 @@ function createActionSession(metaType: string): Session {
     return currentSession;
 }
 
-function createBenchmarkSession(metaType: string, selectedDataOverrides: Partial<SelectedDataType> = {}): Session {
-    const currentSession = createActionSession(metaType);
+function createBenchmarkSession(metaType: string, selectedDataOverrides: Partial<SelectedDataType> = {}, offsetSide?: OffsetSide): Session {
+    const currentSession = createActionSession(metaType, offsetSide);
     actionSetBenchmarkSlice.perform(currentSession);
     const target = {
         metadata: {
@@ -98,6 +109,7 @@ function createBenchmarkSession(metaType: string, selectedDataOverrides: Partial
             processId: 'target-pid',
             dbPath: 'target.db',
             metaType,
+            offsetSide,
         },
     } as unknown as InsightUnit;
     currentSession.selectedUnits = [target];
@@ -107,6 +119,7 @@ function createBenchmarkSession(metaType: string, selectedDataOverrides: Partial
         threadId: 'target-tid',
         name: 'operator',
         metaType,
+        offsetSide,
         rawStartTime: '300',
         startTime: 300,
         duration: 50,
@@ -186,6 +199,24 @@ describe('automatic alignment menu', () => {
         expect(actionAlignByOperatorRight).not.toHaveProperty('subMenus');
     });
 
+    it.each([
+        { language: 'zhCN', automaticLabel: '时间对齐', benchmarkLabel: '与基准算子对齐' },
+        { language: 'enUS', automaticLabel: 'Time Alignment', benchmarkLabel: 'Align to Base Slice' },
+    ])('updates the $language parent label when the benchmark is set and cleared', ({ language, automaticLabel, benchmarkLabel }) => {
+        const currentSession = createActionSession('CANN_API');
+        const translate = i18n.getFixedT(language);
+
+        expect(actionAlignByOperator.label(currentSession, translate)).toBe(automaticLabel);
+
+        actionSetBenchmarkSlice.perform(currentSession);
+
+        expect(actionAlignByOperator.label(currentSession, translate)).toBe(benchmarkLabel);
+
+        actionClearBenchmarkSlice.perform(currentSession);
+
+        expect(actionAlignByOperator.label(currentSession, translate)).toBe(automaticLabel);
+    });
+
     it('hides operator alignment for DPU tasks', () => {
         const currentSession = createActionSession('DPU');
 
@@ -228,15 +259,142 @@ describe('automatic alignment menu', () => {
 });
 
 describe.each([
+    { direction: 'LEFT', action: actionAlignByOperatorLeft },
+    { direction: 'RIGHT', action: actionAlignByOperatorRight },
+])('automatic TEXT $direction alignment', ({ direction, action }) => {
+    it.each(TEXT_SIDES)('uses the explicit $side offset without changing the TEXT request type', async ({ side, baseOffset }) => {
+        const currentSession = createActionSession('TEXT', side);
+        const offsetsBefore = { ...currentSession.unitsConfig.offsetConfig.timestampOffset };
+        queryTimelineOffsetMock.mockResolvedValueOnce({ result: [{ rankId: 'target', offset: 100 }], baseOffset: 30 });
+
+        action.perform(currentSession);
+
+        expect(queryTimelineOffsetMock).toHaveBeenCalledWith(expect.objectContaining({
+            metaType: 'TEXT', alignType: direction, rankId: 'base', startTime: '100',
+        }));
+        await queryTimelineOffsetMock.mock.results[0].value;
+        await Promise.resolve();
+        expect(currentSession.unitsConfig.offsetConfig.timestampOffset).toEqual({
+            ...offsetsBefore,
+            [`target__${side}`]: 100 + baseOffset - 30,
+        });
+        expect(currentSession.benchMarkData).toBeUndefined();
+        expect(message.warning).not.toHaveBeenCalled();
+    });
+
+    it.each(TEXT_SIDES)('keeps the requested $side when the selection changes before the response', async ({ side, otherSide, baseOffset }) => {
+        const currentSession = createActionSession('TEXT', side);
+        const offsetsBefore = { ...currentSession.unitsConfig.offsetConfig.timestampOffset };
+        let resolveResponse: (result: QueryTimelineOffsetResult) => void = () => {};
+        const response = new Promise<QueryTimelineOffsetResult>(resolve => { resolveResponse = resolve; });
+        queryTimelineOffsetMock.mockReturnValueOnce(response);
+
+        action.perform(currentSession);
+
+        const selected = currentSession.selectedData;
+        if (selected === undefined) {
+            throw new Error('Expected the request operator to remain selected');
+        }
+        const nextSelection: SelectedDataType = { ...selected, id: 'another-operator', offsetSide: otherSide };
+        currentSession.selectedData = nextSelection;
+        resolveResponse({ result: [{ rankId: 'target', offset: 100 }], baseOffset: 30 });
+        await response;
+        await Promise.resolve();
+
+        expect(currentSession.unitsConfig.offsetConfig.timestampOffset).toEqual({
+            ...offsetsBefore,
+            [`target__${side}`]: 100 + baseOffset - 30,
+        });
+        expect(currentSession.selectedData).toEqual(nextSelection);
+        expect(currentSession.benchMarkData).toBeUndefined();
+        expect(queryTimelineOffsetMock).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe.each([
+    { key: 'L', shortcut: actionAlignToBenchmarkLeft },
+    { key: 'R', shortcut: actionAlignToBenchmarkRight },
+])('$key without a benchmark', ({ shortcut }) => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it.each([
+        { selection: 'a selected operator', hasSelection: true },
+        { selection: 'no selected operator', hasSelection: false },
+    ])('stays silent and preserves state across repeated calls with $selection', ({ hasSelection }) => {
+        const currentSession = createActionSession('CANN_API');
+        if (!hasSelection) {
+            currentSession.selectedData = undefined;
+        }
+        const offsetsBefore = { ...currentSession.unitsConfig.offsetConfig.timestampOffset };
+        const selectedBefore = currentSession.selectedData === undefined ? undefined : { ...currentSession.selectedData };
+        const alignedBefore = [...currentSession.alignSliceData];
+        const alignRenderBefore = currentSession.alignRender;
+
+        for (let attempt = 0; attempt < 5; attempt++) {
+            shortcut.perform(currentSession);
+        }
+
+        expect(message.warning).not.toHaveBeenCalled();
+        expect(queryTimelineOffsetMock).not.toHaveBeenCalled();
+        expect(currentSession.benchMarkData).toBeUndefined();
+        expect(currentSession.unitsConfig.offsetConfig.timestampOffset).toEqual(offsetsBefore);
+        expect(currentSession.selectedData).toEqual(selectedBefore);
+        expect(currentSession.alignSliceData).toEqual(alignedBefore);
+        expect(currentSession.alignRender).toBe(alignRenderBefore);
+    });
+});
+
+describe.each([
+    { name: 'left menu', action: actionAlignByOperatorLeft },
+    { name: 'right menu', action: actionAlignByOperatorRight },
+    { name: 'L shortcut', action: actionAlignToBenchmarkLeft },
+    { name: 'R shortcut', action: actionAlignToBenchmarkRight },
+])('$name alignment highlight', ({ action }) => {
+    it.each(['clear', 'replace'])('clears the target highlight when the selection changes (%s)', (selection) => {
+        const currentSession = createBenchmarkSession('CANN_API');
+        const benchmarkBefore = { ...currentSession.benchMarkData };
+
+        action.perform(currentSession);
+
+        expect(currentSession.alignSliceData).toHaveLength(1);
+        const offsetsAfterAlignment = { ...currentSession.unitsConfig.offsetConfig.timestampOffset };
+        const renderAfterAlignment = currentSession.alignRender;
+        const alignedSelection = currentSession.selectedData;
+        if (alignedSelection === undefined) {
+            throw new Error('Expected the aligned operator to remain selected');
+        }
+        const nextSelection: SelectedDataType | undefined = selection === 'clear'
+            ? undefined
+            : {
+                ...alignedSelection,
+                id: 'another-operator',
+                startTime: 500,
+            };
+
+        currentSession.selectedData = nextSelection;
+
+        expect(currentSession.alignSliceData).toEqual([]);
+        expect(currentSession.selectedData).toEqual(nextSelection);
+        expect(currentSession.benchMarkData).toEqual(benchmarkBefore);
+        expect(currentSession.unitsConfig.offsetConfig.timestampOffset).toEqual(offsetsAfterAlignment);
+        expect(currentSession.alignRender).toBe(renderAfterAlignment);
+        expect(queryTimelineOffsetMock).not.toHaveBeenCalled();
+    });
+});
+
+describe.each([
     { key: 'L', menu: actionAlignByOperatorLeft, shortcut: actionAlignToBenchmarkLeft, offsetDiff: 200, startTime: 100 },
     { key: 'R', menu: actionAlignByOperatorRight, shortcut: actionAlignToBenchmarkRight, offsetDiff: 230, startTime: 70 },
 ])('benchmark alignment menu matches $key', ({ key, menu, shortcut, offsetDiff, startTime }) => {
     it.each([
-        { metaType: 'CANN_API', side: 'host', initialOffset: 20 },
-        { metaType: 'HCCL', side: 'device', initialOffset: 90 },
-    ])('moves only the selected $side category and preserves the benchmark', ({ metaType, side, initialOffset }) => {
-        const menuSession = createBenchmarkSession(metaType);
-        const shortcutSession = createBenchmarkSession(metaType);
+        { metaType: 'CANN_API', side: 'host', initialOffset: 20, offsetSide: undefined },
+        { metaType: 'HCCL', side: 'device', initialOffset: 90, offsetSide: undefined },
+        ...TEXT_SIDES.map(({ side, targetOffset }) => ({ metaType: 'TEXT', side, initialOffset: targetOffset, offsetSide: side })),
+    ])('moves only the selected $metaType $side category and preserves the benchmark', ({ metaType, side, initialOffset, offsetSide }) => {
+        const menuSession = createBenchmarkSession(metaType, {}, offsetSide);
+        const shortcutSession = createBenchmarkSession(metaType, {}, offsetSide);
         const offsetsBefore = { ...menuSession.unitsConfig.offsetConfig.timestampOffset };
         const benchmarkBefore = { ...menuSession.benchMarkData };
 
@@ -255,6 +413,43 @@ describe.each([
         expect(menuSession.selectedData).toEqual(shortcutSession.selectedData);
         expect(menuSession.alignSliceData).toEqual(shortcutSession.alignSliceData);
         expect(menuSession.alignRender).toBe(shortcutSession.alignRender);
+        expect(queryTimelineOffsetMock).not.toHaveBeenCalled();
+    });
+
+    it.each(TEXT_SIDES)('allows same-card TEXT alignment from $otherSide to $side', ({ side, otherSide, baseOffset }) => {
+        for (const action of [menu, shortcut]) {
+            const currentSession = createBenchmarkSession('TEXT', { cardId: 'base', offsetSide: side }, otherSide);
+            const offsetsBefore = { ...currentSession.unitsConfig.offsetConfig.timestampOffset };
+            const benchmarkBefore = { ...currentSession.benchMarkData };
+
+            action.perform(currentSession);
+
+            expect(currentSession.unitsConfig.offsetConfig.timestampOffset).toEqual({
+                ...offsetsBefore,
+                [`base__${side}`]: baseOffset + offsetDiff,
+            });
+            expect(currentSession.selectedData?.startTime).toBe(startTime);
+            expect(currentSession.benchMarkData).toEqual(benchmarkBefore);
+        }
+        expect(message.warning).not.toHaveBeenCalled();
+        expect(queryTimelineOffsetMock).not.toHaveBeenCalled();
+    });
+
+    it.each(TEXT_SIDES)('rejects same-card TEXT alignment within the $side category', ({ side }) => {
+        for (const action of [menu, shortcut]) {
+            const currentSession = createBenchmarkSession('TEXT', { cardId: 'base' }, side);
+            const offsetsBefore = { ...currentSession.unitsConfig.offsetConfig.timestampOffset };
+            const selectedBefore = currentSession.selectedData === undefined ? undefined : { ...currentSession.selectedData };
+            const benchmarkBefore = { ...currentSession.benchMarkData };
+
+            action.perform(currentSession);
+
+            expect(currentSession.unitsConfig.offsetConfig.timestampOffset).toEqual(offsetsBefore);
+            expect(currentSession.selectedData).toEqual(selectedBefore);
+            expect(currentSession.benchMarkData).toEqual(benchmarkBefore);
+            expect(currentSession.alignSliceData).toEqual([]);
+        }
+        expect(message.warning).toHaveBeenCalledTimes(2);
         expect(queryTimelineOffsetMock).not.toHaveBeenCalled();
     });
 
@@ -303,5 +498,21 @@ describe.each([
         expect(currentSession.benchMarkData).toEqual(benchmarkBefore);
         expect(currentSession.selectedData?.startTime).toBe(startTime);
         expect(queryTimelineOffsetMock).not.toHaveBeenCalled();
+    });
+});
+
+describe('TEXT benchmark source category', () => {
+    it.each(TEXT_SIDES)('retains the source unit $side when the selected slice has no explicit side', ({ side }) => {
+        const currentSession = createActionSession('TEXT', side);
+        const selected = currentSession.selectedData;
+        if (selected === undefined) {
+            throw new Error('Expected a selected TEXT operator');
+        }
+        selected.offsetSide = undefined;
+        currentSession.selectedDataUnit = currentSession.selectedUnits[0];
+
+        actionSetBenchmarkSlice.perform(currentSession);
+
+        expect(currentSession.benchMarkData).toEqual(expect.objectContaining({ metaType: 'TEXT', offsetSide: side }));
     });
 });

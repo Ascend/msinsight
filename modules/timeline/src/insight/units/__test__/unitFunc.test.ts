@@ -341,6 +341,52 @@ describe('timeline unit metadata expansion', () => {
         clearParentMap();
     });
 
+    it.each([
+        { name: 'empty TEXT paths', metaType: 'TEXT', processPath: '', threadPath: '', expectedProcessPath: 'rank0.db', expectedThreadPath: 'rank0.db' },
+        { name: 'empty DB paths', metaType: 'CANN_API', processPath: '', threadPath: '', expectedProcessPath: 'rank0.db', expectedThreadPath: 'rank0.db' },
+        { name: 'undefined paths', metaType: 'TEXT', processPath: undefined, threadPath: undefined, expectedProcessPath: 'rank0.db', expectedThreadPath: 'rank0.db' },
+        { name: 'empty thread path under another source', metaType: 'CANN_API', processPath: 'worker.db', threadPath: '', expectedProcessPath: 'worker.db', expectedThreadPath: 'worker.db' },
+        { name: 'explicit thread source', metaType: 'CANN_API', processPath: 'worker.db', threadPath: 'thread.db', expectedProcessPath: 'worker.db', expectedThreadPath: 'thread.db' },
+    ])('resolves database paths for $name', ({ metaType, processPath, threadPath, expectedProcessPath, expectedThreadPath }) => {
+        const cardUnit = createCardUnit();
+        const metadataTree = {
+            type: 'card',
+            dataSource,
+            metadata: cardUnit.metadata,
+            children: [{
+                type: 'process',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: processPath,
+                    processId: '100',
+                    processName: 'Process 100',
+                    metaType,
+                },
+                children: [{
+                    type: 'thread',
+                    dataSource,
+                    metadata: {
+                        cardId: 'rank0',
+                        dbPath: threadPath,
+                        processId: '100',
+                        processName: 'Process 100',
+                        threadId: '101',
+                        threadName: 'Thread 101',
+                        metaType,
+                    },
+                }],
+            }],
+        } as unknown as InsightMetaData<'card'>;
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        const processUnit = cardUnit.children?.[0];
+        expect(processUnit?.metadata.dbPath).toBe(expectedProcessPath);
+        expect(processUnit?.children?.[0].metadata.dbPath).toBe(expectedThreadPath);
+    });
+
     it('builds the NPU Metrics hierarchy during metadata expansion', () => {
         const cardUnit = createCardUnit();
         const metadataTree = createNpuMetricsTree();

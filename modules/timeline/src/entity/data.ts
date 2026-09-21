@@ -15,6 +15,8 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import type { OffsetSide } from '../insight/units/offset';
+
 // #region cputime
 export interface ThreadInfo {
     tid: number;
@@ -690,6 +692,7 @@ export interface MetaDataInnerBase extends MetaDataBase {
     cardId: string;
     dbPath: string; // 卡对应信息所在 DB 的文件路径
     metaType: string; // db 格式数据下有效, text 格式数据下始终是 TEXT
+    offsetSide?: OffsetSide;
     processId?: string;
     processName?: string;
     threadName?: string;
@@ -887,6 +890,7 @@ export interface ThreadTrace extends Omit<SliceData, 'rankId' | 'pid' | 'tid'> {
 
 export interface SliceMeta extends MetaDataBase {
     [x: string]: unknown;
+    offsetSide?: OffsetSide;
     cardId: string;
     processId: string;
     startTime: number;

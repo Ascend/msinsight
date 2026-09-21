@@ -25,7 +25,7 @@ import { ThreadUnit } from '../../insight/units/AscendUnit';
 import { getTimeOffset } from '../../insight/units/utils';
 import { store } from '../../store';
 import jumpToUnitOperator from '../jumpToUnitOperator';
-import { getTimeOffset as getActualTimeOffset } from '../../insight/units/offset';
+import { getTimeOffset as getActualTimeOffset, type OffsetSide } from '../../insight/units/offset';
 
 jest.mock('../../components/CategorySearch', () => ({
     calculateDomainRange: jest.fn(() => [80, 140]),
@@ -90,6 +90,40 @@ describe('jumpToUnitOperator', () => {
         store.sessionStore.activeSession = createSession();
         (getTimeOffset as jest.Mock).mockReturnValue(5);
         (calculateDomainRange as jest.Mock).mockReturnValue([80, 140]);
+    });
+
+    it.each<{ metaType: string; offsetSide?: OffsetSide; expectedSide: OffsetSide; expectedStart: number }>([
+        { metaType: 'TEXT', offsetSide: 'device', expectedSide: 'device', expectedStart: 50 },
+        { metaType: 'TEXT', offsetSide: 'host', expectedSide: 'host', expectedStart: 90 },
+        { metaType: 'PYTORCH_API_PYTHON_STACK', offsetSide: 'host', expectedSide: 'host', expectedStart: 90 },
+        { metaType: 'CANN_API', expectedSide: 'host', expectedStart: 90 },
+        { metaType: 'Ascend Hardware', expectedSide: 'device', expectedStart: 50 },
+    ])('uses the $expectedSide lane offset for $metaType jumps', ({ metaType, offsetSide, expectedSide, expectedStart }) => {
+        const session = store.sessionStore.activeSession as Session;
+        session.unitsConfig = {
+            jsAllocationUsage: { isRecordStackTraces: false },
+            nativeConfig: { filterSize: 4096, maxStackDepth: 10 },
+            offsetConfig: { timestampOffset: { '0__host': 10, '0__device': 50 } },
+            filterConfig: { pythonFunction: {} },
+        };
+        (getTimeOffset as jest.Mock).mockImplementation(getActualTimeOffset);
+        const target = new ThreadUnit({
+            ...(createMergedUnit().metadata as ThreadMetaData),
+            threadId: '2',
+            threadIdList: undefined,
+            metaType,
+            offsetSide,
+        }) as InsightUnit;
+        session.units = [target];
+
+        jumpToUnitOperator({ ...OP_DETAIL, metaType });
+        expect(session.locateUnit?.target(target)).toBe(true);
+        session.locateUnit?.onSuccess(target);
+
+        expect(session.selectedData).toEqual(expect.objectContaining({
+            offsetSide: expectedSide, startTime: expectedStart, metaType,
+        }));
+        expect(session.selectedDataUnit).toBe(target);
     });
 
     it.each([
