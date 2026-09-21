@@ -1,4 +1,19 @@
 #!/usr/bin/env python3
+# -------------------------------------------------------------------------
+# This file is part of the MindStudio project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# MindStudio is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
 """
 容器内 PID 映射工具类
 功能：将宿主机 PID 列表映射为容器内对应进程的 PID 列表
@@ -10,10 +25,11 @@
   - 静默跳过瞬时失效进程（无冗余日志）
   - 保留原始输入顺序，缺失项返回 None
 """
+
 import sys
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 from typing import List, Optional, Dict, Union
 
 
@@ -37,12 +53,12 @@ class ContainerPidMapper:
         """关键环境验证（失败时抛出含修复建议的 RuntimeError）"""
         # === 1. 验证 NSpid 字段存在性与命名空间模式 ===
         try:
-            with open(f'/proc/{pid}/status', 'r') as f:
+            with open(f'/proc/{pid}/status', 'r') as f:  # pylint: disable=unspecified-encoding
                 for line in f:
                     if line.startswith('NSpid:'):
                         parts = line.split()
                         # 单列 = --pid=host 模式；多列 = 独立 PID 命名空间
-                        self.is_pid_host_mode = (len(parts) == 1)
+                        self.is_pid_host_mode = len(parts) == 1
                         if self.verbose:
                             mode = "PID host 模式（共享命名空间）" if self.is_pid_host_mode else "独立 PID 命名空间"
                             print(f"✅ 检测到: {mode}", file=sys.stderr)
@@ -51,21 +67,14 @@ class ContainerPidMapper:
                     self._diagnose_missing_nspid()
         except PermissionError:
             raise RuntimeError(
-                "❌ 无权限读取 /proc/1/status\n"
-                "   请确保容器以足够权限运行（非 dropped CAP_SYS_PTRACE 等）"
+                "❌ 无权限读取 /proc/1/status\n   请确保容器以足够权限运行（非 dropped CAP_SYS_PTRACE 等）"
             )
         except FileNotFoundError:
             raise RuntimeError("❌ /proc 文件系统异常（容器环境损坏）")
 
         # === 2. 验证 ps 命令可用性 ===
         try:
-            subprocess.run(
-                ['ps', '--version'],
-                capture_output=True,
-                timeout=2,
-                check=True,
-                text=True
-            )
+            subprocess.run(['ps', '--version'], capture_output=True, timeout=2, check=True, text=True)  # nosec B603 B607
         except FileNotFoundError:
             raise RuntimeError(
                 "❌ 'ps' 命令未找到\n"
@@ -82,7 +91,7 @@ class ContainerPidMapper:
     def _diagnose_missing_nspid(self) -> None:
         """NSpid 字段缺失时的深度诊断"""
         try:
-            with open('/proc/version', 'r') as f:
+            with open('/proc/version', 'r') as f:  # pylint: disable=unspecified-encoding
                 ver_line = f.read()
             match = re.search(r'Linux version (\d+)\.(\d+)', ver_line)
             if match:
@@ -93,7 +102,7 @@ class ContainerPidMapper:
                         "   NSpid 字段需 Linux ≥4.1（2015年发布）\n"
                         "   建议：升级宿主机内核或使用宿主机工具查询（如 docker top）"
                     )
-        except Exception:
+        except Exception:  # nosec B110
             pass
         raise RuntimeError(
             "❌ /proc/1/status 中无 NSpid 字段\n"
@@ -109,19 +118,13 @@ class ContainerPidMapper:
         # 优先使用 --no-headers 避免标题行
         cmds = [
             ['ps', '-eo', 'pid,comm', '--no-headers'],
-            ['ps', '-eo', 'pid,comm']  # 回退方案
+            ['ps', '-eo', 'pid,comm'],  # 回退方案
         ]
 
         output = ""
         for cmd in cmds:
             try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=3,
-                    check=True
-                )
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=3, check=True)  # nosec B603
                 output = result.stdout
                 if '--no-headers' not in cmd:
                     output = '\n'.join(output.strip().splitlines()[1:])  # 跳过标题
@@ -163,7 +166,7 @@ class ContainerPidMapper:
                 if not os.path.exists(status_path):
                     continue
                 try:
-                    with open(status_path, 'r') as f:
+                    with open(status_path, 'r') as f:  # pylint: disable=unspecified-encoding
                         for line in f:
                             if line.startswith('NSpid:'):
                                 parts = line.split()
@@ -177,7 +180,7 @@ class ContainerPidMapper:
             if self.verbose:
                 print(f"🛠️  构建映射 (独立命名空间): {len(mapping)} 个进程映射", file=sys.stderr)
 
-    def map_container_pids(self, host_pids: List[Union[int, str]]) -> List[Optional[int]]:
+    def map_container_pids(self, host_pids: List[Union[int, str]]) -> List[Optional[int]]:  # pylint: disable=redefined-outer-name
         """
         批量映射宿主机 PID → 容器内 PID
         :param container_pids: 宿主机 PID 列表（支持 int 或 str 类型）
@@ -222,10 +225,7 @@ if __name__ == '__main__':
         # 可选：输出统计到 stderr（不影响 stdout 解析）
         matched = sum(1 for p in container_pids if p is not None)
         if matched < len(host_pids):
-            print(
-                f"\n⚠️  提示: {matched}/{len(host_pids)} 个 PID 匹配成功",
-                file=sys.stderr
-            )
+            print(f"\n⚠️  提示: {matched}/{len(host_pids)} 个 PID 匹配成功", file=sys.stderr)
             if matched == 0:
                 print(
                     "   可能原因:\n"
@@ -233,7 +233,7 @@ if __name__ == '__main__':
                     "     • 进程已退出\n"
                     "     • PID 不属于当前容器\n"
                     "   调试: 在容器内执行 `grep NSpid /proc/*/status 2>/dev/null | grep <宿主机PID>`",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
 
     except RuntimeError as e:

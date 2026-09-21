@@ -1,5 +1,19 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
  */
 
 import { test as baseTest, WebSocket } from '@playwright/test';
@@ -37,21 +51,21 @@ const testDataCases = [
 function defineDataTestSuite(testCase) {
     test.describe(testCase.caseName, () => {
         let allPagesSuccessRes;
-        
+
         test.beforeEach(async ({ page }) => {
             // 设置WebSocket事件监听器
             allPagesSuccessRes = waitForWebSocketEvent(page, (res) => res?.event === 'allPagesSuccess');
-            
+
             // 初始化页面框架
             const { loadingDialog } = new FrameworkPage(page);
-            
+
             // 导航到首页并导入测试数据
             await page.goto('/');
             await importData(page, testCase.dataFile);
-            
+
             // 模拟鼠标移动
             await page.mouse.move(0, 0);
-            
+
             // 等待加载对话框消失
             if (await loadingDialog.count()) {
                 await loadingDialog.waitFor({ state: 'detached' });
@@ -68,7 +82,7 @@ function defineDataTestSuite(testCase) {
             if (time < testCase.expectTime * 1.15) {
                 res = true;
             }
-            
+
             console.log(`${testCase.caseName} ${time} ${res}`);
         });
     });
