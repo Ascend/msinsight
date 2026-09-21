@@ -44,9 +44,9 @@ class DeviceFlowRepoTest : public DeviceFlowRepo, public ::testing::Test {
         "VALUES (1742699319641107170, 1742699319641107190, 0, 4294967295, 7480, 1984976, 1, 4294967295, 2, 12658, "
         "4294967295, 0),"
         "(1729733883833924932, 1729733883833924952, 0, 4000000002, 82550, 511284, 221, 4294967295, 2, 40, 4294967295, "
-        "0),"
+        "5),"
         "(1729733883833924952, 1729733883833924992, 0, 4000000001, 82550, 511284, 221, 4294967295, 2, 40, 4294967295, "
-        "0);";
+        "6);";
     std::string mstxInsert =
         "INSERT INTO MSTX_EVENTS (startNs, endNs, eventType, rangeId, category, message, globalTid, endGlobalTid, "
         "domainId, connectionId, depth) VALUES "
@@ -125,8 +125,10 @@ TEST_F(DeviceFlowRepoTest, AddHardWareMstxFlowPointExecuteSQLTest) {
     ASSERT_EQ(flowPointVec.size(), expectedSize);
     EXPECT_EQ(flowPointVec[0].flowId, "4000000002");
     EXPECT_EQ(flowPointVec[0].id, 2); // 2
+    EXPECT_EQ(flowPointVec[0].depth, 5);
     EXPECT_EQ(flowPointVec[1].flowId, "4000000001");
     EXPECT_EQ(flowPointVec[1].id, 3); // 3
+    EXPECT_EQ(flowPointVec[1].depth, 6);
     database->CloseDb();
     std::remove(completePath.c_str());
 }

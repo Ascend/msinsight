@@ -295,8 +295,6 @@ class VirtualTraceDatabase : public Database {
     static std::string ExtractGroupNameValue(const std::string &str);
 
     SliceQuery CreateSliceQueryWithTimeRange(const SliceBaseInfo &sliceInfo);
-    void GetSliceDepthCacheForJump(const SliceQuery &params, std::unordered_map<uint64_t, uint32_t> &depthCache);
-    uint64_t GetSliceDepthForJump(const SliceQuery &params, uint64_t sliceId);
 
   private:
     // 给定一个通信算子或Task，计算其未被通信掩盖部分的耗时

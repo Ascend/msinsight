@@ -44,7 +44,7 @@ class DpuRepoTest : public ::testing::Test {
         ASSERT_TRUE(testDatabase.OpenDb(testDbPath, false));
         ASSERT_TRUE(testDatabase.ExecSql(
             "CREATE TABLE DPU_TASK(dpuDeviceId INTEGER, globalTid INTEGER, startNs INTEGER, endNs INTEGER, "
-            "globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER);"
+            "globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER, depth INTEGER);"
             "CREATE TABLE STRING_IDS(id INTEGER PRIMARY KEY, value TEXT);"));
         DataBaseManager::Instance().SetDataType(DataType::DB, testDbPath);
         ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(TEST_RANK_ID, testDbPath));
@@ -106,12 +106,39 @@ TEST_F(DpuRepoTest, QuerySimpleSliceIsolatesDpuGlobalTidDeviceStreamAndUsesInter
     EXPECT_EQ(slices[0].id, 101);
     EXPECT_EQ(slices[0].timestamp, 100);
     EXPECT_EQ(slices[0].endTime, 130);
+    EXPECT_EQ(slices[0].depth, 0);
 
     query.trackId = TrackInfoManager::Instance().GetTrackId(TEST_RANK_ID, "DPU_429496730601_1", "7");
     slices.clear();
     repo.QuerySimpleSliceWithOutNameByTrackId(query, slices);
     ASSERT_EQ(slices.size(), 1);
     EXPECT_EQ(slices[0].id, 102);
+}
+
+TEST_F(DpuRepoTest, QueriesReturnPersistedDepth) {
+    ASSERT_TRUE(testDatabase.ExecSql(
+        "INSERT INTO STRING_IDS(id, value) VALUES (1, 'dpu_kernel');"
+        "INSERT INTO DPU_TASK(ROWID, dpuDeviceId, globalTid, startNs, endNs, globalTaskId, streamId, taskId, "
+        "opName, args, depth) VALUES (191, 0, 429496730600, 100, 120, 684, 0, 791, 1, 0, 6);"));
+
+    DpuRepo repo;
+    SliceQuery query;
+    query.rankId = TEST_RANK_ID;
+    query.startTime = 90;
+    query.endTime = 130;
+    query.trackId = TrackInfoManager::Instance().GetTrackId(TEST_RANK_ID, "DPU_429496730600_0", "0");
+    std::vector<SliceDomain> simpleSlices;
+    repo.QuerySimpleSliceWithOutNameByTrackId(query, simpleSlices);
+    ASSERT_EQ(simpleSlices.size(), 1);
+    EXPECT_EQ(simpleSlices[0].depth, 6);
+
+    std::vector<CompeteSliceDomain> completeSlices;
+    repo.QueryCompeteSliceByIds(query, {191}, completeSlices);
+    ASSERT_EQ(completeSlices.size(), 1);
+    EXPECT_EQ(completeSlices[0].depth, 6);
+
+    const auto detail = QueryDetail("191");
+    EXPECT_EQ(detail.depth, 6);
 }
 
 TEST_F(DpuRepoTest, QueryCompeteSliceResolvesOperatorNameFromStringIds) {

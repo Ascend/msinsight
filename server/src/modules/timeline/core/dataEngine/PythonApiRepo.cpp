@@ -19,6 +19,7 @@
 #include "TableDefs.h"
 #include "TrackInfoManager.h"
 #include "PythonApiRepo.h"
+#include "TimeRangeUtils.h"
 namespace Dic::Module::Timeline {
 void PythonApiRepo::QuerySimpleSliceWithOutNameByTrackId(
     const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
@@ -35,16 +36,16 @@ void PythonApiRepo::QuerySimpleSliceWithOutNameByTrackId(
         ServerLog::Warn("python api open database is failed");
         return;
     }
-    std::string sql = "SELECT ROWID as id, startNs, endNs from " + TABLE_API +
-        " where globalTid = ? "
+    std::string sql = "SELECT ROWID as id, startNs, endNs, depth from " + TABLE_API +
+        " where globalTid = ? and (type is null or type != 50003) "
         " AND startNs <= ? AND endNs >= ? order by startNs , id";
     auto stmt = database->CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Warn("Failed to parpare python api query all slice");
         return;
     }
-    stmt->BindParams(trackInfo.processId, sliceQuery.endTime + sliceQuery.minTimestamp,
-        sliceQuery.startTime + sliceQuery.minTimestamp);
+    stmt->BindParams(trackInfo.processId, AddTimestampOffset(sliceQuery.endTime, sliceQuery.minTimestamp),
+        AddTimestampOffset(sliceQuery.startTime, sliceQuery.minTimestamp));
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Warn("Failed to execute query python api query all slice");
@@ -55,6 +56,7 @@ void PythonApiRepo::QuerySimpleSliceWithOutNameByTrackId(
         sliceDomain.id = resultSet->GetUint64("id");
         sliceDomain.timestamp = resultSet->GetUint64("startNs");
         sliceDomain.endTime = resultSet->GetUint64("endNs");
+        sliceDomain.depth = resultSet->GetUint32("depth");
         sliceVec.emplace_back(sliceDomain);
     }
 }
@@ -82,8 +84,8 @@ void PythonApiRepo::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector
         ServerLog::Warn("Failed to parpare python api query slice by cat");
         return;
     }
-    stmt->BindParams(trackInfo.processId, sliceQuery.endTime + sliceQuery.minTimestamp,
-        sliceQuery.startTime + sliceQuery.minTimestamp);
+    stmt->BindParams(trackInfo.processId, AddTimestampOffset(sliceQuery.endTime, sliceQuery.minTimestamp),
+        AddTimestampOffset(sliceQuery.startTime, sliceQuery.minTimestamp));
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Warn("Failed to execute query python api query slice by cat");
@@ -108,7 +110,7 @@ bool PythonApiRepo::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, st
         ServerLog::Warn("python api open database is failed");
         return false;
     }
-    std::string sql = "SELECT api.ROWID as id, api.startNs, api.endNs from " + TABLE_API +
+    std::string sql = "SELECT api.ROWID as id, api.startNs, api.endNs, api.depth from " + TABLE_API +
         " api "
         " JOIN " +
         TABLE_ENUM_API_TYPE +
@@ -120,8 +122,8 @@ bool PythonApiRepo::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, st
         ServerLog::Warn("Failed to parpare python api query slice by cat and range");
         return false;
     }
-    stmt->BindParams(trackInfo.processId, sliceQuery.endTime + sliceQuery.minTimestamp,
-        sliceQuery.startTime + sliceQuery.minTimestamp);
+    stmt->BindParams(trackInfo.processId, AddTimestampOffset(sliceQuery.endTime, sliceQuery.minTimestamp),
+        AddTimestampOffset(sliceQuery.startTime, sliceQuery.minTimestamp));
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Warn("Failed to execute query python api query slice by cat and range");
@@ -132,6 +134,7 @@ bool PythonApiRepo::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, st
         sliceDomain.id = resultSet->GetUint64("id");
         sliceDomain.timestamp = resultSet->GetUint64("startNs");
         sliceDomain.endTime = resultSet->GetUint64("endNs");
+        sliceDomain.depth = resultSet->GetUint32("depth");
         sliceVec.emplace_back(sliceDomain);
     }
     return true;
@@ -179,7 +182,7 @@ void PythonApiRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const s
     if (std::empty(sliceIds)) {
         return;
     }
-    std::string sql = "select name, ROWID as id, startNs, endNs "
+    std::string sql = "select name, ROWID as id, startNs, endNs, depth "
                       " from " +
         TABLE_API + " where 1 = 1 and id in (";
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
@@ -206,6 +209,7 @@ void PythonApiRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const s
         competeSlice.id = resultSet->GetUint64("id");
         competeSlice.timestamp = resultSet->GetUint64("startNs");
         competeSlice.endTime = resultSet->GetUint64("endNs");
+        competeSlice.depth = resultSet->GetUint32("depth");
         competeSlice.name = FullDb::DbTraceDataBase::GetStringCacheValue(nameKey, resultSet->GetString("name"));
         competeSliceVec.emplace_back(competeSlice);
     }
@@ -217,7 +221,7 @@ bool PythonApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSl
         .Select(PytorchApiColumn::ENDTIME, PytorchApiColumn::NAME)
         .Select(PytorchApiColumn::SEQUENCE_NUMBER, PytorchApiColumn::FWD_THREAD_ID)
         .Select(PytorchApiColumn::INPUT_DTYPES, PytorchApiColumn::INPUT_SHAPES)
-        .Select(PytorchApiColumn::CALL_CHAIN_ID, PytorchApiColumn::CONNECTIONID)
+        .Select(PytorchApiColumn::CALL_CHAIN_ID, PytorchApiColumn::CONNECTIONID, PytorchApiColumn::DEPTH)
         .Eq(PytorchApiColumn::ID, sliceQuery.sliceId)
         .ExcuteQuery(sliceQuery.GetDataSourceId(), apiPOs);
     if (std::empty(apiPOs)) {
@@ -228,6 +232,7 @@ bool PythonApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSl
     competeSliceDomain.id = target.id;
     competeSliceDomain.timestamp = target.timestamp;
     competeSliceDomain.endTime = target.endTime;
+    competeSliceDomain.depth = target.depth;
     QuerySliceArgs(sliceQuery, competeSliceDomain, target);
     return true;
 }
@@ -306,7 +311,8 @@ bool PythonApiRepo::QuerySliceByVagueNameAndTime(const SliceQuery &sliceQuery, s
     std::vector<uint64_t> strIds(ids.size());
     std::transform(ids.begin(), ids.end(), std::back_inserter(strIds), [](const auto &item) { return item.id; });
     std::vector<PytorchApiPO> apiPos;
-    pytorchApiTable->Select(PytorchApiColumn::ID, PytorchApiColumn::TIMESTAMP, PytorchApiColumn::ENDTIME)
+    pytorchApiTable
+        ->Select(PytorchApiColumn::ID, PytorchApiColumn::TIMESTAMP, PytorchApiColumn::ENDTIME, PytorchApiColumn::DEPTH)
         .GreaterEq(PytorchApiColumn::TIMESTAMP, sliceQuery.startTime)
         .LessEq(PytorchApiColumn::ENDTIME, sliceQuery.endTime)
         .In(PytorchApiColumn::NAME, strIds)
@@ -324,6 +330,7 @@ bool PythonApiRepo::QuerySliceByVagueNameAndTime(const SliceQuery &sliceQuery, s
         slice.name = sliceQuery.name;
         slice.timestamp = item.timestamp;
         slice.endTime = item.endTime;
+        slice.depth = item.depth;
         return slice;
     });
     return true;
@@ -342,10 +349,11 @@ bool PythonApiRepo::QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, C
     std::transform(strPOs.begin(), strPOs.end(), strIds.begin(), [](const StringIdsPO &item) { return item.id; });
     std::vector<PytorchApiPO> apiPOs;
     pytorchApiTable->Select(PytorchApiColumn::ID, PytorchApiColumn::TIMESTAMP)
-        .Select(PytorchApiColumn::ENDTIME, PytorchApiColumn::GLOBAL_TID)
+        .Select(PytorchApiColumn::ENDTIME, PytorchApiColumn::GLOBAL_TID, PytorchApiColumn::DEPTH)
         .LessEq(PytorchApiColumn::TIMESTAMP, sliceQuery.timePoint)
         .GreaterEq(PytorchApiColumn::ENDTIME, sliceQuery.timePoint)
         .In(PytorchApiColumn::NAME, strIds)
+        .IsNullOrNotEq(PytorchApiColumn::TYPE, static_cast<uint64_t>(50003))
         .OrderBy(PytorchApiColumn::TIMESTAMP, Timeline::TableOrder::DESC)
         .ExcuteQuery(sliceQuery.GetDataSourceId(), apiPOs);
     if (std::empty(apiPOs)) {
@@ -356,6 +364,7 @@ bool PythonApiRepo::QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, C
     competeSliceDomain.id = target.id;
     competeSliceDomain.timestamp = target.timestamp;
     competeSliceDomain.endTime = target.endTime;
+    competeSliceDomain.depth = target.depth;
     competeSliceDomain.pid = std::to_string(target.globalTid);
     competeSliceDomain.tid = pythonApiTid;
     competeSliceDomain.cardId = sliceQuery.rankId;

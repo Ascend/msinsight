@@ -81,7 +81,7 @@ const std::string QUERY_FLOW_BY_FLOWID_SQL = "SELECT name, cat, flow_id as flowI
     " FROM " + FLOW_TABLE + " WHERE flow_id = ?";
 const std::string QUERY_ALL_THREAD_SQL = "SELECT track_id as trackId, tid, pid FROM " + THREAD_TABLE + " ;";
 const std::string QUERY_SLICE_BY_ID_SQL = "SELECT track_id, flag_id FROM " + SLICE_TABLE + " WHERE id = ?";
-const std::string QUERY_SLICE_BY_FLAG_ID_SQL = "SELECT id"
+const std::string QUERY_SLICE_BY_FLAG_ID_SQL = "SELECT id, depth"
     " FROM " + SLICE_TABLE + " WHERE flag_id = ? AND track_id = ?;";
 const std::string QUERY_EXETREME_TIME_SQL = "SELECT  min(minTimestamp) AS totalMinTimestamp, max(maxTimestamp) AS "
     "totalMaxTimestamp FROM ("
@@ -156,7 +156,7 @@ public:
     static std::string GetSearchSliceNameSql(bool isMatchExact, bool isMatchCase)
     {
         std::string nameMatch = GetSearchNameSqlSuffix(isMatchExact, isMatchCase);
-        return "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId, cat"
+        return "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId, cat, depth"
             " FROM " + SLICE_TABLE + " JOIN " + THREAD_TABLE + " USING (track_id) WHERE " + nameMatch +
             " ORDER BY timestamp ASC, track_id ASC, id ASC LIMIT 1 OFFSET ?";
     }
@@ -368,7 +368,7 @@ public:
         std::string orderBy = " ORDER BY " + orderByField + (order == "descend" ? " DESC" : " ASC");
         std::string nameMatch = GetSearchNameSqlSuffix(isMatchExact, isMatchCase);
         std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
-            " s.id as id, t.tid as tid, t.pid as pid FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
+            " s.id as id, t.tid as tid, t.pid as pid, s.depth as depth FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
             " t on s.track_id = t.track_id WHERE " + nameMatch + orderBy + " limit ? offset ?";
         return sql;
     }
@@ -381,7 +381,7 @@ public:
         // 二级筛选：nameFilter 模糊匹配
         std::string nameFilterMatch = "lower(s.name) LIKE lower('%'||?||'%')";
         std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
-            " s.id as id, t.tid as tid, t.pid as pid FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
+            " s.id as id, t.tid as tid, t.pid as pid, s.depth as depth FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
             " t on s.track_id = t.track_id WHERE " + nameMatch + " AND " + nameFilterMatch + orderBy + " limit ? offset ?";
         return sql;
     }

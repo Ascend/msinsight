@@ -56,6 +56,14 @@ class TraceFileParser : public FileParser, protected JsonFileProcess {
   protected:
     // 后处理 Hook 函数，返回 false 表示后处理失败
     virtual bool PostParse(std::shared_ptr<TextTraceDatabase> db, const std::string &rankId);
+    virtual bool PersistOperatorDepth(std::shared_ptr<TextTraceDatabase> db, const std::string &rankId);
+    virtual void NotifyParseCompletionUnits(
+        std::shared_ptr<TextTraceDatabase> db, const std::string &rankId, const std::string &fileId);
+
+    void EndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr,
+        std::shared_ptr<std::vector<std::future<void>>> futures,
+        std::chrono::time_point<std::chrono::high_resolution_clock> start);
+    bool InitParser(const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId);
 
     /**
      * @brief 根据 database 中的 process 表的 label 列更新当前映射的 RankId -> DeviceId 的 DeviceId 的值
@@ -67,14 +75,9 @@ class TraceFileParser : public FileParser, protected JsonFileProcess {
   private:
     std::shared_ptr<ThreadPool> threadPool_; // 共享线程池
     static bool CheckInitParser(const std::string &fileId);
-    bool InitParser(const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId);
     void PreParseTask(
         const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId);
     void ParseTask(const std::string &filePath, const std::string &rankId, std::pair<int64_t, int64_t> pos);
-    void EndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr,
-        std::shared_ptr<std::vector<std::future<void>>> futures,
-        std::chrono::time_point<std::chrono::high_resolution_clock> start);
-
     std::mutex trackMutex;
     std::unordered_map<std::string, std::map<std::pair<std::string, std::string>, uint64_t>> trackIdMap;
     uint64_t trackId = 0;

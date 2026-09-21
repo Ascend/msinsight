@@ -59,7 +59,7 @@ class HardWareRepoTest : public ::testing::Test {
         std::string taskInsert =
             "INSERT INTO \"main\".\"TASK\" (\"startNs\", \"endNs\", \"deviceId\", \"connectionId\", \"globalTaskId\", "
             "\"globalPid\", \"taskType\", \"contextId\", \"streamId\", \"taskId\", \"modelId\", \"depth\") VALUES "
-            "(1718180918997521124, 1718180918999870771, 0, 7422, 5, 2045554, 320, 4294967295, 16, 3731, 4294967295, 0);"
+            "(1718180918997521124, 1718180918999870771, 0, 7422, 5, 2045554, 320, 4294967295, 16, 3731, 4294967295, 6);"
             "INSERT INTO \"main\".\"TASK\" (\"startNs\", \"endNs\", \"deviceId\", \"connectionId\", \"globalTaskId\", "
             "\"globalPid\", \"taskType\", \"contextId\", \"streamId\", \"taskId\", \"modelId\", \"depth\") VALUES "
             "(1718180918997621124, 1718180918999870771, 0, 7422, 6, 2045554, 320, 4294967295, 16, 3731, 4294967295,0);"
@@ -152,7 +152,7 @@ class HardWareRepoMock : public HardWareRepo {
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(HardWareRepoTest, TestQuerySliceDetailInfoNormal) {
+TEST_F(HardWareRepoTest, QuerySliceDetailInfoReturnsPersistedDepth) {
     HardWareDependency dependency;
     HardWareRepoMock hardWareRepoMock;
     TestQuerySliceDetailInfoNormalPrepare(dependency, hardWareRepoMock.db);
@@ -167,6 +167,7 @@ TEST_F(HardWareRepoTest, TestQuerySliceDetailInfoNormal) {
     const uint64_t expectEnd = 1718180918999870771;
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
+    EXPECT_EQ(slice.depth, 6);
     const std::string expectArgs =
         "{\"modelId\":\"4294967295\",\"taskType\":\"KERNEL_SIMT\",\"streamId\":\"16\","
         "\"taskId\":\"3731\",\"connectionId\":\"7422\",\"gridDim\":\"1,2,3\",\"blockDim\":\"4,5,6\"}";

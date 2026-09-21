@@ -29,7 +29,7 @@ void CANNApiRepo::QuerySimpleSliceWithOutNameByTrackId(
         return;
     }
     std::vector<CANNApiPO> cannApiPOVec;
-    cannApiTable->Select(CANNApiColumn::ID, CANNApiColumn::TIMESTAMP, CANNApiColumn::ENDTIME)
+    cannApiTable->Select(CANNApiColumn::ID, CANNApiColumn::TIMESTAMP, CANNApiColumn::ENDTIME, CANNApiColumn::DEPTH)
         .Eq(CANNApiColumn::TYPE, trackInfo.threadId)
         .Eq(CANNApiColumn::GLOBAL_TID, trackInfo.processId)
         .LessEq(CANNApiColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
@@ -40,6 +40,7 @@ void CANNApiRepo::QuerySimpleSliceWithOutNameByTrackId(
         sliceDomain.id = item.id;
         sliceDomain.timestamp = item.timestamp;
         sliceDomain.endTime = item.endTime;
+        sliceDomain.depth = item.depth;
         sliceVec.emplace_back(sliceDomain);
     }
 }
@@ -58,7 +59,7 @@ void CANNApiRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std
     const std::string nameKey = cannApiTable->GetDbPath(trackInfo.cardId);
     std::vector<CANNApiPO> cannApiPOVec;
     cannApiTable->Select(CANNApiColumn::ID, CANNApiColumn::TIMESTAMP)
-        .Select(CANNApiColumn::ENDTIME, CANNApiColumn::NAME)
+        .Select(CANNApiColumn::ENDTIME, CANNApiColumn::NAME, CANNApiColumn::DEPTH)
         .In(CANNApiColumn::ID, sliceIds)
         .ExcuteQuery(trackInfo.cardId, cannApiPOVec);
     for (const auto &item : cannApiPOVec) {
@@ -66,6 +67,7 @@ void CANNApiRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std
         competeSliceDomain.id = item.id;
         competeSliceDomain.timestamp = item.timestamp;
         competeSliceDomain.endTime = item.endTime;
+        competeSliceDomain.depth = item.depth;
         competeSliceDomain.name = FullDb::DbTraceDataBase::GetStringCacheValue(nameKey, std::to_string(item.name));
         competeSliceVec.emplace_back(competeSliceDomain);
     }
@@ -81,7 +83,7 @@ bool CANNApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSlic
     std::vector<CANNApiPO> cannApiPOVec;
     cannApiTable->Select(CANNApiColumn::ID, CANNApiColumn::TIMESTAMP)
         .Select(CANNApiColumn::ENDTIME, CANNApiColumn::NAME)
-        .Select(CANNApiColumn::GLOBAL_TID, CANNApiColumn::TYPE)
+        .Select(CANNApiColumn::GLOBAL_TID, CANNApiColumn::TYPE, CANNApiColumn::DEPTH)
         .Eq(CANNApiColumn::ID, sliceQuery.sliceId)
         .ExcuteQuery(sliceQuery.GetDataSourceId(), cannApiPOVec);
     if (std::empty(cannApiPOVec)) {
@@ -92,6 +94,7 @@ bool CANNApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSlic
     competeSliceDomain.id = target.id;
     competeSliceDomain.timestamp = target.timestamp;
     competeSliceDomain.endTime = target.endTime;
+    competeSliceDomain.depth = target.depth;
     std::unordered_map<uint64_t, std::string> strMap =
         stringIdsTable->QueryStrMap({target.name}, sliceQuery.GetDataSourceId());
     competeSliceDomain.name = strMap[target.name];
@@ -121,7 +124,7 @@ bool CANNApiRepo::QuerySliceDetailInfoByNameList(
         [](const std::pair<uint64_t, std::string> &pair) { return pair.first; });
     // 根据stringIds查询算子
     std::vector<CANNApiPO> cannApiPOVec;
-    cannApiTable->Select(CANNApiColumn::NAME, CANNApiColumn::TIMESTAMP, CANNApiColumn::ENDTIME)
+    cannApiTable->Select(CANNApiColumn::NAME, CANNApiColumn::TIMESTAMP, CANNApiColumn::ENDTIME, CANNApiColumn::DEPTH)
         .In(CANNApiColumn::NAME, stringIds)
         .OrderBy(CANNApiColumn::TIMESTAMP, TableOrder::ASC)
         .ExcuteQuery(params.rankId, cannApiPOVec);
@@ -130,6 +133,7 @@ bool CANNApiRepo::QuerySliceDetailInfoByNameList(
         domain.name = strMap[item.name];
         domain.timestamp = item.timestamp;
         domain.endTime = item.endTime;
+        domain.depth = item.depth;
         res.push_back(domain);
     }
     return true;

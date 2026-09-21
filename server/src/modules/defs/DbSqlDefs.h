@@ -40,7 +40,8 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
         "startNs INTEGER, endNs INTEGER, args INTEGER);"},
     {TABLE_DPU_TASK,
         "create TEMPORARY table if not exists DPU_TASK(dpuDeviceId INTEGER, globalTid INTEGER, startNs INTEGER, "
-        "endNs INTEGER, globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER);"},
+        "endNs INTEGER, globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER, "
+        "depth INTEGER);"},
     {TABLE_COMMUNICATION_TASK_INFO,
         "create TEMPORARY table if not exists COMMUNICATION_TASK_INFO( name INTEGER, "
         " globalTaskId INTEGER, taskType INTEGER, planeId INTEGER, groupName INTEGER, notifyId INTEGER,"
@@ -187,7 +188,7 @@ inline std::string GetDpuSameNameDetailSql(
             " AND CAST(main.streamId AS TEXT) = " + StringUtil::Join4SqlGroup({tidList[index]}) + ")");
     }
     const std::string laneFilter = laneConditions.empty() ? "1 = 0" : StringUtil::join(laneConditions, " OR ");
-    return " select main.startNs - p.minTime as timestamp, main.endNs - main.startNs as duration, 0 as depth, "
+    return " select main.startNs - p.minTime as timestamp, main.endNs - main.startNs as duration, main.depth, "
            " main.ROWID as id, CAST(main.streamId AS TEXT) as tid, "
            " 'DPU_' || CAST(main.globalTid AS TEXT) || '_' || CAST(main.dpuDeviceId AS TEXT) as pid from " +
         TABLE_DPU_TASK +
@@ -278,11 +279,11 @@ const static std::string ASCEND_THREADS_MSTX_BY_PID =
 
 const static std::string HCCL_THREADS_BY_PID =
     "with sub as ("
-    "select main.ROWID as id, startNs, endNs-startNs as duration, endNs, info.taskType as name from " +
+    "select main.ROWID as id, startNs, endNs-startNs as duration, endNs, info.taskType as name, 0 as depth from " +
     TABLE_TASK + " main join " + TABLE_COMMUNICATION_TASK_INFO +
     " info on info.globalTaskId = main.globalTaskId\n"
     " where deviceId = ? and groupName || '_' || planeId = ?\n"
-    " UNION select opInfo.opId as id, startNs,endNs-startNs as duration,endNs,opInfo.opName"
+    " UNION select opInfo.opId as id, startNs,endNs-startNs as duration,endNs,opInfo.opName, 0 as depth"
     " from COMMUNICATION_OP opInfo"
     " where groupName||'group' = ?) select * from sub where sub.endNs >= ? "
     " and sub.startNs <= ?;";
@@ -299,7 +300,7 @@ const static std::string API_THREADS_BY_PID =
 
 const static std::string API_THREADS_BY_PID_AND_NO_PYTHON_FUNCTION =
     "select main.ROWID as id, startNs, endNs - startNs as duration, endNs, name, depth from PYTORCH_API "
-    " main where globalTid = ? and endNs >= ? AND startNs <= ? and type != 50003 " // 50003 is the python function
+    " main where globalTid = ? and endNs >= ? AND startNs <= ? and (type IS NULL OR type != 50003) "
     " ORDER BY depth ASC, startNs ASC;";
 
 const static std::string API_THREADS_BY_PID_AND_PYTHON_FUNCTION =
@@ -328,8 +329,7 @@ const static std::string CCU_THREADS_BY_PID =
     TABLE_CCU + " WHERE deviceId = ? AND endNs >= ? AND startNs <= ? ORDER BY startNs ASC;";
 
 const static std::string DPU_THREADS_BY_PID =
-    "SELECT ROWID AS id, startNs, endNs - startNs AS duration, endNs, opName AS name, 0 AS depth FROM " +
-    TABLE_DPU_TASK +
+    "SELECT ROWID AS id, startNs, endNs - startNs AS duration, endNs, opName AS name, depth FROM " + TABLE_DPU_TASK +
     " WHERE ('DPU_' || CAST(globalTid AS TEXT) || '_' || CAST(dpuDeviceId AS TEXT)) = ? AND streamId = ? "
     "AND endNs >= ? AND startNs <= ? ORDER BY startNs ASC;";
 

@@ -91,6 +91,20 @@ class PythonStackHelper {
         return restored;
     }
 
+    static std::string BuildDisplayThreadId(
+        const std::string &processId, const std::string &threadId, const std::string &metaType, bool isPythonStack) {
+        if (!isPythonStack) {
+            return threadId;
+        }
+        if (metaType == ENUM_TO_STR(PROCESS_TYPE::TEXT).value_or("")) {
+            return GetTextPythonStackThreadIdPrefix() + threadId;
+        }
+        if (metaType == ENUM_TO_STR(PROCESS_TYPE::API).value_or("")) {
+            return Protocol::PYTHON_STACK_THREAD_ID_PREFIX + processId;
+        }
+        return threadId;
+    }
+
     static bool RestoreUnitFlowsParams(Protocol::UnitFlowsParams &params) {
         bool restored = RestoreThreadIdAndMetaType(params.pid, params.tid, params.metaType);
         // tid/metaType 还原后已无法从参数值判断请求原本来自 Python Stack，显式记录该语义，

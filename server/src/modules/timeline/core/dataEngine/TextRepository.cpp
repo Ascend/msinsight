@@ -23,6 +23,7 @@
 #include "KernelDetailTable.h"
 #include "TrackInfoManager.h"
 #include "TextRepository.h"
+#include "TimeRangeUtils.h"
 
 namespace Dic::Module::Timeline {
 namespace {
@@ -56,8 +57,9 @@ void TextRepository::QuerySimpleSliceWithOutNameByTrackId(
     SliceTable sliceTable;
     std::vector<SlicePO> tempSlicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
-        .Select(SliceColumn::GROUPID)
+        .Select(SliceColumn::GROUPID, SliceColumn::DEPTH)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
+        .IsNullOrNotEq(SliceColumn::CAT, std::string("python_function"))
         .OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
         .OrderBy(SliceColumn::ID, TableOrder::ASC)
         .ExcuteQuery(trackInfo.cardId, tempSlicePOVec);
@@ -66,6 +68,7 @@ void TextRepository::QuerySimpleSliceWithOutNameByTrackId(
         cachelice.id = item.id;
         cachelice.timestamp = item.timestamp;
         cachelice.endTime = item.endTime;
+        cachelice.depth = item.depth;
         cachelice.groupId = item.groupId;
         sliceVec.emplace_back(cachelice);
     }
@@ -98,11 +101,11 @@ bool TextRepository::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, s
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
-        .Select(SliceColumn::GROUPID)
+        .Select(SliceColumn::GROUPID, SliceColumn::DEPTH)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
         .Eq(SliceColumn::CAT, sliceQuery.cat)
-        .LessEq(SliceColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
-        .GreaterEq(SliceColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp)
+        .LessEq(SliceColumn::TIMESTAMP, AddTimestampOffset(sliceQuery.endTime, sliceQuery.minTimestamp))
+        .GreaterEq(SliceColumn::ENDTIME, AddTimestampOffset(sliceQuery.startTime, sliceQuery.minTimestamp))
         .OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
         .OrderBy(SliceColumn::ID, TableOrder::ASC)
         .ExcuteQuery(trackInfo.cardId, slicePOVec);
@@ -111,6 +114,7 @@ bool TextRepository::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, s
         cacheSlice.id = item.id;
         cacheSlice.timestamp = item.timestamp;
         cacheSlice.endTime = item.endTime;
+        cacheSlice.depth = item.depth;
         cacheSlice.groupId = item.groupId;
         sliceVec.emplace_back(cacheSlice);
     }
@@ -140,10 +144,10 @@ void TextRepository::QueryCompeteSliceVecByTimeRangeAndTrackId(
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)
-        .Select(SliceColumn::DURATION, SliceColumn::ENDTIME, SliceColumn::NAME)
+        .Select(SliceColumn::DURATION, SliceColumn::ENDTIME, SliceColumn::NAME, SliceColumn::DEPTH)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
-        .LessEq(SliceColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
-        .Greater(SliceColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp)
+        .LessEq(SliceColumn::TIMESTAMP, AddTimestampOffset(sliceQuery.endTime, sliceQuery.minTimestamp))
+        .Greater(SliceColumn::ENDTIME, AddTimestampOffset(sliceQuery.startTime, sliceQuery.minTimestamp))
         .ExcuteQuery(trackInfo.cardId, slicePOVec);
     for (const auto &item : slicePOVec) {
         CompeteSliceDomain temp;
@@ -151,6 +155,7 @@ void TextRepository::QueryCompeteSliceVecByTimeRangeAndTrackId(
         temp.timestamp = item.timestamp;
         temp.duration = item.duration;
         temp.endTime = item.endTime;
+        temp.depth = item.depth;
         temp.name = item.name;
         sliceVec.emplace_back(std::move(temp));
     }
@@ -165,8 +170,8 @@ void TextRepository::QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::
     FlowTable flowTable;
     std::vector<FlowPO> flowPOVec;
     flowTable.Select(FlowColumn::TYPE, FlowColumn::TIMESTAMP, FlowColumn::FLOW_ID)
-        .GreaterEq(FlowColumn::TIMESTAMP, flowQuery.startTime + flowQuery.minTimestamp)
-        .LessEq(FlowColumn::TIMESTAMP, flowQuery.endTime + flowQuery.minTimestamp)
+        .GreaterEq(FlowColumn::TIMESTAMP, AddTimestampOffset(flowQuery.startTime, flowQuery.minTimestamp))
+        .LessEq(FlowColumn::TIMESTAMP, AddTimestampOffset(flowQuery.endTime, flowQuery.minTimestamp))
         .Eq(FlowColumn::TRACK_ID, flowQuery.trackId)
         .GroupBy(FlowColumn::FLOW_ID)
         .ExcuteQuery(trackInfo.cardId, flowPOVec);
@@ -230,7 +235,7 @@ void TextRepository::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const 
     SliceTable sliceTable;
     std::vector<SlicePO> tempSlicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
-        .Select(SliceColumn::NAME, SliceColumn::CNAME)
+        .Select(SliceColumn::NAME, SliceColumn::CNAME, SliceColumn::DEPTH)
         .In(SliceColumn::ID, sliceIds)
         .ExcuteQuery(trackInfo.cardId, tempSlicePOVec);
     for (const auto &item : tempSlicePOVec) {
@@ -238,6 +243,7 @@ void TextRepository::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const 
         cachelice.id = item.id;
         cachelice.timestamp = item.timestamp;
         cachelice.endTime = item.endTime;
+        cachelice.depth = item.depth;
         cachelice.name = item.name;
         cachelice.cname = item.cname;
         competeSliceVec.emplace_back(cachelice);
@@ -245,24 +251,60 @@ void TextRepository::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const 
 }
 
 void TextRepository::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
-    FlowTable flowTable;
-    std::vector<FlowPO> flowPOVec;
-    flowTable.Select(FlowColumn::ID, FlowColumn::TRACK_ID, FlowColumn::FLOW_ID, FlowColumn::TYPE)
-        .Select(FlowColumn::TIMESTAMP)
-        .Eq(FlowColumn::CAT, flowQuery.cat)
-        .OrderBy(FlowColumn::TRACK_ID, TableOrder::ASC)
-        .OrderBy(FlowColumn::TIMESTAMP, TableOrder::ASC)
-        .ExcuteQuery(flowQuery.fileId, flowPOVec);
-    for (const auto &item : flowPOVec) {
-        if (item.timestamp < flowQuery.minTimestamp) {
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(flowQuery.fileId);
+    if (database == nullptr) {
+        ServerLog::Warn("Failed to get database when querying flow points by category.");
+        return;
+    }
+    const std::string sql = "SELECT f.id, f.track_id, f.flow_id, f.type, f.timestamp, CASE "
+                            "WHEN f.type = '" +
+        Protocol::LINE_START +
+        "' THEN COALESCE((SELECT s.depth FROM slice AS s "
+        "WHERE s.track_id = f.track_id AND (s.cat IS NULL OR s.cat != 'python_function') "
+        "AND s.timestamp = f.timestamp ORDER BY s.id ASC LIMIT 1), "
+        "(SELECT s.depth FROM slice AS s "
+        "WHERE s.track_id = f.track_id AND (s.cat IS NULL OR s.cat != 'python_function') "
+        "AND s.timestamp < f.timestamp AND s.end_time >= f.timestamp "
+        "AND EXISTS (SELECT 1 FROM slice AS boundary WHERE boundary.track_id = f.track_id "
+        "AND (boundary.cat IS NULL OR boundary.cat != 'python_function') "
+        "AND boundary.timestamp >= f.timestamp) "
+        "ORDER BY s.timestamp DESC, s.id DESC LIMIT 1), "
+        "CASE WHEN EXISTS (SELECT 1 FROM slice AS boundary WHERE boundary.track_id = f.track_id "
+        "AND (boundary.cat IS NULL OR boundary.cat != 'python_function') "
+        "AND boundary.timestamp >= f.timestamp) "
+        "THEN (SELECT s.depth FROM slice AS s WHERE s.track_id = f.track_id "
+        "AND (s.cat IS NULL OR s.cat != 'python_function') "
+        "ORDER BY s.timestamp ASC, s.id ASC LIMIT 1) ELSE 0 END, 0) "
+        "WHEN f.type IN ('" +
+        Protocol::LINE_END + "', '" + Protocol::LINE_END_OPTIONAL +
+        "') THEN COALESCE((SELECT s.depth FROM slice AS s "
+        "WHERE s.track_id = f.track_id AND (s.cat IS NULL OR s.cat != 'python_function') "
+        "AND s.timestamp >= f.timestamp ORDER BY s.timestamp ASC, s.id ASC LIMIT 1), 0) "
+        "ELSE 0 END AS depth FROM flow AS f WHERE f.cat = ? "
+        "ORDER BY f.track_id ASC, f.timestamp ASC";
+    auto stmt = database->CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Warn("Failed to prepare flow point depth query.");
+        return;
+    }
+    stmt->BindParams(flowQuery.cat);
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr) {
+        ServerLog::Warn("Failed to execute flow point depth query.");
+        return;
+    }
+    while (resultSet->Next()) {
+        const uint64_t timestamp = resultSet->GetUint64("timestamp");
+        if (timestamp < flowQuery.minTimestamp) {
             continue;
         }
         FlowPoint flowPoint;
-        flowPoint.id = item.id;
-        flowPoint.trackId = item.trackId;
-        flowPoint.flowId = item.flowId;
-        flowPoint.type = item.type;
-        flowPoint.timestamp = item.timestamp - flowQuery.minTimestamp;
+        flowPoint.id = resultSet->GetUint64("id");
+        flowPoint.trackId = resultSet->GetUint64("track_id");
+        flowPoint.flowId = resultSet->GetString("flow_id");
+        flowPoint.type = resultSet->GetString("type");
+        flowPoint.timestamp = timestamp - flowQuery.minTimestamp;
+        flowPoint.depth = resultSet->GetUint32("depth");
         flowPointVec.emplace_back(flowPoint);
     }
 }
@@ -271,7 +313,7 @@ void TextRepository::QueryAllFlagSlice(
     const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &competeSliceDomainVec) {
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
-    sliceTable.Select(SliceColumn::ID, SliceColumn::FLAGID)
+    sliceTable.Select(SliceColumn::ID, SliceColumn::FLAGID, SliceColumn::DEPTH)
         .NotEq(SliceColumn::FLAGID, "")
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
         .ExcuteQuery(sliceQuery.rankId, slicePOVec);
@@ -279,6 +321,7 @@ void TextRepository::QueryAllFlagSlice(
         CompeteSliceDomain competeSliceDomain;
         competeSliceDomain.id = item.id;
         competeSliceDomain.flagId = item.flagId;
+        competeSliceDomain.depth = item.depth;
         competeSliceDomainVec.emplace_back(competeSliceDomain);
     }
 }
@@ -331,7 +374,7 @@ bool TextRepository::QuerySliceDetailInfoByNameList(
     std::vector<SlicePO> slicePOVec;
     sliceTable
         .Select(SliceColumn::TIMESTAMP, SliceColumn::DURATION, SliceColumn::NAME, SliceColumn::ENDTIME,
-            SliceColumn::TRACKID, SliceColumn::ARGS)
+            SliceColumn::TRACKID, SliceColumn::ARGS, SliceColumn::DEPTH)
         .In(SliceColumn::TRACKID, trackIdList)
         .In(SliceColumn::NAME, params.nameList);
     if (params.startTime < params.endTime) {
@@ -346,6 +389,7 @@ bool TextRepository::QuerySliceDetailInfoByNameList(
         domain.endTime = item.endTime;
         domain.args = item.args;
         domain.trackId = item.trackId;
+        domain.depth = item.depth;
         res.push_back(domain);
     }
     return true;
@@ -356,7 +400,7 @@ bool TextRepository::QuerySliceDetailById(const SliceQuery &sliceQuery, CompeteS
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)
         .Select(SliceColumn::ENDTIME, SliceColumn::NAME)
-        .Select(SliceColumn::ARGS)
+        .Select(SliceColumn::ARGS, SliceColumn::DEPTH)
         .Eq(SliceColumn::ID, sliceQuery.sliceId)
         .ExcuteQuery(sliceQuery.rankId, slicePOVec);
     if (std::empty(slicePOVec)) {
@@ -368,6 +412,7 @@ bool TextRepository::QuerySliceDetailById(const SliceQuery &sliceQuery, CompeteS
     competeSliceDomain.name = slicePo.name;
     competeSliceDomain.endTime = slicePo.endTime;
     competeSliceDomain.timestamp = slicePo.timestamp;
+    competeSliceDomain.depth = slicePo.depth;
     competeSliceDomain.args = slicePo.args;
     return true;
 }
@@ -400,7 +445,7 @@ bool TextRepository::QuerySliceByTimepointAndName(
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)
-        .Select(SliceColumn::ENDTIME, SliceColumn::TRACKID, SliceColumn::DURATION)
+        .Select(SliceColumn::ENDTIME, SliceColumn::TRACKID, SliceColumn::DURATION, SliceColumn::DEPTH)
         .LessEq(SliceColumn::TIMESTAMP, sliceQuery.timePoint)
         .GreaterEq(SliceColumn::ENDTIME, sliceQuery.timePoint)
         .Eq(SliceColumn::NAME, sliceQuery.name)
@@ -413,6 +458,7 @@ bool TextRepository::QuerySliceByTimepointAndName(
     competeSliceDomain.id = slicePo.id;
     competeSliceDomain.endTime = slicePo.endTime;
     competeSliceDomain.timestamp = slicePo.timestamp;
+    competeSliceDomain.depth = slicePo.depth;
     TrackInfo trackInfo;
     auto &instance = TrackInfoManager::Instance();
     instance.GetTrackInfo(slicePo.trackId, trackInfo, sliceQuery.rankId);

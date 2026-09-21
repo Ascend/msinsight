@@ -88,6 +88,12 @@ template <typename T> class Table {
         return *this;
     }
 
+    Table &IsNullOrNotEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
+        ConditionStr() += " AND (" + std::string(str) + " IS NULL OR " + std::string(str) + " != ?) ";
+        Values().emplace_back(value);
+        return *this;
+    }
+
     Table &Less(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " < ? ";
         Values().emplace_back(value);

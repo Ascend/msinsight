@@ -47,10 +47,14 @@ class TraceFileSimulationParser : public FileParser, protected JsonFileProcess {
     std::unique_ptr<ThreadPool> threadPool;
     static bool InitParser(
         const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId);
+    static bool PrepareDatabaseForParse(const std::shared_ptr<TextTraceDatabase> &database);
     static void PreParseTask(
         const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId);
     static void ParseTask(const std::string &filePath, const std::string &rankId, const std::string &fileId,
         std::pair<int64_t, int64_t> pos);
+
+  private:
+    friend class TraceFileSimulationParserTestAccessor;
     static void EndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr,
         std::shared_ptr<std::vector<std::future<void>>> futures,
         std::chrono::time_point<std::chrono::high_resolution_clock> start, const std::string &fileId);

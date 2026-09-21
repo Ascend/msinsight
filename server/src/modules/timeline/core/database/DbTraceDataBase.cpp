@@ -45,6 +45,7 @@ DbTraceDataBase::DbTraceDataBase(std::recursive_mutex &sqlMutex) : VirtualTraceD
 }
 
 DbTraceDataBase::~DbTraceDataBase() {
+    updateMstxDepthStmt = nullptr;
     updateCANNApiDepthStmt = nullptr;
     insertOverlapStmt = nullptr;
     updateApiDepthStmt = nullptr;
@@ -547,19 +548,8 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
     responseBody.startTime = resultSet->GetUint64("startTime");
     responseBody.duration = resultSet->GetUint64("duration");
     responseBody.id = resultSet->GetString("id");
-    std::string metaType = resultSet->GetString("metaType");
-    responseBody.metaType = metaType;
-    bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
-    std::string queryTid = responseBody.tid;
-    std::string queryMetaType = metaType;
-    if (isPythonStack) {
-        queryTid = "pytorch";
-        queryMetaType = ENUM_TO_STR(PROCESS_TYPE::API).value_or("");
-    }
-    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, queryTid,
-        queryMetaType, responseBody.startTime, responseBody.duration});
-    sliceQuery.isPythonStack = isPythonStack;
-    responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
+    responseBody.metaType = resultSet->GetString("metaType");
+    responseBody.depth = resultSet->GetUint32("depth");
     return true;
 }
 
@@ -591,19 +581,8 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
     responseBody.duration = endTime >= responseBody.startTime ? endTime - responseBody.startTime : 0;
     responseBody.startTime -= minTimestamp; // 业务上 minTimestamp 是最小的时间，一定有 item.timestamp > minTimestamp
     responseBody.id = resultSet->GetString("id");
-    std::string metaType = resultSet->GetString("metaType");
-    responseBody.metaType = metaType;
-    bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
-    std::string queryTid = responseBody.tid;
-    std::string queryMetaType = metaType;
-    if (isPythonStack) {
-        queryTid = "pytorch";
-        queryMetaType = ENUM_TO_STR(PROCESS_TYPE::API).value_or("");
-    }
-    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, queryTid,
-        queryMetaType, responseBody.startTime, responseBody.duration});
-    sliceQuery.isPythonStack = isPythonStack;
-    responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
+    responseBody.metaType = resultSet->GetString("metaType");
+    responseBody.depth = resultSet->GetUint32("depth");
     return true;
 }
 
@@ -625,7 +604,8 @@ bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const 
               "select ids.value as name, python.globalTid as pid, 'PYTORCH_API' as metaType, "
               "python.startNs as startTime, python.endNs - python.startNs as duration, "
               "python.ROWID as id from " +
-            TABLE_API + " python join ids on ids.id = python.name where python.type != 50003";
+            TABLE_API +
+            " python join ids on ids.id = python.name where python.type IS NULL OR python.type != 50003";
     } else if (metaType == "PYTORCH_API_PYTHON_STACK" && CheckTableExist(TABLE_API)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, python.globalTid as pid, 'PYTORCH_API_PYTHON_STACK' as metaType, "
@@ -1059,16 +1039,8 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
         responseBody.threadId = resultSet->GetString("tid");
         responseBody.pid = resultSet->GetString("pid");
         responseBody.rankId = params.rankId;
-        std::string metaType = resultSet->GetString("metaType");
-        responseBody.metaType = metaType;
-        bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
-        std::string queryThreadId = isPythonStack ? "pytorch" : responseBody.threadId;
-        std::string queryMetaType = isPythonStack ? ENUM_TO_STR(PROCESS_TYPE::API).value_or("") : metaType;
-        SliceQuery sliceQuery = CreateSliceQueryWithTimeRange(
-            {responseBody.rankId, responseBody.pid, queryThreadId, queryMetaType, params.timestamp, params.duration});
-        sliceQuery.isPythonStack = isPythonStack;
-        uint64_t sliceId = NumberUtil::StringToUnsignedLongLong(responseBody.id);
-        responseBody.depth = GetSliceDepthForJump(sliceQuery, sliceId);
+        responseBody.metaType = resultSet->GetString("metaType");
+        responseBody.depth = resultSet->GetUint32("depth");
     }
     return true;
 }
@@ -1833,10 +1805,24 @@ void DbTraceDataBase::CreateTemporaryTable() {
 
 void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
     auto isVersionChange = IsDatabaseVersionChange();
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    bool addedDepthColumn = false;
+    auto ensureDepthColumn = [this, &addedDepthColumn](bool tableExists, const std::string &tableName) {
+        if (tableExists && !CheckColumnExist(tableName, std::string(PytorchApiColumn::DEPTH))) {
+            addedDepthColumn = ExecSql("alter table " + tableName + " add depth integer;") || addedDepthColumn;
+        }
+    };
+    ensureDepthColumn(isExistTask, TABLE_TASK);
+    ensureDepthColumn(isExistMstx, TABLE_MSTX_EVENTS);
+    ensureDepthColumn(isExistPytorch, TABLE_API);
+    ensureDepthColumn(isExistCANN, TABLE_CANN_API);
+    ensureDepthColumn(isExistDpu, TABLE_DPU_TASK);
+    if (addedDepthColumn) {
+        UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS);
+    }
     if (!isVersionChange) {
         return;
     }
-    std::lock_guard<std::recursive_mutex> lock(mutex);
 
     // FEAT: 上游数据库可能已提供 OVERLAP_ANALYSIS 表，需要检测数据来源以决定是否跳过本地生成
     // 检测逻辑分两阶段：
@@ -1863,11 +1849,7 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
     }
 
     if (isExistTask) {
-        if (!CheckColumnExist(TABLE_TASK, std::string(PytorchApiColumn::DEPTH))) {
-            ExecSql("alter table " + TABLE_TASK + " add depth integer;");
-        } else {
-            ExecSql("update " + TABLE_TASK + " set depth = NULL;");
-        }
+        ExecSql("update " + TABLE_TASK + " set depth = NULL;");
     }
     // 只要TASK表或者COMMUNICATION_OP表存在，展示覆盖分析，TASK表反映计算信息，COMMUNICATION_OP表反映通信信息
     // FEAT: 上游已提供 OVERLAP_ANALYSIS 表时跳过建表，避免重复创建
@@ -1876,18 +1858,13 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
                 " deviceId integer, startNs integer, endNs integer, type integer);");
     }
     if (isExistMstx) {
-        if (!CheckColumnExist(TABLE_MSTX_EVENTS, std::string(PytorchApiColumn::DEPTH))) {
-            ExecSql("alter table " + TABLE_MSTX_EVENTS + " add depth integer;");
-        } else {
-            ExecSql("update " + TABLE_MSTX_EVENTS + " set depth = null");
-        }
+        ExecSql("update " + TABLE_MSTX_EVENTS + " set depth = null");
     }
     if (isExistPytorch) {
-        if (!CheckColumnExist(TABLE_API, std::string(PytorchApiColumn::DEPTH))) {
-            ExecSql("alter table " + TABLE_API + " add depth integer;");
-        } else {
-            ExecSql("update " + TABLE_API + " set depth = NULL");
-        }
+        ExecSql("update " + TABLE_API + " set depth = NULL");
+    }
+    if (isExistDpu) {
+        ExecSql("update " + TABLE_DPU_TASK + " set depth = NULL");
     }
     AddColumns2Table(isExistPytorch, TABLE_API, std::string(PytorchApiColumn::DEPTH), "integer");
     AddColumns2Table(isExistPytorch, TABLE_API, "type", "integer");
@@ -1918,6 +1895,7 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
         }
         UpdateValueIntoStatusInfoTable(status, NOT_FINISH_STATUS);
     }
+    UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS);
 }
 
 bool DbTraceDataBase::InitStmt() {
@@ -1958,6 +1936,14 @@ bool DbTraceDataBase::InitStmt() {
             return false;
         }
     }
+    if (CheckTableExist(TABLE_MSTX_EVENTS)) {
+        sql = "UPDATE " + TABLE_MSTX_EVENTS + " set depth = ? where ROWID = ?";
+        updateMstxDepthStmt = CreatPreparedStatement(sql);
+        if (updateMstxDepthStmt == nullptr) {
+            ServerLog::Error("Failed to prepare update MSTX depth statement.");
+            return false;
+        }
+    }
     initStmt = true;
     return true;
 }
@@ -1971,6 +1957,7 @@ bool DbTraceDataBase::SetConfig() {
     isExistMstx = CheckTableExist(TABLE_MSTX_EVENTS);
     isExistCommOp = CheckTableExist(TABLE_COMMUNICATION_OP);
     isExistCcu = CheckTableExist(TABLE_CCU);
+    isExistDpu = CheckTableExist(TABLE_DPU_TASK);
     isExistTask = CheckTableExist(TABLE_TASK);
     isExistComputeTask = CheckTableExist(TABLE_COMPUTE_TASK_INFO);
     // 临时表只在该数据库连接的生命周期内有效，连接断开后自动销毁
@@ -2022,11 +2009,18 @@ bool DbTraceDataBase::QueryHostMetadata(
                 metadata.metaType = typeName;
                 metadata.threadId = resultSet->GetString("type");
                 metadata.threadName = resultSet->GetString("name");
-                metadata.maxDepth = resultSet->GetInt32("maxDepth") + 1;
+                metadata.maxDepth = resultSet->GetInt32("maxDepth");
                 threadMap[metadata.pid].emplace_back(metadata);
             }
         } catch (DatabaseException &e) {
             ServerLog::Error("Failed to query host metadata, MetaType: ", typeName, " reason: ", e.What());
+        }
+    }
+    if (isExistPytorch || CheckTableExist(TABLE_API)) {
+        auto stmt = CreatPreparedStatement("SELECT DISTINCT globalTid FROM PYTORCH_API WHERE type = 50003");
+        auto resultSet = stmt == nullptr ? nullptr : stmt->ExecuteQuery();
+        while (resultSet != nullptr && resultSet->Next()) {
+            threadMap.try_emplace(resultSet->GetString("globalTid"));
         }
     }
     DealHostMetadata(fileId, metaData, threadMap);
@@ -2040,7 +2034,8 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
     if (!isExistPytorch && !CheckTableExist(TABLE_API)) {
         return;
     }
-    std::string sql = "SELECT DISTINCT globalTid FROM PYTORCH_API WHERE type = 50003";
+    std::string sql = "SELECT globalTid, COALESCE(MAX(depth) + 1, 0) AS maxDepth FROM PYTORCH_API "
+                      "WHERE type = 50003 GROUP BY globalTid";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         return;
@@ -2049,11 +2044,11 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
     if (resultSet == nullptr) {
         return;
     }
-    std::set<std::string> globalTidsWithPythonFunc;
+    std::map<std::string, uint32_t> pythonStackDepths;
     while (resultSet->Next()) {
-        globalTidsWithPythonFunc.insert(resultSet->GetString("globalTid"));
+        pythonStackDepths[resultSet->GetString("globalTid")] = resultSet->GetUint32("maxDepth");
     }
-    if (globalTidsWithPythonFunc.empty()) {
+    if (pythonStackDepths.empty()) {
         return;
     }
     auto pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
@@ -2068,15 +2063,16 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
     };
     for (auto &process : metaData) {
         std::vector<std::unique_ptr<Protocol::UnitTrack>> processChildren;
-        processChildren.reserve(process->children.size() + globalTidsWithPythonFunc.size());
+        processChildren.reserve(process->children.size() + pythonStackDepths.size());
         for (auto &child : process->children) {
             std::unique_ptr<Protocol::UnitTrack> pythonStack;
-            if (globalTidsWithPythonFunc.count(child->metaData.processId)) {
+            auto depthIt = pythonStackDepths.find(child->metaData.processId);
+            if (depthIt != pythonStackDepths.end()) {
                 pythonStack = GenerateBaseUnitTrack("thread", fileId, child->metaData.processId,
                     child->metaData.processName, pythonStackMetaType);
                 pythonStack->metaData.threadId = Protocol::PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.processId;
                 pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
-                pythonStack->metaData.maxDepth = 1;
+                pythonStack->metaData.maxDepth = depthIt->second;
 
                 std::vector<std::unique_ptr<Protocol::UnitTrack>> beforePytorch;
                 std::vector<std::unique_ptr<Protocol::UnitTrack>> afterPytorch;
@@ -2272,7 +2268,7 @@ bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(
     // 非MSTX事件的threadId是其Stream编号，MSTX事件的threadId是{Stream编号}_{domain编号}
     PROCESS_TYPE type = PROCESS_TYPE::ASCEND_HARDWARE;
     std::string sql = "SELECT table1.streamId AS tid, table2.domainId AS did, "
-                      "table3.value AS dname, MAX(table1.depth) AS maxDepth "
+                      "table3.value AS dname, COALESCE(MAX(table1.depth) + 1, 0) AS maxDepth "
                       "FROM " +
         TABLE_TASK +
         " AS table1 "
@@ -2319,7 +2315,7 @@ bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(
                 thread->metaData.threadName = "Stream " + threadId + " MSTX domain " + domainName;
             }
         }
-        thread->metaData.maxDepth = resultSet->GetInt32("maxDepth") + 1;
+        thread->metaData.maxDepth = resultSet->GetInt32("maxDepth");
         process->children.emplace_back(std::move(thread));
     }
 
@@ -2360,8 +2356,9 @@ bool DbTraceDataBase::QueryCcuOperatorMetadata(
 bool DbTraceDataBase::QueryDpuOperatorMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     auto stmt = CreatPreparedStatement(
-        "SELECT DISTINCT globalTid, dpuDeviceId, streamId FROM " + TABLE_DPU_TASK +
+        "SELECT globalTid, dpuDeviceId, streamId, COALESCE(MAX(depth) + 1, 0) AS maxDepth FROM " + TABLE_DPU_TASK +
         " WHERE globalTid IS NOT NULL AND dpuDeviceId IS NOT NULL AND streamId IS NOT NULL"
+        " GROUP BY globalTid, dpuDeviceId, streamId"
         " ORDER BY globalTid, dpuDeviceId, streamId");
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query DPU operator metadata.");
@@ -2457,7 +2454,7 @@ bool DbTraceDataBase::QueryDpuOperatorMetadata(
         auto thread = GenerateBaseUnitTrack("thread", fileId, device->metaData.processId, "", metaType);
         thread->metaData.threadId = streamId;
         thread->metaData.threadName = "DPU Stream " + streamId;
-        thread->metaData.maxDepth = 1;
+        thread->metaData.maxDepth = resultSet->GetUint32("maxDepth");
         device->children.emplace_back(std::move(thread));
     }
     appendDpuLabel();
@@ -2665,7 +2662,6 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
         auto deviceId = resultSet->GetString("deviceId");
         searchAllSlice.rankId = params.rankId;
         searchAllSlice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
-        SetDpuSearchSliceDepth(searchAllSlice);
         body.searchAllSlices.emplace_back(searchAllSlice);
     }
     body.currentPage = params.current;
@@ -2736,7 +2732,6 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
         auto deviceId = resultSet->GetString("deviceId");
         searchAllSlice.rankId = params.rankId;
         searchAllSlice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
-        SetDpuSearchSliceDepth(searchAllSlice);
         body.searchAllSlices.emplace_back(searchAllSlice);
     }
     body.currentPage = params.current;
@@ -2772,25 +2767,10 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
     std::vector<Protocol::SimpleSlice> completeSlice;
     try {
         auto resultSet = TraceDatabaseHelper::QueryThreadsByPid(stmt, startTime, endTime, metaData, deviceId);
-        std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(rankId, metaData.pid, metaData.tid);
-        SliceQuery depthSliceQuery;
-        auto processType = TraceDatabaseHelper::GetProcessType(metaData.metaType);
-        bool useJumpDepthCache = metaData.isPythonStack || processType == PROCESS_TYPE::API;
-        if (useJumpDepthCache) {
-            uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-            uint64_t queryStartTime = startTime >= minTimestamp ? startTime - minTimestamp : 0;
-            uint64_t queryDuration = endTime >= startTime ? endTime - startTime : 0;
-            depthSliceQuery = CreateSliceQueryWithTimeRange(
-                {rankId, metaData.pid, metaData.tid, metaData.metaType, queryStartTime, queryDuration});
-            depthSliceQuery.isPythonStack = metaData.isPythonStack;
-            depthSliceQuery.isFilterPythonFunction = metaData.hidePythonFunction;
-            trackId = depthSliceQuery.trackId;
-        }
         while (resultSet->Next()) {
             int col = resultStartIndex;
             Protocol::SimpleSlice simpleSlice{};
-            uint64_t id = resultSet->GetUint64(col++);
+            resultSet->GetUint64(col++);
             simpleSlice.timestamp = resultSet->GetUint64(col++);
             simpleSlice.duration = resultSet->GetUint64(col++);
             simpleSlice.endTime = resultSet->GetUint64(col++);
@@ -2801,20 +2781,6 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
             simpleSlice.pid = metaData.pid;
             simpleSlice.metaType = metaData.isPythonStack ?
                 ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("") : metaData.metaType;
-            auto item = trackIdDepthCache.find(trackId);
-            if (item != trackIdDepthCache.end()) {
-                simpleSlice.depth = item->second[id];
-            } else {
-                std::unordered_map<uint64_t, uint32_t> depthCache;
-                if (useJumpDepthCache) {
-                    GetSliceDepthCacheForJump(depthSliceQuery, depthCache);
-                } else {
-                    SliceCacheManager::Instance().QueryDepthInfoWithoutTimeRange(
-                        std::to_string(trackId), rankId, depthCache);
-                }
-                trackIdDepthCache[trackId] = depthCache;
-                simpleSlice.depth = depthCache[id];
-            }
             completeSlice.emplace_back(simpleSlice);
         }
     } catch (DatabaseException &e) {
@@ -3032,27 +2998,10 @@ std::string DbTraceDataBase::GetSliceDetailSql(SliceTableType type, uint64_t min
             return "SELECT ROWID as rowId, opName as nameId, startNs - " + minTimeStr +
                    " as startTime, endNs - startNs as duration, streamId as tid, "
                    "'DPU_' || globalTid || '_' || dpuDeviceId as pid, 'DPU' as metaType, "
-                   "0 as depth, '' as deviceId FROM " + TABLE_DPU_TASK + " WHERE ROWID IN (" + idList + ")";
+                   "depth, '' as deviceId FROM " + TABLE_DPU_TASK + " WHERE ROWID IN (" + idList + ")";
         default:
             return "";
     }
-}
-
-void DbTraceDataBase::SetDpuSearchSliceDepth(Protocol::SearchAllSlices &slice)
-{
-    if (slice.metaType != ENUM_TO_STR(PROCESS_TYPE::DPU).value_or("")) {
-        return;
-    }
-    const SliceQuery query = CreateSliceQueryWithTimeRange(
-        {slice.rankId, slice.pid, slice.tid, slice.metaType, slice.timestamp, slice.duration});
-    const uint64_t sliceId = NumberUtil::StringToUnsignedLongLong(slice.id);
-    uint32_t depth = 0;
-    if (SliceCacheManager::Instance().QueryDepthBySliceId(
-        std::to_string(query.trackId), query.rankId, query, sliceId, depth)) {
-        slice.depth = depth;
-        return;
-    }
-    slice.depth = GetSliceDepthForJump(query, sliceId);
 }
 
 void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache,
@@ -3080,8 +3029,6 @@ void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache,
         slice.rankId = params.rankId;
         auto deviceId = result->GetString("deviceId");
         slice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
-        SetDpuSearchSliceDepth(slice);
-
         sliceDetails[{tableType, rowId}] = std::move(slice);
     }
 }

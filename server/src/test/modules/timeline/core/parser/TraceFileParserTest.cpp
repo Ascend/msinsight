@@ -18,9 +18,12 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <filesystem>
 #include "TraceFileParser.h"
+#include "ConstantDefs.h"
 #include "TextTraceDatabase.h"
 #include "DataBaseManager.h"
+#include "ParserStatusManager.h"
 #include "ThreadPool.h"
 #include "../../../../DatabaseTestCaseMockUtil.h"
 
@@ -34,11 +37,48 @@ class TraceFileParserTestHelper : public TraceFileParser {
   public:
     explicit TraceFileParserTestHelper(std::shared_ptr<ThreadPool> threadPool) : TraceFileParser(threadPool) {}
 
+    bool persistDepthResult = true;
+    bool postParseResult = true;
+    bool replaceSlicesInPostParse = false;
+    std::vector<std::string> stageOrder;
+
     // Expose protected method for testing
     static void TestUpdateRankIdDeviceIdMapByProcessData(
         std::shared_ptr<TextTraceDatabase> db, const std::string &rankId) {
         UpdateRankIdDeviceIdMapByProcessData(db, rankId);
     }
+
+    void TestEndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr) {
+        EndParseTask(rankId, filePathArr, std::make_shared<std::vector<std::future<void>>>(),
+            std::chrono::high_resolution_clock::now());
+    }
+
+    bool TestInitParser(
+        const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId) {
+        return InitParser(filePathArr, rankId, fileId);
+    }
+
+  protected:
+    bool PersistOperatorDepth(std::shared_ptr<TextTraceDatabase> db, const std::string &rankId) override {
+        stageOrder.emplace_back("depth");
+        return persistDepthResult && TraceFileParser::PersistOperatorDepth(std::move(db), rankId);
+    }
+
+    bool PostParse(std::shared_ptr<TextTraceDatabase> database, const std::string &) override {
+        stageOrder.emplace_back("post");
+        if (replaceSlicesInPostParse &&
+            !database->ExecSql(
+                "DELETE FROM slice;"
+                "INSERT INTO slice(id, timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id, "
+                "group_id) VALUES (1, 10, 90, 'parent', 7, '', '{}', '', 100, '', ''), "
+                "(2, 20, 20, 'child', 7, '', '{}', '', 40, '', '');")) {
+            return false;
+        }
+        return postParseResult;
+    }
+
+    void NotifyParseCompletionUnits(
+        std::shared_ptr<TextTraceDatabase>, const std::string &, const std::string &) override {}
 };
 
 /**
@@ -85,6 +125,123 @@ class MockTextDatabase : public TextTraceDatabase {
         path = ":memory:";
     }
 };
+
+class TraceFileParserDepthTest : public ::testing::Test {
+  protected:
+    const std::string rankId = "trace_parser_depth_test";
+    std::string dbPath;
+    std::shared_ptr<TextTraceDatabase> database;
+
+    void SetUp() override {
+        DataBaseManager::Instance().Clear();
+        ParserStatusManager::Instance().ClearAllParserStatus();
+        dbPath = (std::filesystem::temp_directory_path() /
+            ("msinsight-trace-parser-depth-" +
+                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".db"))
+                     .string();
+        std::filesystem::remove(dbPath);
+        DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
+        ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(rankId, dbPath));
+        DataBaseManager::Instance().SetDbPathMapping(rankId, dbPath, "");
+        database =
+            std::dynamic_pointer_cast<TextTraceDatabase>(DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId));
+        ASSERT_NE(database, nullptr);
+        ASSERT_TRUE(database->CreateTable());
+        ParserStatusManager::Instance().SetParserStatus(rankId, ParserStatus::RUNNING);
+    }
+
+    void TearDown() override {
+        database.reset();
+        DataBaseManager::Instance().Clear();
+        ParserStatusManager::Instance().ClearAllParserStatus();
+        std::filesystem::remove(dbPath);
+    }
+};
+
+TEST_F(TraceFileParserDepthTest, PostParseCompletesBeforeDepthAndSuccessCallback) {
+    auto parser = TraceFileParserTestHelper(std::make_shared<ThreadPool>(1));
+    bool callbackResult = false;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&parser, &callbackResult](const std::string, const std::string, bool result, const std::string) {
+            parser.stageOrder.emplace_back("callback");
+            callbackResult = result;
+        };
+    parser.SetParseEndCallBack(callback);
+
+    parser.TestEndParseTask(rankId, {});
+
+    EXPECT_TRUE(callbackResult);
+    EXPECT_EQ(parser.stageOrder, (std::vector<std::string>{"post", "depth", "callback"}));
+    EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankId), ParserStatus::FINISH);
+    EXPECT_TRUE(database->CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS));
+}
+
+TEST_F(TraceFileParserDepthTest, DepthFailureAfterPostParseBlocksSuccessCallback) {
+    auto parser = TraceFileParserTestHelper(std::make_shared<ThreadPool>(1));
+    parser.persistDepthResult = false;
+    bool callbackCalled = false;
+    bool callbackResult = true;
+    std::string callbackMessage;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&parser, &callbackCalled, &callbackResult, &callbackMessage](
+            const std::string, const std::string, bool result, const std::string &message) {
+            parser.stageOrder.emplace_back("callback");
+            callbackCalled = true;
+            callbackResult = result;
+            callbackMessage = message;
+        };
+    parser.SetParseEndCallBack(callback);
+
+    parser.TestEndParseTask(rankId, {});
+
+    EXPECT_TRUE(callbackCalled);
+    EXPECT_FALSE(callbackResult);
+    EXPECT_NE(callbackMessage.find("persist operator depth"), std::string::npos);
+    EXPECT_EQ(parser.stageOrder, (std::vector<std::string>{"post", "depth", "callback"}));
+    EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankId), ParserStatus::TERMINATE);
+    EXPECT_FALSE(database->CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS));
+}
+
+TEST_F(TraceFileParserDepthTest, RecalculatesDepthAfterPostParseReplacesSlices) {
+    auto parser = TraceFileParserTestHelper(std::make_shared<ThreadPool>(1));
+    parser.replaceSlicesInPostParse = true;
+
+    parser.TestEndParseTask(rankId, {});
+
+    auto stmt = database->CreatPreparedStatement("SELECT depth FROM slice ORDER BY id");
+    ASSERT_NE(stmt, nullptr);
+    auto resultSet = stmt->ExecuteQuery();
+    ASSERT_NE(resultSet, nullptr);
+    ASSERT_TRUE(resultSet->Next());
+    EXPECT_EQ(resultSet->GetUint32("depth"), 0);
+    ASSERT_TRUE(resultSet->Next());
+    EXPECT_EQ(resultSet->GetUint32("depth"), 1);
+    EXPECT_FALSE(resultSet->Next());
+    EXPECT_EQ(parser.stageOrder, (std::vector<std::string>{"post", "depth"}));
+}
+
+TEST_F(TraceFileParserDepthTest, ExistingTextDatabaseBackfillsDepthBeforeSuccessCallback) {
+    ParserStatusManager::Instance().SetParserStatus(rankId, ParserStatus::INIT);
+    auto parser = TraceFileParserTestHelper(std::make_shared<ThreadPool>(1));
+    bool callbackCalled = false;
+    bool callbackResult = false;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&parser, &callbackCalled, &callbackResult](
+            const std::string, const std::string, bool result, const std::string) {
+            parser.stageOrder.emplace_back("callback");
+            callbackCalled = true;
+            callbackResult = result;
+        };
+    parser.SetParseEndCallBack(callback);
+
+    EXPECT_TRUE(parser.TestInitParser({"/tmp/profiler.db"}, rankId, dbPath));
+
+    EXPECT_TRUE(callbackCalled);
+    EXPECT_TRUE(callbackResult);
+    EXPECT_EQ(parser.stageOrder, (std::vector<std::string>{"depth", "callback"}));
+    EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankId), ParserStatus::FINISH);
+    EXPECT_TRUE(database->CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS));
+}
 
 TEST_F(TraceFileParserTest, UpdateRankIdDeviceIdMapByProcessDataEmptyProcess) {
     sqlite3 *dbPtr = CreateTestDatabase();
