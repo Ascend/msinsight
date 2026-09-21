@@ -84,6 +84,7 @@
       "Clear base slice": "Clear base slice",
       "Same Card Category Offset": "Slices in the same card and category share one offset.",
       "Time Alignment": "Time Alignment",
+      "Align to Base Slice": "Align to Base Slice",
       "Align Left": "Align Left",
       "Align Right": "Align Right",
       "Calculating Offset": "Aligning, please wait...",
