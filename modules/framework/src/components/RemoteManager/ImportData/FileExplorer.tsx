@@ -35,6 +35,15 @@ const { Text } = Typography;
 const { TextArea } = Input;
 
 const FileExplorerContainer = styled.div`
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+
+    .project-name, .import-tips, .ant-form-item, .ant-typography {
+        flex-shrink: 0;
+    }
     .project-name {
         display: flow;
         white-space: nowrap;
@@ -109,6 +118,21 @@ const FileExplorerContainer = styled.div`
 `;
 
 const StyledModal = styled(Modal)`
+    padding-bottom: 0;
+
+    .ant-modal-content {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 48px);
+    }
+    .ant-modal-header, .ant-modal-footer {
+        flex-shrink: 0;
+    }
+    .ant-modal-body {
+        display: flex;
+        min-height: 0;
+        overflow-y: auto;
+    }
     .ant-modal-footer {
         padding: 10px 0;
     }
@@ -276,6 +300,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
 
     return <><StyledModal title={modalTitle} open={dialogOpen} onCancel={handleCancel}
         width={800}
+        centered
         footer={<div>
             <Button onClick={handleConfirm} loading={confirmLoading} type="primary" style={{ marginRight: 8 }} disabled={selectedPath === ''}>{t('Confirm')}</Button>
             <Button onClick={handleCancel}>{t('Cancel')}</Button>
