@@ -29,6 +29,7 @@
 #include "TrackInfoManager.h"
 #include "CacheManager.h"
 #include "ParseUnitManager.h"
+#include "OperatorDepthPersistenceService.h"
 #include "FullDbParser.h"
 #include "ProtocolManager.h"
 
@@ -113,7 +114,14 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
         embeddedPlatformRankId = BuildEmbeddedPlatformRankId(rankIds.front());
         if (!InitPlatform(embeddedPlatformRankId, filePath)) {
             ServerLog::Error("Failed to initialize embedded Platform Metrics from Insight database.");
-            embeddedPlatformRankId.clear();
+            for (const auto &rankId : rankIds) {
+                Timeline::ParserStatusManager::Instance().SetParserStatus(rankId, Timeline::ParserStatus::TERMINATE);
+                ParserCallBack(rankId, filePath, false, "Failed to initialize embedded Platform Metrics.");
+            }
+            Timeline::ParserStatusManager::Instance().SetParserStatus(
+                embeddedPlatformRankId, Timeline::ParserStatus::TERMINATE);
+            ParserCallBack(embeddedPlatformRankId, filePath, false, "Failed to initialize embedded Platform Metrics.");
+            return;
         }
     }
     if (!database->AddCommunicationOpDeviceIdColumnIfNotExists()) {
@@ -122,7 +130,7 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
     }
     database->AddHelperColumnsAndSetStatus();
     auto &threadPool = FullDbParser::Instance().threadPool;
-    std::shared_ptr<std::vector<std::future<void>>> futures = std::make_shared<std::vector<std::future<void>>>();
+    std::shared_ptr<std::vector<std::future<bool>>> futures = std::make_shared<std::vector<std::future<bool>>>();
     FileType type = DataBaseManager::Instance().GetFileTypeByRankId(rankIds[0]);
     for (const auto &item : rankIds) {
         database->UpdateStartTime(item);
@@ -155,56 +163,102 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
     }
 }
 void FullDbParser::BuildProfilingInitTask(
-    std::shared_ptr<std::vector<std::future<void>>> &futures, std::string &dbId, std::unique_ptr<ThreadPool> &pool) {
+    std::shared_ptr<std::vector<std::future<bool>>> &futures, std::string &dbId, std::unique_ptr<ThreadPool> &pool) {
     futures->emplace_back(pool->AddTask(
         [dbId]() {
             std::shared_ptr<DbTraceDataBase> database = GetTraceDatabase(dbId);
             if (!database) {
-                return;
+                return false;
             }
             database->InitMetaDataInfo();
+            return true;
+        },
+        TraceIdManager::GetTraceId()));
+    futures->emplace_back(pool->AddTask(
+        [dbId]() {
+            std::shared_ptr<DbTraceDataBase> database = GetTraceDatabase(dbId);
+            return database != nullptr &&
+                Timeline::OperatorDepthPersistenceService::CalculateAndPersistDbDepth(*database, dbId);
         },
         TraceIdManager::GetTraceId()));
 }
 
 void FullDbParser::EndParseTask(const std::vector<std::string> &rankIds, const std::string &filePath,
-    const std::shared_ptr<std::vector<std::future<void>>> &futures,
+    const std::shared_ptr<std::vector<std::future<bool>>> &futures,
     std::chrono::time_point<std::chrono::high_resolution_clock> start, const std::string &embeddedPlatformRankId) {
-    for (const auto &future : *futures) {
-        future.wait();
+    bool initSuccess = true;
+    for (auto &future : *futures) {
+        try {
+            if (!future.get()) {
+                initSuccess = false;
+            }
+        } catch (const std::exception &error) {
+            ServerLog::Error("Full DB profiling initialization failed: ", error.what());
+            initSuccess = false;
+        } catch (...) {
+            ServerLog::Error("Full DB profiling initialization failed due to an unknown error.");
+            initSuccess = false;
+        }
     }
     std::string dbId = (rankIds.size() > 0 && Global::BaselineManager::Instance().IsBaselineRankId(rankIds[0]))
         ? rankIds[0]
         : filePath;
-    for (const std::string &id : rankIds) {
-        ParserCallBack(id, filePath, true);
-    }
-    if (!embeddedPlatformRankId.empty()) {
-        ParserCallBack(embeddedPlatformRankId, filePath, true);
-        Timeline::ParserStatusManager::Instance().SetParserStatus(
-            embeddedPlatformRankId, Timeline::ParserStatus::FINISH_ALL);
+    if (!initSuccess) {
+        for (const auto &rankId : rankIds) {
+            Timeline::ParserStatusManager::Instance().SetParserStatus(rankId, Timeline::ParserStatus::TERMINATE);
+            ParserCallBack(rankId, filePath, false, "Failed to initialize Full DB metadata or persist operator depth.");
+        }
+        if (!embeddedPlatformRankId.empty()) {
+            Timeline::ParserStatusManager::Instance().SetParserStatus(
+                embeddedPlatformRankId, Timeline::ParserStatus::TERMINATE);
+            ParserCallBack(embeddedPlatformRankId, filePath, false,
+                "Failed to initialize Full DB metadata or persist operator depth.");
+        }
+        return;
     }
 
     auto end = std::chrono::high_resolution_clock::now();
     ServerLog::Info("Parse completed.",
         " Cost time(ms): ", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-    for (auto rankId : rankIds) {
-        Timeline::ParserStatusManager::Instance().SetParserStatus(rankId, Timeline::ParserStatus::FINISH_ALL);
+    bool versionSuccess = true;
+    for (const auto &rankId : rankIds) {
         auto db = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
-        if (db == nullptr) {
-            ServerLog::Error("Failed to get connection. fileId:Host");
+        if (db == nullptr || !db->SetDataBaseVersion()) {
+            ServerLog::Error("Failed to mark Full DB parse version complete. rankId: ", rankId);
+            versionSuccess = false;
             break;
         }
-        db->SetDataBaseVersion();
+    }
+    if (!versionSuccess) {
+        for (const auto &rankId : rankIds) {
+            Timeline::ParserStatusManager::Instance().SetParserStatus(rankId, Timeline::ParserStatus::TERMINATE);
+            ParserCallBack(rankId, filePath, false, "Failed to mark Full DB parse version complete.");
+        }
+        if (!embeddedPlatformRankId.empty()) {
+            Timeline::ParserStatusManager::Instance().SetParserStatus(
+                embeddedPlatformRankId, Timeline::ParserStatus::TERMINATE);
+            ParserCallBack(embeddedPlatformRankId, filePath, false, "Failed to mark Full DB parse version complete.");
+        }
+        return;
+    }
+    for (const auto &rankId : rankIds) {
+        Timeline::ParserStatusManager::Instance().SetParserStatus(rankId, Timeline::ParserStatus::FINISH_ALL);
+        ParserCallBack(rankId, filePath, true);
+    }
+    if (!embeddedPlatformRankId.empty()) {
+        Timeline::ParserStatusManager::Instance().SetParserStatus(
+            embeddedPlatformRankId, Timeline::ParserStatus::FINISH_ALL);
+        ParserCallBack(embeddedPlatformRankId, filePath, true);
     }
     // 保证下面任务的执行在发送了parse/success之后
     ParseUnitManager::Instance().ExecuteUnitList({dbId}, DB_STATUS_LIST);
 }
 
-void FullDbParser::ParserCallBack(std::string rankId, const std::string &fileId, bool result) {
+void FullDbParser::ParserCallBack(
+    std::string rankId, const std::string &fileId, bool result, const std::string &message) {
     auto &instance = FullDbParser::Instance();
     if (instance.parseEndCallback != nullptr) {
-        instance.parseEndCallback(rankId, fileId, result, "");
+        instance.parseEndCallback(rankId, fileId, result, message);
     }
 }
 

@@ -34,6 +34,7 @@ struct PytorchApiPO {
     std::string inputShapes;
     std::string callchainId;
     uint64_t type = 0;
+    uint32_t depth = 0;
 };
 class PytorchApiTable : public Table<PytorchApiPO> {
   public:
@@ -55,6 +56,7 @@ class PytorchApiTable : public Table<PytorchApiPO> {
             {PytorchApiColumn::INPUT_SHAPES, SetInputShapes},
             {PytorchApiColumn::CALL_CHAIN_ID, SetCallchainId},
             {PytorchApiColumn::TYPE, SetType},
+            {PytorchApiColumn::DEPTH, SetDepth},
         };
         return assignMap;
     }
@@ -75,6 +77,7 @@ class PytorchApiTable : public Table<PytorchApiPO> {
     static void SetInputShapes(PytorchApiPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetCallchainId(PytorchApiPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetType(PytorchApiPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetDepth(PytorchApiPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 #endif // PROFILER_SERVER_PYROECHAPITABLE_H

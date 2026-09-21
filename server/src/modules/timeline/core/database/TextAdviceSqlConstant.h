@@ -35,7 +35,7 @@ class TextAdviceSqlConstant {
                           "SELECT kd.deviceId, kd.name AS name, kd.op_type, kd.accelerator_core, "
                           "kd.start_time - ? AS startTime, "
                           "s.duration AS duration, t.pid AS pid, t.tid AS tid, "
-                          "s.id AS id, s.track_id AS track_id, "
+                          "s.id AS id, s.depth AS depth, s.track_id AS track_id, "
                           "ROW_NUMBER() OVER (ORDER BY s.track_id ASC, s.timestamp ASC) AS row_num, "
                           "op_type AS op";
 

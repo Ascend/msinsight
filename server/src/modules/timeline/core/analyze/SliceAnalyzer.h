@@ -32,16 +32,11 @@ struct DepthHelper {
     uint64_t tempDuration = 0;
     uint64_t curLimitTime = 0;
 };
-struct SliceInterval {
-    uint64_t startTime = 0;
-    uint64_t endTime = 0;
-};
 class SliceAnalyzer {
   public:
     SliceAnalyzer();
     ~SliceAnalyzer();
     static void SortByTimestampASC(std::vector<SliceDomain> &cacheSlices);
-    static uint32_t ComputeFlowPointDepth(std::vector<SliceDomain> &cacheSlices, std::string &type, uint64_t timestamp);
     void ComputeScreenSliceIds(const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth,
         std::map<uint64_t, uint32_t> &depthMap);
     void ComputePythonFunctionSliceIds(const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth,
@@ -52,14 +47,6 @@ class SliceAnalyzer {
     void ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery &sliceQuery,
         std::vector<CompeteSliceDomain> &sliceDomainVec, std::map<std::string, uint64_t> &selfTimeKeyValue,
         bool isPythonStack = false);
-    /* *
-     * 根据泳道trackId计算泳道下所有深度信息
-     * @param trackId
-     * @param depthInfo
-     */
-    void ComputeDepthInfoByTrackId(const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
-    void ComputePythonFunctionDepthInfoByTrackId(
-        const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
     void ComputePythonFunctionSliceVecByTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec);
     /* *
      * 根据泳道trackId计算泳道下所有简单算子信息
@@ -82,13 +69,8 @@ class SliceAnalyzer {
     static std::set<std::pair<uint64_t, uint32_t>> ComputeResultIds(uint64_t startTime, uint64_t endTime,
         std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
         const std::vector<uint64_t> &pythonFunctionIds);
-    static uint32_t AssignSliceDepths(
-        std::vector<SliceDomain> &sliceDomain, const std::vector<uint64_t> &pythonFunctionIds);
-    static SliceInterval ToInterval(const SliceDomain &slice);
     static void CalculateSelfTime(
         std::vector<CompeteSliceDomain> &rows, std::map<std::string, uint64_t> &selfTimeKeyValue);
-
-    void ComputeDepthInfoFromDB(const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
 
     void QueryPythonFuncIds(const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds);
     void QueryPythonFuncFromDBAndUpdateCache(

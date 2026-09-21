@@ -267,6 +267,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool isExistMstx = false;
     bool isExistCommOp = false;
     bool isExistCcu = false;
+    bool isExistDpu = false;
     bool isExistTask = false;
     bool isExistComputeTask = false;
 
@@ -277,9 +278,9 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     std::unique_ptr<SqlitePreparedStatement> updateTaskDepthStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> updateApiDepthStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> updateCANNApiDepthStmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> updateMstxDepthStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertOverlapStmt = nullptr;
 
-    std::vector<TASK_INFO> taskDepthCache;
     std::vector<WAIT_TIME> taskWaitTimeCache;
     std::vector<OVERLAP_INFO> timeInfoCache;
     std::vector<std::string> rankIds;
@@ -373,8 +374,6 @@ class DbTraceDataBase : public VirtualTraceDatabase {
         const std::vector<std::string> tidList);
 
     void UpdataCommucationThreadName(const PROCESS_TYPE &type, std::unique_ptr<Protocol::UnitTrack> &process) const;
-    void FillFlowDepth(const Protocol::UnitFlowsParams &requestParams, FlowLocation &location,
-        std::unordered_map<std::string, std::unordered_map<uint64_t, uint32_t>> &trackIdDepthCache);
 
     // 点击单个算子显示连线相关方法
     std::vector<FlowLocation> ExecuteQueryUnitFlowsForTable(const Protocol::UnitFlowsParams &requestParams,
@@ -431,7 +430,6 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     using SliceDetailKey = std::pair<SliceTableType, uint64_t>;
     using SliceDetailMap = std::map<SliceDetailKey, Protocol::SearchAllSlices>;
 
-    void SetDpuSearchSliceDepth(Protocol::SearchAllSlices &slice);
     static std::string GetSliceDetailSql(SliceTableType type, uint64_t minTimestamp, const std::string& idList);
     static std::string BuildIdList(const std::vector<uint64_t>& ids);
     void FillSearchAllSlices(const LightSliceCache& cache, const Protocol::SearchAllSliceParams& params,

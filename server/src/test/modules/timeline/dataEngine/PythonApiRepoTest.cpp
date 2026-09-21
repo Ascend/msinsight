@@ -16,7 +16,13 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <limits>
+#include "DataBaseManager.h"
+#include "FileUtil.h"
 #include "PythonApiRepo.h"
+#include "SliceAnalyzer.h"
+#include "SliceCacheManager.h"
+#include "TestSuit.h"
 #include "TrackInfoManager.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
 #include "TableDefaultMock.h"
@@ -43,9 +49,16 @@ class PythonApiRepoTest : public ::testing::Test {
         "type INTEGER, depth integer);";
     const std::string stringIdsSql = "CREATE TABLE STRING_IDS (id INTEGER PRIMARY KEY,value TEXT);";
     const std::string chainSql = "CREATE TABLE PYTORCH_CALLCHAINS (id INTEGER, stack INTEGER, stackDepth INTEGER);";
-    void SetUp() override { TrackInfoManager::Instance().Reset(); }
+    const std::string apiTypeSql = "CREATE TABLE ENUM_API_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
+    void SetUp() override {
+        TrackInfoManager::Instance().Reset();
+        SliceCacheManager::Instance().Clear();
+    }
 
-    void TearDown() override { TrackInfoManager::Instance().Reset(); }
+    void TearDown() override {
+        SliceCacheManager::Instance().Clear();
+        TrackInfoManager::Instance().Reset();
+    }
 
     void TestQuerySliceDetailInfoNormalPrepare(PytorchApiDependency &dependency) {
         sqlite3 *db = nullptr;
@@ -83,7 +96,7 @@ class PythonApiRepoTest : public ::testing::Test {
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoNormal) {
+TEST_F(PythonApiRepoTest, QuerySliceDetailInfoReturnsPersistedDepth) {
     class PythonApiRepoRepoMock : public PythonApiRepo {
       public:
         void SetMock(PytorchApiDependency &dependency) {
@@ -107,6 +120,7 @@ TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoNormal) {
     EXPECT_EQ(slice.name, "qqq");
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
+    EXPECT_EQ(slice.depth, 4);
     const std::string expectArgs = "{\"sequenceNumber\":\"1\",\"fwdThreadId\":\"2\",\"connectionId\":\"820\","
                                    "\"inputShapes\":\"nnn\",\"inputDtypes\":\"aaa\",\"Call stack\":\"bbb;\\nggg;\\n\"}";
     EXPECT_EQ(slice.args, expectArgs);
@@ -168,7 +182,7 @@ TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameExistAndPytorc
 /**
  * 根据时间点查询算子，名字存在，也有算子信息
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameNormal) {
+TEST_F(PythonApiRepoTest, QuerySliceByTimepointAndNameIncludesLegacyNullType) {
     PytorchApiDependency dependency;
     sqlite3 *db = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(db);
@@ -181,7 +195,7 @@ TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameNormal) {
         "INSERT INTO \"main\".\"PYTORCH_API\" (\"startNs\", \"endNs\", \"globalTid\", \"connectionId\", \"name\", "
         "\"sequenceNumber\", \"fwdThreadId\", \"inputDtypes\", \"inputShapes\", \"callchainId\", \"type\", \"depth\") "
         "VALUES ('1724670453434388370', '1724670453434401040', 1584297471746281, 1, 7, NULL, NULL, NULL, NULL, "
-        "NULL, 50002, 13);";
+        "NULL, NULL, 13);";
     DatabaseTestCaseMockUtil::InsertData(db, pythonData);
     dependency.stringIdsTableMock->SetDb(db);
     dependency.pytorchApiTableMock->SetDb(db);
@@ -208,6 +222,80 @@ TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameNormal) {
     EXPECT_EQ(competeSliceDomain.trackId, one);
     EXPECT_EQ(competeSliceDomain.duration, competeSliceDomain.endTime - competeSliceDomain.timestamp);
     EXPECT_EQ(competeSliceDomain.cardId, sliceQuery.rankId);
+    EXPECT_EQ(competeSliceDomain.depth, 13);
+}
+
+TEST_F(PythonApiRepoTest, SimpleAndPythonStackQueriesReturnIndependentPersistedDepth) {
+    const std::string rankId = "python_api_repo_depth_filter_test";
+    const std::string dbPath = TestSuit::GetTestDataFile("python_api_repo_depth_filter_test.db");
+    if (FileUtil::CheckFilePathExist(dbPath)) {
+        FileUtil::RemoveFile(dbPath);
+    }
+    std::recursive_mutex mutex;
+    Dic::Module::Database database(mutex);
+    ASSERT_TRUE(database.OpenDb(dbPath, false));
+    ASSERT_TRUE(database.ExecSql(
+        "CREATE TABLE PYTORCH_API (startNs INTEGER, endNs INTEGER, globalTid INTEGER, connectionId INTEGER, "
+        "name INTEGER, sequenceNumber INTEGER, fwdThreadId INTEGER, inputDtypes INTEGER, inputShapes INTEGER, "
+        "callchainId INTEGER, type INTEGER, depth INTEGER);"));
+    ASSERT_TRUE(database.ExecSql(apiTypeSql));
+    ASSERT_TRUE(database.ExecSql("INSERT INTO ENUM_API_TYPE(id, name) VALUES (50003, 'trace');"
+                                 "INSERT INTO PYTORCH_API(startNs, endNs, globalTid, name, type, depth) VALUES "
+                                 "(10, 30, 123, 1, 50002, 5), (20, 40, 123, 2, 50003, 11);"));
+    database.CloseDb();
+
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.SetDataType(DataType::DB, dbPath);
+    ASSERT_TRUE(databaseManager.CreateTraceConnectionPool(rankId, dbPath));
+    databaseManager.SetDbPathMapping(rankId, dbPath, "");
+    const uint64_t trackId = TrackInfoManager::Instance().GetTrackId(rankId, "123", "pytorch");
+    PythonApiRepo repo;
+    SliceQuery query;
+    query.rankId = rankId;
+    query.trackId = trackId;
+    query.endTime = 100;
+
+    std::vector<SliceDomain> ordinarySlices;
+    repo.QuerySimpleSliceWithOutNameByTrackId(query, ordinarySlices);
+    ASSERT_EQ(ordinarySlices.size(), 1);
+    EXPECT_EQ(ordinarySlices[0].id, 1);
+    EXPECT_EQ(ordinarySlices[0].depth, 5);
+
+    query.endTime = std::numeric_limits<uint64_t>::max();
+    query.minTimestamp = 1;
+    ordinarySlices.clear();
+    repo.QuerySimpleSliceWithOutNameByTrackId(query, ordinarySlices);
+    ASSERT_EQ(ordinarySlices.size(), 1);
+    EXPECT_EQ(ordinarySlices[0].id, 1);
+
+    std::vector<SliceDomain> pythonStackSlices;
+    ASSERT_TRUE(repo.QuerySliceByCatAndTimeRange(query, pythonStackSlices));
+    ASSERT_EQ(pythonStackSlices.size(), 1);
+    EXPECT_EQ(pythonStackSlices[0].id, 2);
+    EXPECT_EQ(pythonStackSlices[0].depth, 11);
+
+    auto analyzerRepository = std::make_shared<PythonApiRepo>();
+    SliceAnalyzer analyzer;
+    analyzer.SetRepository(analyzerRepository);
+    query.metaType = PROCESS_TYPE::API;
+    std::set<uint64_t> ordinaryIds;
+    uint64_t ordinaryMaxDepth = 0;
+    std::map<uint64_t, uint32_t> ordinaryDepthMap;
+    analyzer.ComputeScreenSliceIds(query, ordinaryIds, ordinaryMaxDepth, ordinaryDepthMap);
+    std::set<uint64_t> pythonStackIds;
+    uint64_t pythonStackMaxDepth = 0;
+    std::map<uint64_t, uint32_t> pythonStackDepthMap;
+    analyzer.ComputePythonFunctionSliceIds(query, pythonStackIds, pythonStackMaxDepth, pythonStackDepthMap);
+
+    EXPECT_EQ(ordinaryIds, std::set<uint64_t>({1}));
+    EXPECT_EQ(ordinaryMaxDepth, 6);
+    EXPECT_EQ(ordinaryDepthMap[1], 5);
+    EXPECT_EQ(pythonStackIds, std::set<uint64_t>({2}));
+    EXPECT_EQ(pythonStackMaxDepth, 12);
+    EXPECT_EQ(pythonStackDepthMap[2], 11);
+
+    databaseManager.ReleaseDatabaseByRankId(rankId);
+    FileUtil::RemoveFile(dbPath);
 }
 
 /**

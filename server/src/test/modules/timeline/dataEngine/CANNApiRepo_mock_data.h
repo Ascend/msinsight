@@ -23,16 +23,16 @@
 using namespace Dic::Module::Timeline;
 namespace Dic::TimeLine::CANNApiRepo::Mock {
 void QueryCompeteSliceByIdsWithNormalExcuteQuery(const std::string &fileId, std::vector<CANNApiPO> &result) {
-    CANNApiPO cannApiPO1 = {1, 22, 45, 0, 0, 0, 0};
-    CANNApiPO cannApiPO2 = {2, 23, 50, 0, 0, 0, 0};
+    CANNApiPO cannApiPO1 = {1, 22, 45, 0, 0, 0, 6};
+    CANNApiPO cannApiPO2 = {2, 23, 50, 0, 0, 0, 7};
     result.emplace_back(cannApiPO1);
     result.emplace_back(cannApiPO2);
 }
 
 void QuerySimpleSliceWithOutNameByTrackIdWithNormalExcuteQuery(
     const std::string &fileId, std::vector<CANNApiPO> &result) {
-    CANNApiPO cannApiPO1 = {1, 22, 45, 0, 0, 2, 0};
-    CANNApiPO cannApiPO2 = {2, 23, 50, 0, 0, 3, 0};
+    CANNApiPO cannApiPO1 = {1, 22, 45, 0, 0, 2, 6};
+    CANNApiPO cannApiPO2 = {2, 23, 50, 0, 0, 3, 7};
     result.emplace_back(cannApiPO1);
     result.emplace_back(cannApiPO2);
 }

@@ -35,6 +35,7 @@ constexpr std::string_view CNAME = "cname";
 constexpr std::string_view ENDTIME = "end_time";
 constexpr std::string_view FLAGID = "flag_id";
 constexpr std::string_view GROUPID = "group_id";
+constexpr std::string_view DEPTH = "depth";
 }
 #pragma endregion
 namespace FlowColumn {
@@ -103,6 +104,7 @@ constexpr std::string_view CONTEXT_ID = "contextId";
 constexpr std::string_view STREAM_ID = "streamId";
 constexpr std::string_view TASK_ID = "taskId";
 constexpr std::string_view MODEL_ID = "modelId";
+constexpr std::string_view DEPTH = "depth";
 }
 
 namespace TaskPmuInfoColumn {

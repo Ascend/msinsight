@@ -77,18 +77,10 @@ TEST_F(RenderEngineTest, TestFindSliceByTimePointNormal) {
             const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
             competeSliceDomain.trackId = expectTrackId;
             competeSliceDomain.id = expectId;
+            competeSliceDomain.depth = expectDepth;
             return true;
         }
     };
-    SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
-    std::vector<SliceDomain> sliceVec;
-    SliceDomain sliceDomain1;
-    sliceDomain1.id = expectId;
-    sliceDomain1.depth = expectDepth;
-    sliceVec.emplace_back(sliceDomain1);
-    SliceQuery sliceQuery;
-    sliceQuery.endTime = 3 * MINUTE_NS;
-    sliceCacheManager.UpdateSliceCache("8", sliceVec, sliceQuery);
     RenderEngine renderEngine;
     std::shared_ptr<DataEngineMock> dataEngineMock = std::make_unique<DataEngineMock>();
     renderEngine.SetDataEngineInterface(dataEngineMock);
@@ -113,36 +105,30 @@ TEST_F(RenderEngineTest, TestFindSliceByTimePointTypeWrong) {
     CompeteSliceDomain slice = renderEngine.FindSliceByTimePoint("", "AAA\n%\t\\", 0, "TEXT");
 }
 
-TEST_F(RenderEngineTest, QueryThreadDetailUsesDepthIndexForSelfTime) {
+TEST_F(RenderEngineTest, QueryThreadDetailUsesPersistedDepthForSelfTime) {
     class DataEngineMock : public DataEngine {
       public:
         bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
             competeSliceDomain.id = 1;
             competeSliceDomain.timestamp = 0;
             competeSliceDomain.endTime = 100;
+            competeSliceDomain.depth = 4;
             competeSliceDomain.name = "parent";
             return true;
         }
 
         void QuerySimpleSliceWithOutNameByTrackId(
             const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
-            (void)sliceQuery;
-            (void)sliceVec;
-            ADD_FAILURE() << "depth index hit should avoid fallback slice scan";
+            EXPECT_EQ(sliceQuery.startTime, 0);
+            EXPECT_EQ(sliceQuery.endTime, UINT64_MAX);
+            sliceVec = {
+                SliceDomain{1, 0, 100, 4, ""},
+                SliceDomain{2, 10, 120, 5, ""},
+                SliceDomain{3, 50, 70, 5, ""},
+                SliceDomain{4, 60, 65, 6, ""},
+            };
         }
     };
-
-    SliceQuery cacheQuery;
-    cacheQuery.rankId = "0";
-    cacheQuery.startTime = 0;
-    cacheQuery.endTime = 100;
-    std::vector<SliceDomain> sliceVec = {
-        SliceDomain{1, 0, 100, 0, ""},
-        SliceDomain{2, 10, 120, 1, ""},
-        SliceDomain{3, 50, 70, 1, ""},
-        SliceDomain{4, 60, 65, 2, ""},
-    };
-    SliceCacheManager::Instance().UpdateSliceCache("8", sliceVec, cacheQuery);
 
     RenderEngine renderEngine;
     std::shared_ptr<DataEngineMock> dataEngineMock = std::make_unique<DataEngineMock>();
@@ -157,6 +143,150 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesDepthIndexForSelfTime) {
 
     EXPECT_EQ(response.data.duration, 100);
     EXPECT_EQ(response.data.selfTime, 10);
+}
+
+TEST_F(RenderEngineTest, QueryFlowCategoryEventsUsesRepositoryPersistedDepth) {
+    class DataEngineMock : public DataEngine {
+      public:
+        void QueryFlowPointByCategory(const FlowQuery &, std::vector<FlowPoint> &flowPointVec) override {
+            FlowPoint startPoint;
+            startPoint.id = 1;
+            startPoint.flowId = "persisted_depth_flow";
+            startPoint.trackId = 10;
+            startPoint.timestamp = 10;
+            startPoint.type = Protocol::LINE_START;
+            startPoint.depth = 4;
+            startPoint.rankId = "rank0";
+            flowPointVec.emplace_back(startPoint);
+
+            FlowPoint endPoint;
+            endPoint.id = 2;
+            endPoint.flowId = "persisted_depth_flow";
+            endPoint.trackId = 20;
+            endPoint.timestamp = 20;
+            endPoint.type = Protocol::LINE_END;
+            endPoint.depth = 7;
+            endPoint.rankId = "rank0";
+            flowPointVec.emplace_back(endPoint);
+        }
+    };
+
+    TrackInfoManager::Instance().UpdateTrackIdMap(
+        "rank0", {{10, {"thread0", "process0"}}, {20, {"thread1", "process1"}}});
+    RenderEngine renderEngine;
+    renderEngine.SetDataEngineInterface(std::make_shared<DataEngineMock>());
+    FlowCategoryEventsParams params;
+    params.rankId = "rank0";
+    params.category = "test_flow";
+    params.startTime = 0;
+    params.endTime = 100;
+    std::vector<std::unique_ptr<UnitSingleFlow>> flowDetailList;
+
+    ASSERT_TRUE(renderEngine.QueryFlowCategoryEvents(params, 0, flowDetailList));
+
+    ASSERT_EQ(flowDetailList.size(), 1);
+    EXPECT_EQ(flowDetailList[0]->from.depth, 4);
+    EXPECT_EQ(flowDetailList[0]->to.depth, 7);
+}
+
+TEST_F(RenderEngineTest, PythonStackThreadTracesKeepVirtualLaneIdentityForDetailRequests) {
+    class DataEngineMock : public DataEngine {
+      public:
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override {
+            observedPythonStack = sliceQuery.isPythonStack;
+            return 1;
+        }
+
+        bool QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            observedPythonStack = observedPythonStack && sliceQuery.isPythonStack;
+            sliceVec = {SliceDomain{1, 10, 20, 3, ""}};
+            return true;
+        }
+
+        void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
+            std::vector<CompeteSliceDomain> &competeSliceVec) override {
+            observedPythonStack = observedPythonStack && sliceQuery.isPythonStack;
+            if (sliceIds.empty()) {
+                return;
+            }
+            CompeteSliceDomain slice;
+            slice.id = sliceIds.front();
+            slice.timestamp = 10;
+            slice.endTime = 20;
+            slice.depth = 3;
+            slice.name = "python_call";
+            competeSliceVec.emplace_back(slice);
+        }
+
+        bool observedPythonStack = true;
+    };
+
+    auto queryThreadTraces = [](const std::string &rankId, const std::string &processId, const std::string &threadId,
+                                 const std::string &metaType) {
+        RenderEngine renderEngine;
+        auto dataEngineMock = std::make_shared<DataEngineMock>();
+        renderEngine.SetDataEngineInterface(dataEngineMock);
+        UnitThreadTracesParams request;
+        request.cardId = rankId;
+        request.processId = processId;
+        request.threadId = threadId;
+        request.metaType = metaType;
+        request.startTime = 0;
+        request.endTime = 100;
+        request.isPythonStack = true;
+        UnitThreadTracesBody response;
+
+        renderEngine.QueryThreadTraces(request, response, 0, 8);
+
+        EXPECT_TRUE(dataEngineMock->observedPythonStack);
+        EXPECT_GT(response.data.size(), 3);
+        EXPECT_EQ(response.data[3].size(), 1);
+        return response.data[3][0].threadId;
+    };
+
+    EXPECT_EQ(
+        queryThreadTraces("python_stack_detail_db", "4294967297", "pytorch", "PYTORCH_API"), "python_stack:4294967297");
+    EXPECT_EQ(queryThreadTraces("python_stack_detail_text", "100", "101", "TEXT"), "python_stack:text:101");
+}
+
+TEST_F(RenderEngineTest, PythonStackThreadDetailPropagatesLaneIdentityToQueries) {
+    class DataEngineMock : public DataEngine {
+      public:
+        bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
+            detailQueryIsPythonStack = sliceQuery.isPythonStack;
+            competeSliceDomain.id = 1;
+            competeSliceDomain.timestamp = 10;
+            competeSliceDomain.endTime = 30;
+            competeSliceDomain.depth = 2;
+            competeSliceDomain.name = "python_parent";
+            return true;
+        }
+
+        bool QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            childQueryIsPythonStack = sliceQuery.isPythonStack;
+            sliceVec = {SliceDomain{2, 15, 20, 3, ""}};
+            return true;
+        }
+
+        bool detailQueryIsPythonStack = false;
+        bool childQueryIsPythonStack = false;
+    };
+
+    RenderEngine renderEngine;
+    auto dataEngineMock = std::make_shared<DataEngineMock>();
+    renderEngine.SetDataEngineInterface(dataEngineMock);
+    ThreadDetailParams request;
+    request.id = "1";
+    request.metaType = "PYTORCH_API";
+    request.rankId = "python_stack_detail";
+    request.isPythonStack = true;
+    UnitThreadDetailBody response;
+
+    renderEngine.QueryThreadDetail(request, response, 8);
+
+    EXPECT_TRUE(dataEngineMock->detailQueryIsPythonStack);
+    EXPECT_TRUE(dataEngineMock->childQueryIsPythonStack);
+    EXPECT_EQ(response.data.selfTime, 15);
 }
 
 TEST_F(RenderEngineTest, QueryThreadTracesReadsPythonFunctionStatusFromDbPathSource) {
