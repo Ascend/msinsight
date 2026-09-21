@@ -26,7 +26,8 @@ import { dealResource, ResourceItem, updateTreeData } from '@/utils/Resource';
 
 const ResourceCataologContainer = styled.div`
     margin-top: 24px;
-    height: 500px;
+    flex: 0 1 500px;
+    min-height: 100px;
     overflow-y: auto;
     background: ${(props): string => props.theme.bgColorDark};
     padding: 10px 0;
