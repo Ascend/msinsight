@@ -30,7 +30,7 @@ const CAPABILITY_TOKEN = "reload-lifecycle-test-capability";
 
 const fakeAgentSource = `
 import { appendFileSync, existsSync, unlinkSync } from "node:fs";
-import { resolve } from "node:path";
+import { join } from "node:path";
 import readline from "node:readline";
 
 const mode = process.argv[2] ?? "ok";
@@ -38,7 +38,7 @@ const logPath = process.env.FAKE_AGENT_LOG;
 const notifyFlagPath = process.env.FAKE_AGENT_NOTIFY_FLAG;
 const requiredSkillPath = process.env.FAKE_AGENT_REQUIRED_SKILL;
 const requiredClaudeSkillPath = process.env.FAKE_AGENT_REQUIRED_CLAUDE_SKILL;
-const requiredCwd = process.env.FAKE_AGENT_REQUIRED_CWD;
+const requiredCwdMarker = process.env.FAKE_AGENT_REQUIRED_CWD_MARKER;
 const oldRuntimeCommandName = process.env.FAKE_AGENT_OLD_COMMAND ?? "stable-live";
 const brokenInitDelayMs = Number(process.env.BROKEN_INIT_DELAY_MS ?? 0);
 const log = (message) => {
@@ -47,10 +47,10 @@ const log = (message) => {
 
 log("skill_ready:" + String(!requiredSkillPath || existsSync(requiredSkillPath)));
 log("claude_skill_ready:" + String(!requiredClaudeSkillPath || existsSync(requiredClaudeSkillPath)));
-log("cwd_ready:" + String(!requiredCwd || resolve(process.cwd()) === resolve(requiredCwd)));
+log("cwd_ready:" + String(!requiredCwdMarker || existsSync(join(process.cwd(), requiredCwdMarker))));
 log("start:" + mode + ":" + process.pid);
 if (requiredSkillPath && !existsSync(requiredSkillPath)) process.exit(86);
-if (requiredCwd && resolve(process.cwd()) !== resolve(requiredCwd)) process.exit(87);
+if (requiredCwdMarker && !existsSync(join(process.cwd(), requiredCwdMarker))) process.exit(87);
 if (requiredClaudeSkillPath && !existsSync(requiredClaudeSkillPath)) process.exit(88);
 let initialized = false;
 const notifyFlagInterval = setInterval(() => {
@@ -144,9 +144,11 @@ test("workspace Skills are installed before the ACP process starts", async (t) =
     ]);
     await writePackagedSkill(rootDir, "inspect-memory", "Inspect memory safely");
     await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
+    await mkdir(workspaceDir, { recursive: true });
+    await writeFile(join(workspaceDir, ".acp-cwd-marker"), "ok", "utf8");
     configuredAgent.env.FAKE_AGENT_REQUIRED_SKILL = installedSkillPath;
     configuredAgent.env.FAKE_AGENT_REQUIRED_CLAUDE_SKILL = claudeSkillPath;
-    configuredAgent.env.FAKE_AGENT_REQUIRED_CWD = workspaceDir;
+    configuredAgent.env.FAKE_AGENT_REQUIRED_CWD_MARKER = ".acp-cwd-marker";
     await writeJson(join(rootDir, "agent-servers.json"), {
         activeAgent: configuredAgent.name,
         agentServers: [configuredAgent],
@@ -494,6 +496,8 @@ const launchServer = ({ rootDir, logPath, port }, {
         ...process.env,
         ACP_CAPABILITY_TOKEN: capabilityToken,
         ACP_CWD: workspaceDir,
+        MSINSIGHT_SECRETS_DPAPI: "0",
+        MSINSIGHT_SECRETS_KEY_PATH: join(rootDir, ".secrets", "secrets.key"),
         FAKE_AGENT_LOG: logPath,
         ...(autoDiscovery === undefined ? {} : { ACP_AUTO_DISCOVERY: autoDiscovery ? "1" : "0" }),
     },
@@ -512,10 +516,12 @@ const readText = async (path) => {
 };
 
 const requestJson = async (port, path, { method = "GET", body } = {}) => {
-    const separator = path.includes("?") ? "&" : "?";
-    const response = await fetch(`http://127.0.0.1:${port}${path}${separator}capabilityToken=${CAPABILITY_TOKEN}`, {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
         method,
-        headers: body === undefined ? undefined : { "content-type": "application/json" },
+        headers: {
+            authorization: `Bearer ${CAPABILITY_TOKEN}`,
+            ...(body === undefined ? {} : { "content-type": "application/json" }),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
     });
     return { status: response.status, body: await response.json() };
@@ -526,7 +532,10 @@ const recordStateEvents = async (port) => {
     const states = [];
     let resolveReady;
     const ready = new Promise((resolve) => { resolveReady = resolve; });
-    const response = await fetch(`http://127.0.0.1:${port}/api/events?capabilityToken=${CAPABILITY_TOKEN}`, { signal: controller.signal });
+    const response = await fetch(`http://127.0.0.1:${port}/api/events`, {
+        signal: controller.signal,
+        headers: { authorization: `Bearer ${CAPABILITY_TOKEN}` },
+    });
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";

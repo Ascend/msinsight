@@ -9,6 +9,8 @@
 
 jest.mock('../env', () => ({
     apiUrl: (path: string) => `http://127.0.0.1:9090${path}`,
+    capabilityAuthHeaders: () => ({}),
+    eventsUrl: () => 'http://127.0.0.1:9090/api/events',
     ACP_STATUS: 'ready',
     ACP_NODE_VERSION: '',
 }));

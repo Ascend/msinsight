@@ -183,6 +183,10 @@ export interface AgentConfigSnapshot {
     catalogAgents?: AgentCatalogConfig[];
     builtinAgent: BuiltinAgentConfig;
     sessionConfig: AgentSessionConfig;
+    crypto?: {
+        alg: string;
+        publicKey: string;
+    };
 }
 
 export interface AgentConfigSaveResult {

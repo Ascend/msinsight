@@ -28,6 +28,7 @@ import { AgentKindIcon } from './AgentKindIcon';
 import { uniqueCopiedAgentName } from '../copiedAgentName';
 import { fetchAgentConfig, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
+import { isSecretEnvKey, SECRET_PLACEHOLDER } from '../secretFields';
 import type { AgentConfigSnapshot } from '../types';
 import addIcon from '../icons/add.svg';
 import arrowDownIcon from '../icons/arrow-down.svg';
@@ -973,7 +974,11 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 ...(source?.catalogAgents ?? []).map((agent) => agent.name),
                 ...(source?.agentServers ?? []).map((agent) => agent.name),
             ];
-            const copiedEnv = Object.entries(sourceAgent.env ?? {}).map(([key, value]) => ({ key, value }));
+            const copiedEnv = Object.entries(sourceAgent.env ?? {}).map(([key, value]) => ({
+                key,
+                // A placeholder is bound to the source agent and cannot be reused under a new name.
+                value: isSecretEnvKey(key) ? '' : value,
+            }));
             const copiedDraft: DraftAgent = {
                 name: uniqueCopiedAgentName(sourceAgent.name, takenNames),
                 command: sourceAgent.command,
@@ -1393,7 +1398,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                 aria-label={t('envKeyLabel', { index: index + 1 })}
                                                 {...fieldProps(`agent-env-${index}`)}
                                                 className="settings-input"
-                                                onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => [currentIndex === index ? event.target.value : entry[0], entry[1]]))}
+                                                onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => currentIndex === index
+                                                    ? [event.target.value, entry[0] !== event.target.value && entry[1] === SECRET_PLACEHOLDER ? '' : entry[1]]
+                                                    : entry))}
                                                 placeholder={t('envKeyPlaceholder')}
                                                 readOnly={isReadOnlyAgent}
                                                 type="text"
@@ -1407,7 +1414,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                 onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => currentIndex === index ? [entry[0], event.target.value] : entry))}
                                                 placeholder={t('envValuePlaceholder')}
                                                 readOnly={isReadOnlyAgent}
-                                                type="text"
+                                                type={isSecretEnvKey(key) ? 'password' : 'text'}
                                                 value={value}
                                             />
                                             {isReadOnlyAgent ? null : <button aria-label={t('removeEnv', { index: index + 1 })} className="path-remove" onClick={() => updateEditingEnv(envEntries.filter((_, currentIndex) => currentIndex !== index))} title={t('removeEnv', { index: index + 1 })} type="button">

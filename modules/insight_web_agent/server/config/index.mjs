@@ -23,6 +23,7 @@ import { presentRunnableAgentServers, resolveAgentServer } from "../services/age
 import { fixedRagPaths } from "../services/rag/runtimePaths.mjs";
 import { initLogger } from "../utils/logger.mjs";
 import { loadCapabilityCenterConfig } from "./capabilityCenterConfig.mjs";
+import { createSecretCrypto, decryptEnv, migratePersistedSecrets, nativeApiKeyAad } from "../security/secretCrypto.mjs";
 
 const NATIVE_CONFIG_FILE = "msinsight-native.json";
 const AGENT_SERVERS_CONFIG_FILE = "agent-servers.json";
@@ -269,6 +270,22 @@ const normalizeEnv = (env) => {
 const cliOptions = parseCliOptions(process.argv.slice(2));
 const rootDir = normalizeRootDir(cliOptions.path ?? process.env.ACP_ROOT ?? defaultRootDir);
 const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_RESOURCE_ROOT ?? defaultRootDir);
+export const secretCrypto = createSecretCrypto();
+
+const writeJsonAtomic = (path, value) => {
+    const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+        writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+        renameSync(tempPath, path);
+    } catch (error) {
+        rmSync(tempPath, { force: true });
+        throw error;
+    }
+};
+
+const writeJsonConfig = (path, value) => {
+    writeJsonAtomic(path, value);
+};
 
 const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => {
     ensureRuntimeConfigFiles(rootDir, resourceDir);
@@ -293,22 +310,34 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         extraAllowlistPaths,
         rag,
     } = readRuntimeConfigBundle(rootDir, env);
-    const configuredAgentServers = normalizeAgentServers(agentServersConfig.agentServers)
+    const migrated = migratePersistedSecrets({
+        nativeConfig,
+        agentServersConfig,
+        nativeConfigPath,
+        agentServersConfigPath,
+        writeJson: writeJsonConfig,
+        crypto: secretCrypto,
+    });
+    const persistedNative = migrated.nativeConfig;
+    const configuredAgentServers = normalizeAgentServers(migrated.agentServersConfig.agentServers)
         .filter(({ name }) => name !== "msinsight-native")
-        .map((server) => withAgentIdentity(server, "configured"));
+        .map((server) => withAgentIdentity({
+            ...server,
+            env: decryptEnv(server.env, server.name, secretCrypto),
+        }, "configured"));
     const builtinAgentServer = withAgentIdentity({
         name: "msinsight-native",
         command: process.execPath,
         args: ["server/native-agent/index.mjs"],
         env: {
-            MSINSIGHT_NATIVE_PROVIDER: String(nativeConfig.provider ?? "openai"),
-            MSINSIGHT_NATIVE_MODEL: String(nativeConfig.model ?? ""),
-            MSINSIGHT_NATIVE_BASE_URL: String(nativeConfig.baseUrl ?? ""),
-            MSINSIGHT_NATIVE_API_KEY: String(nativeConfig.apiKey ?? ""),
+            MSINSIGHT_NATIVE_PROVIDER: String(persistedNative.provider ?? "openai"),
+            MSINSIGHT_NATIVE_MODEL: String(persistedNative.model ?? ""),
+            MSINSIGHT_NATIVE_BASE_URL: String(persistedNative.baseUrl ?? ""),
+            MSINSIGHT_NATIVE_API_KEY: secretCrypto.openAtRest(persistedNative.apiKey, nativeApiKeyAad()),
         },
     }, "builtin");
     const agentServers = [builtinAgentServer, ...configuredAgentServers];
-    const requestedActiveAgentName = env.ACP_AGENT ?? agentServersConfig.activeAgent ?? agentServers[0]?.name;
+    const requestedActiveAgentName = env.ACP_AGENT ?? migrated.agentServersConfig.activeAgent ?? agentServers[0]?.name;
     const agentServer = resolveAgentServer(
         requestedActiveAgentName,
         presentRunnableAgentServers({ configured: agentServers }),
@@ -336,7 +365,7 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         agentServers,
         configuredAgentServers,
         builtinAgentServer,
-        builtinAgentConfig: nativeConfig,
+        builtinAgentConfig: persistedNative,
         nativeConfigPath,
         capabilityCenterConfigPath,
         configuredCapabilities,
@@ -375,17 +404,6 @@ export const saveActiveAgent = (name) => {
     const currentConfig = loadResolvedAgentServersConfig(config.rootDir);
     const nextConfig = { ...currentConfig, activeAgent: name };
     writeJsonAtomic(config.agentServersConfigPath, nextConfig);
-};
-
-const writeJsonAtomic = (path, value) => {
-    const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-    try {
-        writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-        renameSync(tempPath, path);
-    } catch (error) {
-        rmSync(tempPath, { force: true });
-        throw error;
-    }
 };
 
 if (!process.env.ACP_AGENT

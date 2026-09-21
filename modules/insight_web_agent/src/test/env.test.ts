@@ -53,7 +53,19 @@ test('local development uses its configured capability token', () => {
     expect(resolveCapabilityToken('', 'development', 'local-token')).toBe('local-token');
     expect(resolveCapabilityToken('?capabilityToken=', 'development', 'local-token')).toBe('local-token');
     expect(resolveCapabilityToken('?capabilityToken=runtime-token', 'development', 'local-token')).toBe('runtime-token');
+    expect(resolveCapabilityToken('?acpCapabilityToken=jupyter-token', 'production', '')).toBe('jupyter-token');
     expect(resolveCapabilityToken('', 'production', 'local-token')).toBe('');
+});
+
+test('apiUrl keeps capability tokens out of the query string', () => {
+    jest.resetModules();
+    window.history.replaceState({}, '', '/?capabilityToken=runtime-token&acpPort=9090');
+    const { apiUrl, capabilityAuthHeaders, eventsUrl } = require('../env');
+
+    expect(apiUrl('/api/state')).toBe('http://127.0.0.1:9090/api/state');
+    expect(capabilityAuthHeaders()).toEqual({ Authorization: 'Bearer runtime-token' });
+    expect(eventsUrl()).toBe('http://127.0.0.1:9090/api/events');
+    expect(window.location.search).toBe('?acpPort=9090');
 });
 
 test('ACP runtime status prefers the host query and does not assume a missing Node binary', () => {

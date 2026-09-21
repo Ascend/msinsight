@@ -75,6 +75,8 @@ jest.mock('remark-gfm', () => ({
 
 jest.mock('../../env', () => ({
     apiUrl: (path: string) => path,
+    capabilityAuthHeaders: () => ({}),
+    eventsUrl: () => '/api/events',
 }));
 
 jest.mock('../../api', () => ({

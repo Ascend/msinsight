@@ -43,9 +43,30 @@ export const resolveCapabilityToken = (
     nodeEnv: string | undefined = process.env.NODE_ENV,
     developmentToken: string | undefined = process.env.REACT_APP_ACP_CAPABILITY_TOKEN,
 ): string => new URLSearchParams(search).get('capabilityToken')
+    || new URLSearchParams(search).get('acpCapabilityToken')
     || (nodeEnv === 'development' ? developmentToken ?? '' : '');
 
-const capabilityToken = resolveCapabilityToken();
+const TOKEN_STORAGE_KEY = 'msinsight.acpCapabilityToken';
+const queryCapabilityToken = searchParams.get('capabilityToken') || searchParams.get('acpCapabilityToken') || '';
+const storedCapabilityToken = (): string => {
+    try {
+        return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? '';
+    } catch {
+        return '';
+    }
+};
+const capabilityToken = resolveCapabilityToken() || storedCapabilityToken();
+if (queryCapabilityToken) {
+    try {
+        window.sessionStorage.setItem(TOKEN_STORAGE_KEY, queryCapabilityToken);
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('capabilityToken');
+        cleanUrl.searchParams.delete('acpCapabilityToken');
+        window.history.replaceState(window.history.state, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+    } catch {
+        // Some embedded WebViews restrict history or storage access; the in-memory token still works.
+    }
+}
 const jupyterlabProxy = searchParams.get('jupyterlabProxy') === 'true';
 const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:9090' : '';
 
@@ -79,11 +100,12 @@ export const resolveAcpPortBase = (
 
 export const apiBase = resolveAcpApiBase();
 
-export const apiUrl = (path: string): string => {
-    const url = apiBase ? `${apiBase}${path}` : path;
-    if (!capabilityToken) return url;
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}capabilityToken=${encodeURIComponent(capabilityToken)}`;
-};
+export const apiUrl = (path: string): string => (apiBase ? `${apiBase}${path}` : path);
+
+export const capabilityAuthHeaders = (): Record<string, string> => (
+    capabilityToken ? { Authorization: `Bearer ${capabilityToken}` } : {}
+);
+
+export const eventsUrl = (): string => apiUrl('/api/events');
 
 export {};

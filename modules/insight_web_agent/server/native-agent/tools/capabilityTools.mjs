@@ -120,10 +120,11 @@ const requestCapability = async (baseUrl, capabilityToken, body) => {
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = body.signal ? AbortSignal.any([body.signal, timeoutSignal]) : timeoutSignal;
     const url = new URL("/api/capabilities/invoke", baseUrl);
-    if (capabilityToken) url.searchParams.set("capabilityToken", capabilityToken);
+    const headers = { "content-type": "application/json" };
+    if (capabilityToken) headers.authorization = `Bearer ${capabilityToken}`;
     const response = await fetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers,
         body: JSON.stringify({
             invocationId: body.invocationId,
             sessionId: body.sessionId,

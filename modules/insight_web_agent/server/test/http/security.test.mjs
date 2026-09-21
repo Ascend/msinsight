@@ -50,10 +50,39 @@ test("requires the capability for all API routes including SSE", async (t) => {
     t.after(() => fixture.server.close());
 
     assert.equal((await fetch(`${fixture.url}/api/state`)).status, 401);
-    assert.equal((await fetch(`${fixture.url}/api/events?capabilityToken=wrong`)).status, 401);
+    assert.equal((await fetch(`${fixture.url}/api/events?capabilityToken=test-capability`)).status, 401);
     assert.equal(fixture.sseConnections(), 0);
-    assert.equal((await fetch(`${fixture.url}/api/events?capabilityToken=test-capability`)).status, 200);
+    assert.equal((await fetch(`${fixture.url}/api/events`, {
+        headers: { authorization: "Bearer test-capability" },
+    })).status, 200);
     assert.equal(fixture.sseConnections(), 1);
+    assert.equal((await fetch(`${fixture.url}/api/state?capabilityToken=test-capability`)).status, 401);
+    assert.equal((await fetch(`${fixture.url}/api/state`, {
+        headers: { authorization: "Bearer test-capability" },
+    })).status, 200);
+});
+
+test("allows CORS preflight without a capability token", async (t) => {
+    const fixture = await startFixture();
+    t.after(() => fixture.server.close());
+
+    const allowed = await fetch(`${fixture.url}/api/agent-config/builtin`, {
+        method: "OPTIONS",
+        headers: {
+            origin: "http://127.0.0.1:9000",
+            "access-control-request-method": "PUT",
+            "access-control-request-headers": "authorization,content-type",
+        },
+    });
+    assert.equal(allowed.status, 204);
+    assert.equal(allowed.headers.get("access-control-allow-origin"), "http://127.0.0.1:9000");
+    assert.match(String(allowed.headers.get("access-control-allow-headers")), /authorization/i);
+
+    const rejected = await fetch(`${fixture.url}/api/agent-config/builtin`, {
+        method: "OPTIONS",
+        headers: { origin: "https://attacker.invalid" },
+    });
+    assert.equal(rejected.status, 403);
 });
 
 test("exposes an unauthenticated health endpoint for host ready checks", async (t) => {
@@ -68,13 +97,13 @@ test("exposes an unauthenticated health endpoint for host ready checks", async (
 test("emits CORS only for the explicit allowed origin and rejects other origins", async (t) => {
     const fixture = await startFixture();
     t.after(() => fixture.server.close());
-    const path = `${fixture.url}/api/state?capabilityToken=test-capability`;
+    const path = `${fixture.url}/api/state`;
 
-    const allowed = await fetch(path, { headers: { origin: "http://127.0.0.1:9000" } });
+    const allowed = await fetch(path, { headers: { origin: "http://127.0.0.1:9000", authorization: "Bearer test-capability" } });
     assert.equal(allowed.status, 200);
     assert.equal(allowed.headers.get("access-control-allow-origin"), "http://127.0.0.1:9000");
 
-    const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid" } });
+    const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid", authorization: "Bearer test-capability" } });
     assert.equal(rejected.status, 403);
     assert.equal(rejected.headers.get("access-control-allow-origin"), null);
 });
@@ -82,19 +111,19 @@ test("emits CORS only for the explicit allowed origin and rejects other origins"
 test("supports packaged Wry origins without allowing arbitrary browser origins", async (t) => {
     const fixture = await startFixture(["wry://localhost", "http://wry.localhost", "*"]);
     t.after(() => fixture.server.close());
-    const path = `${fixture.url}/api/state?capabilityToken=test-capability`;
+    const path = `${fixture.url}/api/state`;
 
     for (const origin of ["wry://localhost", "http://wry.localhost"]) {
-        const response = await fetch(path, { headers: { origin } });
+        const response = await fetch(path, { headers: { origin, authorization: "Bearer test-capability" } });
         assert.equal(response.status, 200);
         assert.equal(response.headers.get("access-control-allow-origin"), origin);
     }
 
-    const legacyLinux = await fetch(path);
+    const legacyLinux = await fetch(path, { headers: { authorization: "Bearer test-capability" } });
     assert.equal(legacyLinux.status, 200);
     assert.equal(legacyLinux.headers.get("access-control-allow-origin"), "*");
 
-    const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid" } });
+    const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid", authorization: "Bearer test-capability" } });
     assert.equal(rejected.status, 403);
     assert.equal(rejected.headers.get("access-control-allow-origin"), null);
 });
@@ -104,9 +133,9 @@ test("rejects agent switching while a prompt is busy", async (t) => {
     t.after(() => fixture.server.close());
     fixture.state.sessionContexts.set("session-1", { pendingPrompt: true });
 
-    const response = await fetch(`${fixture.url}/api/agents/switch?capabilityToken=test-capability`, {
+    const response = await fetch(`${fixture.url}/api/agents/switch`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", authorization: "Bearer test-capability" },
         body: JSON.stringify({ name: "next" }),
     });
 
@@ -121,9 +150,9 @@ test("rejects agent switching while a prompt is busy", async (t) => {
 test("context accepts Framework fields but rejects a client-supplied projectRoot", async (t) => {
     const fixture = await startFixture();
     t.after(() => fixture.server.close());
-    const request = (body) => fetch(`${fixture.url}/api/context?capabilityToken=test-capability`, {
+    const request = (body) => fetch(`${fixture.url}/api/context`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", authorization: "Bearer test-capability" },
         body: JSON.stringify(body),
     });
 
