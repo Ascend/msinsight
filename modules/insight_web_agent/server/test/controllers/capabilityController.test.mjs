@@ -11,9 +11,11 @@ import { EventEmitter } from "node:events";
 import test from "node:test";
 import { createCapabilityController } from "../../controllers/capabilityController.mjs";
 
-const createRequest = (token) => Object.assign(new EventEmitter(), {
-    url: `/api/capabilities/invoke?capabilityToken=${encodeURIComponent(token)}`,
-    headers: { host: "127.0.0.1" },
+const createRequest = (token, { query = false } = {}) => Object.assign(new EventEmitter(), {
+    url: query ? `/api/capabilities/invoke?capabilityToken=${encodeURIComponent(token)}` : "/api/capabilities/invoke",
+    headers: query
+        ? { host: "127.0.0.1" }
+        : { host: "127.0.0.1", authorization: `Bearer ${token}` },
 });
 const createResponse = () => Object.assign(new EventEmitter(), {
     destroyed: false,
@@ -55,4 +57,16 @@ test("Native capability controller accepts its process token", async () => {
     assert.equal(res.status, 200);
     assert.equal(requests[0].name, "pt_snap");
     assert.deepEqual(requests[0].input, { args: ["query"] });
+});
+
+test("Native capability controller rejects process tokens in the query string", async () => {
+    const controller = createCapabilityController({
+        capabilityCenter: { invoke: async () => ({ ok: true }) },
+        accessToken: "native-only",
+    });
+    const res = createResponse();
+
+    await controller.invoke(createRequest("native-only", { query: true }), res, { name: "pt_snap" });
+
+    assert.equal(res.status, 401);
 });

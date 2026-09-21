@@ -7,13 +7,12 @@
  * -------------------------------------------------------------------------
  */
 import { json } from "../http/response.mjs";
-import { tokensEqual } from "../http/security.mjs";
+import { readCapabilityToken, tokensEqual } from "../http/security.mjs";
 
 // Native Agent 使用独立进程级 Token 进入同一能力中心，不额外启动 MCP Client。
 export const createCapabilityController = ({ capabilityCenter, accessToken }) => ({
     async invoke(req, res, body) {
-        const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-        if (!tokensEqual(accessToken, url.searchParams.get("capabilityToken"))) {
+        if (!tokensEqual(accessToken, readCapabilityToken(req))) {
             return json(res, { error: "Unauthorized" }, 401);
         }
         // Native fetch 中断或连接提前关闭时，取消仍在执行的 Capability/Frontend Command。

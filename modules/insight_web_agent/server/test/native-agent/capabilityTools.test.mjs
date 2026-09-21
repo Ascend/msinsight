@@ -34,7 +34,8 @@ const createCapabilityServer = async (t, capabilityToken = "native-command-capab
         const url = new URL(req.url, `http://${req.headers.host}`);
         if (url.pathname !== "/api/capabilities/invoke"
             || req.method !== "POST"
-            || url.searchParams.get("capabilityToken") !== capabilityToken) {
+            || (url.searchParams.get("capabilityToken") !== capabilityToken
+                && req.headers.authorization !== `Bearer ${capabilityToken}`)) {
             res.writeHead(401, { "content-type": "application/json" });
             res.end(JSON.stringify({ error: "Unauthorized" }));
             return;

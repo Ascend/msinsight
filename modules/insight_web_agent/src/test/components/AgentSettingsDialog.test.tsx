@@ -501,7 +501,13 @@ test('shows auto-detected agents as read-only and copies them into a custom draf
         ...snapshot,
         catalogAgents: [
             { name: 'OpenCode(auto)', command: 'opencode', args: ['acp'], env: {}, available: true },
-            { name: 'Claude Code(auto)', command: 'claude-agent-acp', args: [], env: {}, available: false },
+            {
+                name: 'Claude Code(auto)',
+                command: 'claude-agent-acp',
+                args: [],
+                env: { API_TOKEN: '******', BASE_URL: 'https://example.test' },
+                available: false,
+            },
         ],
     });
 
@@ -519,12 +525,32 @@ test('shows auto-detected agents as read-only and copies them into a custom draf
     fireEvent.click(screen.getByRole('button', { name: 'Copy as custom agent' }));
     expect(screen.getByLabelText('Agent name')).toHaveValue('Claude Code');
     expect(screen.getByLabelText('Command')).toHaveProperty('readOnly', false);
+    expect(screen.getByLabelText('Env value 1')).toHaveValue('');
+    expect(screen.getByLabelText('Env value 1')).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText('Env value 2')).toHaveValue('https://example.test');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentServersConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: 'Claude Code', command: 'claude-agent-acp' }),
     ]));
+});
+
+test('clears a configured secret placeholder when its environment key is renamed', async () => {
+    mockFetchAgentConfig.mockResolvedValue({
+        ...snapshot,
+        agentServers: [{
+            name: 'OpenCode',
+            command: 'opencode',
+            args: ['acp'],
+            env: { API_TOKEN: '******' },
+        }],
+    });
+
+    await openSettings();
+    expect(screen.getByLabelText('Env value 1')).toHaveValue('******');
+    fireEvent.change(screen.getByLabelText('Env key 1'), { target: { value: 'NEW_TOKEN' } });
+    expect(screen.getByLabelText('Env value 1')).toHaveValue('');
 });
 
 test('shows a clear busy message and disables save while a prompt is in flight', async () => {

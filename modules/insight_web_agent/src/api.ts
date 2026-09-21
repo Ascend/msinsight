@@ -18,9 +18,10 @@
 import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
-import { apiUrl, ACP_STATUS, ACP_NODE_VERSION } from './env';
+import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, capabilityAuthHeaders } from './env';
 import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
 import { canAttemptAcpRequest, type AcpUnavailableReason } from './acpStatus';
+import { sealEnvSecrets, sealSecretInput } from './secretSeal';
 
 interface PromptResponse {
     ok?: boolean;
@@ -112,6 +113,7 @@ const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> 
             return await fetch(url, {
                 ...init,
                 headers: {
+                    ...capabilityAuthHeaders(),
                     ...(init?.body ? { 'content-type': 'application/json' } : {}),
                     ...init?.headers,
                 },
@@ -326,17 +328,28 @@ export const fetchAgentConfig = async (): Promise<AgentConfigSnapshot> => {
     return body.snapshot;
 };
 
-export const saveAgentServersConfig = (config: { activeAgentName: string; agentServers: AgentConfigServer[] }): Promise<AgentConfigSaveResult> => {
+export const saveAgentServersConfig = async (config: { activeAgentName: string; agentServers: AgentConfigServer[] }): Promise<AgentConfigSaveResult> => {
+    const crypto = (await fetchAgentConfig()).crypto;
     return requestJson<AgentConfigSaveResult>('/api/agent-config/servers', {
         method: 'PUT',
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+            ...config,
+            agentServers: await Promise.all(config.agentServers.map(async (server) => ({
+                ...server,
+                env: await sealEnvSecrets(server.env, crypto),
+            }))),
+        }),
     });
 };
 
-export const saveBuiltinAgentConfig = (config: BuiltinAgentConfig): Promise<AgentConfigSaveResult> => {
+export const saveBuiltinAgentConfig = async (config: BuiltinAgentConfig): Promise<AgentConfigSaveResult> => {
+    const crypto = (await fetchAgentConfig()).crypto;
     return requestJson<AgentConfigSaveResult>('/api/agent-config/builtin', {
         method: 'PUT',
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+            ...config,
+            apiKey: await sealSecretInput(config.apiKey, crypto),
+        }),
     });
 };
 

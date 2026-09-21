@@ -58,12 +58,12 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
                 }), 403);
             }
             const requestPath = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`).pathname;
+            if (req.method === "OPTIONS") {
+                res.writeHead(204);
+                res.end();
+                return;
+            }
             if (requestPath === "/api/health") {
-                if (req.method === "OPTIONS") {
-                    res.writeHead(204);
-                    res.end();
-                    return;
-                }
                 return json(res, { ok: true, status: "ready" }, 200);
             }
             if (requestPath.startsWith("/api/")
@@ -73,11 +73,6 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
                     code: "unauthorized",
                     message: "The ACP capability token is missing or invalid",
                 }), 401);
-            }
-            if (req.method === "OPTIONS") {
-                res.writeHead(204);
-                res.end();
-                return;
             }
             if ((req.url ?? "").startsWith("/mcp/") && req.headers.origin) {
                 return json(res, { error: "Origin not allowed" }, 403);

@@ -20,6 +20,8 @@ import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { presentCatalogAgents } from "./agentDiscoveryService.mjs";
 import { agentLaunchKey, BUILTIN_AGENT_NAME } from "./agentIdentityService.mjs";
+import { createSecretCrypto, nativeApiKeyAad, SecretCryptoError } from "../security/secretCrypto.mjs";
+import { isTransitEnvelope, projectSnapshot } from "../security/secretProjection.mjs";
 
 const AGENT_CONFIG_FILE = "agent-servers.json";
 const SESSION_CONFIG_FILE = "acp-session-conf.json";
@@ -36,18 +38,24 @@ export const createAgentConfigService = ({
     tempId = randomUUID,
     getDiscoveredAgents,
     getConfiguredAgents,
+    secretCrypto = createSecretCrypto(),
 } = {}) => {
     const agentConfigPath = join(rootDir, AGENT_CONFIG_FILE);
     const sessionConfigPath = join(rootDir, SESSION_CONFIG_FILE);
     const nativeConfigPath = join(rootDir, NATIVE_CONFIG_FILE);
 
-    const readSnapshot = async () => {
+    const readPersisted = async () => {
         const [agentConfig, sessionConfig, builtinAgent] = await Promise.all([
             readJson(agentConfigPath),
             readOptionalJson(sessionConfigPath),
             readJson(nativeConfigPath),
         ]);
-        return withCatalogAgents(normalizeSnapshot(agentConfig, sessionConfig, builtinAgent));
+        return normalizeSnapshot(agentConfig, sessionConfig, builtinAgent);
+    };
+
+    const readSnapshot = async () => {
+        const snapshot = withCatalogAgents(await readPersisted());
+        return projectSnapshot(snapshot, secretCrypto);
     };
 
     const catalogAgents = () => presentCatalogAgents({
@@ -65,6 +73,16 @@ export const createAgentConfigService = ({
         if (isBusy(state)) return structuredError("agent_busy", "Agent is busy", 409);
         const validation = validateAgentConfig(input, currentSnapshot, catalogAgents());
         if (validation.error) return validation;
+        try {
+            const persisted = await readPersisted();
+            const byName = new Map(persisted.agentServers.map((server) => [server.name, server]));
+            validation.config.agentServers = validation.config.agentServers.map((server) => ({
+                ...server,
+                env: secretCrypto.resolveIncomingEnv(server.env, byName.get(server.name)?.env ?? {}, server.name),
+            }));
+        } catch (error) {
+            return secretError(error);
+        }
         return saveSection({
             path: agentConfigPath,
             value: validation.config,
@@ -80,6 +98,16 @@ export const createAgentConfigService = ({
         if (isBusy(state)) return structuredError("agent_busy", "Agent is busy", 409);
         const validation = validateBuiltinConfig(input);
         if (validation.error) return validation;
+        try {
+            const persisted = await readPersisted();
+            validation.config.apiKey = secretCrypto.resolveIncomingSecret(
+                input?.apiKey,
+                persisted.builtinAgent.apiKey,
+                nativeApiKeyAad(),
+            );
+        } catch (error) {
+            return secretError(error);
+        }
         return saveSection({
             path: nativeConfigPath,
             value: validation.config,
@@ -140,7 +168,7 @@ const normalizeBuiltinAgent = (config = {}) => ({
     provider: String(config.provider ?? "openai"),
     model: String(config.model ?? ""),
     baseUrl: String(config.baseUrl ?? ""),
-    apiKey: String(config.apiKey ?? ""),
+    apiKey: isTransitEnvelope(config.apiKey) ? config.apiKey : String(config.apiKey ?? ""),
 });
 
 const normalizeAgentServers = (servers) => Array.isArray(servers)
@@ -174,6 +202,13 @@ const normalizeSessionConfig = (config = {}) => ({
 const normalizeTimeout = (value, fallback) => {
     const timeout = Number(value ?? fallback);
     return Number.isFinite(timeout) && timeout > 0 ? timeout : fallback;
+};
+
+const secretError = (error) => {
+    if (error instanceof SecretCryptoError) {
+        return structuredError(error.code, error.message, error.status);
+    }
+    throw error;
 };
 
 const validateAgentConfig = (input, currentSnapshot, catalogAgents = []) => {
@@ -300,7 +335,10 @@ const isDiscoveredAgentName = (name) => /\(auto\)$/i.test(String(name ?? "").tri
 
 const validateEnv = (env, field, errors) => {
     if (!env || typeof env !== "object" || Array.isArray(env)) return {};
-    const entries = Object.entries(env).map(([key, value]) => [String(key).trim(), String(value ?? "")]);
+    const entries = Object.entries(env).map(([key, value]) => [
+        String(key).trim(),
+        isTransitEnvelope(value) ? value : String(value ?? ""),
+    ]);
     const seen = new Set();
     for (const [key] of entries) {
         if (!key) errors.push({ field, message: "env keys cannot be empty" });

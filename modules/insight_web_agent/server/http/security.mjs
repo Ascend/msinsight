@@ -8,10 +8,13 @@
  */
 import { timingSafeEqual } from "node:crypto";
 
-export const hasValidCapability = (req, expectedToken) => {
-    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-    return tokensEqual(expectedToken, url.searchParams.get("capabilityToken"));
+export const readCapabilityToken = (req) => {
+    const header = String(req.headers.authorization ?? "");
+    const bearer = /^Bearer\s+(\S+)/i.exec(header);
+    return bearer?.[1] ?? null;
 };
+
+export const hasValidCapability = (req, expectedToken) => tokensEqual(expectedToken, readCapabilityToken(req));
 
 export const tokensEqual = (expectedToken, suppliedToken) => {
     const expected = Buffer.from(String(expectedToken ?? ""));

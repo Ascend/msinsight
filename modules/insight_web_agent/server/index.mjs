@@ -24,7 +24,7 @@ import { createHttpMcpAdapter } from "./capability-adapters/http-mcp/adapter.mjs
 import { registerConfiguredCapabilities } from "./capability-center/configuredCapabilities.mjs";
 import { createCapabilityCenter } from "./capability-center/service.mjs";
 import { createCapabilitySessionIntegration } from "./capability-center/sessionIntegration.mjs";
-import { config, reloadConfig, saveActiveAgent } from "./config/index.mjs";
+import { config, reloadConfig, saveActiveAgent, secretCrypto } from "./config/index.mjs";
 import { createAcpAdapter } from "./infrastructure/acpAdapter.mjs";
 import { createAuditLogger } from "./observability/auditLogger.mjs";
 import { createAgentConfigService } from "./services/agentConfigService.mjs";
@@ -480,6 +480,7 @@ const agentConfigService = createAgentConfigService({
     state,
     getDiscoveredAgents: () => discoveredAgentServers,
     getConfiguredAgents: () => config.configuredAgentServers,
+    secretCrypto,
     reloadRuntime: async (snapshot) => reloadRuntime({ activeAgentName: snapshot.activeAgentName, reloadFromDisk: true }),
 });
 

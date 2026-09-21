@@ -30,7 +30,7 @@ import { t } from 'i18next';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
-import { apiUrl } from '../env';
+import { subscribeEvents } from '../eventStream';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
@@ -498,8 +498,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         };
         loadInitialData();
 
-        const events = new EventSource(apiUrl('/api/events'));
-        events.onmessage = (event): void => applyEvent(JSON.parse(event.data) as ServerEvent);
+        const events = subscribeEvents((data) => applyEvent(JSON.parse(data) as ServerEvent));
         return () => {
             events.close();
             frontendCommandsRef.current.forEach(cancelFrontendCommand);

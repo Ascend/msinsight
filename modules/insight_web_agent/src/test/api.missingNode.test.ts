@@ -9,6 +9,8 @@
 
 jest.mock('../env', () => ({
     apiUrl: (path: string) => path,
+    capabilityAuthHeaders: () => ({}),
+    eventsUrl: () => '/api/events',
     ACP_STATUS: 'missing-node',
     ACP_NODE_VERSION: '',
 }));

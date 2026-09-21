@@ -58,6 +58,8 @@ MindStudio Insight 在运行异常时会退出进程并打印报错信息，建�
 - MindStudio Insight通过JupyterLab插件安装使用时，默认为安全使用模式，此时JupyterLab服务启动与网络浏览器在同一台机器上，即在当前机器的Linux系统上使用本地浏览器查看，为安全的localhost内通信。
 - MindStudio Insight通过JupyterLab插件安装使用时，如果需要远程查看，为非安全使用模式，此时JupyterLab服务启动与网络浏览器不在同一台机器上，用户需通过修改JupyterLab的配置文件或者通过安装jupyter_server_proxy插件代理端口，以供远程机器访问，为不安全的跨机通信，请自行关注远程通信带来的安全风险。
 - 为了消减安全风险，可以通过在JupyterLab插件所在的客户端配置iptables等访问控制策略，或者使用nginx等反向代理工具来加固HTTPS的安全性。此外，针对JupyterLab本身的浏览器防护机制可能存在的风险，可以通过修改JupyterLab的配置文件来进行安全加固。
+- Agent配置中的凭据在浏览器提交前会进行应用层封装加密，用于降低普通代理日志或请求日志直接记录明文凭据的风险。该机制的公钥仍通过当前连接下发，不能防御主动中间人攻击，也不能替代HTTPS；远程JupyterLab和Docker场景必须使用HTTPS及相应的访问控制。
+- Agent持久化凭据使用独立包装密钥加密。容器部署时应通过`MSINSIGHT_SECRETS_KEY_PATH`将该密钥放在权限受限的持久化挂载或密钥文件中，并与配置数据分别管理；如果仅持久化密文配置而未持久化原包装密钥，容器重建后将无法解密已有凭据。
 
 ## 通信矩阵
 

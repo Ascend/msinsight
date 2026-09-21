@@ -336,7 +336,7 @@ ACP_CAPABILITY_TOKEN=<development-token> node server/index.mjs --path . --port 9
 
 - `--path` 指定运行时工作目录，等价于 App 内 `--path <app>/Contents/MacOS/resources/profiler/server/insight_web_agent`。该目录必须包含 `agent-servers.json` 与（可选）`acp-session-conf.json`、`prompts/`、`docs/`。
 - `--port` 默认 `9090`；常用本地调试推荐显式指定 `9002`、`9004` 等与 App 错开的端口。
-- `ACP_CAPABILITY_TOKEN` 必须显式设置（包括仅监听 loopback 的开发环境），并通过请求查询参数 `capabilityToken` 传入；token 不通过进程参数传递。
+- `ACP_CAPABILITY_TOKEN` 必须显式设置（包括仅监听 loopback 的开发环境），所有 API（包括 `/api/events` 事件流）均通过 `Authorization: Bearer <token>` 请求头传入；token 不通过进程参数传递。
 - 启动后会在 stdout 打印类似 `ACP web extracted API: http://127.0.0.1:9002/` 与 `Agent: <activeAgentName> (<command> <args>)`。
 
 源代码模式支持 Node 原生调试器：
@@ -414,10 +414,11 @@ python3 build/patch-acp-server.py --build
 ```bash
 PORT=9002
 BASE=http://127.0.0.1:${PORT}
+TOKEN=<development-token>
 
-curl -s ${BASE}/api/agents -w '\nstatus: %{http_code}\n'
-curl -s ${BASE}/api/agent-config -w '\nstatus: %{http_code}\n'
-curl -s ${BASE}/api/sessions -w '\nstatus: %{http_code}\n'
+curl -s -H "Authorization: Bearer ${TOKEN}" ${BASE}/api/agents -w '\nstatus: %{http_code}\n'
+curl -s -H "Authorization: Bearer ${TOKEN}" ${BASE}/api/agent-config -w '\nstatus: %{http_code}\n'
+curl -s -H "Authorization: Bearer ${TOKEN}" ${BASE}/api/sessions -w '\nstatus: %{http_code}\n'
 ```
 
 对应的响应字段与错误码参见 `docs/zh/development_guide/design/InsightAgentBridge.md`。

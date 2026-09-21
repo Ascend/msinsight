@@ -23,6 +23,8 @@ import test from "node:test";
 import { createRuntimeState, getSessionContext } from "../../state/runtimeState.mjs";
 import { presentCatalogAgents } from "../../services/agentDiscoveryService.mjs";
 import { createAgentConfigService } from "../../services/agentConfigService.mjs";
+import { createSecretCrypto, isAtRestEnvelope } from "../../security/secretCrypto.mjs";
+import { SECRET_PLACEHOLDER } from "../../security/secretProjection.mjs";
 
 const createFixture = async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-agent-config-"));
@@ -53,16 +55,33 @@ const createFixture = async () => {
     });
     const state = createRuntimeState();
     state.activeAgentName = "OpenCode";
+    const secretCrypto = createSecretCrypto({ keyPath: join(rootDir, "secrets.key"), protectKey: false });
     const reloads = [];
     const service = createAgentConfigService({
         rootDir,
         state,
+        secretCrypto,
         reloadRuntime: async (snapshot) => {
             reloads.push(snapshot);
             return { snapshot };
         },
     });
-    return { rootDir, state, reloads, service };
+    return { rootDir, state, reloads, service, secretCrypto, crypto: secretCrypto };
+};
+
+const sealForSave = (snapshot, crypto) => {
+    const next = structuredClone(snapshot);
+    if (next.builtinAgent?.apiKey && next.builtinAgent.apiKey !== SECRET_PLACEHOLDER) {
+        next.builtinAgent.apiKey = crypto.sealTransit(next.builtinAgent.apiKey);
+    }
+    for (const server of next.agentServers ?? []) {
+        for (const [key, value] of Object.entries(server.env ?? {})) {
+            if (/(?:API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)/i.test(key) && value && value !== SECRET_PLACEHOLDER) {
+                server.env[key] = crypto.sealTransit(value);
+            }
+        }
+    }
+    return next;
 };
 
 const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -106,8 +125,11 @@ test("reads a normalized agent and session config snapshot", async () => {
     const fixture = await createFixture();
 
     const snapshot = await fixture.service.readSnapshot();
+    const { crypto, ...publicSnapshot } = snapshot;
 
-    assert.deepEqual(snapshot, {
+    assert.equal(crypto.alg, "rsa-oaep-aes-gcm-v1");
+    assert.equal(typeof crypto.publicKey, "string");
+    assert.deepEqual(publicSnapshot, {
         activeAgentName: "OpenCode",
         agentServers: [
             { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
@@ -158,18 +180,19 @@ test("saves each configuration section independently", async () => {
     const fixture = await createFixture();
     const snapshot = validSnapshot();
 
-    const builtinResult = await fixture.service.saveBuiltinAgent(snapshot.builtinAgent);
+    const builtinResult = await fixture.service.saveBuiltinAgent(sealForSave(snapshot, fixture.crypto).builtinAgent);
     const sessionResult = await fixture.service.saveSessionConfig(snapshot.sessionConfig);
-    const agentResult = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+    const agentResult = await fixture.service.saveAgentServers(agentConfigFrom(sealForSave(snapshot, fixture.crypto)));
 
     assert.equal(builtinResult.ok, true);
     assert.equal(sessionResult.ok, true);
     assert.equal(agentResult.ok, true);
     assert.equal(fixture.reloads.length, 3);
-    assert.deepEqual(await readJson(join(fixture.rootDir, "agent-servers.json")), {
-        activeAgent: "OpenCode",
-        agentServers: snapshot.agentServers,
-    });
+    const persistedAgents = await readJson(join(fixture.rootDir, "agent-servers.json"));
+    assert.equal(persistedAgents.activeAgent, "OpenCode");
+    assert.equal(persistedAgents.agentServers[2].name, "NewAgent");
+    assert.equal(isAtRestEnvelope(persistedAgents.agentServers[2].env.TOKEN), true);
+    assert.equal(agentResult.snapshot.agentServers[2].env.TOKEN, SECRET_PLACEHOLDER);
     assert.deepEqual(await readJson(join(fixture.rootDir, "acp-session-conf.json")), {
         requestTimeoutMs: 5000,
         promptRequestTimeoutMs: 6000,
@@ -181,13 +204,47 @@ test("saves each configuration section independently", async () => {
             extraPaths: ["does/not/exist"],
         },
     });
-    assert.deepEqual(await readJson(join(fixture.rootDir, "msinsight-native.json")), {
-        schemaVersion: 1,
-        provider: "openai",
-        model: "cx/gpt-5.5",
-        baseUrl: "http://127.0.0.1:19099/v1",
-        apiKey: "secret",
+    const persistedNative = await readJson(join(fixture.rootDir, "msinsight-native.json"));
+    assert.equal(persistedNative.provider, "openai");
+    assert.equal(persistedNative.model, "cx/gpt-5.5");
+    assert.equal(isAtRestEnvelope(persistedNative.apiKey), true);
+    assert.equal(builtinResult.snapshot.builtinAgent.apiKey, SECRET_PLACEHOLDER);
+});
+
+test("rejects plaintext api keys and keeps the placeholder as unchanged", async () => {
+    const fixture = await createFixture();
+    const rejected = await fixture.service.saveBuiltinAgent({
+        ...validSnapshot().builtinAgent,
+        apiKey: "plain-secret",
     });
+    assert.equal(rejected.error, "plaintext_secret_rejected");
+    assert.equal((await readJson(join(fixture.rootDir, "msinsight-native.json"))).apiKey, "");
+
+    const saved = await fixture.service.saveBuiltinAgent(sealForSave(validSnapshot(), fixture.crypto).builtinAgent);
+    assert.equal(saved.ok, true);
+    const firstCipher = (await readJson(join(fixture.rootDir, "msinsight-native.json"))).apiKey;
+    const kept = await fixture.service.saveBuiltinAgent({
+        ...validSnapshot().builtinAgent,
+        apiKey: SECRET_PLACEHOLDER,
+        provider: "anthropic",
+        model: "claude",
+        baseUrl: "https://api.anthropic.com",
+    });
+    assert.equal(kept.ok, true);
+    assert.equal((await readJson(join(fixture.rootDir, "msinsight-native.json"))).apiKey, firstCipher);
+    assert.equal(kept.snapshot.builtinAgent.apiKey, SECRET_PLACEHOLDER);
+});
+
+test("rejects a secret placeholder for a new agent environment variable", async () => {
+    const fixture = await createFixture();
+    const snapshot = validSnapshot();
+    snapshot.agentServers.at(-1).env.TOKEN = SECRET_PLACEHOLDER;
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "secret_placeholder_invalid");
+    const persisted = await readJson(join(fixture.rootDir, "agent-servers.json"));
+    assert.equal(persisted.agentServers.some(({ name }) => name === "NewAgent"), false);
 });
 
 test("marks a catalog agent available when a configured agent uses the same launch", async () => {
@@ -195,6 +252,7 @@ test("marks a catalog agent available when a configured agent uses the same laun
     const service = createAgentConfigService({
         rootDir: fixture.rootDir,
         state: fixture.state,
+        secretCrypto: fixture.crypto,
         getConfiguredAgents: () => [
             { name: "OpenCode", command: "opencode", args: ["acp"], env: {} },
         ],
@@ -212,6 +270,7 @@ test("keeps a catalog active agent when a custom copy uses the same launch", asy
     const service = createAgentConfigService({
         rootDir: fixture.rootDir,
         state: fixture.state,
+        secretCrypto: fixture.crypto,
         getDiscoveredAgents: () => [{ name: "OpenCode(auto)", command: "opencode", args: ["acp"], env: {} }],
         getConfiguredAgents: () => [
             { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
@@ -281,6 +340,7 @@ test("removes matching transient agents before runtime reload", async () => {
     const service = createAgentConfigService({
         rootDir: fixture.rootDir,
         state: fixture.state,
+        secretCrypto: fixture.crypto,
         beforeReload: async (snapshot) => {
             calls.push(`before:${snapshot.agentServers.at(-1).name}`);
         },
@@ -289,7 +349,7 @@ test("removes matching transient agents before runtime reload", async () => {
         },
     });
 
-    const result = await service.saveAgentServers(agentConfigFrom(validSnapshot()));
+    const result = await service.saveAgentServers(agentConfigFrom(sealForSave(validSnapshot(), fixture.crypto)));
 
     assert.equal(result.ok, true);
     assert.deepEqual(calls, ["before:NewAgent", "reload"]);
@@ -297,7 +357,7 @@ test("removes matching transient agents before runtime reload", async () => {
 
 test("adds a new agent and switches active agent only when requested by the snapshot", async () => {
     const fixture = await createFixture();
-    const withoutSwitch = validSnapshot();
+    const withoutSwitch = sealForSave(validSnapshot(), fixture.crypto);
 
     await fixture.service.saveAgentServers(agentConfigFrom(withoutSwitch));
     assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode");
@@ -413,7 +473,7 @@ test("blocks saves while a prompt or permission is pending without writing or re
             fixture.state.pendingPermissions.set("session-1:req-1", { sessionId: "session-1", requestId: "req-1", state: "pending" });
         }
 
-        const result = await fixture.service.saveAgentServers(agentConfigFrom(validSnapshot()));
+        const result = await fixture.service.saveAgentServers(agentConfigFrom(sealForSave(validSnapshot(), fixture.crypto)));
 
         assert.equal(result.error, "agent_busy");
         assert.equal(result.status, 409);
@@ -428,12 +488,13 @@ test("returns reload_failed after a successful file save without rolling config 
     fixture.service = createAgentConfigService({
         rootDir: fixture.rootDir,
         state: fixture.state,
+        secretCrypto: fixture.crypto,
         reloadRuntime: async () => {
             throw new Error("adapter failed");
         },
     });
 
-    const result = await fixture.service.saveAgentServers(agentConfigFrom(validSnapshot()));
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(sealForSave(validSnapshot(), fixture.crypto)));
 
     assert.equal(result.error, "reload_failed");
     assert.match(result.message, /adapter failed/);
