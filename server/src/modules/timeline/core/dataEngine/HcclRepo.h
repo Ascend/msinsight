@@ -41,6 +41,10 @@ class HcclRepo : public IBaseSliceRepo {
     void SetCommucationOpTable(std::unique_ptr<CommucationOpTable>);
     void SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr);
     void SetCommucationTaskInfoTable(std::unique_ptr<CommucationTaskInfoTable>);
+    static bool IsTimestampInTask(const TaskPO &task, uint64_t timestamp);
+    using CommunicationMatchMap = std::unordered_map<uint64_t, size_t>;
+    static CommunicationMatchMap MatchCommunicationWithTimestamp(
+        const std::vector<TaskPO> &tasks, const std::vector<CommucationTaskInfoPO> &infos);
 
   protected:
     std::unique_ptr<TaskTable> taskTable = std::make_unique<TaskTable>();
@@ -57,6 +61,12 @@ class HcclRepo : public IBaseSliceRepo {
         const TrackInfo &trackInfo, const std::string &tid, const SliceQuery &sliceQuery);
 
   private:
+    static void MatchCommunicationTimestampBucket(uint64_t globalTaskId, std::vector<const TaskPO *> &tasks,
+        std::vector<size_t> &infoIndexes, const std::vector<CommucationTaskInfoPO> &infos,
+        CommunicationMatchMap &matches);
+    static bool RecoverCommunicationByTimestamp(const TaskPO &task, const std::vector<size_t> &infoIndexes,
+        const std::vector<CommucationTaskInfoPO> &infos, std::vector<bool> &used, size_t &matchedIndex);
+
     const std::string groupSuffix = "group";
     const std::string globalSrcRank = "globalSrcRank";
     const std::string globalDstRank = "globalDstRank";
@@ -76,6 +86,8 @@ class HcclRepo : public IBaseSliceRepo {
 
     void QuerySimpleSliceFromPlaneTrack(
         std::vector<SliceDomain> &sliceVec, TrackInfo &trackInfo, const SliceQuery &sliceQuery);
+    void QueryPlaneTasks(const std::vector<uint64_t> &globalIds, const TrackInfo &trackInfo,
+        std::vector<TaskPO> &taskVec, bool withTimestamp);
 
     bool QueryGroupSliceDetailInfo(
         const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TrackInfo &trackInfo);
@@ -88,16 +100,23 @@ class HcclRepo : public IBaseSliceRepo {
 
     std::string QueryRdmaTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo);
 
-    std::string QueryBandwidth(const SliceQuery &sliceQuery, const TaskPO &targetPO);
+    std::string QueryBandwidth(const CommucationTaskInfoPO &targetTaskInfo);
 
     void SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetPO,
-        CommucationTaskInfoPO &targetTaskInfo);
+        CommucationTaskInfoPO &targetTaskInfo, bool ambiguous);
 
     static std::string GetRealRankByLocalRank(uint64_t localRank, std::vector<std::string> &realRankList);
 
     std::optional<ParallelGroupInfo> GetGroupInfoByGroupNameId(uint64_t groupNameId, const std::string &fileId);
 
     bool QueryPlaneSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain);
+    bool FillPlaneSliceDetail(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
+        const TaskPO &targetTask, CommucationTaskInfoPO &taskInfo, bool ambiguous);
+
+    void QueryPlaneDetail(const SliceQuery &sliceQuery, const TaskPO &targetTask,
+        std::vector<CommucationTaskInfoPO> &taskInfoVec, bool withTimestamp);
+    void QueryTaskOccurrences(
+        const TaskPO &targetTask, const std::string &fileId, std::vector<TaskPO> &tasks, bool withTimestamp);
 };
 }
 #endif // PROFILER_SERVER_HCCLREPO_H

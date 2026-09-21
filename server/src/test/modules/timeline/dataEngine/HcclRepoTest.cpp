@@ -61,7 +61,7 @@ class HcclRepoTest : public ::testing::Test {
         DatabaseTestCaseMockUtil::CreateTable(db, transSql);
     }
 
-    void TestPlaneQueryGroupSliceDetailInfoPrepare(HcclDependency &dependency) {
+    void TestPlaneQueryGroupSliceDetailInfoPrepare(HcclDependency &dependency, bool multipleCandidates = false) {
         sqlite3 *db = nullptr;
         DatabaseTestCaseMockUtil::OpenDB(db);
         CreateTestTable(db);
@@ -77,6 +77,14 @@ class HcclRepoTest : public ::testing::Test {
             "\"dataType\", \"linkType\", \"bandwidth\", \"opId\") VALUES (377, 1669, 319, 0, 379, "
             "9223372036854775807, 4, 1, 2, 2, 40, 3, 2, 12345678900, 1);";
         DatabaseTestCaseMockUtil::InsertData(db, taskInfoInsert);
+        if (multipleCandidates) {
+            const std::string secondTaskInfoInsert =
+                "INSERT INTO \"main\".\"COMMUNICATION_TASK_INFO\" (\"name\", \"globalTaskId\", \"taskType\", "
+                "\"planeId\", \"groupName\", \"notifyId\", \"rdmaType\", \"srcRank\", \"dstRank\", "
+                "\"transportType\", \"size\", \"dataType\", \"linkType\", \"bandwidth\", \"opId\") "
+                "VALUES (377, 1669, 319, 0, 379, 100, 4, 2, 3, 2, 80, 3, 2, 1000000000, 2);";
+            DatabaseTestCaseMockUtil::InsertData(db, secondTaskInfoInsert);
+        }
         std::string dataTypeInsert =
             "INSERT INTO \"main\".\"ENUM_HCCL_DATA_TYPE\" (\"id\", \"name\") VALUES (3, 'INT16');";
         DatabaseTestCaseMockUtil::InsertData(db, dataTypeInsert);
@@ -112,6 +120,54 @@ class HcclRepoTest : public ::testing::Test {
         MetaDataCacheManager::Instance().AddParallelGroupInfo(infos);
     }
 };
+
+TEST_F(HcclRepoTest, TestTimestampInTaskUsesClosedInterval) {
+    TaskPO task;
+    task.timestamp = 100;
+    task.endTime = 200;
+    EXPECT_FALSE(HcclRepo::IsTimestampInTask(task, 99));
+    EXPECT_TRUE(HcclRepo::IsTimestampInTask(task, 100));
+    EXPECT_TRUE(HcclRepo::IsTimestampInTask(task, 150));
+    EXPECT_TRUE(HcclRepo::IsTimestampInTask(task, 200));
+    EXPECT_FALSE(HcclRepo::IsTimestampInTask(task, 201));
+}
+
+TEST_F(HcclRepoTest, TestCommunicationTimestampPairingUsesOrdinalOrder) {
+    std::vector<TaskPO> tasks = {{20, 300, 400}, {10, 100, 200}};
+    tasks[0].globalTaskId = 7;
+    tasks[1].globalTaskId = 7;
+    std::vector<CommucationTaskInfoPO> infos(2);
+    infos[0].id = 2;
+    infos[0].globalTaskId = 7;
+    infos[0].taskType = 22;
+    infos[0].timestamp = 350;
+    infos[1].id = 1;
+    infos[1].globalTaskId = 7;
+    infos[1].taskType = 11;
+    infos[1].timestamp = 150;
+
+    auto matches = HcclRepo::MatchCommunicationWithTimestamp(tasks, infos);
+
+    ASSERT_EQ(matches.size(), 2);
+    EXPECT_EQ(infos[matches.at(10)].taskType, 11);
+    EXPECT_EQ(infos[matches.at(20)].taskType, 22);
+}
+
+TEST_F(HcclRepoTest, TestCommunicationCountMismatchRecoversByTimestampRange) {
+    std::vector<TaskPO> tasks = {{10, 100, 200}, {20, 300, 400}};
+    tasks[0].globalTaskId = 7;
+    tasks[1].globalTaskId = 7;
+    std::vector<CommucationTaskInfoPO> infos(1);
+    infos[0].id = 3;
+    infos[0].globalTaskId = 7;
+    infos[0].timestamp = 350;
+
+    auto matches = HcclRepo::MatchCommunicationWithTimestamp(tasks, infos);
+
+    ASSERT_EQ(matches.size(), 1);
+    EXPECT_EQ(matches.at(20), 0);
+}
+
 /**
  * 测试全量DB的hccl的group泳道的根据id空集合查询完整算子
  */
@@ -553,8 +609,40 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfo) {
 }
 
 /**
- * 测试查询plane泳道详情(带有group信息，会根据局部rank获取全局rank)
+ * 测试查询plane泳道详情，兜底结果存在多条候选时标记详情字段不确定
  */
+TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoMarksMultipleFallbackCandidatesAmbiguous) {
+    class HcclRepoMock : public HcclRepo {
+      public:
+        void SetMock(HcclDependency &dependency) {
+            taskTable = std::move(dependency.taskTableMock);
+            commucationTaskInfoTable = std::move(dependency.commucationTaskInfoTableMock);
+            stringIdsTable = std::move(dependency.stringIdsTableMock);
+            enumHcclDataTypeTable = std::move(dependency.enumHcclDataTypeTableMock);
+            enumHcclRdmaTypeTable = std::move(dependency.enumHcclRdmaTypeTableMock);
+            enumHcclLinkTypeTable = std::move(dependency.enumHcclLinkTypeTableMock);
+            enumHcclTransportTypeTable = std::move(dependency.enumHcclTransportTypeTableMock);
+        }
+    };
+    HcclDependency dependency;
+    TestPlaneQueryGroupSliceDetailInfoPrepare(dependency, true);
+    HcclRepoMock hcclRepoMock;
+    hcclRepoMock.SetMock(dependency);
+    SliceQuery query;
+    CompeteSliceDomain slice;
+    query.sliceId = "1";
+    query.trackId = TrackInfoManager::Instance().GetTrackId("hhh", "hccl", "1669");
+    query.rankId = "hhh";
+
+    const bool result = hcclRepoMock.QuerySliceDetailInfo(query, slice);
+
+    EXPECT_TRUE(result);
+    EXPECT_NE(slice.args.find("\"_ambiguousKeys\":[\"notifyId\",\"taskType\",\"srcRank\",\"dstRank\","
+                              "\"transportType\",\"size(Byte)\",\"dataType\",\"linkType\","
+                              "\"bandwidth(GB/s)\",\"rdmaType\"]"),
+        std::string::npos);
+}
+
 TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoWithGroupInfo) {
     class HcclRepoMock : public HcclRepo {
       public:
