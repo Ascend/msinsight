@@ -24,6 +24,7 @@ import { UnitHeight, type InsightUnit } from '../../entity/insight';
 import type { Session } from '../../entity/session';
 import { StackStatusChart } from './StackStatusChart';
 import { useClick, useData } from './hooks';
+import type { OffsetSide } from '../../insight/units/offset';
 
 // Use the distributed CommonJS bundle so pnpm's nested ESM package path works in Jest.
 jest.mock('d3', () => jest.requireActual(require.resolve('d3').replace(/src[\\/]index.js$/, 'dist/d3.min.js')));
@@ -36,7 +37,7 @@ jest.mock('./hooks', () => ({
 }));
 jest.mock('./TooltipComp', () => ({ TooltipComponent: (): null => null }));
 
-const clickSlice = (metadata: Partial<ThreadMetaData>, returnedThreadId?: string): Session => {
+const clickSlice = (metadata: Partial<ThreadMetaData>, returnedThreadId?: string, unitMetadata = metadata): Session => {
     const slice: StackStatusData = {
         id: 'slice',
         startTime: 10,
@@ -51,7 +52,7 @@ const clickSlice = (metadata: Partial<ThreadMetaData>, returnedThreadId?: string
         cardId: 'rank0',
         dbPath: 'trace.db',
     };
-    const unit = { metadata, isTraceLoading: false } as InsightUnit;
+    const unit = { metadata: unitMetadata, isTraceLoading: false } as InsightUnit;
     const selectedSession = { endTimeAll: 100, selectedRangeData: [slice] } as unknown as Session;
     (useData as jest.Mock).mockReturnValue([[slice]]);
     render(<StackStatusChart
@@ -66,6 +67,25 @@ const clickSlice = (metadata: Partial<ThreadMetaData>, returnedThreadId?: string
 };
 
 describe('StackStatusChart slice selection', () => {
+    it.each<{ metaType: string; offsetSide?: OffsetSide; expectedSide: OffsetSide }>([
+        { metaType: 'TEXT', offsetSide: 'device', expectedSide: 'device' },
+        { metaType: 'TEXT', offsetSide: 'host', expectedSide: 'host' },
+        { metaType: 'PYTORCH_API_PYTHON_STACK', offsetSide: 'host', expectedSide: 'host' },
+        { metaType: 'CANN_API', expectedSide: 'host' },
+        { metaType: 'Ascend Hardware', expectedSide: 'device' },
+    ])('keeps the $expectedSide offset category for $metaType selection', ({ metaType, offsetSide, expectedSide }) => {
+        const selectedSession = clickSlice({ threadId: '2', processId: '200', metaType, offsetSide });
+
+        expect(selectedSession.selectedData?.offsetSide).toBe(expectedSide);
+    });
+
+    it('takes the offset category from the source unit when chart metadata differs', () => {
+        const metadata: Partial<ThreadMetaData> = { threadId: '2', processId: '200', metaType: 'TEXT', offsetSide: 'host' };
+        const selectedSession = clickSlice(metadata, '2', { ...metadata, offsetSide: 'device' });
+
+        expect(selectedSession.selectedData?.offsetSide).toBe('device');
+    });
+
     it.each([
         ['python_stack:text:100', '100'],
         ['python_stack:100', 'pytorch'],

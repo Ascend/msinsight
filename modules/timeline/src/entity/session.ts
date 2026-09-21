@@ -98,6 +98,7 @@ export interface SelectedDataType extends Pick<ThreadTrace, 'duration' | 'startT
     cardId?: SliceMeta['cardId'];
     dbPath?: string;
     metaType?: ThreadMetaData['metaType'];
+    offsetSide?: OffsetSide;
     rawStartTime?: string;
     color?: keyof Theme['colorPalette'] | Array<[ number, keyof Theme['colorPalette'] ]>;
     startRecordTime?: number;
@@ -601,6 +602,8 @@ export class Session {
 
     set selectedData(data: SelectedDataType | undefined) {
         this._selectedData = data;
+        // Target highlights follow the selection; the benchmark remains independently marked.
+        this._alignSliceData = [];
         this.foregroundTarget = undefined;
         // Callers that set selectedData must also set its source unit when known.
         // Clearing here prevents a newly selected slice from reusing stale lane context.

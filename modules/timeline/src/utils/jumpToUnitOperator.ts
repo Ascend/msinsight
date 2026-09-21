@@ -27,6 +27,7 @@ import { store } from '../store';
 import { InsightUnit } from '../entity/insight';
 import { isOperatorMetadata } from './operatorUnit';
 import { getSelectedThreadId } from './selectionContext';
+import { getOffsetSide } from '../insight/units/offset';
 
 /**
  * 在泳道中选中特定算子
@@ -76,6 +77,7 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                     startRecordTime: session.startRecordTime,
                     showSelectedData: true,
                     metaType: normalizedMetaType,
+                    offsetSide: getOffsetSide(normalizedMetaType, unitMetaData.offsetSide),
                 };
                 session.selectedDataUnit = unit;
                 session.foregroundTarget = {

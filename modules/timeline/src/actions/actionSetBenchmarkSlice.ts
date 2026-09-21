@@ -22,12 +22,18 @@ import { runInAction } from 'mobx';
 import { KEYS } from '@insight/lib/utils';
 import { register } from './register';
 import type { Session } from '../entity/session';
-import type { SliceData, SliceMeta, ThreadTrace } from '../entity/data';
-import { getCardSideOffset, getOffsetSide } from '../insight/units/offset';
+import type { SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from '../entity/data';
+import { getCardSideOffset, getOffsetSide, type OffsetSide } from '../insight/units/offset';
+
+function getSelectedOffsetSide(session: Session): OffsetSide {
+    const selected = session.selectedData;
+    const metadata = session.selectedDataUnit?.metadata as Partial<ThreadMetaData> | undefined;
+    return getOffsetSide(selected?.metaType ?? metadata?.metaType, selected?.offsetSide ?? metadata?.offsetSide);
+}
 
 const setBenchmarkSlice = (session: Session): void => {
     runInAction(() => {
-        session.benchMarkData = { ...session.selectedData };
+        session.benchMarkData = { ...session.selectedData, offsetSide: getSelectedOffsetSide(session) };
     });
 };
 
@@ -57,17 +63,21 @@ export function canAlignToBenchmark(session: Session): boolean {
     }
     const selected = session.selectedData as unknown as SliceMeta;
     const benchmark = session.benchMarkData as SliceMeta;
-    return selected.cardId !== benchmark.cardId || getOffsetSide(selected.metaType as string) !== getOffsetSide(benchmark.metaType as string);
+    return selected.cardId !== benchmark.cardId ||
+        getSelectedOffsetSide(session) !== getOffsetSide(benchmark.metaType as string, benchmark.offsetSide);
 }
 
 export function alignToBenchmark(session: Session, isLeft: boolean): void {
+    if (session.benchMarkData === undefined) {
+        return;
+    }
     if (!canAlignToBenchmark(session)) {
         message.warning(i18n.t('timeline:contextMenu.Same Card Category Offset'));
         return;
     }
     const selected = session.selectedData as unknown as SliceMeta;
     const benchmark = session.benchMarkData as SliceMeta;
-    const selectedSide = getOffsetSide(selected.metaType as string);
+    const selectedSide = getSelectedOffsetSide(session);
     const offsetDiff = isLeft
         ? selected.startTime - benchmark.startTime
         : selected.startTime + selected.duration - benchmark.startTime - benchmark.duration;
@@ -80,9 +90,10 @@ export function alignToBenchmark(session: Session, isLeft: boolean): void {
         }
         const aligned = session.selectedData as unknown as SliceData;
         aligned.startTime -= offsetDiff;
+        session.selectedData.offsetSide = selectedSide;
         session.alignSliceData = [aligned, ...session.alignSliceData.filter((item) => {
             const itemMeta = item as unknown as SliceMeta;
-            return itemMeta.cardId !== selected.cardId || getOffsetSide(itemMeta.metaType as string) !== selectedSide;
+            return itemMeta.cardId !== selected.cardId || getOffsetSide(itemMeta.metaType as string, itemMeta.offsetSide) !== selectedSide;
         })];
         session.alignRender = !session.alignRender;
     });
