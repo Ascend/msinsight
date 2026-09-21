@@ -28,7 +28,7 @@ import { ImportResult, NotificationHandler } from './defs';
 import connector from '../connection/index';
 import { message } from 'antd';
 import { getTimeOffset } from '../insight/units/utils';
-import { getCardSideOffset, initializeCardOffsets } from '../insight/units/offset';
+import { getCardSideOffset, getOffsetSide, initializeCardOffsets } from '../insight/units/offset';
 import { calculateDomainRange } from '../components/CategorySearch';
 import i18n from '@insight/lib/i18n';
 import { forEach, groupBy, isEmpty, cloneDeep } from 'lodash';
@@ -986,7 +986,8 @@ export const locateUnitHandler: NotificationHandler = (data): void => {
                     unit.metadata.processId === slice.processId && unit.metadata.threadId === slice.threadId;
             },
             onSuccess: (unit): void => { // 定位成功后的操作
-                const startTime = slice.startTime - getTimeOffset(session, unit.metadata as ThreadMetaData); // 计算开始时间
+                const unitMetadata = unit.metadata as ThreadMetaData;
+                const startTime = slice.startTime - getTimeOffset(session, unitMetadata); // 计算开始时间
                 const [rangeStart, rangeEnd] = calculateDomainRange(session, startTime, slice.duration); // 计算域范围
                 session.domainRange = { domainStart: rangeStart, domainEnd: rangeEnd }; // 更新域范围
                 session.selectedData = { // 更新选中数据
@@ -998,7 +999,8 @@ export const locateUnitHandler: NotificationHandler = (data): void => {
                     threadId: slice.threadId,
                     processId: slice.processId as string,
                     cardId: slice.rankId as string,
-                    metaType: (unit.metadata as ThreadMetaData).metaType,
+                    metaType: unitMetadata.metaType,
+                    offsetSide: getOffsetSide(unitMetadata.metaType, unitMetadata.offsetSide),
                     showSelectedData: (slice.showSelectedData as boolean) ?? false,
                 };
                 session.selectedDataUnit = unit;

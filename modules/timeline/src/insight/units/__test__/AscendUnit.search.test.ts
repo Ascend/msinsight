@@ -16,12 +16,17 @@
  * -------------------------------------------------------------------------
  */
 
+import { message } from 'antd';
 import type { ChartHandle, Scale, StackStatusConfig, StackStatusData } from '../../../entity/chart';
 import type { LabelMetaData, ThreadMetaData } from '../../../entity/data';
 import type { ChartDesc, InsightUnit, SingleDataDesc } from '../../../entity/insight';
 import type { ReactElement } from 'react';
 import type { Theme } from '@emotion/react';
-import type { ForegroundTarget, SearchData, Session } from '../../../entity/session';
+import { Session, type ForegroundTarget, type SearchData, type SelectedDataType } from '../../../entity/session';
+import { actionAlignToBenchmarkLeft, actionAlignToBenchmarkRight, actionSetBenchmarkSlice } from '../../../actions/actionSetBenchmarkSlice';
+import { actionAlignByOperatorLeft, actionAlignByOperatorRight } from '../../../actions/actionAlignByOperator';
+import { queryTimelineOffset } from '../../../api/request';
+import type { OffsetSide } from '../offset';
 import { renderRadiusBorder } from '../../../components/details/utils';
 import {
     drawForegroundTargetLayer,
@@ -74,6 +79,7 @@ jest.mock('../../../utils/operatorUnit', () => ({ findOperatorUnit: jest.fn() })
 jest.mock('../../../api/request', () => ({
     getUnitFlows: jest.fn(),
     queryAllSameOperatorsDuration: jest.fn(),
+    queryTimelineOffset: jest.fn(),
 }));
 jest.mock('../../../connection', () => ({
     __esModule: true,
@@ -368,6 +374,78 @@ describe('AscendUnit search and foreground drawing', () => {
     });
 });
 
+describe('ThreadUnit benchmark alignment highlighting', () => {
+    it.each(['clear', 'replace'])('removes the previous target border when selection is %s', async (selectionChange) => {
+        const baseMetadata = {
+            ...MERGED_METADATA, cardId: 'base', processId: '3513236896', threadId: '2', threadIdList: undefined,
+        };
+        const targetMetadata = { ...baseMetadata, cardId: 'target' };
+        const baseUnit = new ThreadUnit(baseMetadata);
+        const targetUnit = new ThreadUnit(targetMetadata);
+        const session = new Session({ units: [baseUnit, targetUnit] });
+        session.selectedData = {
+            ...createStackStatusData({ id: 'base', startTime: 100, duration: 20 }),
+            cardId: baseMetadata.cardId,
+            processId: baseMetadata.processId,
+            threadId: baseMetadata.threadId,
+            metaType: baseMetadata.metaType,
+        };
+        actionSetBenchmarkSlice.perform(session);
+        const targetSlice: SelectedDataType = {
+            ...createStackStatusData({ id: 'target', startTime: 300, duration: 50, depth: 1 }),
+            cardId: targetMetadata.cardId,
+            processId: targetMetadata.processId,
+            threadId: targetMetadata.threadId,
+            metaType: targetMetadata.metaType,
+        };
+        session.selectedData = targetSlice;
+        session.selectedDataUnit = targetUnit;
+
+        actionAlignToBenchmarkRight.perform(session);
+
+        expect(session.selectedData?.startTime).toBe(70);
+        const targetContext = { canvas: { id: 'target' } } as unknown as CanvasRenderingContext2D;
+        const baseContext = { canvas: { id: 'base' } } as unknown as CanvasRenderingContext2D;
+        const drawBorders = async (): Promise<void> => {
+            for (const { unit, metadata, context } of [
+                { unit: targetUnit, metadata: targetMetadata, context: targetContext },
+                { unit: baseUnit, metadata: baseMetadata, context: baseContext },
+            ]) {
+                await (unit.chart as ChartDesc<'stackStatus'>).decorator?.(session, metadata).action?.(
+                    { context } as ChartHandle<'stackStatus'>, value => value, value => value,
+                    { textColorPrimary: 'black' } as Theme,
+                );
+            }
+        };
+        const borderMock = renderRadiusBorder as jest.MockedFunction<typeof renderRadiusBorder>;
+        borderMock.mockClear();
+        await drawBorders();
+        expect(borderMock).toHaveBeenCalledWith(expect.objectContaining({
+            ctx: targetContext, topLeft: 70, bottomRight: 50, depth: 1,
+        }));
+
+        session.selectedData = selectionChange === 'clear'
+            ? undefined
+            : {
+                ...targetSlice, id: 'another', startTime: 500, duration: 30, depth: 2,
+            };
+        borderMock.mockClear();
+        await drawBorders();
+
+        expect(borderMock).not.toHaveBeenCalledWith(expect.objectContaining({ ctx: targetContext, topLeft: 70 }));
+        expect(borderMock).toHaveBeenCalledWith(expect.objectContaining({
+            ctx: baseContext, topLeft: 100, bottomRight: 20, depth: 0,
+        }));
+        if (selectionChange === 'replace') {
+            expect(borderMock).toHaveBeenCalledWith(expect.objectContaining({
+                ctx: targetContext, topLeft: 500, bottomRight: 30, depth: 2,
+            }));
+        } else {
+            expect(borderMock).not.toHaveBeenCalledWith(expect.objectContaining({ ctx: targetContext }));
+        }
+    });
+});
+
 const createLabelMetadata = (overrides: Partial<LabelMetaData> = {}): LabelMetaData => ({
     dataSource: { remote: 'local' } as unknown as DataSource,
     cardId: 'rank0',
@@ -386,6 +464,109 @@ const createSummarySession = (tryFetchFromCache: jest.Mock): Session => ({
     unitsConfig: { offsetConfig: { timestampOffset: {} } },
     simpleCache: { tryFetchFromCache },
 } as unknown as Session);
+
+describe.each([
+    { name: 'benchmark LEFT', action: actionAlignToBenchmarkLeft, useBenchmark: true, expectedStart: 100, referenceEnd: 100, targetEnd: 0 },
+    { name: 'benchmark RIGHT', action: actionAlignToBenchmarkRight, useBenchmark: true, expectedStart: 70, referenceEnd: 120, targetEnd: 50 },
+    { name: 'automatic LEFT', action: actionAlignByOperatorLeft, useBenchmark: false, expectedStart: 100, referenceEnd: 100, targetEnd: 0 },
+    { name: 'automatic RIGHT', action: actionAlignByOperatorRight, useBenchmark: false, expectedStart: 70, referenceEnd: 120, targetEnd: 50 },
+])('ThreadUnit TEXT $name positions', ({ action, useBenchmark, expectedStart, referenceEnd, targetEnd }) => {
+    let originalRequest: typeof window.request;
+
+    beforeEach(() => {
+        originalRequest = window.request;
+        const completed = Promise.resolve();
+        const hide = Object.assign(jest.fn(), { then: completed.then.bind(completed) });
+        jest.spyOn(message, 'loading').mockReturnValue(hide);
+    });
+
+    afterEach(() => {
+        window.request = originalRequest;
+        jest.restoreAllMocks();
+    });
+
+    it.each<OffsetSide>(['device', 'host'])('moves the rendered %s bars and preserves the other side', async (side) => {
+        const dataSource: DataSource = { remote: 'local', port: 9000, projectName: 'test', dataPath: [], projectPath: [], children: [] };
+        const createMetadata = (cardId: string, offsetSide: OffsetSide): ThreadMetaData & { processId: string } => ({
+            ...MERGED_METADATA,
+            dataSource,
+            cardId,
+            dbPath: `${cardId}.text`,
+            processId: offsetSide === 'host' ? 'python-process' : 'device-process',
+            metaType: 'TEXT',
+            offsetSide,
+            threadId: offsetSide === 'host' ? '123' : '2',
+            threadIdList: undefined,
+        });
+        const otherSide: OffsetSide = side === 'host' ? 'device' : 'host';
+        const baseMetadata = createMetadata('base', side);
+        const targetMetadata = createMetadata('target', side);
+        const otherMetadata = createMetadata('target', otherSide);
+        const baseUnit = new ThreadUnit(baseMetadata);
+        const targetUnit = new ThreadUnit(targetMetadata);
+        const otherUnit = new ThreadUnit(otherMetadata);
+        const session = new Session({ units: [baseUnit, targetUnit, otherUnit] });
+        session.replaceTimestampOffsets({ base__host: 0, base__device: 0, target__host: 20, target__device: 90 });
+        session.setDomainWithoutHistory({ domainStart: 0, domainEnd: 1000 });
+        const originalTargetStart = 300 + (side === 'host' ? 20 : 90);
+        window.request = jest.fn().mockResolvedValue({
+            data: [[createStackStatusData({ startTime: originalTargetStart, duration: 50 })]], maxDepth: 1, currentMaxDepth: 1,
+        });
+        const targetChart = targetUnit.chart as ChartDesc<'stackStatus'>;
+        const otherChart = otherUnit.chart as ChartDesc<'stackStatus'>;
+        const [[targetBefore]] = await targetChart.mapFunc(session, targetMetadata, targetUnit);
+        const [[otherBefore]] = await otherChart.mapFunc(session, otherMetadata, otherUnit);
+        expect(targetBefore.startTime).toBe(300);
+
+        session.selectedData = {
+            id: 'base-operator',
+            name: 'operator',
+            startTime: 100,
+            duration: 20,
+            rawStartTime: '100',
+            cardId: baseMetadata.cardId,
+            processId: baseMetadata.processId,
+            threadId: baseMetadata.threadId,
+            metaType: 'TEXT',
+            offsetSide: side,
+        };
+        session.selectedDataUnit = baseUnit;
+        if (useBenchmark) {
+            actionSetBenchmarkSlice.perform(session);
+            session.selectedData = {
+                ...targetBefore,
+                processId: targetMetadata.processId,
+                threadId: targetMetadata.threadId,
+                metaType: 'TEXT',
+                offsetSide: side,
+            };
+            session.selectedDataUnit = targetUnit;
+        }
+        const queryOffsetMock = queryTimelineOffset as jest.MockedFunction<typeof queryTimelineOffset>;
+        queryOffsetMock.mockReset();
+        if (!useBenchmark) {
+            queryOffsetMock.mockResolvedValueOnce({
+                result: [{ rankId: 'target', offset: originalTargetStart + targetEnd - referenceEnd + 40 }], baseOffset: 40,
+            });
+        }
+
+        action.perform(session);
+        if (!useBenchmark) {
+            await queryOffsetMock.mock.results[0].value;
+            await Promise.resolve();
+            expect(queryOffsetMock).toHaveBeenCalledWith(expect.objectContaining({ metaType: 'TEXT' }));
+            expect(session.benchMarkData).toBeUndefined();
+        }
+
+        const [[targetAfter]] = await targetChart.mapFunc(session, targetMetadata, targetUnit);
+        const [[otherAfter]] = await otherChart.mapFunc(session, otherMetadata, otherUnit);
+        expect(targetAfter.startTime).toBe(expectedStart);
+        expect(targetAfter.duration).toBe(50);
+        expect(targetAfter.originalStartTime).toBe(originalTargetStart);
+        expect(otherAfter.startTime).toBe(otherBefore.startTime);
+        expect(otherAfter.duration).toBe(otherBefore.duration);
+    });
+});
 
 describe('ThreadUnit trace layout', () => {
     const dataSource: DataSource = { remote: 'local', port: 9000, projectName: 'test', dataPath: [], projectPath: [], children: [] };
