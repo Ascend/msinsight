@@ -114,11 +114,14 @@ class HardWareRepoTest : public ::testing::Test {
         DatabaseTestCaseMockUtil::InsertData(db, memoryOperationInsert);
     }
 
-    void TestQueryTaskPmuInfoNormalPrepare(sqlite3 *&db) {
+    void TestQueryTaskPmuInfoNormalPrepare(sqlite3 *&db, bool multipleCandidates = false) {
         DatabaseTestCaseMockUtil::CreateTable(db, taskPmuInfoSql);
         std::string taskPmuInfoInsert =
             "INSERT INTO \"main\".\"TASK_PMU_INFO\" (\"globalTaskId\", \"name\", \"value\") "
             "VALUES (5, 8, 111), (6, 9, 222), (6, 10, 333)";
+        if (multipleCandidates) {
+            taskPmuInfoInsert += ", (5, 8, 444)";
+        }
         DatabaseTestCaseMockUtil::InsertData(db, taskPmuInfoInsert);
     }
 
@@ -229,6 +232,28 @@ TEST_F(HardWareRepoTest, TestQuerySliceDetailInfoNormalWithTaskPmuInfo) {
         "{\"modelId\":\"4294967295\",\"taskType\":\"KERNEL_SIMT\",\"streamId\":\"16\","
         "\"taskId\":\"3731\",\"connectionId\":\"7422\",\"gridDim\":\"1,2,3\",\"blockDim\":\"4,5,6\","
         "\"hhh\":111.0}";
+    EXPECT_EQ(slice.args, expectArgs);
+    TestQueryTaskPmuInfoNormalClean(hardWareRepoMock.db);
+}
+
+TEST_F(HardWareRepoTest, TestQuerySliceDetailInfoMarksOnlyPmuFieldsWithMultipleCandidates) {
+    HardWareDependency dependency;
+    HardWareRepoMock hardWareRepoMock;
+    TestQuerySliceDetailInfoNormalPrepare(dependency, hardWareRepoMock.db);
+    TestQueryTaskPmuInfoNormalPrepare(hardWareRepoMock.db, true);
+    hardWareRepoMock.SetMock(dependency);
+    SliceQuery query;
+    query.sliceId = "1";
+    query.rankId = "0";
+    CompeteSliceDomain slice;
+
+    const bool result = hardWareRepoMock.QuerySliceDetailInfo(query, slice);
+
+    EXPECT_TRUE(result);
+    const std::string expectArgs =
+        "{\"modelId\":\"4294967295\",\"taskType\":\"KERNEL_SIMT\",\"streamId\":\"16\","
+        "\"taskId\":\"3731\",\"connectionId\":\"7422\",\"gridDim\":\"1,2,3\",\"blockDim\":\"4,5,6\","
+        "\"hhh\":111.0,\"hhh\":444.0,\"_ambiguousKeys\":[\"hhh\"]}";
     EXPECT_EQ(slice.args, expectArgs);
     TestQueryTaskPmuInfoNormalClean(hardWareRepoMock.db);
 }

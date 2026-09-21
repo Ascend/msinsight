@@ -59,7 +59,7 @@ const std::string CREATE_TABLE_DB_COMMUNICATION_TASK_INFO_SQL =
     "CREATE TABLE IF NOT EXISTS COMMUNICATION_TASK_INFO( name INTEGER, "
     " globalTaskId INTEGER, taskType INTEGER, planeId INTEGER, groupName INTEGER, notifyId INTEGER,"
     " rdmaType INTEGER, srcRank INTEGER, dstRank INTEGER, transportType INTEGER, size INTEGER, "
-    " dataType INTEGER, linkType INTEGER, opId INTEGER);  ";
+    " dataType INTEGER, linkType INTEGER, opId INTEGER, timestampNs INTEGER);  ";
 const std::string CREATE_TABLE_DB_COMMUNICATION_SCHEDULE_TASK_INFO_SQL =
     "CREATE TABLE IF NOT EXISTS COMMUNICATION_SCHEDULE_TASK_INFO("
     "name INTEGER, globalTaskId INTEGER primary key, taskType INTEGER, "

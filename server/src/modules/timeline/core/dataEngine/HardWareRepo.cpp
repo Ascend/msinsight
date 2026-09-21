@@ -163,7 +163,7 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
         QueryModelStreamIds(sliceQuery, competeSliceDomain, targetTask);
     }
     QuerySliceShape(sliceQuery, competeSliceDomain, targetTask);
-    QuerySlicePmuInfo(sliceQuery, competeSliceDomain, targetTask.globalTaskId);
+    QuerySlicePmuInfo(sliceQuery, competeSliceDomain, targetTask);
     return true;
 }
 
@@ -198,31 +198,76 @@ void HardWareRepo::QuerySliceShape(
 }
 
 void HardWareRepo::QuerySlicePmuInfo(
-    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, uint64_t globalTaskId) {
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
     if (std::empty(competeSliceDomain.args)) {
         return;
     }
-    std::vector<TaskPmuInfoPO> pmuInfoPOS;
-    taskPmuInfoTable->Select(TaskPmuInfoColumn::GLOBAL_TASK_ID, TaskPmuInfoColumn::NAME_ID)
-        .Select(TaskPmuInfoColumn::VALUE_ID)
-        .Eq(TaskPmuInfoColumn::GLOBAL_TASK_ID, globalTaskId)
-        .ExcuteQuery(sliceQuery.rankId, pmuInfoPOS);
-    if (std::empty(pmuInfoPOS)) {
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    std::vector<TaskPmuInfoPO> matchedPOS;
+    if (database != nullptr && database->CheckColumnExist("TASK_PMU_INFO", "timestampNs")) {
+        QueryPmuInfoWithTimestamp(sliceQuery, targetTask, matchedPOS);
+        if (matchedPOS.empty()) {
+            // 新表精确查询为空时退回原始 globalTaskId 查询。
+            QueryAllPmuInfo(sliceQuery, targetTask, matchedPOS);
+        }
+    } else {
+        // 旧表恢复原始逻辑：仅按 globalTaskId 查询全部 PMU，不尝试使用 ROWID 推测调用关系。
+        QueryAllPmuInfo(sliceQuery, targetTask, matchedPOS);
+    }
+    if (std::empty(matchedPOS)) {
         return;
     }
+    AppendPmuInfoToArgs(sliceQuery, competeSliceDomain, matchedPOS);
+}
+
+void HardWareRepo::QueryPmuInfoWithTimestamp(
+    const SliceQuery &sliceQuery, const TaskPO &targetTask, std::vector<TaskPmuInfoPO> &matchedPOS) {
+    // targetTask 已提供完整匹配条件，直接取落在其闭区间内的 PMU 指标，不需要再查询 TASK 序列。
+    taskPmuInfoTable->Select(TaskPmuInfoColumn::ROW_ID, TaskPmuInfoColumn::GLOBAL_TASK_ID)
+        .Select(TaskPmuInfoColumn::NAME_ID)
+        .Select(TaskPmuInfoColumn::VALUE_ID, TaskPmuInfoColumn::TIMESTAMP)
+        .Eq(TaskPmuInfoColumn::GLOBAL_TASK_ID, targetTask.globalTaskId)
+        .GreaterEq(TaskPmuInfoColumn::TIMESTAMP, targetTask.timestamp)
+        .LessEq(TaskPmuInfoColumn::TIMESTAMP, targetTask.endTime)
+        .OrderBy(TaskPmuInfoColumn::TIMESTAMP, TableOrder::ASC)
+        .OrderBy(TaskPmuInfoColumn::ROW_ID, TableOrder::ASC)
+        .ExcuteQuery(sliceQuery.rankId, matchedPOS);
+}
+
+void HardWareRepo::QueryAllPmuInfo(
+    const SliceQuery &sliceQuery, const TaskPO &targetTask, std::vector<TaskPmuInfoPO> &pmuInfoPOS) {
+    taskPmuInfoTable->Select(TaskPmuInfoColumn::GLOBAL_TASK_ID, TaskPmuInfoColumn::NAME_ID)
+        .Select(TaskPmuInfoColumn::VALUE_ID)
+        .Eq(TaskPmuInfoColumn::GLOBAL_TASK_ID, targetTask.globalTaskId)
+        .ExcuteQuery(sliceQuery.rankId, pmuInfoPOS);
+}
+
+void HardWareRepo::AppendPmuInfoToArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
+    const std::vector<TaskPmuInfoPO> &pmuInfoPOS) {
     std::string error;
     auto json = JsonUtil::TryParse(competeSliceDomain.args, error);
     if (!json.has_value() || !error.empty()) {
         return;
     }
     std::vector<uint64_t> stringIds;
-    for (auto &item : pmuInfoPOS) {
+    std::unordered_map<uint64_t, size_t> candidateCount;
+    for (const auto &item : pmuInfoPOS) {
         stringIds.emplace_back(item.name);
+        ++candidateCount[item.name];
     }
     std::unordered_map<uint64_t, std::string> strMap = stringIdsTable->QueryStrMap(stringIds, sliceQuery.rankId);
     auto &allocator = json.value().GetAllocator();
-    for (auto &item : pmuInfoPOS) {
+    json_t ambiguousKeyList(kArrayType);
+    std::unordered_set<uint64_t> ambiguousNames;
+    for (const auto &item : pmuInfoPOS) {
         JsonUtil::AddMember(json.value(), strMap[item.name], item.value, allocator);
+        if (candidateCount[item.name] > 1 && ambiguousNames.emplace(item.name).second) {
+            ambiguousKeyList.PushBack(json_t().SetString(strMap[item.name].c_str(), allocator), allocator);
+        }
+    }
+    if (!ambiguousNames.empty()) {
+        // PMU 一次采样包含多个不同名称的指标；只有同名指标出现多次，才说明该字段有多个候选值。
+        JsonUtil::AddMember(json.value(), "_ambiguousKeys", ambiguousKeyList, allocator);
     }
     competeSliceDomain.args = JsonUtil::JsonDump(json.value());
 }
