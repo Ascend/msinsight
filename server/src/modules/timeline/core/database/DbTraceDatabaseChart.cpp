@@ -63,7 +63,7 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
     const std::string dpuSql =
         "select opName as name, 'DPU_' || globalTid || '_' || dpuDeviceId as pid, 'DPU' as metaType, "
         "streamId as tid, startNs - minTime.value as startTime, endNs - startNs as duration, "
-        "0 as depth, dpu.ROWID as id from " + TABLE_DPU_TASK +
+        "dpu.depth, dpu.ROWID as id from " + TABLE_DPU_TASK +
         " dpu join minTime join ids on ids.id = dpu.opName "
         "where globalTid is not null and dpuDeviceId is not null and streamId is not null";
     sql = "with ids as (" + nameMatch +
@@ -144,7 +144,7 @@ std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(const SearchSliceSqlPa
           TABLE_OSRT_API + " osrt JOIN minTime "
           "UNION ALL SELECT '' AS deviceId, opName AS name, 'DPU_' || globalTid || '_' || dpuDeviceId AS pid, "
           "'DPU' AS metaType, streamId AS tid, startNs - minTime.value AS startTime, "
-          "endNs - startNs AS duration, 0 AS depth, dpu.ROWID AS id FROM " + TABLE_DPU_TASK +
+          "endNs - startNs AS duration, dpu.depth, dpu.ROWID AS id FROM " + TABLE_DPU_TASK +
           " dpu JOIN minTime WHERE globalTid IS NOT NULL AND dpuDeviceId IS NOT NULL AND streamId IS NOT NULL "
           ") allNames join ids on ids.id = allNames.name" + filterJoin + orderBy +
           " LIMIT ? OFFSET ?";
@@ -249,7 +249,8 @@ std::string DbTraceDataBase::GetSingleSearchCountLockRangeSql(const SearchCountP
     std::string filterSuffix = filterJoin.empty() ? "" : filterJoin;
     if (type == PROCESS_TYPE::API) {
         filterSuffix += filterJoin.empty() ? "" : "api.name";
-        std::string pythonFunctionFilter = item.isPythonStack ? " AND type = 50003 " : " AND type != 50003 ";
+        std::string pythonFunctionFilter =
+            item.isPythonStack ? " AND type = 50003 " : " AND (type IS NULL OR type != 50003) ";
         tempSql = "SELECT count(1) as count FROM (SELECT name from " + TABLE_API +
                   " WHERE globalTid = ? AND startNs >= ? AND endNs <= ? " + pythonFunctionFilter +
                   ") api join ids on id = api.name" +

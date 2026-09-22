@@ -28,6 +28,7 @@
 #include "BaselineManager.h"
 #include "TraceFileParser.h"
 #include "CommonDefs.h"
+#include "OperatorDepthPersistenceService.h"
 #include <algorithm>
 
 #include "ParseUnitManager.h"
@@ -106,19 +107,20 @@ bool TraceFileParser::InitParser(const std::vector<std::string> &filePathArr,
             return false;
         }
         database->CreateIndex();
+        if (!PersistOperatorDepth(database, rankId)) {
+            ServerLog::Error("Failed to persist operator depth for existing Text database. rankId:", rankId);
+            ParseEndCallBack(rankId, fileId, false, "Failed to calculate and persist operator depth.");
+            ParserStatusManager::Instance().SetTerminateStatus(rankId);
+            return true;
+        }
         auto threadMap = database->QueryAllThreadMap();
         database->ExecSql("ALTER TABLE process ADD COLUMN parentPid TEXT DEFAULT '0';");
         TrackInfoManager::Instance().UpdateTrackIdMap(rankId, threadMap);
         Timeline::TraceTime::Instance().UpdateTime(min, 0);
         Timeline::TraceTime::Instance().UpdateCardTimeDuration(rankId, min, max);
-        ParseEndCallBack(rankId, fileId, true, "");
         ParserStatusManager::Instance().SetFinishStatus(rankId);
-        std::vector<std::string> taskStatusList = {CONNECTION_UNIT, WAIT_TIME_UNIT, OVERLAP_ANALYSIS_UNIT};
-        for (const auto &item: taskStatusList) {
-            database->UpdateValueIntoStatusInfoTable(item, FINISH_STATUS);
-            ProjectParserBase::SendUnitFinishNotify(fileId, true, item);
-        }
-        ParseUnitManager::Instance().ExecuteUnitList({rankId}, FTRACE_STATUS_LIST);
+        ParseEndCallBack(rankId, fileId, true, "");
+        NotifyParseCompletionUnits(database, rankId, fileId);
         // FIX: 修复单 JSON 单 DeviceId 文件导入时，无法从文件路径知道 rankId deviceId 映射的问题，再次更新 rankIdToDeviceIdMap
         if (DataBaseManager::Instance().GetDeviceIdFromRankId(rankId).empty()) {
             UpdateRankIdDeviceIdMapByProcessData(database, rankId);
@@ -233,24 +235,28 @@ void TraceFileParser::EndParseTask(const std::string &rankId, const std::vector<
             rankId, ", file count:", filePathArr.size());
         return;
     }
+    database->CommitData();
     database->CreateIndex();
     database->DeleteEmptyThread();
     database->DeleteEmptyFlow();
+    if (!PostParse(database, rankId)) {
+        ParseEndCallBack(rankId, database->GetDbPath(), false, "Failed to post-process timeline data.");
+        ParserStatusManager::Instance().SetTerminateStatus(rankId);
+        return;
+    }
+    if (!PersistOperatorDepth(database, rankId)) {
+        ServerLog::Error("Failed to persist operator depth after Text parse. rankId:", rankId);
+        ParseEndCallBack(
+            rankId, database->GetDbPath(), false, "Failed to calculate and persist operator depth.");
+        ParserStatusManager::Instance().SetTerminateStatus(rankId);
+        return;
+    }
     std::string statusInfo = ComputeStatusInfoFromPathArr(filePathArr);
     database->UpdateParseStatus(statusInfo);
-    std::vector<std::string> taskStatusList = {CONNECTION_UNIT, WAIT_TIME_UNIT, OVERLAP_ANALYSIS_UNIT};
     std::string fileId = DataBaseManager::Instance().GetFileIdByRankId(rankId);
-    for (const auto &item: taskStatusList) {
-        database->UpdateValueIntoStatusInfoTable(item, FINISH_STATUS);
-        ProjectParserBase::SendUnitFinishNotify(fileId, true, item);
-    }
     ServerLog::Info("Update depth completed. ID:", rankId);
-    ParseUnitManager::Instance().ExecuteUnitList({rankId}, FTRACE_STATUS_LIST);
-    if (PostParse(database, rankId)) {
-        ParserStatusManager::Instance().SetFinishStatus(rankId);
-    } else {
-        ParserStatusManager::Instance().SetTerminateStatus(rankId);
-    }
+    NotifyParseCompletionUnits(database, rankId, fileId);
+    ParserStatusManager::Instance().SetFinishStatus(rankId);
     ParseEndCallBack(rankId, database->GetDbPath(), true, "");
 }
 
@@ -297,6 +303,22 @@ bool TraceFileParser::PostParse(std::shared_ptr<TextTraceDatabase> db, const std
         UpdateRankIdDeviceIdMapByProcessData(db, rankId);
     }
     return true; // do nothing
+}
+
+bool TraceFileParser::PersistOperatorDepth(std::shared_ptr<TextTraceDatabase> db, const std::string &rankId)
+{
+    return db != nullptr && OperatorDepthPersistenceService::CalculateAndPersistTextDepth(*db, rankId);
+}
+
+void TraceFileParser::NotifyParseCompletionUnits(
+    std::shared_ptr<TextTraceDatabase> db, const std::string &rankId, const std::string &fileId)
+{
+    const std::vector<std::string> taskStatusList = {CONNECTION_UNIT, WAIT_TIME_UNIT, OVERLAP_ANALYSIS_UNIT};
+    for (const auto &item : taskStatusList) {
+        db->UpdateValueIntoStatusInfoTable(item, FINISH_STATUS);
+        ProjectParserBase::SendUnitFinishNotify(fileId, true, item);
+    }
+    ParseUnitManager::Instance().ExecuteUnitList({rankId}, FTRACE_STATUS_LIST);
 }
 
 void TraceFileParser::ParseEndCallBack(const std::string &rankId,

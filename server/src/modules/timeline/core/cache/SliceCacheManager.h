@@ -31,17 +31,6 @@ namespace Dic::Module::Timeline {
 
 static constexpr uint64_t MINUTE_NS = 60ULL * 1000ULL * 1000ULL * 1000ULL;
 
-struct SliceDepthIndexItem {
-    uint64_t id = 0;
-    uint64_t timestamp = 0;
-    uint64_t endTime = 0;
-};
-
-struct SliceDepthIndex {
-    std::unordered_map<uint64_t, uint32_t> idToDepth;
-    std::unordered_map<uint32_t, std::vector<SliceDepthIndexItem>> slicesByDepth;
-};
-
 class SliceCacheManager {
   public:
     static SliceCacheManager &Instance() {
@@ -55,6 +44,11 @@ class SliceCacheManager {
 
     static std::string BuildPythonFunctionCacheKey(const std::string &rankId, uint64_t trackId) {
         return rankId + "@" + std::to_string(trackId);
+    }
+
+    // This separates cached slice rows for two UI lanes; depth values still come from the database.
+    static std::string BuildSliceLaneCacheKey(uint64_t trackId, bool isPythonStack) {
+        return std::to_string(trackId) + (isPythonStack ? "@python_stack" : "");
     }
     /* *
      * 全量DB场景下, 获取对应泳道的[start, end]时间区间内的算子
@@ -88,155 +82,6 @@ class SliceCacheManager {
     }
 
     /* *
-     * 获取当前泳道算子深度信息
-     * @param trackId
-     * @param depthInfo
-     * @return
-     */
-    bool QueryDepthInfoWithoutTimeRange(
-        const std::string &trackId, const std::string &fileId, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
-        SpinLockGuard lock(mutex);
-        std::string key = fileId + "@" + trackId;
-        auto it = cache.find(key);
-        auto indexIt = depthIndexCache.find(key);
-        // Python Stack 只需要维护 id->depth 索引，其虚拟泳道 key 不一定存在对应的 slice cache。
-        // 因此必须优先查询 depthIndexCache；如果先要求 cache 命中，trackId@python_stack 会被误判为未缓存，
-        // 调用方随后可能回退到普通 trackId 的深度数据。普通泳道同时存在 slice cache 时仍需 Touch，
-        // 以保持原有 LRU 淘汰语义，避免本次兼容 index-only 缓存后改变普通缓存的生命周期。
-        if (indexIt != depthIndexCache.end()) {
-            if (it != cache.end()) {
-                Touch(it);
-            }
-            depthInfo = indexIt->second.idToDepth;
-            return true;
-        }
-        if (it == cache.end()) {
-            return false;
-        }
-        Touch(it);
-        for (const auto &item : it->second.first) {
-            depthInfo[item.id] = item.depth;
-        }
-        return true;
-    }
-
-    /* *
-     * 全量DB场景下, 获取当前泳道的[start, end]时间区间内的算子的深度信息
-     * @param trackId, sliceQuery.trackId
-     * @param fileId, sliceQuery.rankId 用于支持服务化分布式db导入, key: filedId @ trackId
-     * @param depthInfo
-     * @return
-     */
-    bool QueryDepthInfo(std::unordered_map<uint64_t, uint32_t> &depthInfo, const SliceQuery &sliceQuery) {
-        SpinLockGuard lock(mutex);
-        // key: filedId @ trackId
-        std::string key = sliceQuery.GetDataSourceId() + "@" + std::to_string(sliceQuery.trackId);
-        auto it = cache.find(key);
-        if (it == cache.end()) {
-            return false;
-        }
-        // 全量DB场景下, 若前端传入区间未命中缓存区间范围，同样需要返回false，更新缓存
-        auto durIt = cacheDuration.find(key);
-        if (durIt == cacheDuration.end()) {
-            return false;
-        }
-        // Text场景下，默认startTime与endTime都为0，不进入该if分支，直接返回全量缓存
-        if (sliceQuery.startTime != sliceQuery.endTime) {
-            auto [start, end] = durIt->second;
-            if (start > sliceQuery.startTime || end < sliceQuery.endTime) {
-                return false;
-            }
-        }
-        Touch(it);
-        auto indexIt = depthIndexCache.find(key);
-        if (indexIt != depthIndexCache.end()) {
-            depthInfo = indexIt->second.idToDepth;
-            return true;
-        }
-        for (const auto &item : it->second.first) {
-            depthInfo[item.id] = item.depth;
-        }
-        return true;
-    }
-
-    bool QueryDepthBySliceId(const std::string &trackId, const std::string &rankId, const SliceQuery &sliceQuery,
-        uint64_t sliceId, uint32_t &depth) {
-        SpinLockGuard lock(mutex);
-        std::string key = rankId + "@" + trackId;
-        if (!IsTimeRangeCovered(key, sliceQuery)) {
-            return false;
-        }
-        auto indexIt = depthIndexCache.find(key);
-        if (indexIt != depthIndexCache.end()) {
-            auto depthIt = indexIt->second.idToDepth.find(sliceId);
-            if (depthIt == indexIt->second.idToDepth.end()) {
-                return false;
-            }
-            depth = depthIt->second;
-            return true;
-        }
-        auto it = cache.find(key);
-        if (it == cache.end()) {
-            return false;
-        }
-        Touch(it);
-        for (const auto &item : it->second.first) {
-            if (item.id == sliceId) {
-                depth = item.depth;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool QuerySlicesByDepthAndTimeRange(const std::string &trackId, const std::string &rankId,
-        const SliceQuery &sliceQuery, uint32_t depth, std::vector<SliceDomain> &sliceVec) {
-        SpinLockGuard lock(mutex);
-        std::string key = rankId + "@" + trackId;
-        if (!IsTimeRangeCovered(key, sliceQuery)) {
-            return false;
-        }
-        auto indexIt = depthIndexCache.find(key);
-        if (indexIt != depthIndexCache.end()) {
-            auto depthIt = indexIt->second.slicesByDepth.find(depth);
-            if (depthIt == indexIt->second.slicesByDepth.end()) {
-                return true;
-            }
-            const auto &items = depthIt->second;
-            auto startIt = std::lower_bound(items.begin(), items.end(), sliceQuery.startTime,
-                [](const SliceDepthIndexItem &item, uint64_t timestamp) { return item.timestamp < timestamp; });
-            for (auto item = startIt; item != items.end() && item->timestamp < sliceQuery.endTime; ++item) {
-                SliceDomain sliceDomain;
-                sliceDomain.id = item->id;
-                sliceDomain.timestamp = item->timestamp;
-                sliceDomain.endTime = item->endTime;
-                sliceDomain.depth = depth;
-                sliceVec.emplace_back(sliceDomain);
-            }
-            return true;
-        }
-        auto it = cache.find(key);
-        if (it == cache.end()) {
-            return false;
-        }
-        Touch(it);
-        return QuerySlicesByDepthAndTimeRangeFromCache(it->second.first, sliceQuery, depth, sliceVec);
-    }
-
-    bool QueryCacheDuration(
-        const std::string &trackId, const std::string &rankId, uint64_t &startTime, uint64_t &endTime) {
-        SpinLockGuard lock(mutex);
-        std::string key = rankId + "@" + trackId;
-        auto durIt = cacheDuration.find(key);
-        if (durIt == cacheDuration.end()) {
-            return false;
-        }
-        startTime = durIt->second.first;
-        endTime = durIt->second.second;
-        return true;
-    }
-
-    /* *
      * 更新缓存，调用前需要对value按照timestamp排序，再按照id排序
      * @param trackId 对应泳道的trackId
      * @param value 对应泳道所有的简单算子信息，该vector先按照timestamp排序，再按照id排序
@@ -256,12 +101,10 @@ class SliceCacheManager {
                 curCapacity -= cache[evictKey].first.size();
                 cache.erase(evictKey);
                 cacheDuration.erase(evictKey);
-                depthIndexCache.erase(evictKey);
                 used.pop_back();
             }
             used.push_front(key);
             cache[key] = {value, used.begin()};
-            depthIndexCache[key] = BuildDepthIndex(value);
             curCapacity += value.size();
             // 添加算子缓存时间区间
             cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
@@ -273,19 +116,6 @@ class SliceCacheManager {
         }
         Touch(it);
         cache[key] = {value, used.begin()};
-        depthIndexCache[key] = BuildDepthIndex(value);
-    }
-
-    void UpdateDepthIndexCache(
-        const std::string &trackId, const std::vector<SliceDomain> &value, const SliceQuery &slicePagedQuery) {
-        SpinLockGuard lock(mutex);
-        std::string key = slicePagedQuery.GetDataSourceId() + "@" + trackId;
-        // 空集合也是有效计算结果，例如某个分页区间内只有 Python Function、普通泳道没有算子。
-        // 必须用空索引覆盖 UpdateSliceCache 建立的全量索引，否则裸 trackId 会继续暴露 Python Stack depth。
-        depthIndexCache[key] = BuildDepthIndex(value);
-        if (slicePagedQuery.endTime != 0) {
-            cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
-        }
     }
 
     static SliceQuery GetSlicePagedQuery(const SliceQuery &sliceQuery) {
@@ -310,7 +140,7 @@ class SliceCacheManager {
         SliceQuery result = sliceQuery;
 
         // 取离区间中点最近且合法的3min
-        uint64_t mid = (sliceQuery.startTime + sliceQuery.endTime) / 2;
+        uint64_t mid = sliceQuery.startTime + (sliceQuery.endTime - sliceQuery.startTime) / 2;
         if (mid < halfThreshold) {
             result.startTime = 0;
             result.endTime = std::max(threshold, sliceQuery.endTime);
@@ -378,7 +208,6 @@ class SliceCacheManager {
         SpinLockGuard lock(mutex);
         cache.clear();
         cacheDuration.clear();
-        depthIndexCache.clear();
         pythonCacheDuration.clear();
         used.clear();
         trackIdAndPythonFunctionMap.clear();
@@ -395,7 +224,6 @@ class SliceCacheManager {
     using CacheMap = std::unordered_map<std::string, CacheValue>;
     using PythonFunctionMap = std::unordered_map<std::string, PythonFunctionIDCache>;
     using CacheDurationMap = std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>;
-    using DepthIndexCacheMap = std::unordered_map<std::string, SliceDepthIndex>;
 
     // 算子缓存
     CacheMap cache;
@@ -403,7 +231,6 @@ class SliceCacheManager {
     VisitOrderList used;
     // 算子缓存时间区间, <filedId@trackId, <startTime, endTime>>
     CacheDurationMap cacheDuration;
-    DepthIndexCacheMap depthIndexCache;
     CacheDurationMap pythonCacheDuration;
     SpinLock mutex;
     // 算子缓存大小上限
@@ -435,50 +262,6 @@ class SliceCacheManager {
         pythonFunctionIdUsed.erase(it->second.second);
         pythonFunctionIdUsed.push_front(key);
         it->second.second = pythonFunctionIdUsed.begin();
-    }
-
-    bool IsTimeRangeCovered(const std::string &key, const SliceQuery &sliceQuery) const {
-        auto durIt = cacheDuration.find(key);
-        if (durIt == cacheDuration.end()) {
-            return false;
-        }
-        if (sliceQuery.startTime == sliceQuery.endTime) {
-            return true;
-        }
-        auto [start, end] = durIt->second;
-        return start <= sliceQuery.startTime && end >= sliceQuery.endTime;
-    }
-
-    static SliceDepthIndex BuildDepthIndex(const std::vector<SliceDomain> &sliceVec) {
-        SliceDepthIndex depthIndex;
-        depthIndex.idToDepth.reserve(sliceVec.size());
-        for (const auto &item : sliceVec) {
-            depthIndex.idToDepth[item.id] = item.depth;
-            depthIndex.slicesByDepth[item.depth].push_back({item.id, item.timestamp, item.endTime});
-        }
-        for (auto &item : depthIndex.slicesByDepth) {
-            std::sort(item.second.begin(), item.second.end(),
-                [](const SliceDepthIndexItem &left, const SliceDepthIndexItem &right) {
-                    if (left.timestamp == right.timestamp) {
-                        return left.id < right.id;
-                    }
-                    return left.timestamp < right.timestamp;
-                });
-        }
-        return depthIndex;
-    }
-
-    static bool QuerySlicesByDepthAndTimeRangeFromCache(const std::vector<SliceDomain> &cacheSlices,
-        const SliceQuery &sliceQuery, uint32_t depth, std::vector<SliceDomain> &sliceVec) {
-        for (const auto &item : cacheSlices) {
-            if (item.timestamp >= sliceQuery.endTime) {
-                break;
-            }
-            if (item.depth == depth && item.timestamp >= sliceQuery.startTime) {
-                sliceVec.emplace_back(item);
-            }
-        }
-        return true;
     }
 };
 }

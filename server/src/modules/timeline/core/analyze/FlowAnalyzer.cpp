@@ -21,50 +21,62 @@
 #include "DominQuery.h"
 #include "SliceCacheManager.h"
 #include "TextRepository.h"
+#include "TimeRangeUtils.h"
 #include "FlowAnalyzer.h"
 
 using namespace Dic::Server;
 namespace Dic::Module::Timeline {
 namespace {
-// 与 SliceAnalyzer 建立 Python Stack depth index 时的后缀保持一致，用于在同一 trackId 下区分虚拟泳道。
-const std::string PYTHON_STACK_CACHE_SUFFIX = "@python_stack";
-
-std::vector<SliceDomain> GetTextFlowSliceVec(const FlowQuery &flowQuery) {
+std::vector<SliceDomain> GetTextFlowSliceVec(const FlowQuery &flowQuery, FlowRepoInterface &repository) {
     auto &instance = SliceCacheManager::Instance();
     const std::string trackKey = std::to_string(flowQuery.trackId);
     SliceQuery sliceQuery;
+    sliceQuery.rankId = flowQuery.fileId;
+    sliceQuery.trackId = flowQuery.trackId;
     sliceQuery.startTime = flowQuery.startTime;
     sliceQuery.endTime = flowQuery.endTime;
+    sliceQuery.minTimestamp = flowQuery.minTimestamp;
     std::vector<SliceDomain> sliceVec = instance.GetSliceDomainVec(trackKey, flowQuery.fileId, sliceQuery);
     if (std::empty(sliceVec)) {
-        return sliceVec;
+        const auto sliceRepo = dynamic_cast<IBaseSliceRepo *>(&repository);
+        if (sliceRepo == nullptr) {
+            return sliceVec;
+        }
+        SliceQuery pagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
+        sliceRepo->QuerySimpleSliceWithOutNameByTrackId(pagedQuery, sliceVec);
+        instance.UpdateSliceCache(trackKey, sliceVec, pagedQuery);
     }
 
-    // Text Python Stack 是从同一 track 的 slice 中筛出的虚拟泳道。普通泳道与 Python Stack
-    // 必须使用互斥的 slice 集合，否则同一 flow point 可能先匹配到另一泳道的算子。
-    std::unordered_map<uint64_t, uint32_t> pythonStackDepth;
-    const bool hasPythonStackDepth = instance.QueryDepthInfoWithoutTimeRange(
-        trackKey + PYTHON_STACK_CACHE_SUFFIX, flowQuery.fileId, pythonStackDepth);
-    if (!hasPythonStackDepth) {
-        ServerLog::Info("Text unit flow Python Stack depth index not found. rankId: ", flowQuery.fileId,
-            ", trackId: ", flowQuery.trackId, ", isPythonStack: ", flowQuery.isPythonStack,
-            ", ordinarySliceCount: ", sliceVec.size());
+    const auto pythonRepo = dynamic_cast<IPythonFuncSlice *>(&repository);
+    if (pythonRepo == nullptr) {
         return flowQuery.isPythonStack ? std::vector<SliceDomain>{} : sliceVec;
     }
+    SliceQuery pythonQuery = sliceQuery;
+    pythonQuery.cat = "python_function";
+    std::vector<SliceDomain> pythonSlices;
+    std::vector<uint64_t> pythonIds;
+    const bool queryAllPythonSlices = flowQuery.startTime == 0 && flowQuery.endTime == 0;
+    if (queryAllPythonSlices) {
+        pythonQuery.endTime = std::numeric_limits<uint64_t>::max();
+    }
+    if (pythonRepo->QuerySliceByCatAndTimeRange(pythonQuery, pythonSlices)) {
+        if (flowQuery.isPythonStack) {
+            return pythonSlices;
+        }
+        pythonIds.reserve(pythonSlices.size());
+        std::transform(pythonSlices.begin(), pythonSlices.end(), std::back_inserter(pythonIds),
+            [](const SliceDomain &slice) { return slice.id; });
+    } else {
+        pythonRepo->QuerySliceIdsByCat(pythonQuery, pythonIds);
+    }
+    std::sort(pythonIds.begin(), pythonIds.end());
     sliceVec.erase(std::remove_if(sliceVec.begin(), sliceVec.end(),
-                       [&](SliceDomain &slice) {
-                           auto depthIt = pythonStackDepth.find(slice.id);
-                           const bool isPythonFunction = depthIt != pythonStackDepth.end();
-                           if (isPythonFunction && flowQuery.isPythonStack) {
-                               // Python Stack 会重新排布深度，不能沿用普通 track 中包含其它算子时计算出的 depth。
-                               slice.depth = depthIt->second;
-                           }
+                       [&](const SliceDomain &slice) {
+                           const bool isPythonFunction =
+                               std::binary_search(pythonIds.begin(), pythonIds.end(), slice.id);
                            return isPythonFunction != flowQuery.isPythonStack;
                        }),
         sliceVec.end());
-    ServerLog::Info("Text unit flow selected lane slices resolved. rankId: ", flowQuery.fileId,
-        ", trackId: ", flowQuery.trackId, ", isPythonStack: ", flowQuery.isPythonStack,
-        ", pythonStackDepthCount: ", pythonStackDepth.size(), ", retainedSliceCount: ", sliceVec.size());
     return sliceVec;
 }
 }
@@ -86,7 +98,7 @@ std::vector<FlowPoint> FlowAnalyzer::ComputeAllFlowPointBySliceId(FlowQuery &flo
     }
     std::vector<FlowPoint> allPoints;
     repository->QueryFlowPointByFlowId(flowQuery, allPoints);
-    const uint64_t targetTime = flowQuery.minTimestamp + flowQuery.startTime;
+    const uint64_t targetTime = AddTimestampOffset(flowQuery.startTime, flowQuery.minTimestamp);
     const uint64_t targetTrackId = flowQuery.trackId;
     FlowPoint targetPoint;
     targetPoint.timestamp = targetTime;
@@ -120,7 +132,7 @@ std::unordered_set<std::string> FlowAnalyzer::ComputeOnSliceFlowPointBySliceId(
     std::vector<FlowPoint> flowPointVec;
     repository->QueryFlowPointByTimeRange(flowQuery, flowPointVec);
     ServerLog::Info("flowPointVec is: ", flowPointVec.size());
-    std::vector<SliceDomain> sliceVec = GetTextFlowSliceVec(flowQuery);
+    std::vector<SliceDomain> sliceVec = GetTextFlowSliceVec(flowQuery, *repository);
     // 此时是前端打开泳道点击算子，缓存中必定存在泳道下[startTime, endTime]内的算子数据,若不存在说明是异常情况
     if (std::empty(sliceVec)) {
         return res;

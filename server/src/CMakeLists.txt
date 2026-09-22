@@ -142,6 +142,10 @@ aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core DIC_MODULES_TIMELINE_
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/database DIC_MODULES_TIMELINE_CORE_DATABASE_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/database/helper DIC_MODULES_TIMELINE_CORE_DATABASE_HELPER_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/analyze DIC_MODULES_TIMELINE_CORE_ANALYZE_SRC)
+list(APPEND DIC_MODULES_TIMELINE_CORE_ANALYZE_SRC
+        ${SRC_HOME_DIR}/modules/timeline/core/analyze/OperatorDepthCalculator.cpp
+        ${SRC_HOME_DIR}/modules/timeline/core/analyze/OperatorDepthPersistenceService.cpp)
+list(REMOVE_DUPLICATES DIC_MODULES_TIMELINE_CORE_ANALYZE_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/cache DIC_MODULES_TIMELINE_CORE_CACHE_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/parser DIC_MODULES_TIMELINE_CORE_PARSER_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/table DIC_MODULES_TIMELINE_CORE_TABLE_SRC)

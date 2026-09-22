@@ -34,7 +34,7 @@ void MstxRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery
         ServerLog::Warn("mstx open database is failed");
         return;
     }
-    std::string sql = "SELECT ROWID as id, startNs, endNs from " + TABLE_MSTX_EVENTS +
+    std::string sql = "SELECT ROWID as id, startNs, endNs, depth from " + TABLE_MSTX_EVENTS +
         " where globalTid = ? and domainId = ? "
         " AND startNs <= ? AND endNs >= ? order by startNs , id";
     auto stmt = database->CreatPreparedStatement(sql);
@@ -54,6 +54,7 @@ void MstxRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery
         sliceDomain.id = resultSet->GetUint64("id");
         sliceDomain.timestamp = resultSet->GetUint64("startNs");
         sliceDomain.endTime = resultSet->GetUint64("endNs");
+        sliceDomain.depth = resultSet->GetUint32("depth");
         sliceVec.emplace_back(sliceDomain);
     }
 }
@@ -63,7 +64,7 @@ void MstxRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::v
     if (std::empty(sliceIds)) {
         return;
     }
-    std::string sql = "select message as name, mstx.ROWID as id, startNs, endNs "
+    std::string sql = "select message as name, mstx.ROWID as id, startNs, endNs, depth "
                       " from " +
         TABLE_MSTX_EVENTS +
         "  mstx  "
@@ -92,6 +93,7 @@ void MstxRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::v
         competeSlice.id = resultSet->GetUint64("id");
         competeSlice.timestamp = resultSet->GetUint64("startNs");
         competeSlice.endTime = resultSet->GetUint64("endNs");
+        competeSlice.depth = resultSet->GetUint32("depth");
         competeSlice.name = FullDb::DbTraceDataBase::GetStringCacheValue(nameKey, resultSet->GetString("name"));
         competeSliceVec.emplace_back(competeSlice);
     }
@@ -101,7 +103,7 @@ bool MstxRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDo
     std::vector<MstxEventsPO> mstxPOs;
     mstxEventsTable->Select(MstxEventsColumn::ID, MstxEventsColumn::TIMESTAMP)
         .Select(MstxEventsColumn::ENDTIME, MstxEventsColumn::MESSAGE)
-        .Select(MstxEventsColumn::EVENT_TYPE)
+        .Select(MstxEventsColumn::EVENT_TYPE, MstxEventsColumn::DEPTH)
         .Eq(MstxEventsColumn::ID, sliceQuery.sliceId)
         .ExcuteQuery(sliceQuery.rankId, mstxPOs);
     if (std::empty(mstxPOs)) {
@@ -111,6 +113,7 @@ bool MstxRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDo
     competeSliceDomain.id = mstxPOs[0].id;
     competeSliceDomain.timestamp = mstxPOs[0].timestamp;
     competeSliceDomain.endTime = mstxPOs[0].endTime;
+    competeSliceDomain.depth = mstxPOs[0].depth;
     std::unordered_map<uint64_t, std::string> strMap =
         stringIdsTable->QueryStrMap({mstxPOs[0].message}, sliceQuery.rankId);
     competeSliceDomain.name = strMap[mstxPOs[0].message];
@@ -135,7 +138,9 @@ bool MstxRepo::QuerySliceDetailInfoByNameList(
     std::transform(strMap.begin(), strMap.end(), std::back_inserter(stringIds),
         [](const std::pair<uint64_t, std::string> &pair) { return pair.first; });
     std::vector<MstxEventsPO> mstxPOs;
-    mstxEventsTable->Select(MstxEventsColumn::TIMESTAMP, MstxEventsColumn::ENDTIME, MstxEventsColumn::MESSAGE)
+    mstxEventsTable
+        ->Select(
+            MstxEventsColumn::TIMESTAMP, MstxEventsColumn::ENDTIME, MstxEventsColumn::MESSAGE, MstxEventsColumn::DEPTH)
         .In(MstxEventsColumn::MESSAGE, stringIds);
     if (params.startTime < params.endTime) {
         mstxEventsTable->GreaterEq(MstxEventsColumn::TIMESTAMP, params.startTime)
@@ -148,6 +153,7 @@ bool MstxRepo::QuerySliceDetailInfoByNameList(
         domain.timestamp = item.timestamp;
         domain.endTime = item.endTime;
         domain.duration = NumberSafe::Sub(domain.endTime, domain.timestamp);
+        domain.depth = item.depth;
         res.push_back(domain);
     }
     return true;

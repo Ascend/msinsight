@@ -43,6 +43,7 @@ static const std::string OVERLAP_ANALYSIS_SOURCE_UPSTREAM = "UPSTREAM";
 static const std::string OVERLAP_ANALYSIS_SOURCE_LOCAL = "LOCAL";
 static const std::string WAIT_TIME_UNIT = "WAIT_TIME";
 static const std::string CONNECTION_UNIT = "CONNECTION_CATEGORY";
+static const std::string OPERATOR_DEPTH = "OPERATOR_DEPTH";
 static const std::string FTRACE_TIME_STATISTICS_UNIT = "FTRACE_TIME_STATISTICS";
 static const std::string FTRACE_IRQ_STATISTICS_UNIT = "FTRACE_IRQ_STATISTICS";
 static const std::string FTRACE_SCHED_STATISTICS_UNIT = "FTRACE_SCHED_STATISTICS";

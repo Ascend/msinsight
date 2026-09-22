@@ -52,6 +52,9 @@ void SliceTable::FlagIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResu
 void SliceTable::GroupIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet) {
     slicePo.groupId = resultSet->GetString(SliceColumn::GROUPID);
 }
+void SliceTable::DepthHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    slicePo.depth = resultSet->GetUint32(SliceColumn::DEPTH);
+}
 }
 }
 }

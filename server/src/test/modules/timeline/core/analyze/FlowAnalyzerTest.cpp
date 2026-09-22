@@ -17,10 +17,89 @@
  */
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <limits>
 #include "FlowAnalyzer.h"
+#include "CacheManager.h"
+#include "TextRepository.h"
 
 using namespace Dic::Module::Timeline;
 class FlowAnalyzerTest : public ::testing::Test {};
+
+TEST_F(FlowAnalyzerTest, PythonStackFlowLoadsPersistedSliceDepthWithoutDepthIndex) {
+    class RepositoryMock : public TextRepository {
+      public:
+        void QueryFlowPointByTimeRange(const FlowQuery &, std::vector<FlowPoint> &flowPoints) override {
+            flowPoints = {
+                FlowPoint{.flowId = "python_flow", .trackId = 77, .timestamp = 10, .type = Dic::Protocol::LINE_START}};
+        }
+
+        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &, std::vector<SliceDomain> &slices) override {
+            slices = {SliceDomain{1, 0, 100, 3, ""}};
+        }
+
+        bool QuerySliceByCatAndTimeRange(const SliceQuery &query, std::vector<SliceDomain> &slices) override {
+            EXPECT_EQ(query.cat, "python_function");
+            EXPECT_EQ(query.minTimestamp, 1000);
+            EXPECT_EQ(query.startTime, 0);
+            EXPECT_EQ(query.endTime, 100);
+            slices = {SliceDomain{2, 10, 20, 7, ""}};
+            return true;
+        }
+    };
+
+    CacheManager::Instance().ClearAll();
+    FlowAnalyzer analyzer;
+    analyzer.SetRepository(std::make_unique<RepositoryMock>());
+    FlowQuery query;
+    query.fileId = "flow_persisted_depth";
+    query.trackId = 77;
+    query.startTime = 0;
+    query.endTime = 100;
+    query.minTimestamp = 1000;
+    query.isPythonStack = true;
+
+    auto flowIds = analyzer.ComputeOnSliceFlowPointBySliceId(query, "2");
+
+    EXPECT_EQ(flowIds, std::unordered_set<std::string>({"python_flow"}));
+    CacheManager::Instance().ClearAll();
+}
+
+TEST_F(FlowAnalyzerTest, DefaultRangeClassifiesPythonStackAcrossFullTimeline) {
+    class RepositoryMock : public TextRepository {
+      public:
+        void QueryFlowPointByTimeRange(const FlowQuery &, std::vector<FlowPoint> &flowPoints) override {
+            flowPoints = {
+                FlowPoint{.flowId = "python_flow", .trackId = 78, .timestamp = 10, .type = Dic::Protocol::LINE_START}};
+        }
+
+        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &, std::vector<SliceDomain> &slices) override {
+            slices = {SliceDomain{1, 0, 100, 3, ""}};
+        }
+
+        bool QuerySliceByCatAndTimeRange(const SliceQuery &query, std::vector<SliceDomain> &slices) override {
+            EXPECT_EQ(query.cat, "python_function");
+            EXPECT_EQ(query.startTime, 0);
+            EXPECT_EQ(query.endTime, std::numeric_limits<uint64_t>::max());
+            EXPECT_EQ(query.minTimestamp, 50);
+            slices = {SliceDomain{2, 10, 20, 7, ""}};
+            return true;
+        }
+    };
+
+    CacheManager::Instance().ClearAll();
+    FlowAnalyzer analyzer;
+    analyzer.SetRepository(std::make_unique<RepositoryMock>());
+    FlowQuery query;
+    query.fileId = "flow_default_range";
+    query.trackId = 78;
+    query.minTimestamp = 50;
+    query.isPythonStack = true;
+
+    auto flowIds = analyzer.ComputeOnSliceFlowPointBySliceId(query, "2");
+
+    EXPECT_EQ(flowIds, std::unordered_set<std::string>({"python_flow"}));
+    CacheManager::Instance().ClearAll();
+}
 
 /**
  * 测试：点数组转成连线数组，基础情况 S-F

@@ -93,7 +93,7 @@ TEST_F(CANNApiRepoTest, test_QueryCompeteSliceByIds_with_track_empty) {
 /**
  * 测试全量DB的cann的根据id集合查询完整算子,正常情况
  */
-TEST_F(CANNApiRepoTest, test_QueryCompeteSliceByIds_with_normal) {
+TEST_F(CANNApiRepoTest, QueryCompeteSliceByIdsReturnsPersistedDepth) {
     TrackInfoManager::Instance().Reset();
     class TableMock : public Dic::Module::Timeline::CANNApiTable {
       public:
@@ -115,16 +115,18 @@ TEST_F(CANNApiRepoTest, test_QueryCompeteSliceByIds_with_normal) {
     auto it = competeSliceVec.begin();
     const uint64_t firstTimestamp = 22;
     EXPECT_EQ(it->timestamp, firstTimestamp);
+    EXPECT_EQ(it->depth, 6);
     it++;
     const uint64_t lastTimestamp = 23;
     EXPECT_EQ(it->timestamp, lastTimestamp);
+    EXPECT_EQ(it->depth, 7);
     TrackInfoManager::Instance().Reset();
 }
 
 /**
  * 测试全量DB的cann的根据track查询完整算子,正常情况
  */
-TEST_F(CANNApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_with_normal) {
+TEST_F(CANNApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdReturnsPersistedDepth) {
     TrackInfoManager::Instance().Reset();
     class TableMock : public Dic::Module::Timeline::CANNApiTable {
       public:
@@ -147,9 +149,11 @@ TEST_F(CANNApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_with_normal) {
     auto it = sliceVec.begin();
     const uint64_t firstTimestamp = 22;
     EXPECT_EQ(it->timestamp, firstTimestamp);
+    EXPECT_EQ(it->depth, 6);
     it++;
     const uint64_t lastTimestamp = 23;
     EXPECT_EQ(it->timestamp, lastTimestamp);
+    EXPECT_EQ(it->depth, 7);
     TrackInfoManager::Instance().Reset();
 }
 
@@ -185,7 +189,7 @@ TEST_F(CANNApiRepoTest, QuerySimpleSliceUsesDbPathForMultiSourceTrack) {
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(CANNApiRepoTest, TestQuerySliceDetailInfoNormal) {
+TEST_F(CANNApiRepoTest, QuerySliceDetailInfoReturnsPersistedDepth) {
     class CANNApiRepoMock : public CANNApiRepo {
       public:
         void SetMock(CANNDependency &dependency) {
@@ -202,7 +206,7 @@ TEST_F(CANNApiRepoTest, TestQuerySliceDetailInfoNormal) {
     std::string apiInsert = "INSERT INTO \"main\".\"ENUM_API_TYPE\" (\"id\", \"name\") VALUES (10000, 'node');";
     std::string cannInsert = "INSERT INTO \"main\".\"CANN_API\" (\"startNs\", \"endNs\", \"type\", \"globalTid\", "
                              "\"connectionId\", \"name\", \"depth\") VALUES (1718180918997508370, 1718180918997541810, "
-                             "10000, 8785587534250072, 7421, 327, 0);";
+                             "10000, 8785587534250072, 7421, 327, 8);";
     std::string stringInsert = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (377, 'mmmm');\n"
                                "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (327, 'aaaa');";
     DatabaseTestCaseMockUtil::InsertData(db, apiInsert);
@@ -228,6 +232,7 @@ TEST_F(CANNApiRepoTest, TestQuerySliceDetailInfoNormal) {
     const uint64_t expectEnd = 1718180918997541810;
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
+    EXPECT_EQ(slice.depth, 8);
     const std::string expectArgs =
         "{\"globalTid\":\"8785587534250072\",\"type\":\"node\",\"name\":\"aaaa\",\"connectionId\":\"7421\"}";
     EXPECT_EQ(slice.args, expectArgs);

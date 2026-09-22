@@ -35,6 +35,9 @@
 
 namespace Dic {
 namespace Module {
+namespace Timeline {
+class TextTraceDatabase;
+}
 namespace Source {
 class SourceFileParser : public FileParser {
   public:
@@ -86,6 +89,9 @@ class SourceFileParser : public FileParser {
     std::string GetFilePath();
 
   private:
+    friend class SourceFileParserTestAccessor;
+    static bool PrepareDatabaseForParse(const std::shared_ptr<Timeline::TextTraceDatabase> &database);
+
     std::string filePath;
     std::map<int, std::vector<Position>> dataBlockMap;
     std::map<std::string, std::pair<int64_t, int64_t>> traceFiles;

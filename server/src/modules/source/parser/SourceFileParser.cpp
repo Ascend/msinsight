@@ -35,6 +35,7 @@
 #include "GlobalProtocolEvent.h"
 #include "ProjectParserFactory.h"
 #include "NumberSafeUtil.h"
+#include "OperatorDepthPersistenceService.h"
 
 namespace Dic {
 namespace Module {
@@ -164,7 +165,7 @@ bool SourceFileParser::InitParser(const std::string &rankId, const std::string &
         return false;
     }
     auto database = std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
-    if (database == nullptr || !(database->DropTable() && database->CreateTable())) {
+    if (!PrepareDatabaseForParse(database)) {
         ServerLog::Error("Failed to open trace database. fileId:", fileId);
         return false;
     }
@@ -207,6 +208,12 @@ bool SourceFileParser::InitParser(const std::string &rankId, const std::string &
     return true;
 }
 
+bool SourceFileParser::PrepareDatabaseForParse(const std::shared_ptr<TextTraceDatabase> &database) {
+    return database != nullptr && database->DropTable() && database->CreateTable() &&
+        database->UpdateValueIntoStatusInfoTable(CONNECTION_UNIT, NOT_FINISH_STATUS) &&
+        database->UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS);
+}
+
 uint64_t SourceFileParser::CalculateTotalSize(std::vector<std::pair<int64_t, int64_t>> &filePos) {
     // 计算待解析的文件大小
     uint64_t totalSize = 0;
@@ -245,6 +252,13 @@ void SourceFileParser::EndParseTask(
     auto database = std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
     if (database == nullptr) {
         ServerLog::Error("Failed to cast virtual trace database to json trace database in end parse task of source.");
+        return;
+    }
+    database->CommitData();
+    if (!OperatorDepthPersistenceService::CalculateAndPersistTextDepth(*database, rankId)) {
+        ServerLog::Error("Failed to persist operator depth after source BIN parse. rankId:", rankId);
+        Timeline::ParserStatusManager::Instance().SetTerminateStatus(rankId);
+        ParseEndCallBack(rankId, false, "Failed to calculate and persist operator depth.", fileId);
         return;
     }
     database->CreateIndex();

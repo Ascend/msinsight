@@ -35,6 +35,7 @@ struct TaskPO {
     uint64_t taskId = 0;
     uint64_t modelId = 0;
     uint64_t domainId = 0;
+    uint32_t depth = 0;
 };
 class TaskTable : public Table<TaskPO> {
   public:
@@ -49,7 +50,7 @@ class TaskTable : public Table<TaskPO> {
             {TaskColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle}, {TaskColumn::GLOBAL_PID, GlobalPidHandle},
             {TaskColumn::TASK_TYPE, TaskTypeHandle}, {TaskColumn::CONTEXT_ID, ContextIdHandle},
             {TaskColumn::STREAM_ID, StreamIdHandle}, {TaskColumn::TASK_ID, TaskIdHandle},
-            {TaskColumn::MODEL_ID, ModelIdHandle}};
+            {TaskColumn::MODEL_ID, ModelIdHandle}, {TaskColumn::DEPTH, DepthHandle}};
 
         return assignMap;
     }
@@ -69,6 +70,7 @@ class TaskTable : public Table<TaskPO> {
     static void StreamIdHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void TaskIdHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void ModelIdHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void DepthHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 #endif // PROFILER_SERVER_TASKTABLE_H
