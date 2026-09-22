@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import styled from '@emotion/styled';
 import { ResizeTable } from '@insight/lib/resize';
 import type { ColumnsType } from 'antd/es/table';
+import { Tooltip } from 'antd';
 import { Painter } from '../leaksWorker/blockWorker/nativeCanvas/Painter';
 import { useTranslation } from 'react-i18next';
 import type { MemSnapshotDeviceSliceInfo } from '@/entity/session';
@@ -20,7 +21,7 @@ import { resolveLifecycleKeyboardAction } from './leaks/lifecycleNavigation';
 import { OverviewSplitPane } from './OverviewSplitPane';
 import { animateOverviewOpening, type OverviewTransition } from './overviewOpeningAnimation';
 import { OverviewZoomControls } from './OverviewZoomControls';
-import { overviewY, sampleOverview, OverviewIndex, summarizeOverview, type OverviewPoint } from './snapshotOverview';
+import { overviewY, sampleOverview, OverviewTimelineIndex, getOverviewSummary, type OverviewPoint } from './snapshotOverview';
 
 const OverviewTrack = styled.div`
     display: flex;
@@ -361,7 +362,7 @@ const WindowCell = styled.div`
     .window-action-slot { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; height: 24px; }
     .active-window-marker { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
         color: ${(props): string => props.theme.primaryColor}; border-radius: 4px; }
-    .active-window-marker[role='img'] { background: ${(props): string => props.theme.primaryColorLight4}; }
+    .active-window-marker:focus-visible { outline: 2px solid ${(props): string => props.theme.primaryColor}; outline-offset: 2px; }
     @media (hover: none) { .window-switch { opacity: 1; pointer-events: auto; } }
 `;
 
@@ -395,7 +396,8 @@ const PeakRanking = styled.div`
     overflow: auto;
     .ant-table-tbody > tr { cursor: pointer; }
     .ant-table-tbody > tr:hover .window-switch,
-    .ant-table-tbody > tr:focus-within .window-switch { opacity: 1; pointer-events: auto; }
+    .ant-table-tbody > tr:focus-visible .window-switch,
+    .ant-table-tbody .window-switch:focus-visible { opacity: 1; pointer-events: auto; }
     && .ant-table-tbody > tr.overview-selected-row > td.ant-table-cell,
     && .ant-table-tbody > tr.overview-selected-row:hover > td.ant-table-cell {
         background: ${(props): string => props.theme.primaryColorLight4};
@@ -405,10 +407,11 @@ const PeakRanking = styled.div`
 interface PeakRow { index: number; peak: number; event: number; active: boolean; activate: () => void }
 
 const EMPTY_POINTS: OverviewPoint[] = [];
+const getOverviewPopupContainer = (node: HTMLElement): HTMLElement => node.closest('dialog') ?? document.body;
 
 interface CurveProps {
     points: OverviewPoint[];
-    index?: OverviewIndex;
+    index?: OverviewTimelineIndex;
     start: number;
     end: number;
     min: number;
@@ -730,10 +733,10 @@ const MemSnapshotSliceOverview = ({
     const openButtonRef = useRef<HTMLButtonElement | null>(null);
     const compactFlushRef = useRef<(() => void) | null>(null);
     const summaries = useMemo(() => {
-        const result = new Map<number, ReturnType<typeof summarizeOverview>>();
+        const result = new Map<number, ReturnType<typeof getOverviewSummary>>();
         deviceSlices.slices.forEach(slice => {
             if (slice.ready && overviewData[slice.index]) {
-                result.set(slice.index, summarizeOverview(overviewData[slice.index].allocations));
+                result.set(slice.index, getOverviewSummary(overviewData[slice.index].allocations));
             }
         });
         return result;
@@ -752,16 +755,15 @@ const MemSnapshotSliceOverview = ({
         if (sortOrder.startsWith('event')) return ((a[1].peak?.timestamp ?? 0) - (b[1].peak?.timestamp ?? 0)) * (sortOrder === 'event' ? 1 : -1) || a[0] - b[0];
         return difference || a[0] - b[0];
     }), [summaries, sortOrder]);
-    const continuousPoints = useMemo(() => deviceSlices.slices.flatMap(slice => slice.ready
-        ? (overviewData[slice.index]?.allocations ?? EMPTY_POINTS).filter(point => point.timestamp >= slice.startEventId && point.timestamp <= slice.endEventId)
-        : EMPTY_POINTS), [deviceSlices, overviewData]);
+    const overviewIndex = useMemo(() => new OverviewTimelineIndex(deviceSlices.slices.filter(slice => slice.ready).map(slice => ({
+        points: overviewData[slice.index]?.allocations ?? EMPTY_POINTS, start: slice.startEventId, end: slice.endEventId,
+    }))), [deviceSlices, overviewData]);
     const timelineStart = deviceSlices.slices[0]?.startEventId ?? 0;
     const timelineEnd = deviceSlices.slices[deviceSlices.slices.length - 1]?.endEventId ?? timelineStart;
     const timelineSpan = Math.max(1, timelineEnd - timelineStart);
     const range = normalizeRange(timelineStart, timelineEnd, previewRange?.[0], previewRange?.[1]);
     const rangeSpan = Math.max(1, range[1] - range[0]);
     const continuousHeight = Math.max(120, canvasHeight - 52);
-    const overviewIndex = useMemo(() => new OverviewIndex(continuousPoints), [continuousPoints]);
     const valueMax = Math.max(1, globalMaxSize * 1.08);
     const previewMin = view.offsetY;
     const previewMax = previewMin + valueMax / zoomY;
@@ -918,22 +920,28 @@ const MemSnapshotSliceOverview = ({
             render: (index: number, row: PeakRow): React.ReactNode => <WindowCell>
                 <span className="window-action-slot">
                     {row.active
-                        ? <span className="active-window-marker" role="img"
-                            aria-label={t('overviewActiveWindow')} title={t('overviewActiveWindow')}>
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                                <rect x="1.5" y="1.5" width="13" height="13" rx="3" /><path d="m4 8 2.5 2.5L12 5" />
-                            </svg>
-                        </span>
-                        : <WindowSwitch className="window-switch" aria-label={`${t('overviewActivateWindow')} · ${index + 1}`}
-                            title={`${t('overviewActivateWindow')} · ${index + 1}`}
-                            onClick={(event): void => {
-                                event.stopPropagation();
-                                row.activate();
-                            }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                                <path d="M14 4h6v16h-6M4 12h12m-4-4 4 4-4 4" />
-                            </svg>
-                        </WindowSwitch>}
+                        ? <Tooltip title={t('overviewActiveWindow')} mouseEnterDelay={0} mouseLeaveDelay={0}
+                            trigger={['hover', 'focus']} getPopupContainer={getOverviewPopupContainer}>
+                            <span className="active-window-marker" role="img" tabIndex={0} aria-label={t('overviewActiveWindow')}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="13" rx="2" />
+                                    <path d="M8 21h8m-4-4v4" /><rect x="6" y="7" width="12" height="7" rx="0.5" fill="currentColor" stroke="none" />
+                                </svg>
+                            </span>
+                        </Tooltip>
+                        : <Tooltip title={t('overviewActivateWindow')} mouseEnterDelay={0} mouseLeaveDelay={0}
+                            trigger={['hover', 'focus']} getPopupContainer={getOverviewPopupContainer}>
+                            <WindowSwitch className="window-switch" aria-label={`${t('overviewActivateWindow')} · ${index + 1}`}
+                                onClick={(event): void => {
+                                    event.stopPropagation();
+                                    row.activate();
+                                }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                                    <rect x="3" y="4" width="18" height="13" rx="2" />
+                                    <path d="M8 21h8m-4-4v4" /><rect x="6" y="7" width="12" height="7" rx="0.5" fill="currentColor" stroke="none" />
+                                </svg>
+                            </WindowSwitch>
+                        </Tooltip>}
                 </span>
                 <span className="window-identity">{`${t('snapshotWindow')} ${index + 1}`}</span>
             </WindowCell>,
@@ -1174,7 +1182,7 @@ const MemSnapshotSliceOverview = ({
                 </svg>
             </CloseButton>
             <Navigator ref={navigatorRef} data-testid="overviewNavigator" style={{ paddingTop: verticalLabels ? 46 : 20 }}>
-                <OverviewCurve points={continuousPoints} index={overviewIndex} start={timelineStart} end={timelineEnd}
+                <OverviewCurve points={EMPTY_POINTS} index={overviewIndex} start={timelineStart} end={timelineEnd}
                     min={0} max={Math.max(1, globalMaxSize * 1.08)} height={48} nativeCanvas measureReady={dialogReady}>
                     {globalPeaks.map(({ point, index }) => renderPeak(point, index, timelineStart, timelineEnd, 0, valueMax, 48))}
                     {timelineEnd > timelineStart && <SliceRangeSelector minTime={timelineStart} maxTime={timelineEnd}
@@ -1206,7 +1214,7 @@ const MemSnapshotSliceOverview = ({
                         activity={view.zoomActivity}
                         onZoom={(direction): void => scale(direction, xZoomMode)} onReset={resetView} />
                     <TrendSurface data-testid="expandedSliceOverview" data-range-start={range[0]} data-range-end={range[1]} data-value-min={previewMin} data-value-max={previewMax} style={{ overflow: 'hidden' }}>
-                        <OverviewCurve points={continuousPoints} index={overviewIndex} start={range[0]} end={range[1]}
+                        <OverviewCurve points={EMPTY_POINTS} index={overviewIndex} start={range[0]} end={range[1]}
                             min={previewMin} max={previewMax} height={continuousHeight} nativeCanvas measureReady={dialogReady}>
                             {globalPeaks.filter(({ point }) => point.timestamp >= range[0] && point.timestamp <= range[1] &&
                                 point.totalSize >= previewMin && point.totalSize <= previewMax).map(({ point, index }) =>

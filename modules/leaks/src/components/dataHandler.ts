@@ -67,7 +67,7 @@ const updateSnapshotGlobalMaxSize = (
     const globalMaxSizes = session.snapshotGlobalMaxSizes ?? {};
     const currentMaxSize = globalMaxSizes[deviceId]?.[eventType] ?? 0;
     const nextMaxSize = Math.max(currentMaxSize, maxSize);
-    if (nextMaxSize === currentMaxSize) {
+    if (nextMaxSize === currentMaxSize && globalMaxSizes[deviceId]?.[eventType] !== undefined) {
         return;
     }
     runInAction(() => {
@@ -83,7 +83,7 @@ const updateSnapshotGlobalMaxSize = (
 const barDataRequestSeqMap = new WeakMap<object, number>();
 const blockTableRequestSeqMap = new WeakMap<object, number>();
 const eventTableRequestSeqMap = new WeakMap<object, number>();
-const overviewPrefetchMap = new WeakMap<object, Map<string, Promise<AllocationData | undefined>>>();
+const overviewPrefetchMap = new WeakMap<object, Map<string, Promise<void>>>();
 const OVERVIEW_PRELOAD_CONCURRENCY = 2;
 let overviewPreloadActiveCount = 0;
 const overviewPreloadWaiters: Array<() => void> = [];
@@ -96,14 +96,15 @@ const acquireOverviewPreloadSlot = async (): Promise<void> => {
     await new Promise<void>(resolve => {
         overviewPreloadWaiters.push(resolve);
     });
-    overviewPreloadActiveCount += 1;
 };
 
 const releaseOverviewPreloadSlot = (): void => {
-    overviewPreloadActiveCount = Math.max(0, overviewPreloadActiveCount - 1);
     const next = overviewPreloadWaiters.shift();
     if (next !== undefined) {
+        // Transfer the occupied slot directly so a new caller cannot overtake its waiter.
         next();
+    } else {
+        overviewPreloadActiveCount = Math.max(0, overviewPreloadActiveCount - 1);
     }
 };
 
@@ -564,18 +565,21 @@ export const preloadSnapshotSliceOverviews = async (
     const deviceId = session.deviceId;
     const eventType = session.eventType;
     const fileHash = session.fileHash;
+    const deviceIds = session.deviceIds;
+    const isCurrent = (): boolean => session.fileHash === fileHash && session.deviceIds === deviceIds &&
+        session.deviceIds?.[deviceId] !== undefined && session.eventType === eventType;
     const deviceSlices = session.snapshotSlices[deviceId];
     if (!deviceSlices) {
         return;
     }
     let pending = overviewPrefetchMap.get(session);
     if (pending === undefined) {
-        pending = new Map<string, Promise<AllocationData | undefined>>();
+        pending = new Map<string, Promise<void>>();
         overviewPrefetchMap.set(session, pending);
     }
     const requestOrder = getSnapshotSliceRequestOrder(deviceSlices.readySlices, session.selectedSliceIndex);
     const currentSliceIndex = session.selectedSliceIndex >= 0 ? session.selectedSliceIndex : requestOrder[0];
-    const existingTasks: Array<Promise<{ sliceIndex: number; allocationData?: AllocationData }>> = [];
+    const existingTasks: Array<Promise<void>> = [];
     const pendingSlices: number[] = [];
     for (const sliceIndex of requestOrder) {
         if (!includeSelected && (sliceIndex === currentSliceIndex || sliceIndex === session.selectedSliceIndex)) {
@@ -588,72 +592,42 @@ export const preloadSnapshotSliceOverviews = async (
         }
         const existingTask = pending?.get(key);
         if (existingTask !== undefined) {
-            existingTasks.push(existingTask.then(allocationData => ({ sliceIndex, allocationData })));
+            existingTasks.push(existingTask);
             continue;
         }
         pendingSlices.push(sliceIndex);
     }
     const fetchedTasks = pendingSlices.map(sliceIndex => {
         const key = `${fileHash}:${deviceId}:${eventType}:${sliceIndex}`;
-        const task = (async (): Promise<AllocationData | undefined> => {
+        const task = (async (): Promise<void> => {
             await acquireOverviewPreloadSlot();
             try {
+                if (!isCurrent()) return;
                 const allocationData = await fetchSnapshotAllocationsPaginated(
                     { deviceId, eventType, sliceIndex },
-                    () => session.fileHash === fileHash && session.deviceIds?.[deviceId] !== undefined &&
-                        session.eventType === eventType,
+                    isCurrent,
                 );
-                if (session.fileHash !== fileHash || session.deviceIds?.[deviceId] === undefined ||
-                    session.eventType !== eventType) {
-                    return undefined;
-                }
-                return allocationData;
+                if (!isCurrent()) return;
+                // Publish before releasing the pending entry. Completion promises never retain payloads.
+                runInAction(() => {
+                    session.sliceOverviewData = {
+                        ...session.sliceOverviewData,
+                        [deviceId]: { ...(session.sliceOverviewData[deviceId] ?? {}), [sliceIndex]: allocationData },
+                    };
+                    updateSnapshotGlobalMaxSize(session, deviceId, eventType, getAllocationDataMaxSize(allocationData));
+                });
             } catch {
                 // 单个分片趋势预加载失败不影响当前窗口，后续选中该分片时仍会正常请求。
-                return undefined;
             } finally {
                 pending?.delete(key);
                 releaseOverviewPreloadSlot();
             }
         })();
         pending?.set(key, task);
-        return task.then(allocationData => ({ sliceIndex, allocationData }));
+        return task;
     });
-    const results = [...await Promise.all(existingTasks), ...await Promise.all(fetchedTasks)];
-    if (session.fileHash !== fileHash || session.deviceIds?.[deviceId] === undefined || session.eventType !== eventType) {
-        return undefined;
-    }
-    const fetchedOverviews: Record<number, AllocationData> = {};
-    for (const result of results) {
-        if (result.allocationData !== undefined) {
-            fetchedOverviews[result.sliceIndex] = result.allocationData;
-        }
-    }
-    if (Object.keys(fetchedOverviews).length > 0) {
-        runInAction(() => {
-            session.sliceOverviewData = {
-                ...session.sliceOverviewData,
-                [deviceId]: {
-                    ...(session.sliceOverviewData[deviceId] ?? {}),
-                    ...fetchedOverviews,
-                },
-            };
-        });
-    }
-    let selectedAllocationData: AllocationData | undefined;
-    let prefetchedMaxSize = session.snapshotGlobalMaxSizes?.[deviceId]?.[eventType] ?? 0;
-    for (const sliceIndex of requestOrder) {
-        const cachedData = session.sliceOverviewData[deviceId]?.[sliceIndex];
-        if (cachedData === undefined) {
-            continue;
-        }
-        prefetchedMaxSize = Math.max(prefetchedMaxSize, getAllocationDataMaxSize(cachedData));
-        if (sliceIndex === session.selectedSliceIndex) {
-            selectedAllocationData = cachedData;
-        }
-    }
-    updateSnapshotGlobalMaxSize(session, deviceId, eventType, prefetchedMaxSize);
-    return selectedAllocationData;
+    await Promise.all([...existingTasks, ...fetchedTasks]);
+    return isCurrent() ? session.sliceOverviewData[deviceId]?.[session.selectedSliceIndex] : undefined;
 };
 
 export const getNewDetailData = async (session: any): Promise<void> => {
