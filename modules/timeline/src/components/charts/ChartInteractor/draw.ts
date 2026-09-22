@@ -30,8 +30,6 @@ import type { InsightUnit } from '../../../entity/insight';
 import {
     getLaneProcessIdentity,
     getLaneProcessIdentityCandidates,
-    getLaneSourceThreadIdentity,
-    getLaneSourceThreadIdentityCandidates,
     getLaneThreadIdentity,
     getLaneThreadIdentityCandidates,
     type ThreadMetaData,
@@ -523,7 +521,11 @@ export const drawOnMove = ({ interactorMouseState, ...args }: DrawArgs): void =>
 };
 
 const heightMap = new Map();
-const sourceThreadHeightMap = new Map<string, number>();
+interface CollapsedAncestorAnchor {
+    top: number;
+    height: number;
+}
+const collapsedThreadAnchorMap = new Map<string, CollapsedAncestorAnchor>();
 // 是否是线程缩略图
 const threadIsCol: Map<string, boolean> = new Map();
 // 是否是进程缩略图
@@ -557,6 +559,31 @@ const markUnitCollapsed = (metadata: ThreadMetaData): void => {
     }
 };
 
+const recordCollapsedDescendantAnchors = (unit: InsightUnit, anchor: CollapsedAncestorAnchor, count: number = 1): void => {
+    if (!unit.children || count > MAX_RECURSIVE_COUNT) {
+        return;
+    }
+    for (const child of unit.children) {
+        const metadata = child.metadata as ThreadMetaData;
+        const threadIds = metadata.threadIdList?.length
+            ? metadata.threadIdList
+            : metadata.threadId === undefined ? [] : [metadata.threadId];
+        if (metadata.cardId !== undefined && metadata.processId !== undefined) {
+            for (const threadId of threadIds) {
+                collapsedThreadAnchorMap.set(
+                    getLaneThreadIdentity(metadata.cardId, metadata.processId, threadId, metadata.dbPath), anchor,
+                );
+            }
+        }
+        metadata.threadSourceList?.forEach(source => {
+            collapsedThreadAnchorMap.set(
+                getLaneThreadIdentity(source.cardId, source.processId ?? '', source.threadId, source.dbPath), anchor,
+            );
+        });
+        recordCollapsedDescendantAnchors(child, anchor, count + 1);
+    }
+};
+
 const recordUnitHeight = (unit: InsightUnit, height: number): void => {
     const metadata = unit.metadata as ThreadMetaData;
 
@@ -582,17 +609,25 @@ const recordUnitHeight = (unit: InsightUnit, height: number): void => {
     if (metadata.threadId !== undefined && metadata.processId !== undefined) {
         if (metadata.threadIdList) {
             for (const threadId of metadata.threadIdList) {
-                heightMap.set(getLaneThreadIdentity(metadata.cardId, metadata.processId, threadId, metadata.dbPath), height);
-                sourceThreadHeightMap.set(getLaneSourceThreadIdentity(metadata.cardId, threadId, metadata.dbPath), height);
+                const threadKey = getLaneThreadIdentity(metadata.cardId, metadata.processId, threadId, metadata.dbPath);
+                heightMap.set(threadKey, height);
             }
         } else {
-            heightMap.set(getLaneThreadIdentity(metadata.cardId, metadata.processId, metadata.threadId, metadata.dbPath), height);
-            sourceThreadHeightMap.set(getLaneSourceThreadIdentity(metadata.cardId, metadata.threadId, metadata.dbPath), height);
+            const threadKey = getLaneThreadIdentity(metadata.cardId, metadata.processId, metadata.threadId, metadata.dbPath);
+            heightMap.set(threadKey, height);
         }
+        metadata.threadSourceList?.forEach(source => {
+            heightMap.set(
+                getLaneThreadIdentity(source.cardId, source.processId ?? '', source.threadId, source.dbPath), height,
+            );
+        });
 
         if (unit.collapsible && !unit.isExpanded) {
             markUnitCollapsed(metadata);
         }
+    }
+    if (unit.children?.length && unit.collapsible && !unit.isExpanded) {
+        recordCollapsedDescendantAnchors(unit, { top: height, height: unit.height() });
     }
 };
 
@@ -677,7 +712,7 @@ const updateDrawLines = (ctx: CanvasRenderingContext2D, session: Session, theme:
         return;
     }
     heightMap.clear();
-    sourceThreadHeightMap.clear();
+    collapsedThreadAnchorMap.clear();
     threadIsCol.clear();
     processIsCol.clear();
     unitIsHidden.clear();
@@ -719,12 +754,14 @@ export const getHeight = (session: Session, data: DataBlock, cardId: string, cat
     let height;
     const threadKeys = getLaneThreadIdentityCandidates(cardId, data.pid, data.tid, data.dbPath);
     const processKeys = getLaneProcessIdentityCandidates(cardId, data.pid, data.dbPath);
-    const sourceThreadKeys = getLaneSourceThreadIdentityCandidates(cardId, data.tid, data.dbPath);
     const threadKey = threadKeys.find(key => heightMap.has(key)) ?? threadKeys[0];
     const processKey = processKeys.find(key => heightMap.has(key)) ?? processKeys[0];
-    const unitHeight = heightMap.get(threadKey) ?? sourceThreadHeightMap.get(
-        sourceThreadKeys.find(key => sourceThreadHeightMap.has(key)) ?? sourceThreadKeys[0],
-    );
+    const threadHeight = heightMap.get(threadKey);
+    const collapsedThreadAnchor = threadKeys.map(key => collapsedThreadAnchorMap.get(key)).find(anchor => anchor !== undefined);
+    if (threadHeight === undefined && collapsedThreadAnchor !== undefined) {
+        return UNDRAW_HEIGHT + collapsedThreadAnchor.top - session.scrollTop + (0.5 * collapsedThreadAnchor.height);
+    }
+    const unitHeight = threadHeight;
     let processHeight = heightMap.get(processKey);
     // 卡折叠的情况
     if (unitHeight === undefined && processHeight === undefined) {
