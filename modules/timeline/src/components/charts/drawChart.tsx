@@ -66,6 +66,8 @@ export const Chart = observer(<T extends ChartType>(props: {
 }) => {
     const { t } = useTranslation('timeline');
     const { desc, serial, title, session, metadata, width, phase, unit } = props;
+    // Keep in-flight requests shared across resize renders so only the latest queued view is fetched.
+    const mapFunc = useMemo(() => customDebounce(desc.mapFunc), [desc.mapFunc]);
     const offlinePlaceholder = useMemo(() => {
         return <ChartErrorBoundary height={desc.height} width={width} phase={phase}>
             <div className="chart-offline" style={{ width, height: desc.height }}/>
@@ -77,7 +79,7 @@ export const Chart = observer(<T extends ChartType>(props: {
     const chartConfig = isGetChartConfig(desc.config) ? desc.config(session, metadata) : desc.config;
     const chartProps: ChartProps<T> = {
         session,
-        mapFunc: customDebounce(desc.mapFunc),
+        mapFunc,
         margin: 0,
         title,
         width,

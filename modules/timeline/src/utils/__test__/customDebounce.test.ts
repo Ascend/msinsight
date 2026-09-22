@@ -68,4 +68,63 @@ describe('customDebounce', () => {
 
         expect(mockCallback).toHaveBeenCalledTimes(2);
     });
+
+    it('should retry after the first request fails', async () => {
+        const error = new Error('request failed');
+        const mockCallback = jest.fn().mockRejectedValueOnce(error).mockResolvedValue('recovered');
+        const debouncedFunction = customDebounce(mockCallback);
+
+        await expect(debouncedFunction()).rejects.toBe(error);
+        await expect(debouncedFunction()).resolves.toBe('recovered');
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+    });
+
+    it('should reject trailing and queued calls when the trailing request fails', async () => {
+        let resolveFirst!: (value: string) => void;
+        let rejectTrailing!: (error: Error) => void;
+        const firstRequest = new Promise<string>(resolve => { resolveFirst = resolve; });
+        const trailingRequest = new Promise<string>((resolve, reject) => { rejectTrailing = reject; });
+        const mockCallback = jest.fn()
+            .mockReturnValueOnce(firstRequest)
+            .mockReturnValueOnce(trailingRequest)
+            .mockResolvedValue('recovered');
+        const debouncedFunction = customDebounce(mockCallback);
+        const firstCall = debouncedFunction();
+        const trailingCall = debouncedFunction();
+
+        resolveFirst('first result');
+        await firstCall;
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+
+        const queuedCall = debouncedFunction();
+        const results = Promise.allSettled([trailingCall, queuedCall]);
+        const error = new Error('trailing request failed');
+        rejectTrailing(error);
+
+        await expect(results).resolves.toEqual([
+            { status: 'rejected', reason: error },
+            { status: 'rejected', reason: error },
+        ]);
+        await expect(debouncedFunction()).resolves.toBe('recovered');
+        expect(mockCallback).toHaveBeenCalledTimes(3);
+    });
+
+    it('should settle all queued calls when the first request fails', async () => {
+        let rejectFirst!: (error: Error) => void;
+        const firstRequest = new Promise<string>((resolve, reject) => { rejectFirst = reject; });
+        const mockCallback = jest.fn().mockReturnValueOnce(firstRequest).mockResolvedValue('recovered');
+        const debouncedFunction = customDebounce(mockCallback);
+        const results = Promise.allSettled([debouncedFunction(), debouncedFunction(), debouncedFunction()]);
+        const error = new Error('first request failed');
+
+        rejectFirst(error);
+
+        await expect(results).resolves.toEqual([
+            { status: 'rejected', reason: error },
+            { status: 'rejected', reason: error },
+            { status: 'rejected', reason: error },
+        ]);
+        await expect(debouncedFunction()).resolves.toBe('recovered');
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+    });
 });
