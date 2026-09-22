@@ -166,6 +166,8 @@ const showAllHidedUnits = (session: Session): void => {
 function showHiddenUnit(session: Session): void {
     showAllHidedUnits(session);
     runInAction(() => {
+        // Remove restored placeholders from the selection before further checkbox selections.
+        session.selectedUnits = session.selectedUnits.filter(unit => unit.name !== 'Empty');
         session.renderTrigger = !session.renderTrigger;
     });
 }
