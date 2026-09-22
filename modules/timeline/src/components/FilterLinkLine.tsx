@@ -524,6 +524,7 @@ export const FilterLinkLine = observer(({ session }: { session: Session}): JSX.E
         session.ridLineType,
         session.drawLineMode,
         session.shouldRefetchLines,
+        session.lockRange,
     ];
     React.useEffect(() => {
         if (session.drawLineMode !== 'single') {
