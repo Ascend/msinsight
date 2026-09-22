@@ -7,6 +7,7 @@ import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
 
 const Pane = styled.div`
+    position: relative;
     display: flex;
     flex: 1;
     min-width: 0;
@@ -34,6 +35,12 @@ const Divider = styled.div`
     button:focus-visible { outline: 2px solid ${(props): string => props.theme.primaryColor}; }
     .split-handle { width: 3px; height: 32px; border-radius: 3px; background: ${(props): string => props.theme.bgColorLighter};
         box-shadow: 0 0 0 1px ${(props): string => props.theme.borderColorLighter}; pointer-events: none; }
+    &[data-collapsed='right'], &[data-collapsed='left'] {
+        position: absolute; top: 0; bottom: 0; width: 20px; z-index: 2;
+    }
+    &[data-collapsed='right'] { right: 0; }
+    &[data-collapsed='left'] { left: 0; }
+    &[data-collapsed='right']::before, &[data-collapsed='left']::before { display: none; }
 `;
 interface Props { chart: React.ReactNode; table: React.ReactNode; visible: boolean; onVisibleChange: (visible: boolean) => void }
 
@@ -106,7 +113,7 @@ export const OverviewSplitPane = ({ chart, table, visible, onVisibleChange }: Pr
         <div className="chart-pane" data-testid="overviewChartPane" style={{ display: visible && chartCollapsed ? 'none' : undefined }}>{chart}</div>
         <Divider data-testid="overviewPanelDivider" role="separator" tabIndex={0}
             aria-label={t('overviewResizePanels')} aria-orientation="vertical" aria-valuemin={0} aria-valuemax={available} aria-valuenow={width}
-            data-dragging={dragging}
+            data-dragging={dragging} data-collapsed={!visible ? 'right' : chartCollapsed ? 'left' : undefined}
             onPointerDown={(event): void => {
                 if (event.button !== 0) return;
                 event.preventDefault();
@@ -135,6 +142,6 @@ export const OverviewSplitPane = ({ chart, table, visible, onVisibleChange }: Pr
                     ? control('overviewShowChart', false, restore)
                     : <span className="split-handle" aria-hidden="true" />}
         </Divider>
-        <div className="ranking-pane" data-testid="overviewRankingPane" style={{ width, display: visible ? undefined : 'none' }}>{table}</div>
+        <div className="ranking-pane" data-testid="overviewRankingPane" style={{ width: visible && chartCollapsed ? '100%' : width, display: visible ? undefined : 'none' }}>{table}</div>
     </Pane>;
 };
