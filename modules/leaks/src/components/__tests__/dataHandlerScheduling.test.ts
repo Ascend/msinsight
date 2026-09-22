@@ -248,7 +248,7 @@ describe('memory block data request scheduling', () => {
         expect(maxActiveRequests).toBeLessThanOrEqual(2);
     });
 
-    it('commits the global maximum once after overview preloading completes', async () => {
+    it('does not republish a global maximum when later windows have smaller values', async () => {
         const session = createSession();
         session.selectedSliceIndex = -1;
         session.deviceIds = { 0: ['BLOCK'] };
@@ -276,6 +276,47 @@ describe('memory block data request scheduling', () => {
 
         expect(updateCount).toBe(1);
         expect(globalMaxSizes).toEqual({ 0: { BLOCK: 20 } });
+    });
+
+    it('publishes completed windows before the slowest request and deduplicates overlapping preloads', async () => {
+        const session = createSession();
+        session.deviceIds = { 0: ['BLOCK'] };
+        session.snapshotGlobalMaxSizes = {};
+        session.snapshotSlices[0].readySlices = [0, 1, 2, 3];
+        const finish = new Map<number, (data: any) => void>();
+        mockedGetSnapshotAllocations.mockImplementation(param => new Promise(resolve => finish.set(param.sliceIndex ?? -1, resolve)));
+        const flush = async (): Promise<void> => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+        const first = preloadSnapshotSliceOverviews(session);
+        await flush();
+        finish.get(3)?.({ allocations: [{ timestamp: 300, totalSize: 3 }] });
+        await flush();
+        expect(session.sliceOverviewData[0][3].allocations[0].totalSize).toBe(3);
+        expect(session.sliceOverviewData[0][2]).toBeUndefined();
+        expect(session.snapshotGlobalMaxSizes[0].BLOCK).toBe(3);
+        const second = preloadSnapshotSliceOverviews(session);
+        await flush();
+        expect(mockedGetSnapshotAllocations.mock.calls.map(([param]) => param.sliceIndex)).toEqual([3, 2, 1]);
+        finish.get(2)?.({ allocations: [{ timestamp: 200, totalSize: 8 }] });
+        finish.get(1)?.({ allocations: [{ timestamp: 100, totalSize: 1 }] });
+        await Promise.all([first, second]);
+        expect(session.snapshotGlobalMaxSizes[0].BLOCK).toBe(8);
+        expect(Object.keys(session.sliceOverviewData[0])).toEqual(['1', '2', '3']);
+    });
+
+    it('discards old responses and skips queued requests after the file changes', async () => {
+        const session = createSession();
+        session.deviceIds = { 0: ['BLOCK'] };
+        session.snapshotSlices[0].readySlices = [0, 1, 2, 3, 4];
+        const finish: Array<(data: any) => void> = [];
+        mockedGetSnapshotAllocations.mockImplementation(() => new Promise(resolve => finish.push(resolve)));
+        const task = preloadSnapshotSliceOverviews(session);
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+        expect(finish).toHaveLength(2);
+        session.fileHash = 'new-file';
+        finish.forEach(resolve => resolve({ allocations: [{ timestamp: 0, totalSize: 10 }] }));
+        await task;
+        expect(session.sliceOverviewData).toEqual({});
+        expect(mockedGetSnapshotAllocations).toHaveBeenCalledTimes(2);
     });
 
     it('renders a finalized snapshot cache before preloading the remaining overviews', async () => {

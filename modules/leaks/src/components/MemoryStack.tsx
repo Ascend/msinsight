@@ -294,7 +294,9 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     }, [session.module, session.fileHash, session.deviceId, session.eventType, snapshotGlobalMaxSize]);
 
     useEffect(() => {
-        setZoomData(session.allocationData.allocations.map((item: any) => ([item.timestamp, item.totalSize])));
+        setZoomData(session.module === 'memsnapshot'
+            ? []
+            : session.allocationData.allocations.map((item: any) => ([item.timestamp, item.totalSize])));
         const { minTime, maxTime } = getInitialZoomDomain({
             blockMinTimestamp: session.leaksWorkerInfo.sizeInfo.minTimestamp,
             blockMaxTimestamp: session.leaksWorkerInfo.sizeInfo.maxTimestamp,
@@ -310,6 +312,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
             commitRangeSideEffects([minTime, maxTime]);
         }
     }, [
+        session.module,
         session.allocationData.allocations,
         session.leaksWorkerInfo.sizeInfo.minTimestamp,
         session.leaksWorkerInfo.sizeInfo.maxTimestamp,

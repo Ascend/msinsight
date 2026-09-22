@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  * MindStudio is licensed under Mulan PSL v2.
  */
-import { OverviewIndex, overviewY, sampleOverview, summarizeOverview } from '../snapshotOverview';
+import { OverviewIndex, OverviewTimelineIndex, getOverviewIndex, getOverviewSummary, overviewY, sampleOverview, summarizeOverview } from '../snapshotOverview';
 
 describe('snapshot overview aggregation', () => {
     it('retains a one-event peak and valley inside the same pixel in event order', () => {
@@ -69,4 +69,45 @@ it('indexed sampling matches exact per-pixel extrema and clips sparse boundaries
     expect(sparse.sample(101, 150, 100)).toEqual([]);
     const repeated = [2, 8, 0, 4].map(totalSize => ({ timestamp: 4, totalSize }));
     expect(new OverviewIndex(repeated).sample(4, 4, 100)).toEqual(repeated);
+});
+
+it('scans partial blocks exactly across block boundaries and reuses immutable payloads', () => {
+    const points = Array.from({ length: 513 }, (_, timestamp) => ({ timestamp, totalSize: (timestamp * 113) % 317 }));
+    const index = getOverviewIndex(points);
+    expect(index.points).toBe(points);
+    expect(getOverviewIndex(points)).toBe(index);
+    expect(getOverviewSummary(points)).toBe(getOverviewSummary(points));
+    expect(getOverviewIndex([...points])).not.toBe(index);
+    for (const start of [0, 1, 63, 64, 65, 127, 128, 511]) {
+        for (const end of [start, Math.min(512, start + 1), Math.min(512, start + 80), 512]) {
+            for (const width of [1, 7, 64]) {
+                expect(index.sample(start, end, width)).toEqual(sampleOverview(points, start, end, width));
+            }
+        }
+    }
+});
+
+it('samples a window timeline on the global pixel grid without losing window extrema', () => {
+    const points = Array.from({ length: 1000 }, (_, timestamp) => ({ timestamp, totalSize: (timestamp * 113) % 317 }));
+    points[127].totalSize = 99999;
+    points[128].totalSize = -99999;
+    const segments = [0, 128, 577].map((start, index, starts) => ({
+        start,
+        end: (starts[index + 1] ?? points.length) - 1,
+        points: points.slice(start, starts[index + 1] ?? points.length),
+    }));
+    const index = new OverviewTimelineIndex(segments);
+    for (const width of [1, 7, 31, 1000]) {
+        expect(index.sample(0, 999, width)).toEqual(sampleOverview(points, 0, 999, width));
+    }
+    expect(index.sample(128, 577, 1)).toEqual(sampleOverview(points, 128, 577, 1));
+});
+
+it('interpolates view edges across sparse windows and excludes out-of-window samples', () => {
+    const index = new OverviewTimelineIndex([
+        { start: 0, end: 49, points: [{ timestamp: -1, totalSize: 1000 }, { timestamp: 0, totalSize: 10 }] },
+        { start: 50, end: 100, points: [{ timestamp: 100, totalSize: 30 }, { timestamp: 101, totalSize: 1000 }] },
+    ]);
+    expect(index.sample(25, 75, 100)).toEqual([{ timestamp: 25, totalSize: 15 }, { timestamp: 75, totalSize: 25 }]);
+    expect(index.sample(0, 100, 100)).toEqual([{ timestamp: 0, totalSize: 10 }, { timestamp: 100, totalSize: 30 }]);
 });
