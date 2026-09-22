@@ -53,4 +53,7 @@ void TaskTable::TaskIdHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultS
 void TaskTable::ModelIdHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     taskPO.modelId = resultSet->GetUint64(TaskColumn::MODEL_ID);
 }
+void TaskTable::DepthHandle(TaskPO &taskPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    taskPO.depth = resultSet->GetUint32(TaskColumn::DEPTH);
+}
 }

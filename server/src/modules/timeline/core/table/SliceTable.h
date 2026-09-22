@@ -27,6 +27,7 @@ struct SlicePO {
     uint64_t duration = 0;
     uint64_t endTime = 0;
     uint64_t trackId = 0;
+    uint32_t depth = 0;
     std::string name;
     std::string args;
     std::string cat;
@@ -45,7 +46,8 @@ class SliceTable : public Table<SlicePO> {
             {SliceColumn::TIMESTAMP, TimeStampHandle}, {SliceColumn::DURATION, DurationHandle},
             {SliceColumn::NAME, NameHandle}, {SliceColumn::TRACKID, TrackIdHandle}, {SliceColumn::CAT, CatHandle},
             {SliceColumn::ARGS, ArgsHandle}, {SliceColumn::CNAME, CnameHandle}, {SliceColumn::ENDTIME, EndTimeHandle},
-            {SliceColumn::FLAGID, FlagIdHandle}, {SliceColumn::GROUPID, GroupIdHandle}};
+            {SliceColumn::FLAGID, FlagIdHandle}, {SliceColumn::GROUPID, GroupIdHandle},
+            {SliceColumn::DEPTH, DepthHandle}};
 
         return assignMap;
     }
@@ -64,6 +66,7 @@ class SliceTable : public Table<SlicePO> {
     static void EndTimeHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void FlagIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void GroupIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void DepthHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 

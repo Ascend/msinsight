@@ -1920,7 +1920,8 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
     if (type == PROCESS_TYPE::API) {
         filterSuffix += filterJoin.empty() ? "" : "api.name";
         std::string tidSql = item.isPythonStack ? "'python_stack:' || api.globalTid" : "'pytorch'";
-        std::string pythonFunctionFilter = item.isPythonStack ? " AND api.type = 50003 " : " AND api.type != 50003 ";
+        std::string pythonFunctionFilter =
+            item.isPythonStack ? " AND api.type = 50003 " : " AND (api.type IS NULL OR api.type != 50003) ";
         tempSql = " SELECT api.ROWID as id, api.globalTid as pid, " + tidSql +
             " as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
             "'' as deviceId, ids.value as value from " + TABLE_API +
@@ -1969,7 +1970,7 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
         filterSuffix += filterJoin.empty() ? "" : "dpu.opName";
         tempSql = " SELECT dpu.ROWID as id, 'DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || "
             "CAST(dpu.dpuDeviceId AS TEXT) as pid, dpu.streamId as tid, dpu.startNs as timestamp, "
-            "dpu.endNs as endTime, 0 as depth, '' as deviceId, ids.value as value FROM " +
+            "dpu.endNs as endTime, dpu.depth, '' as deviceId, ids.value as value FROM " +
             TABLE_DPU_TASK + " dpu join ids on ids.id = dpu.opName" + filterSuffix +
             " WHERE dpu.globalTid IS NOT NULL AND dpu.dpuDeviceId IS NOT NULL AND dpu.streamId IS NOT NULL "
             "AND ('DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || CAST(dpu.dpuDeviceId AS TEXT)) = ? "
@@ -2080,7 +2081,7 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
         std::string metaTypeSql = singleQuery.isPythonStack ?
             "'" + PythonStackHelper::GetPythonStackMetaType() + "'" : "'PYTORCH_API'";
         std::string pythonFunctionFilter = singleQuery.isPythonStack ? " AND api.type = 50003 " :
-            " AND api.type != 50003 ";
+            " AND (api.type IS NULL OR api.type != 50003) ";
         tempSql = " SELECT api.ROWID as id, api.globalTid as pid, " + tidSql +
             " as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, " +
             metaTypeSql + " as metaType from " + TABLE_API +
@@ -2119,7 +2120,7 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
     } else if (type == PROCESS_TYPE::DPU) {
         tempSql = " SELECT dpu.ROWID as id, 'DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || "
             "CAST(dpu.dpuDeviceId AS TEXT) as pid, dpu.streamId as tid, dpu.startNs as timestamp, "
-            "dpu.endNs as endTime, 0 as depth, 'DPU' as metaType FROM " + TABLE_DPU_TASK +
+            "dpu.endNs as endTime, dpu.depth, 'DPU' as metaType FROM " + TABLE_DPU_TASK +
             " dpu join ids on ids.id = dpu.opName WHERE dpu.globalTid IS NOT NULL "
             "AND dpu.dpuDeviceId IS NOT NULL AND dpu.streamId IS NOT NULL "
             "AND ('DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || CAST(dpu.dpuDeviceId AS TEXT)) = ? "

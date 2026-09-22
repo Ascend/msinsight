@@ -36,7 +36,7 @@ void DpuRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
         ServerLog::Error("DPU open database failed.");
         return;
     }
-    const std::string sql = "SELECT ROWID AS id, startNs, endNs FROM " + TABLE_DPU_TASK +
+    const std::string sql = "SELECT ROWID AS id, startNs, endNs, depth FROM " + TABLE_DPU_TASK +
         " WHERE ('DPU_' || CAST(globalTid AS TEXT) || '_' || CAST(dpuDeviceId AS TEXT)) = ? "
         "AND streamId = ? AND startNs <= ? AND endNs >= ?";
     auto stmt = database->CreatPreparedStatement(sql);
@@ -56,6 +56,7 @@ void DpuRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
         sliceDomain.id = resultSet->GetUint64("id");
         sliceDomain.timestamp = resultSet->GetUint64("startNs");
         sliceDomain.endTime = resultSet->GetUint64("endNs");
+        sliceDomain.depth = resultSet->GetUint32("depth");
         sliceVec.emplace_back(sliceDomain);
     }
 }
@@ -71,7 +72,7 @@ void DpuRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::ve
         return;
     }
     const std::string idList = StringUtil::join(sliceIds, ", ");
-    const std::string sql = "SELECT dpu.ROWID AS id, dpu.startNs, dpu.endNs, "
+    const std::string sql = "SELECT dpu.ROWID AS id, dpu.startNs, dpu.endNs, dpu.depth, "
                             "COALESCE(nameStr.value, CAST(dpu.opName AS TEXT)) AS name FROM " +
         TABLE_DPU_TASK + " dpu LEFT JOIN " + TABLE_STRING_IDS +
         " nameStr ON dpu.opName = nameStr.id WHERE dpu.ROWID IN (" + idList + ")";
@@ -90,6 +91,7 @@ void DpuRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::ve
         competeSlice.id = resultSet->GetUint64("id");
         competeSlice.timestamp = resultSet->GetUint64("startNs");
         competeSlice.endTime = resultSet->GetUint64("endNs");
+        competeSlice.depth = resultSet->GetUint32("depth");
         competeSlice.name = resultSet->GetString("name");
         competeSliceVec.emplace_back(competeSlice);
     }
@@ -103,7 +105,7 @@ bool DpuRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDom
     }
     const std::string sql =
         "SELECT dpu.ROWID AS id, dpu.dpuDeviceId, dpu.globalTid, dpu.globalTaskId, dpu.streamId, dpu.taskId, "
-        "COALESCE(nameStr.value, CAST(dpu.opName AS TEXT)) AS name, dpu.startNs, dpu.endNs, "
+        "COALESCE(nameStr.value, CAST(dpu.opName AS TEXT)) AS name, dpu.startNs, dpu.endNs, dpu.depth, "
         "COALESCE(argsStr.value, CAST(dpu.args AS TEXT)) AS args FROM " +
         TABLE_DPU_TASK + " dpu LEFT JOIN " + TABLE_STRING_IDS + " nameStr ON dpu.opName = nameStr.id LEFT JOIN " +
         TABLE_STRING_IDS + " argsStr ON dpu.args = argsStr.id WHERE dpu.ROWID = ?";
@@ -123,6 +125,7 @@ bool DpuRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDom
     competeSliceDomain.id = resultSet->GetUint64("id");
     competeSliceDomain.timestamp = resultSet->GetUint64("startNs");
     competeSliceDomain.endTime = resultSet->GetUint64("endNs");
+    competeSliceDomain.depth = resultSet->GetUint32("depth");
     competeSliceDomain.name = resultSet->GetString("name");
 
     document_t json(kObjectType);

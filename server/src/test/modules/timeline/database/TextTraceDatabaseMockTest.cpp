@@ -181,8 +181,8 @@ TEST_F(TextTraceDatabaseMockTest, QueryThreadsWhenTextPythonStackThenUsePythonSt
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
-        "VALUES (1, 100, 100, 'python_outer', 0, 990001, 'python_function', '', '', 200, ''), "
-        "(2, 120, 50, 'python_inner', 0, 990001, 'python_function', '', '', 170, ''), "
+        "VALUES (1, 100, 100, 'python_outer', 6, 990001, 'python_function', '', '', 200, ''), "
+        "(2, 120, 50, 'python_inner', 7, 990001, 'python_function', '', '', 170, ''), "
         "(3, 220, 30, 'aten::add', 0, 990001, '', '', '', 250, '');");
     DatabaseTestCaseMockUtil::ExecuteSql(dbPtr, "PRAGMA user_version = " + std::to_string(DATABASE_VERSION));
     sqlite3_close(dbPtr);
@@ -205,6 +205,8 @@ TEST_F(TextTraceDatabaseMockTest, QueryThreadsWhenTextPythonStackThenUsePythonSt
     requestParams.rankId = rankId;
     requestParams.startTime = 0;
     requestParams.endTime = 300;
+    requestParams.startDepth = "6";
+    requestParams.endDepth = "7";
     Protocol::Metadata metadata;
     metadata.pid = "100";
     metadata.tid = "100";
@@ -249,9 +251,9 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsPythonStackUsesVir
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
-        "VALUES (1, 100, 100, 'normal_parent', 0, 990101, '', '', '', 200, ''), "
-        "(2, 110, 40, 'python_function', 0, 990101, 'python_function', '', '', 150, ''), "
-        "(3, 300, 50, 'target_op', 0, 990102, '', '', '', 350, '');");
+        "VALUES (1, 100, 100, 'normal_parent', 1, 990101, '', '', '', 200, ''), "
+        "(2, 110, 40, 'python_function', 6, 990101, 'python_function', '', '', 150, ''), "
+        "(3, 300, 50, 'target_op', 3, 990102, '', '', '', 350, '');");
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
         "(990101, '10', '1', 'python_thread', 0), (990102, '20', '1', 'target_thread', 1);");
@@ -286,11 +288,11 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsPythonStackUsesVir
     EXPECT_EQ(flow.from.pid, "1");
     EXPECT_EQ(flow.from.tid, "python_stack:text:10");
     EXPECT_EQ(flow.from.metaType, "PYTORCH_API_PYTHON_STACK");
-    EXPECT_EQ(flow.from.depth, 0);
+    EXPECT_EQ(flow.from.depth, 6);
     EXPECT_EQ(flow.to.pid, "1");
     EXPECT_EQ(flow.to.tid, "20");
     EXPECT_EQ(flow.to.metaType, "TEXT");
-    EXPECT_EQ(flow.to.depth, 0);
+    EXPECT_EQ(flow.to.depth, 3);
 
     database.reset();
     DataBaseManager::Instance().ReleaseDatabaseByRankId(rankId);
@@ -314,9 +316,9 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsOrdinaryOperatorEx
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
-        "VALUES (1, 100, 100, 'python_function', 0, 990103, 'python_function', '', '', 200, ''), "
-        "(2, 110, 40, 'ordinary_op', 1, 990103, '', '', '', 150, ''), "
-        "(3, 300, 50, 'target_op', 0, 990104, '', '', '', 350, '');");
+        "VALUES (1, 100, 100, 'python_function', 8, 990103, 'python_function', '', '', 200, ''), "
+        "(2, 110, 40, 'ordinary_op', 5, 990103, '', '', '', 150, ''), "
+        "(3, 300, 50, 'target_op', 2, 990104, '', '', '', 350, '');");
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
         "(990103, '10', '1', 'source_thread', 0), (990104, '20', '2', 'target_thread', 1);");
@@ -350,12 +352,103 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsOrdinaryOperatorEx
     EXPECT_EQ(flow.from.id, "2");
     EXPECT_EQ(flow.from.tid, "10");
     EXPECT_EQ(flow.from.metaType, "TEXT");
-    // ordinary_op 被 Python Function 完全包裹；普通泳道排除 Python Stack 后应重新落到 depth 0。
-    EXPECT_EQ(flow.from.depth, 0);
+    EXPECT_EQ(flow.from.depth, 5);
 
     database.reset();
     DataBaseManager::Instance().ReleaseDatabaseByRankId(rankId);
     std::remove(dbPath.c_str());
+}
+
+TEST_F(TextTraceDatabaseMockTest, SearchDetailKernelAndSameOperatorsUsePersistedDepth) {
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(880001, '88', '8', 'depth_thread', 0);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 1000, 40, 'persisted_depth_target', 6, 880001, '', '', '', 1040, 'flag_depth');");
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+    const std::string rankId = "text_depth_consumers";
+    TrackInfoManager::Instance().UpdateTrackIdMap(rankId, {{880001, {"88", "8"}}});
+
+    Protocol::SearchSliceParams searchParams;
+    searchParams.rankId = rankId;
+    searchParams.searchContent = "persisted_depth_target";
+    searchParams.isMatchExact = true;
+    searchParams.isMatchCase = true;
+    Protocol::SearchSliceBody searchBody;
+    ASSERT_TRUE(database.SearchSliceName(searchParams, 0, 0, searchBody, {}));
+    EXPECT_EQ(searchBody.depth, 6);
+
+    Protocol::SearchAllSliceParams allParams;
+    allParams.rankId = rankId;
+    allParams.searchContent = "persisted_depth_target";
+    allParams.isMatchExact = true;
+    allParams.isMatchCase = true;
+    allParams.current = 1;
+    allParams.pageSize = 10;
+    allParams.orderBy = "timestamp";
+    Protocol::SearchAllSlicesBody allBody;
+    ASSERT_TRUE(database.SearchAllSlicesDetails(allParams, allBody, 0, {}));
+    ASSERT_EQ(allBody.searchAllSlices.size(), 1);
+    EXPECT_EQ(allBody.searchAllSlices[0].depth, 6);
+
+    Protocol::KernelParams kernelParams;
+    kernelParams.rankId = rankId;
+    kernelParams.name = "persisted_depth_target";
+    kernelParams.timestamp = 1000;
+    Protocol::OneKernelBody kernelBody;
+    ASSERT_TRUE(database.QueryKernelDepthAndThread(kernelParams, kernelBody, 0));
+    EXPECT_EQ(kernelBody.depth, 6);
+
+    Protocol::UnitThreadsOperatorsParams sameParams;
+    sameParams.rankId = rankId;
+    sameParams.name = "persisted_depth_target";
+    sameParams.startTime = 0;
+    sameParams.endTime = 2000;
+    sameParams.orderBy = "timestamp";
+    sameParams.order = "ASC";
+    sameParams.current = 1;
+    sameParams.pageSize = 10;
+    Protocol::UnitThreadsOperatorsBody sameBody;
+    ASSERT_TRUE(database.QueryThreadSameOperatorsDetails(sameParams, sameBody, 0, {880001}));
+    ASSERT_EQ(sameBody.sameOperatorsDetails.size(), 1);
+    EXPECT_EQ(sameBody.sameOperatorsDetails[0].depth, 6);
+}
+
+TEST_F(TextTraceDatabaseMockTest, FetchSliceDetailsReturnsPersistedDepth) {
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(880001, '88', '8', 'depth_thread', 0);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 1000, 40, 'persisted_depth_target', 6, 880001, '', '', '', 1040, '');");
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+
+    LightSliceCache cache;
+    std::vector<TargetRow> rows = {{SliceTableType::TASK, 1}};
+    Protocol::SearchAllSliceParams params;
+    params.fileId = "text_file";
+    params.rankId = "text_rank";
+    Protocol::SearchAllSlicesBody body;
+
+    ASSERT_TRUE(database.FetchSliceDetails(cache, rows, params, body, 100));
+    ASSERT_EQ(body.searchAllSlices.size(), 1);
+    EXPECT_EQ(body.searchAllSlices[0].depth, 6);
+    EXPECT_EQ(body.searchAllSlices[0].timestamp, 900);
+    EXPECT_EQ(body.searchAllSlices[0].tid, "88");
+    EXPECT_EQ(body.searchAllSlices[0].pid, "8");
 }
 
 /**
@@ -437,9 +530,23 @@ TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbOpenThenReturnTrue) {
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     database.SetDbPtr(dbPtr);
     bool success = database.CreateIndex();
     EXPECT_EQ(success, true);
+}
+
+TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenSqlFailsThenReturnFalse) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(
+        dbPtr, "CREATE TABLE slice(timestamp INTEGER, end_time INTEGER, track_id INTEGER, cat TEXT);");
+    database.SetDbPtr(dbPtr);
+
+    EXPECT_FALSE(database.CreateIndex());
 }
 
 /**
@@ -1528,7 +1635,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbOpen) {
     std::string sliceData =
         "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", \"track_id\", "
         "\"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (5, 1726830796027907842, 5180, "
-        "'DynamicQuant', NULL, 2, NULL, '{\"Model Id\":\"4294967295\",\"Task Type\":\"AI_CORE\",\"Physic Stream "
+        "'DynamicQuant', 6, 2, NULL, '{\"Model Id\":\"4294967295\",\"Task Type\":\"AI_CORE\",\"Physic Stream "
         "Id\":\"3\",\"Task Id\":\"3923\",\"Batch Id\":\"0\",\"Subtask "
         "Id\":\"4294967295\",\"connection_id\":\"64685\"}', '', 1726830796027913022, '');";
     std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
@@ -1543,10 +1650,15 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbOpen) {
     Protocol::OperatorFusionResBody resBody;
     const uint64_t minTimestamp = 9;
     rule.push_back({{"Transpose"}, "", ""});
+    params.deviceId = "11";
+    params.current = 1;
+    params.pageSize = 10;
     params.orderBy = "name";
     params.order = "DESC";
     bool result = database.QueryFusibleOpData(params, rule, resBody, minTimestamp);
-    EXPECT_EQ(result, true);
+    ASSERT_TRUE(result);
+    ASSERT_EQ(resBody.data.size(), 1);
+    EXPECT_EQ(resBody.data[0].baseInfo.depth, 6);
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryHostInfo) {
@@ -1834,6 +1946,49 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataPlacesPythonStacksBefore
         EXPECT_EQ(pythonStack->metaData.processName, metaData[0]->metaData.processName);
         EXPECT_TRUE(pythonStack->children.empty());
     }
+}
+
+TEST_F(TextTraceDatabaseMockTest, MetadataUsesIndependentPersistedDepths) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    database.SetDbPtr(dbPtr);
+    database.CreateTable();
+    ASSERT_EQ(
+        sqlite3_exec(dbPtr,
+            "INSERT INTO process(pid, process_name, label, process_sort_index) VALUES ('10', 'Process 10', '', 0);"
+            "INSERT INTO thread(track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+            "(100, '7', '10', 'Thread 7', 0), (101, '8', '10', 'Thread 8', 1);"
+            "INSERT INTO slice(id, timestamp, duration, name, depth, track_id, cat, end_time) VALUES "
+            "(1, 0, 10, 'ordinary', 3, 100, NULL, 10),"
+            "(2, 1, 8, 'python-1', 6, 100, 'python_function', 9),"
+            "(3, 2, 6, 'python-2', 8, 100, 'python_function', 8);",
+            nullptr, nullptr, nullptr),
+        SQLITE_OK);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    ASSERT_TRUE(database.QueryUnitsMetadata("9", metaData));
+    ASSERT_EQ(metaData.size(), 1);
+    const auto &threads = metaData.front()->children;
+    ASSERT_EQ(threads.size(), 3);
+    const auto &pythonStack = threads[0];
+    EXPECT_EQ(pythonStack->type, "thread");
+    EXPECT_EQ(pythonStack->metaData.metaType, "PYTORCH_API_PYTHON_STACK");
+    EXPECT_EQ(pythonStack->metaData.processId, "10");
+    EXPECT_EQ(pythonStack->metaData.processName, metaData.front()->metaData.processName);
+    EXPECT_EQ(pythonStack->metaData.threadId, "python_stack:text:7");
+    EXPECT_EQ(pythonStack->metaData.maxDepth, 9);
+    EXPECT_TRUE(pythonStack->children.empty());
+
+    EXPECT_EQ(threads[1]->type, "thread");
+    EXPECT_EQ(threads[1]->metaData.threadId, "7");
+    EXPECT_EQ(threads[1]->metaData.maxDepth, 4);
+
+    EXPECT_EQ(threads[2]->type, "thread");
+    EXPECT_EQ(threads[2]->metaData.threadId, "8");
+    EXPECT_EQ(threads[2]->metaData.maxDepth, 0);
+    EXPECT_TRUE(threads[1]->children.empty());
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithGroupNameValueWhenDbOpen) {
@@ -2268,9 +2423,9 @@ TEST_F(TextTraceDatabaseMockTest, TestQuerySimulationUintFlows) {
     std::string sliceData =
         "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", "
         "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (24463, "
-        "31081, 0, 'SET_FLAG', NULL, 15, NULL, '', 'thread_state_running', 31081, '99');\n"
+        "31081, 0, 'SET_FLAG', 4, 15, NULL, '', 'thread_state_running', 31081, '99');\n"
         "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", \"track_id\", "
-        "\"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (24674, 31249, 0, 'WAIT_FLAG', NULL, 16, "
+        "\"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (24674, 31249, 0, 'WAIT_FLAG', 7, 16, "
         "NULL, '', 'thread_state_iowait', 31249, '99');";
     std::string threadData =
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
@@ -2293,6 +2448,10 @@ TEST_F(TextTraceDatabaseMockTest, TestQuerySimulationUintFlows) {
     const uint64_t trackId = 15;
     bool result = database.QueryUnitFlows(requestParams, responseBody, minTimestamp, trackId);
     EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.unitAllFlows.size(), 1);
+    ASSERT_EQ(responseBody.unitAllFlows[0].flows.size(), 1);
+    EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].from.depth, 4);
+    EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].to.depth, 7);
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestGetTableList) {

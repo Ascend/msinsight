@@ -459,6 +459,15 @@ TEST_F(TimelineProtocolRequestTest, RestoreFullDbPythonStackThreadTracesParams) 
     EXPECT_EQ(params.metaType, "PYTORCH_API");
 }
 
+TEST_F(TimelineProtocolRequestTest, BuildPythonStackDisplayThreadIdForDbAndText) {
+    EXPECT_EQ(
+        Dic::Module::Timeline::PythonStackHelper::BuildDisplayThreadId("4294967297", "pytorch", "PYTORCH_API", true),
+        "python_stack:4294967297");
+    EXPECT_EQ(Dic::Module::Timeline::PythonStackHelper::BuildDisplayThreadId("100", "101", "TEXT", true),
+        "python_stack:text:101");
+    EXPECT_EQ(Dic::Module::Timeline::PythonStackHelper::BuildDisplayThreadId("100", "101", "TEXT", false), "101");
+}
+
 TEST_F(TimelineProtocolRequestTest, RestoreOrdinaryThreadTracesParamsAlwaysFiltersPythonFunction) {
     Dic::Protocol::UnitThreadTracesParams params;
     params.processId = "4294967297";

@@ -117,21 +117,23 @@ const std::string QUERY_FWDBWD_FLOW_DATA_SQL =
     "WHERE d1.prevFpStart >= ? AND d1.prevFpStart <= ?";
 // LCOV_EXCL_BR_START
 const std::string QUERY_HOST_METADATA_CANN_SQL =
-    " select EAL.name, globalTid, type, max(depth) as maxDepth from CANN_API"
+    " select EAL.name, globalTid, type, COALESCE(MAX(depth) + 1, 0) as maxDepth from CANN_API"
     " a join ENUM_API_TYPE EAL on a.type = EAL.id "
     " group by type, globalTid order by globalTid, type desc";
 const std::string QUERY_HOST_METADATA_PYTORCH_SQL = " select 'PyTorch' as name, globalTid, 'pytorch' as type,"
-                                                    " max(depth) as maxDepth from PYTORCH_API"
-                                                    " a group by globalTid order by globalTid";
+                                                    " COALESCE(MAX(depth) + 1, 0) as maxDepth from PYTORCH_API"
+                                                    " a WHERE type IS NULL OR type != 50003"
+                                                    " group by globalTid order by globalTid";
 const std::string QUERY_HOST_METADATA_OSRT_SQL =
-    "SELECT 'OS Runtime API' AS name, globalTid, 'OSRT_API' AS type, 0 AS maxDepth FROM OSRT_API"
+    "SELECT 'OS Runtime API' AS name, globalTid, 'OSRT_API' AS type, 1 AS maxDepth FROM OSRT_API"
     " a GROUP BY globalTid ORDER BY globalTid";
 const std::string QUERY_HOST_METADATA_MSTX_SQL =
-    "select coalesce(b.value, 'MSTX') as name, a.globalTid, a.domainId as type, max(a.depth) as maxDepth "
+    "select coalesce(b.value, 'MSTX') as name, a.globalTid, a.domainId as type, "
+    "COALESCE(MAX(a.depth) + 1, 0) as maxDepth "
     "from MSTX_EVENTS a left join STRING_IDS b on a.domainId = b.id "
     "group by a.globalTid, a.domainId order by a.globalTid, a.domainId";
 const std::string QUERY_HOST_METADATA_PYTHONGC_SQL =
-    "select 'Python GC' as name, globalTid,'Python GC' as type,  0 as maxDepth from GC_RECORD a "
+    "select 'Python GC' as name, globalTid,'Python GC' as type, 1 as maxDepth from GC_RECORD a "
     " group by globalTid order by globalTid";
 
 const std::string QUERY_KERNEL_SQL =

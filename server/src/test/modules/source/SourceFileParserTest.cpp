@@ -16,9 +16,17 @@
  * -------------------------------------------------------------------------
  */
 
+#include <chrono>
+#include <filesystem>
+#include <functional>
+#include <future>
+
 #include <gtest/gtest.h>
+#include "ConstantDefs.h"
+#include "ParserStatusManager.h"
 #include "SourceFileParser.h"
 #include "SourceProtocolRequest.h"
+#include "TextTraceDatabase.h"
 #include "ProjectParserFactory.h"
 #include "mockUtils/BinFileGenerator.h"
 #include "mockUtils/DataBlock.h"
@@ -27,6 +35,15 @@
 using namespace std;
 using namespace Dic::Module::Source;
 using namespace Dic::Module::Source::Test;
+
+namespace Dic::Module::Source {
+class SourceFileParserTestAccessor {
+  public:
+    static bool TestPrepareDatabaseForParse(const std::shared_ptr<TextTraceDatabase> &database) {
+        return SourceFileParser::PrepareDatabaseForParse(database);
+    }
+};
+}
 
 class SourceFileParserTest : public ::testing::Test {
   public:
@@ -156,4 +173,115 @@ TEST_F(SourceFileParserTest, GetTopWarpStallReason_NoDataBlock) {
 
     parser.Reset();
     BinFileGenerator::RemoveFile(testBinPath);
+}
+
+class SourceFileParserDepthTest : public ::testing::Test {
+  protected:
+    const std::string rankId = "source_bin_depth_test";
+    std::string testDbPath;
+    std::shared_ptr<TextTraceDatabase> database;
+
+    void SetUp() override {
+        DataBaseManager::Instance().Clear();
+        ParserStatusManager::Instance().ClearAllParserStatus();
+        testDbPath = (std::filesystem::temp_directory_path() /
+            ("msinsight-source-bin-depth-" +
+                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".db"))
+                         .string();
+        std::filesystem::remove(testDbPath);
+        DataBaseManager::Instance().SetDataType(DataType::TEXT, testDbPath);
+        ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(rankId, testDbPath));
+        DataBaseManager::Instance().SetDbPathMapping(rankId, testDbPath, "");
+        database =
+            std::dynamic_pointer_cast<TextTraceDatabase>(DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId));
+        ASSERT_NE(database, nullptr);
+        ASSERT_TRUE(database->CreateTable());
+        ParserStatusManager::Instance().SetParserStatus(rankId, ParserStatus::RUNNING);
+    }
+
+    void TearDown() override {
+        std::function<void(const std::string, const std::string, bool, const std::string)> emptyCallback;
+        SourceFileParser::Instance().SetParseEndCallBack(emptyCallback);
+        database.reset();
+        DataBaseManager::Instance().Clear();
+        ParserStatusManager::Instance().ClearAllParserStatus();
+        std::filesystem::remove(testDbPath);
+    }
+};
+
+TEST_F(SourceFileParserDepthTest, DepthCompletesBeforeSuccessCallback) {
+    ASSERT_TRUE(database->ExecSql(
+        "INSERT INTO slice(id, timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id, group_id) "
+        "VALUES (1, 10, 20, 'ordinary-1', 1, '', '{}', '', 30, '', ''), "
+        "(2, 20, 20, 'ordinary-2', 1, '', '{}', '', 40, '', ''), "
+        "(3, 10, 20, 'python-1', 1, 'python_function', '{}', '', 30, '', ''), "
+        "(4, 20, 20, 'python-2', 1, 'python_function', '{}', '', 40, '', '');"));
+    bool callbackCalled = false;
+    bool callbackResult = false;
+    bool depthFinishedAtCallback = false;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&](const std::string, const std::string, bool result, const std::string) {
+            callbackCalled = true;
+            callbackResult = result;
+            depthFinishedAtCallback = database->CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS);
+        };
+    SourceFileParser::Instance().SetParseEndCallBack(callback);
+
+    SourceFileParser::EndParseTask(rankId, std::make_shared<std::vector<std::future<void>>>(), testDbPath);
+
+    EXPECT_TRUE(callbackCalled);
+    EXPECT_TRUE(callbackResult);
+    EXPECT_TRUE(depthFinishedAtCallback);
+    EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankId), ParserStatus::FINISH);
+    auto stmt = database->CreatPreparedStatement("SELECT id, depth FROM slice ORDER BY id");
+    ASSERT_NE(stmt, nullptr);
+    auto resultSet = stmt->ExecuteQuery();
+    ASSERT_NE(resultSet, nullptr);
+    const std::vector<uint64_t> expectedDepths = {0, 1, 0, 1};
+    for (uint64_t expectedDepth : expectedDepths) {
+        ASSERT_TRUE(resultSet->Next());
+        EXPECT_EQ(resultSet->GetUint64("depth"), expectedDepth);
+    }
+}
+
+TEST_F(SourceFileParserDepthTest, DepthFailureBlocksSuccessCallback) {
+    ASSERT_TRUE(database->UpdateValueIntoStatusInfoTable(CONNECTION_UNIT, FINISH_STATUS));
+    ASSERT_TRUE(SourceFileParserTestAccessor::TestPrepareDatabaseForParse(database));
+    ASSERT_TRUE(database->ExecSql(
+        "DROP TABLE slice; CREATE TABLE slice(id INTEGER PRIMARY KEY, track_id INTEGER, cat TEXT, group_id TEXT);"));
+    bool callbackCalled = false;
+    bool callbackResult = true;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&](const std::string, const std::string, bool result, const std::string) {
+            callbackCalled = true;
+            callbackResult = result;
+        };
+    SourceFileParser::Instance().SetParseEndCallBack(callback);
+
+    SourceFileParser::EndParseTask(rankId, std::make_shared<std::vector<std::future<void>>>(), testDbPath);
+
+    EXPECT_TRUE(callbackCalled);
+    EXPECT_FALSE(callbackResult);
+    EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankId), ParserStatus::TERMINATE);
+    EXPECT_FALSE(database->CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS));
+    EXPECT_TRUE(database->CheckValueFromStatusInfoTable(CONNECTION_UNIT, NOT_FINISH_STATUS));
+}
+
+TEST_F(SourceFileParserDepthTest, RebuildingTablesInvalidatesFinishedOperatorDepth) {
+    ASSERT_TRUE(database->UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS));
+    ASSERT_TRUE(database->UpdateValueIntoStatusInfoTable(CONNECTION_UNIT, FINISH_STATUS));
+    ASSERT_TRUE(database->ExecSql(
+        "INSERT INTO slice(id, timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id, group_id) "
+        "VALUES (1, 10, 10, 'old', 1, '', '{}', '', 20, '', '');"));
+
+    ASSERT_TRUE(SourceFileParserTestAccessor::TestPrepareDatabaseForParse(database));
+
+    EXPECT_TRUE(database->CheckValueFromStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS));
+    EXPECT_TRUE(database->CheckValueFromStatusInfoTable(CONNECTION_UNIT, NOT_FINISH_STATUS));
+    auto stmt = database->CreatPreparedStatement("SELECT COUNT(*) AS count FROM slice");
+    ASSERT_NE(stmt, nullptr);
+    auto resultSet = stmt->ExecuteQuery();
+    ASSERT_NE(resultSet, nullptr);
+    ASSERT_TRUE(resultSet->Next());
+    EXPECT_EQ(resultSet->GetUint64("count"), 0);
 }

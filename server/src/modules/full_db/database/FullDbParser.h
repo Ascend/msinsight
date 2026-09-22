@@ -25,6 +25,8 @@
 #include "DbTraceDataBase.h"
 
 namespace Dic::Module::FullDb {
+class FullDbParserTestAccessor;
+
 class FullDbParser : public FileParser {
   public:
     static FullDbParser &Instance();
@@ -39,6 +41,8 @@ class FullDbParser : public FileParser {
     bool Parse(const std::vector<std::string> &rankIds, const std::string &fileId);
 
   private:
+    friend class FullDbParserTestAccessor;
+
     std::unique_ptr<ThreadPool> threadPool;
     const int maxThreadNum = 4;
 
@@ -46,13 +50,14 @@ class FullDbParser : public FileParser {
     static void InitSummary(const std::vector<std::string> &rankIds, const std::string &path);
     static bool InitPlatform(const std::string &rankId, const std::string &path);
 
-    static void ParserCallBack(std::string rankId, const std::string &fileId, bool result);
+    static void ParserCallBack(
+        std::string rankId, const std::string &fileId, bool result, const std::string &message = "");
     static std::shared_ptr<DbTraceDataBase> GetTraceDatabase(const std::string &filePath);
     static void EndParseTask(const std::vector<std::string> &rankIds, const std::string &filePath,
-        const std::shared_ptr<std::vector<std::future<void>>> &futures,
+        const std::shared_ptr<std::vector<std::future<bool>>> &futures,
         std::chrono::time_point<std::chrono::high_resolution_clock> start, const std::string &embeddedPlatformRankId);
     static void BuildProfilingInitTask(
-        std::shared_ptr<std::vector<std::future<void>>> &futures, std::string &dbId, std::unique_ptr<ThreadPool> &pool);
+        std::shared_ptr<std::vector<std::future<bool>>> &futures, std::string &dbId, std::unique_ptr<ThreadPool> &pool);
 };
 }
 

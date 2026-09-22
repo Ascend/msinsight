@@ -20,11 +20,13 @@
 #include "DbTraceDataBase.h"
 #include "DataBaseManager.h"
 #include "DbSqlDefs.h"
+#include "OperatorDepthPersistenceService.h"
 #include "NpuInfoRepoMock.h"
 #include "SliceCacheManager.h"
 #include "TraceDatabaseHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
+#include "FileUtil.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
 // clang-format off
 using namespace Dic::Global::PROFILER::MockUtil;
@@ -107,6 +109,21 @@ namespace Dic::Protocol {
 using namespace Dic::Module::Timeline;
 }
 
+const Dic::Protocol::UnitTrack *FindUnitTrack(const std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> &tracks,
+    const std::function<bool(const Dic::Protocol::UnitTrack &)> &predicate)
+{
+    for (const auto &track : tracks) {
+        if (predicate(*track)) {
+            return track.get();
+        }
+        const auto *child = FindUnitTrack(track->children, predicate);
+        if (child != nullptr) {
+            return child;
+        }
+    }
+    return nullptr;
+}
+
 TEST_F(DbTraceDatabaseTest, FetchSliceDetailsSetsMetaTypeForCcuCachePath)
 {
     sqlite3 *db = nullptr;
@@ -135,6 +152,42 @@ TEST_F(DbTraceDatabaseTest, FetchSliceDetailsSetsMetaTypeForCcuCachePath)
     EXPECT_EQ(body.searchAllSlices[0].metaType, "CCU");
     EXPECT_EQ(body.searchAllSlices[0].pid, "CCU");
     EXPECT_EQ(body.searchAllSlices[0].tid, "0");
+    database.CloseDb();
+}
+
+TEST_F(DbTraceDatabaseTest, FetchSliceDetailsUsesPersistedDpuDepth)
+{
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE DPU_TASK(dpuDeviceId INTEGER, globalTid INTEGER, startNs INTEGER, endNs INTEGER, "
+        "globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER, depth INTEGER);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "INSERT INTO DPU_TASK(ROWID, dpuDeviceId, globalTid, startNs, endNs, streamId, opName, depth) "
+        "VALUES (1, 2, 429496730600, 110, 150, 7, 1, 4);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    database.SetDbPtr(db);
+
+    LightSliceCache cache;
+    cache.dictMap.emplace(1, "dpu_kernel");
+    std::vector<TargetRow> rows = {{SliceTableType::DPU_TASK, 1}};
+    Dic::Protocol::SearchAllSliceParams params;
+    params.fileId = "0";
+    params.rankId = "0";
+    Dic::Protocol::SearchAllSlicesBody body;
+
+    ASSERT_TRUE(database.FetchSliceDetails(cache, rows, params, body, 100));
+
+    ASSERT_EQ(body.searchAllSlices.size(), 1);
+    EXPECT_EQ(body.searchAllSlices[0].name, "dpu_kernel");
+    EXPECT_EQ(body.searchAllSlices[0].metaType, "DPU");
+    EXPECT_EQ(body.searchAllSlices[0].pid, "DPU_429496730600_2");
+    EXPECT_EQ(body.searchAllSlices[0].tid, "7");
+    EXPECT_EQ(body.searchAllSlices[0].depth, 4);
     database.CloseDb();
 }
 
@@ -254,6 +307,7 @@ TEST_F(DbTraceDatabaseTest, QueryKernelDepthAndThreadUsesStrictPythonStackIdenti
     EXPECT_EQ(body.threadId, "python_stack:4294967297");
     EXPECT_EQ(body.pid, "4294967297");
     EXPECT_EQ(body.metaType, "PYTORCH_API_PYTHON_STACK");
+    EXPECT_EQ(body.depth, 1);
 
     params.metaType = "PYTORCH_API";
     body = {};
@@ -313,7 +367,8 @@ TEST_F(DbTraceDatabaseTest, QueryEventsViewDataReturnsCcuEvents)
 
 TEST_F(DbTraceDatabaseTest, LoadSliceCacheDoesNotConcatenateCcuDeviceId)
 {
-    const std::string dbPath = "test_load_slice_cache_ccu_device_id.db";
+    const std::string dbPath =
+        Dic::FileUtil::SplicePath(::testing::TempDir(), "test_load_slice_cache_ccu_device_id.db");
     std::remove(dbPath.c_str());
     sqlite3 *db = nullptr;
     ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
@@ -344,7 +399,8 @@ TEST_F(DbTraceDatabaseTest, LoadSliceCacheDoesNotConcatenateCcuDeviceId)
 
 TEST_F(DbTraceDatabaseTest, AddCommunicationOpDeviceIdForOldDatabase)
 {
-    const std::string dbPath = "test_add_communication_op_device_id.db";
+    const std::string dbPath =
+        Dic::FileUtil::SplicePath(::testing::TempDir(), "test_add_communication_op_device_id.db");
     std::remove(dbPath.c_str());
     sqlite3 *db = nullptr;
     ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
@@ -415,7 +471,8 @@ TEST_F(DbTraceDatabaseTest, QueryThreadTracesSummaryFiltersCommunicationOpByDevi
 
 TEST_F(DbTraceDatabaseTest, TestAddHelperColumnsAddsKernelSimtDimColumnsForOldComputeTaskInfo)
 {
-    const std::string dbPath = "test_add_kernel_simt_dim_columns.db";
+    const std::string dbPath =
+        Dic::FileUtil::SplicePath(::testing::TempDir(), "test_add_kernel_simt_dim_columns.db");
     std::remove(dbPath.c_str());
     sqlite3 *db = nullptr;
     ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
@@ -454,6 +511,77 @@ TEST_F(DbTraceDatabaseTest, TestAddHelperColumnsAddsKernelSimtDimColumnsForOldCo
     sqlite3_close(checkDb);
     database.CloseDb();
     std::remove(dbPath.c_str());
+}
+
+TEST_F(DbTraceDatabaseTest, SameVersionDatabaseAddsAndBackfillsMissingDpuDepthColumn)
+{
+    const std::string dbPath = Dic::FileUtil::SplicePath(::testing::TempDir(), "test_add_dpu_depth_column.db");
+    std::remove(dbPath.c_str());
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE DPU_TASK(dpuDeviceId INTEGER, globalTid INTEGER, startNs INTEGER, endNs INTEGER, "
+        "streamId INTEGER);"
+        "INSERT INTO DPU_TASK(dpuDeviceId, globalTid, startNs, endNs, streamId) VALUES "
+        "(0, 4294967297, 10, 100, 3), (0, 4294967297, 20, 40, 3);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_close(db);
+
+    std::recursive_mutex testMutex;
+    Dic::Module::FullDb::DbTraceDataBase database(testMutex);
+    ASSERT_TRUE(database.OpenDb(dbPath, false));
+    ASSERT_TRUE(database.SetDataBaseVersion());
+    ASSERT_FALSE(database.IsDatabaseVersionChange());
+    ASSERT_FALSE(database.CheckColumnExist(TABLE_DPU_TASK, "depth"));
+
+    database.AddHelperColumnsAndSetStatus();
+
+    ASSERT_TRUE(database.CheckColumnExist(TABLE_DPU_TASK, "depth"));
+    EXPECT_TRUE(database.CheckValueFromStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS));
+    ASSERT_TRUE(OperatorDepthPersistenceService::CalculateAndPersistDbDepth(database, "0"));
+    auto stmt = database.CreatPreparedStatement("SELECT depth FROM DPU_TASK ORDER BY startNs");
+    ASSERT_NE(stmt, nullptr);
+    auto resultSet = stmt->ExecuteQuery();
+    ASSERT_NE(resultSet, nullptr);
+    ASSERT_TRUE(resultSet->Next());
+    EXPECT_EQ(resultSet->GetUint32("depth"), 0);
+    ASSERT_TRUE(resultSet->Next());
+    EXPECT_EQ(resultSet->GetUint32("depth"), 1);
+    database.CloseDb();
+    std::remove(dbPath.c_str());
+}
+
+TEST_F(DbTraceDatabaseTest, HcclThreadQueryAlwaysReturnsDepthColumn)
+{
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE TASK(globalTaskId INTEGER, deviceId INTEGER, startNs INTEGER, endNs INTEGER);"
+        "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER, groupName TEXT, planeId INTEGER, "
+        "taskType INTEGER);"
+        "CREATE TABLE COMMUNICATION_OP(opId INTEGER, startNs INTEGER, endNs INTEGER, opName INTEGER, "
+        "groupName TEXT);"
+        "INSERT INTO TASK VALUES (1, 0, 10, 20);"
+        "INSERT INTO COMMUNICATION_TASK_INFO VALUES (1, 'group', 2, 7);"
+        "INSERT INTO COMMUNICATION_OP VALUES (2, 30, 40, 8, 'other');",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_stmt *stmt = nullptr;
+    ASSERT_EQ(sqlite3_prepare_v2(db, HCCL_THREADS_BY_PID.c_str(), -1, &stmt, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_bind_int(stmt, 1, 0), SQLITE_OK);
+    ASSERT_EQ(sqlite3_bind_text(stmt, 2, "group_2", -1, SQLITE_STATIC), SQLITE_OK);
+    ASSERT_EQ(sqlite3_bind_text(stmt, 3, "othergroup", -1, SQLITE_STATIC), SQLITE_OK);
+    ASSERT_EQ(sqlite3_bind_int64(stmt, 4, 0), SQLITE_OK);
+    ASSERT_EQ(sqlite3_bind_int64(stmt, 5, 100), SQLITE_OK);
+    ASSERT_EQ(sqlite3_step(stmt), SQLITE_ROW);
+    EXPECT_EQ(sqlite3_column_count(stmt), 6);
+    EXPECT_EQ(sqlite3_column_int(stmt, 5), 0);
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
+}
+
+TEST_F(DbTraceDatabaseTest, OrdinaryPytorchThreadQueryIncludesLegacyNullType)
+{
+    EXPECT_NE(API_THREADS_BY_PID_AND_NO_PYTHON_FUNCTION.find("type IS NULL OR type != 50003"), std::string::npos);
 }
 
 /**
@@ -1030,6 +1158,7 @@ TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenApi) {
     EXPECT_EQ(result, true);
     ASSERT_EQ(responseBody.sameOperatorsDetails.size(), 1);
     EXPECT_EQ(responseBody.sameOperatorsDetails[0].tid, "pytorch");
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].depth, 3);
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenPythonStack) {
@@ -1073,7 +1202,7 @@ TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenPythonStack) 
     EXPECT_EQ(responseBody.sameOperatorsDetails[0].tid, "python_stack:17738580008830245");
     EXPECT_EQ(responseBody.sameOperatorsDetails[0].pid, "17738580008830245");
     EXPECT_EQ(responseBody.sameOperatorsDetails[0].id, "2");
-    EXPECT_EQ(responseBody.sameOperatorsDetails[0].depth, 0);
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].depth, 1);
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenOsrt) {
@@ -1431,6 +1560,113 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataPlacesPythonStacksBeforeThread
     EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 1", "Python Stack 3"}));
 }
 
+TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithOnlyPythonStack)
+{
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_PYTORCH_API, TableName::DB_STRING_IDS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    ASSERT_EQ(sqlite3_exec(db,
+        "INSERT INTO PYTORCH_API(startNs, endNs, globalTid, name, type, depth) "
+        "VALUES (100, 150, 4294967297, 1, 50003, 2);"
+        "INSERT INTO STRING_IDS(id, value) VALUES (1, 'python_call');",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    database.SetDbPtr(db);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    database.QueryUnitsMetadata("9", metaData);
+
+    const auto *pythonStack = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "PYTORCH_API_PYTHON_STACK" &&
+            track.metaData.processId == "4294967297";
+    });
+    ASSERT_NE(pythonStack, nullptr);
+    EXPECT_EQ(pythonStack->metaData.threadId, "python_stack:4294967297");
+    EXPECT_EQ(pythonStack->metaData.threadName, "Python Stack 1");
+    EXPECT_EQ(pythonStack->metaData.maxDepth, 3);
+}
+
+TEST_F(DbTraceDatabaseTest, MetadataUsesPersistedDepthForIndependentOperatorLanes)
+{
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> tables{TableName::DB_STRING_IDS, TableName::DB_ENUM_API_TYPE,
+        TableName::DB_PYTORCH_API, TableName::DB_CANN_API, TableName::DB_MSTX_EVENTS, TableName::DB_TASK};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, tables);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE DPU_TASK(dpuDeviceId INTEGER, globalTid INTEGER, startNs INTEGER, endNs INTEGER, "
+        "globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER, depth INTEGER);"
+        "INSERT INTO STRING_IDS(id, value) VALUES (9, 'domain');"
+        "INSERT INTO ENUM_API_TYPE(id, name) VALUES (10000, 'acl');"
+        "INSERT INTO PYTORCH_API(startNs, endNs, globalTid, type, depth) VALUES "
+        "('0', '10', 4294967297, 50002, 2), ('1', '9', 4294967297, 50002, 5), "
+        "('2', '8', 4294967297, 50003, 8), ('3', '7', 8589934593, 50002, NULL);"
+        "INSERT INTO CANN_API(startNs, endNs, type, globalTid, connectionId, depth) "
+        "VALUES (0, 10, 10000, 4294967297, 1, 4);"
+        "INSERT INTO MSTX_EVENTS(startNs, endNs, globalTid, domainId, connectionId, depth) "
+        "VALUES (0, 10, 4294967297, 9, 200, 6);"
+        "INSERT INTO TASK(startNs, endNs, deviceId, connectionId, streamId, depth) VALUES "
+        "(0, 10, 0, 100, 1, 5), (1, 9, 0, 200, 2, 3);"
+        "INSERT INTO DPU_TASK(startNs, endNs, globalTid, dpuDeviceId, streamId, depth) VALUES "
+        "(0, 10, 4294967297, 0, 7, 4);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    database.SetDbPtr(db);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    database.QueryUnitsMetadata("0", metaData);
+
+    const auto *pytorch = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "PYTORCH_API" && track.metaData.processId == "4294967297" &&
+            track.metaData.threadId == "pytorch";
+    });
+    const auto *pythonStack = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "PYTORCH_API_PYTHON_STACK" &&
+            track.metaData.processId == "4294967297";
+    });
+    const auto *emptyPytorchLane = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "PYTORCH_API" && track.metaData.processId == "8589934593" &&
+            track.metaData.threadId == "pytorch";
+    });
+    const auto *cann = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "CANN_API" && track.metaData.threadId == "10000";
+    });
+    const auto *mstx = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "MSTX_EVENTS" && track.metaData.processId == "4294967297" &&
+            track.metaData.threadId == "9";
+    });
+    const auto *ordinaryTask = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "Ascend Hardware" && track.metaData.threadId == "1";
+    });
+    const auto *mstxTask = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "Ascend Hardware" && track.metaData.threadId == "2_9";
+    });
+    const auto *dpu = FindUnitTrack(metaData, [](const auto &track) {
+        return track.metaData.metaType == "DPU" && track.metaData.processId == "DPU_4294967297_0" &&
+            track.metaData.threadId == "7";
+    });
+
+    ASSERT_NE(pytorch, nullptr);
+    ASSERT_NE(pythonStack, nullptr);
+    ASSERT_NE(emptyPytorchLane, nullptr);
+    ASSERT_NE(cann, nullptr);
+    ASSERT_NE(mstx, nullptr);
+    ASSERT_NE(ordinaryTask, nullptr);
+    ASSERT_NE(mstxTask, nullptr);
+    ASSERT_NE(dpu, nullptr);
+    EXPECT_EQ(pytorch->metaData.maxDepth, 6);
+    EXPECT_EQ(pythonStack->metaData.maxDepth, 9);
+    EXPECT_EQ(emptyPytorchLane->metaData.maxDepth, 0);
+    EXPECT_EQ(cann->metaData.maxDepth, 5);
+    EXPECT_EQ(mstx->metaData.maxDepth, 7);
+    EXPECT_EQ(ordinaryTask->metaData.maxDepth, 6);
+    EXPECT_EQ(mstxTask->metaData.maxDepth, 4);
+    EXPECT_EQ(dpu->metaData.maxDepth, 5);
+}
+
 TEST_F(DbTraceDatabaseTest, TestQueryThreadsWhenPythonStackThenReturnPythonStackTid)
 {
     std::recursive_mutex testMutex;
@@ -1442,8 +1678,10 @@ TEST_F(DbTraceDatabaseTest, TestQueryThreadsWhenPythonStackThenReturnPythonStack
     const std::string pyData =
         "INSERT INTO \"main\".\"PYTORCH_API\" (\"startNs\", \"endNs\", \"globalTid\", \"connectionId\", \"name\", "
         "\"sequenceNumber\", \"fwdThreadId\", \"inputDtypes\", \"inputShapes\", \"callchainId\", \"type\", \"depth\") "
-        "VALUES (100, 150, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 0);";
-    const std::string stringData = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (1, 'stack_op');";
+        "VALUES (100, 150, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 4),"
+        "(110, 130, 4294967297, 0, 2, NULL, NULL, NULL, NULL, NULL, 50003, 5);";
+    const std::string stringData =
+        "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (1, 'stack_op'), (2, 'stack_child');";
     DatabaseTestCaseMockUtil::InsertData(db, pyData);
     DatabaseTestCaseMockUtil::InsertData(db, stringData);
     database.SetDbPtr(db);
@@ -1452,6 +1690,8 @@ TEST_F(DbTraceDatabaseTest, TestQueryThreadsWhenPythonStackThenReturnPythonStack
     params.rankId = "9";
     params.startTime = 0;
     params.endTime = 200;
+    params.startDepth = "4";
+    params.endDepth = "5";
     params.metadataList.emplace_back(Dic::Protocol::Metadata{.tid = "pytorch",
         .pid = "4294967297",
         .metaType = "PYTORCH_API",
@@ -1460,11 +1700,14 @@ TEST_F(DbTraceDatabaseTest, TestQueryThreadsWhenPythonStackThenReturnPythonStack
     bool result = database.QueryThreads(params, body, 0, {0});
 
     ASSERT_TRUE(result);
-    ASSERT_EQ(body.data.size(), 1);
-    EXPECT_EQ(body.data[0].title, "stack_op");
-    ASSERT_EQ(body.data[0].processMap.count("4294967297"), 1);
-    EXPECT_EQ(body.data[0].processMap["4294967297"], std::set<std::string>({"python_stack:4294967297"}));
-    EXPECT_EQ(body.data[0].metaTypeList, std::set<std::string>({"PYTORCH_API_PYTHON_STACK"}));
+    ASSERT_EQ(body.data.size(), 2);
+    auto parent = std::find_if(body.data.begin(), body.data.end(),
+        [](const auto &item) { return item.title == "stack_op"; });
+    ASSERT_NE(parent, body.data.end());
+    EXPECT_EQ(parent->selfTime, 30);
+    ASSERT_EQ(parent->processMap.count("4294967297"), 1);
+    EXPECT_EQ(parent->processMap["4294967297"], std::set<std::string>({"python_stack:4294967297"}));
+    EXPECT_EQ(parent->metaTypeList, std::set<std::string>({"PYTORCH_API_PYTHON_STACK"}));
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsWhenConnectionIdIsEmptyThenReturnFalse) {
@@ -2088,7 +2331,7 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromPyTorchToPyTorchFlowTypeFwdBwd
     RestoreRepoFunc();
 }
 
-TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsSeparatesPythonStackAndPytorchDepthCache) {
+TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsUsesPersistedPythonStackAndPytorchDepth) {
     std::recursive_mutex testMutex;
     MockDatabase2 database(testMutex);
     sqlite3 *db = nullptr;
@@ -2112,26 +2355,8 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsSeparatesPythonStackAndPytorchDept
     DatabaseTestCaseMockUtil::InsertData(db, rankDeviceMapDataInsertForQueryUnitFlows);
     database.SetDbPtr(db);
 
-    auto &sliceCacheManager = SliceCacheManager::Instance();
-    sliceCacheManager.Clear();
     const std::string rankId = "0";
     const std::string pid = "17738580008830245";
-    const uint64_t trackId =
-        TrackInfoManager::Instance().GetTrackId(rankId, pid, Dic::Protocol::PYTHON_API_THREAD_ID);
-    SliceQuery cacheQuery;
-    cacheQuery.rankId = rankId;
-    cacheQuery.startTime = 1000;
-    cacheQuery.endTime = 1100;
-    // 普通缓存 key 已存在，但分页区间不包含当前 PyTorch 端点。旧逻辑只检查 key 是否命中，
-    // 随后通过 operator[] 把缺失 slice 静默解析为 depth=0；修复后必须按端点时间范围重建。
-    sliceCacheManager.UpdateSliceCache(
-        std::to_string(trackId), {SliceDomain{999, 1000, 1100, 7, ""}}, cacheQuery);
-    SliceQuery pythonStackCacheQuery;
-    pythonStackCacheQuery.rankId = rankId;
-    pythonStackCacheQuery.startTime = 0;
-    pythonStackCacheQuery.endTime = 100;
-    sliceCacheManager.UpdateDepthIndexCache(
-        std::to_string(trackId) + "@python_stack", {SliceDomain{1, 20, 40, 2, ""}}, pythonStackCacheQuery);
 
     Dic::Protocol::UnitFlowsParams requestParams;
     requestParams.id = "1";
@@ -2148,12 +2373,11 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsSeparatesPythonStackAndPytorchDept
     const auto &flow = responseBody.unitAllFlows[0].flows[0];
     EXPECT_EQ(flow.from.tid, "python_stack:" + pid);
     EXPECT_EQ(flow.from.metaType, "PYTORCH_API_PYTHON_STACK");
-    EXPECT_EQ(flow.from.depth, 2);
+    EXPECT_EQ(flow.from.depth, 9);
     EXPECT_EQ(flow.to.tid, Dic::Protocol::PYTHON_API_THREAD_ID);
     EXPECT_EQ(flow.to.metaType, "PYTORCH_API");
-    EXPECT_EQ(flow.to.depth, 0);
+    EXPECT_EQ(flow.to.depth, 9);
 
-    sliceCacheManager.Clear();
     RestoreRepoFunc();
 }
 
@@ -2456,7 +2680,7 @@ TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenPython) {
         "with ids as (select id, value from STRING_IDS where value like ?)  SELECT api.ROWID as id, api.globalTid as pid, "
         "'pytorch' as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, '' as deviceId, ids.value as "
         "value from PYTORCH_API  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND "
-        "api.endNs <= ?  AND api.type != 50003  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
+        "api.endNs <= ?  AND (api.type IS NULL OR api.type != 50003)  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
 }
 
 TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenPythonStack) {
@@ -2605,7 +2829,8 @@ TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenPython) {
         "with ids as (select id from STRING_IDS where value like ?)  SELECT api.ROWID as id, api.globalTid as pid, "
         "'pytorch' as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
         "'PYTORCH_API' as metaType from PYTORCH_API  api join ids on ids.id = api.name WHERE api.globalTid = ? "
-        "AND api.startNs >= ? AND api.endNs <= ?  AND api.type != 50003  ORDER BY timestamp ASC LIMIT 1 OFFSET ?");
+        "AND api.startNs >= ? AND api.endNs <= ?  AND (api.type IS NULL OR api.type != 50003)  ORDER BY timestamp ASC "
+        "LIMIT 1 OFFSET ?");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenCANN) {
@@ -2722,7 +2947,8 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenPython) {
     params.rankId = "ll Host";
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql, "with ids as (select id from STRING_IDS where value like ?) SELECT count(1) as count FROM (SELECT "
-        "name from PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?  AND type != 50003 ) api join ids on id = api.name ");
+        "name from PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?  AND (type IS NULL OR type != "
+        "50003) ) api join ids on id = api.name ");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenCANN) {

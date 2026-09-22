@@ -24,6 +24,7 @@
 #include "CacheManager.h"
 #include "ProjectParserFactory.h"
 #include "TraceFileSimulationParser.h"
+#include "OperatorDepthPersistenceService.h"
 
 namespace Dic {
 namespace Module {
@@ -75,7 +76,7 @@ bool TraceFileSimulationParser::InitParser(
         ServerLog::Error("Failed to convert virtual trace database to json trace database in event parser.");
         return false;
     }
-    if (!(database->DropTable() && database->CreateTable())) {
+    if (!PrepareDatabaseForParse(database)) {
         ServerLog::Error("Failed to open trace database. rankId:", rankId);
         return false;
     }
@@ -101,6 +102,11 @@ bool TraceFileSimulationParser::InitParser(
     instance.threadPool->AddTask(
         EndParseTask, TraceIdManager::GetTraceId(), rankId, filePathArr, futures, start, fileId);
     return true;
+}
+
+bool TraceFileSimulationParser::PrepareDatabaseForParse(const std::shared_ptr<TextTraceDatabase> &database) {
+    return database != nullptr && database->DropTable() && database->CreateTable() &&
+        database->UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS);
 }
 
 void TraceFileSimulationParser::ParseTask(const std::string &filePath, const std::string &rankId,
@@ -158,6 +164,12 @@ void TraceFileSimulationParser::EndParseTask(const std::string &rankId, const st
         ParserStatusManager::Instance().SetFinishStatus(rankId);
         return;
     }
+    database->CommitData();
+    if (!OperatorDepthPersistenceService::CalculateAndPersistTextDepth(*database, rankId)) {
+        ServerLog::Error("Failed to persist operator depth after simulation parse. rankId:", rankId);
+        ParseEndCallBack(rankId, fileId, false, "Failed to calculate operator depth.");
+        return;
+    }
     database->CreateIndex();
     CacheManager::Instance().ClearCacheByRankId(rankId);
     ServerLog::Info("Update depth completed. ID:", rankId);
@@ -170,7 +182,11 @@ void TraceFileSimulationParser::EndParseTask(const std::string &rankId, const st
 void TraceFileSimulationParser::ParseEndCallBack(
     const std::string &rankId, const std::string &fileId, bool result, const std::string &message) {
     auto oldStatus = ParserStatusManager::Instance().GetParserStatus(rankId);
-    ParserStatusManager::Instance().SetFinishStatus(rankId);
+    if (result) {
+        ParserStatusManager::Instance().SetFinishStatus(rankId);
+    } else {
+        ParserStatusManager::Instance().SetTerminateStatus(rankId);
+    }
     auto &instance = TraceFileSimulationParser::Instance();
     if (instance.parseEndCallback != nullptr && oldStatus != ParserStatus::TERMINATE) {
         ServerLog::Info("TraceFileSimulationParser send Message");

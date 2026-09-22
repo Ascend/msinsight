@@ -23,15 +23,15 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class SliceTableTest : public ::testing::Test {};
 
-TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
+TEST_F(SliceTableTest, MapsPersistedDepthColumn) {
     sqlite3 *db = nullptr;
     std::string sql =
         "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
         "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT, "
         "group_id TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
-    std::string sqlInsert = "INSERT INTO slice (timestamp, duration, name,track_id, cat, "
-                            "args,cname,end_time,flag_id,group_id) VALUES (1, 2,'3',5,'6','7','8',9,'10','11');";
+    std::string sqlInsert = "INSERT INTO slice (timestamp, duration, name,depth,track_id, cat, "
+                            "args,cname,end_time,flag_id,group_id) VALUES (1, 2,'3',13,5,'6','7','8',9,'10','11');";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<SlicePO> slicePos;
     Dic::Protocol::SliceTable sliceTable;
@@ -52,7 +52,7 @@ TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
         .Select(SliceColumn::DURATION, SliceColumn::NAME)
         .Select(SliceColumn::TRACKID, SliceColumn::CAT, SliceColumn::ARGS)
         .Select(SliceColumn::CNAME, SliceColumn::ENDTIME, SliceColumn::FLAGID)
-        .Select(SliceColumn::GROUPID)
+        .Select(SliceColumn::GROUPID, SliceColumn::DEPTH)
         .ExcuteQuery(db, slicePos);
     EXPECT_EQ(slicePos.size(), expectSize);
     EXPECT_EQ(slicePos[index].id, expectId);
@@ -66,4 +66,5 @@ TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
     EXPECT_EQ(slicePos[index].endTime, expect15);
     EXPECT_EQ(slicePos[index].flagId, expect5);
     EXPECT_EQ(slicePos[index].groupId, expect6);
+    EXPECT_EQ(slicePos[index].depth, 13);
 }

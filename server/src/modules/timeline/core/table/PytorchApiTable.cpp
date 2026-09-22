@@ -64,4 +64,7 @@ void PytorchApiTable::SetCallchainId(PytorchApiPO &pytorchApiPO, const std::uniq
 void PytorchApiTable::SetType(PytorchApiPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     pytorchApiPO.type = resultSet->GetUint64(PytorchApiColumn::TYPE);
 }
+void PytorchApiTable::SetDepth(PytorchApiPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    pytorchApiPO.depth = resultSet->GetUint32(PytorchApiColumn::DEPTH);
+}
 }

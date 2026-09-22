@@ -52,6 +52,7 @@ void HardWareRepo::QuerySimpleSliceWithOutNameByTrackId(
         sliceDomain.id = resultSet->GetUint64("id");
         sliceDomain.timestamp = resultSet->GetUint64("startNs");
         sliceDomain.endTime = resultSet->GetUint64("endNs");
+        sliceDomain.depth = resultSet->GetUint32("depth");
         sliceVec.emplace_back(sliceDomain);
     }
 }
@@ -65,14 +66,14 @@ std::unique_ptr<SqlitePreparedStatement> HardWareRepo::PrepareStmtForQuerySimple
     // 因为DbTraceDataBase在执行OpenDb()方法时当MSTX_EVENTS表不存在时，会创建临时表MSTX_EVENTS，所以可以默认MSTX_EVENTS表在操作数据库时存在
     std::string sql;
     if (trackInfo.threadId.find('_') != std::string::npos) {
-        sql = "SELECT main.rowid AS id, main.startNs AS startNs, main.endNs AS endNs FROM " + TABLE_TASK +
-            " AS main INNER JOIN " + TABLE_MSTX_EVENTS +
+        sql = "SELECT main.rowid AS id, main.startNs AS startNs, main.endNs AS endNs, main.depth AS depth FROM " +
+            TABLE_TASK + " AS main INNER JOIN " + TABLE_MSTX_EVENTS +
             " AS mstx ON main.connectionId = mstx.connectionId "
             " WHERE main.deviceId = ? AND main.streamId = ? AND mstx.domainId = ? "
             " AND main.startNs <= ? AND main.endNs >= ? "
             " ORDER BY main.startNs, main.rowid;";
     } else {
-        sql = "SELECT rowid as id, startNs AS startNs, endNs AS endNs FROM " + TABLE_TASK +
+        sql = "SELECT rowid as id, startNs AS startNs, endNs AS endNs, depth AS depth FROM " + TABLE_TASK +
             " WHERE deviceId = ? AND streamId = ? AND connectionId NOT IN (SELECT connectionId FROM " +
             TABLE_MSTX_EVENTS + ") AND startNs <= ? AND endNs >= ? ORDER BY startNs, id;";
     }
@@ -98,7 +99,7 @@ void HardWareRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const st
     if (std::empty(sliceIds)) {
         return;
     }
-    std::string sql = "SELECT main.ROWID as id, main.startNs, main.endNs,"
+    std::string sql = "SELECT main.ROWID as id, main.startNs, main.endNs, main.depth as depth,"
                       " coalesce(c.name, m.message, s.name, main.taskType) as name FROM " +
         TABLE_TASK +
         " main "
@@ -130,6 +131,7 @@ void HardWareRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const st
         competeSlice.id = resultSet->GetUint64("id");
         competeSlice.timestamp = resultSet->GetUint64("startNs");
         competeSlice.endTime = resultSet->GetUint64("endNs");
+        competeSlice.depth = resultSet->GetUint32("depth");
         competeSlice.name = FullDb::DbTraceDataBase::GetStringCacheValue(nameKey, resultSet->GetString("name"));
         competeSliceVec.emplace_back(competeSlice);
     }
@@ -141,7 +143,7 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
         .Select(TaskColumn::TASK_TYPE, TaskColumn::STREAM_ID)
         .Select(TaskColumn::TASK_ID, TaskColumn::CONNECTION_ID)
         .Select(TaskColumn::GLOBAL_TASK_ID, TaskColumn::TIMESTAMP)
-        .Select(TaskColumn::ENDTIME, TaskColumn::DECICED_ID)
+        .Select(TaskColumn::ENDTIME, TaskColumn::DECICED_ID, TaskColumn::DEPTH)
         .Eq(TaskColumn::ROW_ID, sliceQuery.sliceId)
         .ExcuteQuery(sliceQuery.rankId, taskPOS);
     if (std::empty(taskPOS)) {
@@ -155,6 +157,7 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
         competeSliceDomain.name = std::to_string(targetTask.taskType);
         competeSliceDomain.timestamp = targetTask.timestamp;
         competeSliceDomain.endTime = targetTask.endTime;
+        competeSliceDomain.depth = targetTask.depth;
     } else {
         competeSliceDomain = std::move(competeSliceVec[0]);
     }
@@ -416,7 +419,7 @@ bool HardWareRepo::QuerySliceDetailInfoByNameList(
         [](const ComputeTaskInfoPO &computeTaskInfoPo) { return computeTaskInfoPo.globalTaskId; });
     // 根据globalTaskId查询Task表获取耗时信息，并按算子起始时间进行排序
     std::vector<TaskPO> taskPOS;
-    taskTable->Select(TaskColumn::GLOBAL_TASK_ID, TaskColumn::TIMESTAMP, TaskColumn::ENDTIME)
+    taskTable->Select(TaskColumn::GLOBAL_TASK_ID, TaskColumn::TIMESTAMP, TaskColumn::ENDTIME, TaskColumn::DEPTH)
         .In(TaskColumn::GLOBAL_TASK_ID, globalTaskIdList)
         .OrderBy(TaskColumn::TIMESTAMP, TableOrder::ASC)
         .ExcuteQuery(params.rankId, taskPOS);
@@ -432,6 +435,7 @@ bool HardWareRepo::QuerySliceDetailInfoByNameList(
         domain.name = globalTaskIdMapName[item.globalTaskId];
         domain.timestamp = item.timestamp;
         domain.duration = item.endTime - item.timestamp;
+        domain.depth = item.depth;
         res.push_back(domain);
     }
     return true;

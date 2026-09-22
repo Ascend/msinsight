@@ -92,6 +92,7 @@ TEST_F(TextTraceDatabaseTest, CreateIndex) {
     database.CreateIndex();
 
     database.OpenDb("tttt", true);
+    ASSERT_TRUE(database.CreateTable());
     bool success = database.CreateIndex();
     database.CloseDb();
     EXPECT_EQ(success, true);

@@ -178,7 +178,7 @@ bool TextTraceDatabase::QueryFusibleOpData(const KernelDetailsParams &params,
         one.baseInfo.duration = resultSet->GetUint64("duration");
         one.baseInfo.pid = resultSet->GetString("pid");
         one.baseInfo.tid = resultSet->GetString("tid");
-        one.baseInfo.depth = 0;
+        one.baseInfo.depth = resultSet->GetUint64("depth");
         one.name = resultSet->GetString("name");
         one.originOpList = resultSet->GetString("originOpList");
         one.fusedOp = resultSet->GetString("fusedOp");

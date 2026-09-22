@@ -38,7 +38,7 @@ class MstxRepoTest : public ::testing::Test {
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal) {
+TEST_F(MstxRepoTest, QuerySliceDetailInfoReturnsPersistedDepth) {
     class MstxRepoMock : public MstxRepo {
       public:
         void SetMock(MstxDependency &dependency) {
@@ -55,7 +55,7 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal) {
     std::string mstxInsert = "INSERT INTO \"main\".\"MSTX_EVENTS\" (\"startNs\", \"endNs\", \"eventType\", "
                              "\"rangeId\", \"category\", \"message\", \"globalTid\", \"endGlobalTid\", \"domainId\", "
                              "\"connectionId\", \"depth\") VALUES (1718180918997410110, 1718180918997410110, 3, "
-                             "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 0);";
+                             "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 8);";
     std::string mstxTypeInsert =
         "INSERT INTO \"main\".\"ENUM_MSTX_EVENT_TYPE\" (\"id\", \"name\") VALUES (3, 'marker_ex');";
     std::string stringInsert = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (377, 'mmmm');\n"
@@ -83,6 +83,7 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal) {
     const uint64_t expectEnd = 1718180918997410110;
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
+    EXPECT_EQ(slice.depth, 8);
     const std::string expectArgs = "{\"eventType\":\"marker_ex\"}";
     EXPECT_EQ(slice.args, expectArgs);
 }
@@ -120,7 +121,7 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse) {
     EXPECT_EQ(result, false);
 }
 
-TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListSuccess) {
+TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListReturnsPersistedDepth) {
     class MstxRepoMock : public MstxRepo {
       public:
         void SetMock(MstxDependency &dependency) {
@@ -136,7 +137,7 @@ TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListSuccess) {
     std::string mstxInsert = "INSERT INTO \"main\".\"MSTX_EVENTS\" (\"startNs\", \"endNs\", \"eventType\", "
                              "\"rangeId\", \"category\", \"message\", \"globalTid\", \"endGlobalTid\", \"domainId\", "
                              "\"connectionId\", \"depth\") VALUES (1718180918997410110, 1718180918997410110, 3, "
-                             "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 0);";
+                             "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 9);";
     std::string stringInsert = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (377, 'mmmm');\n"
                                "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (513, 'compute_log');";
     DatabaseTestCaseMockUtil::InsertData(db, mstxInsert);
@@ -158,6 +159,7 @@ TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListSuccess) {
     EXPECT_EQ(res.size(), expectSize);
     EXPECT_EQ(res[0].timestamp, expectTIme);
     EXPECT_EQ(res[0].endTime, expectTIme);
+    EXPECT_EQ(res[0].depth, 9);
 }
 
 /**
