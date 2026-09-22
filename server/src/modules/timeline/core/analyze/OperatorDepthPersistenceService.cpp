@@ -244,45 +244,48 @@ bool PersistTextDepths(TextTraceDatabase &database) {
 }
 
 bool OperatorDepthPersistenceService::RunWithStatusAndTransaction(Database &database, const PersistenceWork &work) {
-    if (database.CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS)) {
+    // 在读取前预留写权限，避免其他连接提交写入后，当前 WAL 读快照无法升级为写事务。
+    return database.RunExclusive([&database, &work]() {
+        if (database.CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS)) {
+            return true;
+        }
+        if (!database.UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS)) {
+            ServerLog::Error("Failed to mark operator depth as not finished.");
+            return false;
+        }
+        if (!database.StartImmediateTransaction()) {
+            ServerLog::Error("Failed to start operator depth transaction.");
+            return false;
+        }
+
+        bool success = false;
+        try {
+            success = work();
+        } catch (const std::exception &error) {
+            ServerLog::Error("Failed to persist operator depth: ", error.what());
+        } catch (...) {
+            ServerLog::Error("Failed to persist operator depth due to an unknown error.");
+        }
+
+        if (!success) {
+            if (!database.RollbackTransaction()) {
+                ServerLog::Error("Failed to roll back operator depth transaction.");
+            }
+            return false;
+        }
+        if (!database.EndTransaction()) {
+            ServerLog::Error("Failed to commit operator depth transaction.");
+            if (!database.RollbackTransaction()) {
+                ServerLog::Error("Failed to roll back operator depth transaction after commit failure.");
+            }
+            return false;
+        }
+        if (!database.UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS)) {
+            ServerLog::Error("Failed to mark operator depth as finished.");
+            return false;
+        }
         return true;
-    }
-    if (!database.UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, NOT_FINISH_STATUS)) {
-        ServerLog::Error("Failed to mark operator depth as not finished.");
-        return false;
-    }
-    if (!database.StartTransaction()) {
-        ServerLog::Error("Failed to start operator depth transaction.");
-        return false;
-    }
-
-    bool success = false;
-    try {
-        success = work();
-    } catch (const std::exception &error) {
-        ServerLog::Error("Failed to persist operator depth: ", error.what());
-    } catch (...) {
-        ServerLog::Error("Failed to persist operator depth due to an unknown error.");
-    }
-
-    if (!success) {
-        if (!database.RollbackTransaction()) {
-            ServerLog::Error("Failed to roll back operator depth transaction.");
-        }
-        return false;
-    }
-    if (!database.EndTransaction()) {
-        ServerLog::Error("Failed to commit operator depth transaction.");
-        if (!database.RollbackTransaction()) {
-            ServerLog::Error("Failed to roll back operator depth transaction after commit failure.");
-        }
-        return false;
-    }
-    if (!database.UpdateValueIntoStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS)) {
-        ServerLog::Error("Failed to mark operator depth as finished.");
-        return false;
-    }
-    return true;
+    });
 }
 
 bool OperatorDepthPersistenceService::CalculateAndPersistTextDepth(

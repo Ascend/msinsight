@@ -245,9 +245,16 @@ std::string Database::Sqlite3ColumnConvertStrReturnNull(int colType, sqlite3_stm
 
 bool Database::StartTransaction() { return isOpen && ExecSql("BEGIN;"); }
 
+bool Database::StartImmediateTransaction() { return isOpen && ExecSql("BEGIN IMMEDIATE;"); }
+
 bool Database::RollbackTransaction() { return isOpen && ExecSql("ROLLBACK;"); }
 
 bool Database::EndTransaction() { return isOpen && ExecSql("COMMIT;"); }
+
+bool Database::RunExclusive(const std::function<bool()> &work) {
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    return work();
+}
 
 std::string Database::GetDbPath() { return path; }
 

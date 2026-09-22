@@ -40,6 +40,16 @@ class TestTextDatabase : public TextTraceDatabase {
         db = dbPtr;
         path = ":memory:";
     }
+
+    bool StartImmediateTransaction() override {
+        startedImmediateTransaction = true;
+        return TextTraceDatabase::StartImmediateTransaction();
+    }
+
+    bool HasStartedImmediateTransaction() const { return startedImmediateTransaction; }
+
+  private:
+    bool startedImmediateTransaction = false;
 };
 
 class TestDbTraceDatabase : public FullDb::DbTraceDataBase {
@@ -151,6 +161,7 @@ TEST(OperatorDepthPersistenceServiceTest, MissingStatusRunsCalculation) {
         return true;
     }));
     EXPECT_TRUE(called);
+    EXPECT_TRUE(database.HasStartedImmediateTransaction());
     EXPECT_TRUE(database.CheckValueFromStatusInfoTable(OPERATOR_DEPTH, FINISH_STATUS));
 }
 

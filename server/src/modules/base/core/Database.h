@@ -19,6 +19,7 @@
 #ifndef DATA_INSIGHT_CORE_MODULE_CORE_DATABASE_BASE_H
 #define DATA_INSIGHT_CORE_MODULE_CORE_DATABASE_BASE_H
 
+#include <functional>
 #include <vector>
 #include <string>
 #include <mutex>
@@ -58,8 +59,12 @@ class Database {
     virtual bool IsOpen() const;
     void CloseDb();
     virtual bool StartTransaction();
+    // 立即开启写事务，在后续读取前取得 SQLite 写权限，避免读事务升级写事务失败。
+    virtual bool StartImmediateTransaction();
     virtual bool RollbackTransaction();
     virtual bool EndTransaction();
+    // 在当前数据库文件的共享互斥锁保护下执行完整工作单元。
+    bool RunExclusive(const std::function<bool()> &work);
     virtual std::string GetDbPath();
     virtual void SetDbPath(const std::string &dbPath);
     virtual bool GetTableList(std::vector<std::string> &tableList) const;
