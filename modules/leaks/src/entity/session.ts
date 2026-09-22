@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { makeAutoObservable } from 'mobx';
+import { makeAutoObservable, observable } from 'mobx';
 import { type AllocationData, type BlocksTableData, EvenItem, EventsTableData, ThreShold } from '../utils/RequestUtils';
 import { type MenuItemModel } from '../components/ContextMenu';
 import {
@@ -225,7 +225,8 @@ export class Session {
     lifecycleMemoryMarkerOrdinals: Map<string, number> = new Map();
 
     constructor() {
-        makeAutoObservable(this);
+        // Overview payloads are immutable; only replacing the cache should notify observers.
+        makeAutoObservable(this, { sliceOverviewData: observable.ref });
     }
 
     getLifecycleMemoryMarkerContextKey(): string {

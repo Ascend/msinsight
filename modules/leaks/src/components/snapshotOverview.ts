@@ -61,7 +61,19 @@ export const sampleOverview = (points: OverviewPoint[], start: number, end: numb
 export const overviewY = (value: number, min: number, max: number, height: number): number =>
     height - 4 - (value - min) / Math.max(1, max - min) * (height - 8);
 
-// Built once per data revision. Pixel queries visit tree nodes instead of scanning all events.
+// Cache only immutable payloads. Weak keys allow replaced windows/files to be collected.
+const summaryCache = new WeakMap<OverviewPoint[], ReturnType<typeof summarizeOverview>>();
+export const getOverviewSummary = (points: OverviewPoint[]): ReturnType<typeof summarizeOverview> => {
+    let summary = summaryCache.get(points);
+    if (!summary) {
+        summary = summarizeOverview(points);
+        summaryCache.set(points, summary);
+    }
+    return summary;
+};
+
+// Tree leaves cover blocks rather than individual events. Queries scan only their boundary blocks.
+const INDEX_BLOCK_SIZE = 64;
 export class OverviewIndex {
     readonly points: OverviewPoint[];
     private readonly size: number;
@@ -69,16 +81,20 @@ export class OverviewIndex {
     private readonly maxima: Int32Array;
 
     constructor(points: OverviewPoint[]) {
-        this.points = points.filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.totalSize));
+        this.points = points.every(point => Number.isFinite(point.timestamp) && Number.isFinite(point.totalSize))
+            ? points
+            : points.filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.totalSize));
         // Keep the normal ordered path linear; stable sorting preserves equal-time event order.
         if (this.points.some((point, index) => index > 0 && point.timestamp < this.points[index - 1].timestamp)) {
-            this.points.sort((left, right) => left.timestamp - right.timestamp);
+            this.points = [...this.points].sort((left, right) => left.timestamp - right.timestamp);
         }
-        this.size = 2 ** Math.ceil(Math.log2(Math.max(1, this.points.length)));
+        this.size = 2 ** Math.ceil(Math.log2(Math.max(1, Math.ceil(this.points.length / INDEX_BLOCK_SIZE))));
         this.minima = new Int32Array(this.size * 2).fill(-1);
         this.maxima = new Int32Array(this.size * 2).fill(-1);
         for (let index = 0; index < this.points.length; index++) {
-            this.minima[this.size + index] = this.maxima[this.size + index] = index;
+            const node = this.size + Math.floor(index / INDEX_BLOCK_SIZE);
+            this.minima[node] = this.extreme(this.minima[node], index, false);
+            this.maxima[node] = this.extreme(this.maxima[node], index, true);
         }
         for (let node = this.size - 1; node > 0; node--) {
             this.minima[node] = this.extreme(this.minima[node * 2], this.minima[node * 2 + 1], false);
@@ -111,14 +127,23 @@ export class OverviewIndex {
             min = this.extreme(min, this.minima[node], false);
             max = this.extreme(max, this.maxima[node], true);
         };
-        for (let left = start + this.size, right = end + this.size; left < right; left >>= 1, right >>= 1) {
+        const takePoint = (index: number): void => {
+            min = this.extreme(min, index, false);
+            max = this.extreme(max, index, true);
+        };
+        const firstBlock = Math.ceil(start / INDEX_BLOCK_SIZE);
+        const lastBlock = Math.floor(end / INDEX_BLOCK_SIZE);
+        const prefixEnd = Math.min(end, firstBlock * INDEX_BLOCK_SIZE);
+        for (let index = start; index < prefixEnd; index++) takePoint(index);
+        for (let index = Math.max(prefixEnd, lastBlock * INDEX_BLOCK_SIZE); index < end; index++) takePoint(index);
+        for (let left = firstBlock + this.size, right = lastBlock + this.size; left < right; left >>= 1, right >>= 1) {
             if (left & 1) take(left++);
             if (right & 1) take(--right);
         }
         return [min, max];
     }
 
-    sample(start: number, end: number, width: number): OverviewPoint[] {
+    sample(start: number, end: number, width: number, gridStart = start, gridEnd = end): OverviewPoint[] {
         const result: OverviewPoint[] = [];
         const columns = Math.max(1, Math.floor(width));
         const first = this.bound(start);
@@ -134,8 +159,9 @@ export class OverviewIndex {
         };
         if (first > 0 && first < this.points.length && this.points[first].timestamp > start) result.push(interpolate(first, start));
         let cursor = first;
-        for (let column = 0; column < columns && cursor < last; column++) {
-            const next = column === columns - 1 ? last : this.bound(start + (end - start) * (column + 1) / columns);
+        const firstColumn = Math.min(columns - 1, Math.max(0, Math.floor((start - gridStart) / Math.max(1, gridEnd - gridStart) * columns)));
+        for (let column = firstColumn; column < columns && cursor < last; column++) {
+            const next = column === columns - 1 ? last : Math.min(last, this.bound(gridStart + (gridEnd - gridStart) * (column + 1) / columns));
             if (next <= cursor) continue;
             const [min, max] = this.extrema(cursor, next);
             [...new Set([cursor, min, max, next - 1])].sort((a, b) => a - b).forEach(index => result.push(this.points[index]));
@@ -143,5 +169,48 @@ export class OverviewIndex {
         }
         if (last > 0 && last < this.points.length && this.points[last - 1].timestamp < end) result.push(interpolate(last, end));
         return result;
+    }
+
+    endpoints(start: number, end: number): OverviewPoint[] {
+        const first = this.bound(start);
+        const last = this.bound(end, true) - 1;
+        return first <= last ? [this.points[first], this.points[last]] : [];
+    }
+}
+
+const indexCache = new WeakMap<OverviewPoint[], OverviewIndex>();
+export const getOverviewIndex = (points: OverviewPoint[]): OverviewIndex => {
+    let index = indexCache.get(points);
+    if (!index) {
+        index = new OverviewIndex(points);
+        indexCache.set(points, index);
+    }
+    return index;
+};
+
+export interface OverviewSegment { points: OverviewPoint[]; start: number; end: number }
+
+// Retain window references, never a flattened copy or a second full-data tree.
+export class OverviewTimelineIndex {
+    private readonly segments: Array<{ index: OverviewIndex; start: number; end: number }>;
+
+    constructor(segments: OverviewSegment[]) {
+        this.segments = segments.map(({ points, start, end }) => ({ index: getOverviewIndex(points), start, end }));
+    }
+
+    sample(start: number, end: number, width: number): OverviewPoint[] {
+        const candidates: OverviewPoint[] = [];
+        for (const segment of this.segments) {
+            const [first, last] = segment.index.endpoints(segment.start, segment.end);
+            if (!first) continue;
+            if (last.timestamp < start) { candidates.push(last); continue; }
+            if (first.timestamp > end) { candidates.push(first); continue; }
+            if (first.timestamp < start) candidates.push(first);
+            const sampled = segment.index.sample(Math.max(start, first.timestamp), Math.min(end, last.timestamp), width, start, end);
+            for (const point of sampled) candidates.push(point);
+            if (last.timestamp > end) candidates.push(last);
+        }
+        // Small pixel-sized index also clips/interpolates across sparse window boundaries.
+        return new OverviewIndex(candidates).sample(start, end, width);
     }
 }

@@ -2,14 +2,17 @@
  * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  * MindStudio is licensed under Mulan PSL v2.
  */
-import React, { useState, useMemo as mockUseMemo } from 'react';
+import React, { useState, useMemo as mockUseMemo, cloneElement as mockCloneElement } from 'react';
 import { ThemeProvider } from '@emotion/react';
 import { act } from 'react-dom/test-utils';
 import { fireEvent, render } from '@testing-library/react';
 import MemSnapshotSliceOverview from '../MemSnapshotSliceOverview';
 import { Painter } from '../../leaksWorker/blockWorker/nativeCanvas/Painter';
 
-jest.mock('antd', () => ({ Button: ({ children, onClick, 'aria-label': label, title }: any) => <button aria-label={label} title={title} onClick={onClick}>{children}</button> }));
+jest.mock('antd', () => ({
+    Tooltip: ({ children, title }: any) => mockCloneElement(children, { title }),
+    Button: ({ children, onClick, 'aria-label': label, title }: any) => <button aria-label={label} title={title} onClick={onClick}>{children}</button>,
+}));
 jest.mock('@insight/lib/resize', () => ({
     ResizeTable: ({ columns, dataSource, onChange, onRow, rowClassName }: any) => {
         // Match the project's serialized-column cache, including retained render closures.
@@ -539,7 +542,7 @@ describe('MemSnapshotSliceOverview', () => {
         expect(view.getByRole('button', { name: 'overviewShowTable' })).toBeDefined();
         fireEvent.keyDown(divider, { key: 'End' });
         flushFrame();
-        expect(panel.style.width).toBe('980px');
+        expect(panel.style.width).toBe('100%');
         expect(view.getByTestId('overviewChartPane').style.display).toBe('none');
         fireEvent.click(view.getByRole('button', { name: 'overviewShowChart' }));
         expect(panel.style.width).toBe('406px');
