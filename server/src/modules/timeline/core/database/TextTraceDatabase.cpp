@@ -203,10 +203,10 @@ bool TextTraceDatabase::CreateIndex()
     }
     std::string sql = CREATE_INDEX_SQL;
     std::unique_lock<std::recursive_mutex> lock(mutex);
-    ExecSql(sql);
+    const bool success = ExecSql(sql);
     auto dur = std::chrono::duration<double, std::milli>(std::chrono::system_clock::now() - start);
     ServerLog::Info("Creating index end. time:", dur.count());
-    return true;
+    return success;
 }
 
 bool TextTraceDatabase::InsertSlice(const Trace::Slice &event) {

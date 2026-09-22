@@ -530,9 +530,23 @@ TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbOpenThenReturnTrue) {
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     database.SetDbPtr(dbPtr);
     bool success = database.CreateIndex();
     EXPECT_EQ(success, true);
+}
+
+TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenSqlFailsThenReturnFalse) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(
+        dbPtr, "CREATE TABLE slice(timestamp INTEGER, end_time INTEGER, track_id INTEGER, cat TEXT);");
+    database.SetDbPtr(dbPtr);
+
+    EXPECT_FALSE(database.CreateIndex());
 }
 
 /**
