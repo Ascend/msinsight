@@ -204,3 +204,54 @@ describe.each(['above', 'below'] as const)('link endpoints with Python Stack %s 
         );
     });
 });
+
+it('anchors a non-async flow to each nearest collapsed ancestor in the same process', () => {
+    const metadata = { processId: 'host-process' };
+    const sourceLeaf = createUnit({ ...metadata, threadId: 'source-thread' });
+    const targetLeaf = createUnit({ ...metadata, threadId: 'target-thread' });
+    const sourceGroup = createUnit(metadata, [sourceLeaf]);
+    const targetGroup = createUnit(metadata, [targetLeaf]);
+    sourceGroup.isExpanded = false;
+    targetGroup.isExpanded = false;
+    const process = createUnit(metadata, [sourceGroup, targetGroup]);
+    const card = createUnit({}, [process]);
+    const flow: FlowEvent = {
+        category: 'HostToDevice',
+        cardId: 'rank0',
+        from: { pid: metadata.processId, tid: 'source-thread', timestamp: 10, depth: 3 },
+        to: { pid: metadata.processId, tid: 'target-thread', timestamp: 20, depth: 4 },
+    };
+
+    const drawCurve = drawScene(createSession([card], [flow], 'all'));
+    const sourceGroupTop = 2 * (UnitHeight.UPPER + 1);
+    const targetGroupTop = sourceGroupTop + UnitHeight.UPPER + 1;
+
+    expect(drawCurve).toHaveBeenCalledTimes(1);
+    expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + sourceGroupTop + UnitHeight.UPPER / 2);
+    expect(drawCurve.mock.calls[0][5]).toBe(UNDRAW_HEIGHT + targetGroupTop + UnitHeight.UPPER / 2);
+});
+
+it('keeps async_task_queue on its process parent until the matching PyTorch lane is available', () => {
+    const source = createUnit({ processId: '43476' });
+    source.isExpanded = false;
+    const targetPytorch = createUnit({ processId: '43590', threadId: 'pytorch' }, [], UnitHeight.STANDARD);
+    const target = createUnit({ processId: '43590' }, [targetPytorch]);
+    const card = createUnit({}, [source, target]);
+    const flow: FlowEvent = {
+        category: 'async_task_queue',
+        cardId: 'rank0',
+        from: { pid: '43476', tid: 'pytorch', timestamp: 10, depth: 0 },
+        to: { pid: '43590', tid: 'pytorch', timestamp: 20, depth: 0 },
+    };
+
+    const session = createSession([card], [flow], 'all');
+    session.linkLines = { async_task_queue: [flow as unknown as Record<string, unknown>] };
+    session.linkLineCategories = ['async_task_queue'];
+    const drawCurve = drawScene(session);
+    const sourceTop = UnitHeight.UPPER + 1;
+    const targetPytorchTop = 3 * (UnitHeight.UPPER + 1);
+
+    expect(drawCurve).toHaveBeenCalledTimes(1);
+    expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + sourceTop + UnitHeight.UPPER / 2);
+    expect(drawCurve.mock.calls[0][5]).toBe(UNDRAW_HEIGHT + targetPytorchTop + UnitHeight.STANDARD / 2);
+});

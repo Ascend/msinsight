@@ -19,11 +19,10 @@ import { observable, observe } from 'mobx';
 import * as d3 from 'd3';
 import { type CardIdIndex, getTimeOffset } from '../../../insight/units/utils';
 import { Session } from '../../../entity/session';
-import { checkLineIsVisible, getHeight, processIsCol, UNDRAW_HEIGHT } from './draw';
+import { checkLineIsVisible, getHeight, UNDRAW_HEIGHT } from './draw';
 import { DataBlock, FlowEvent } from '../../FilterLinkLine';
 import { handlerEmptyString } from '../../../utils/string';
 import { InsightUnit } from '../../../entity/insight';
-import { getLaneProcessIdentity } from '../../../entity/data';
 
 function generateCalculateWHWithCache(): {
     calculateWHWithCacheFunc: Function;
@@ -169,9 +168,7 @@ export function calculateLinkLines(rawList: Array<Record<string, unknown>>, sess
         }, li, session, units, timestampOffset, cardIdIndex), getHeightWithCache(from, sourceCardId, cat, session)];
         const targetPos: Array<[x: number, y: number]> = [[targetX, targetY]];
         const offset = ((targetX - sourceX) / 2);
-        const isAllCol = (processIsCol.get(getLaneProcessIdentity(targetCardId, to.pid, to.dbPath)) ?? false) &&
-            (processIsCol.get(getLaneProcessIdentity(sourceCardId, from.pid, from.dbPath)) ?? false);
-        if (isAllCol || sourceY === undefined || targetY === undefined) { continue; }
+        if (sourceY === undefined || targetY === undefined) { continue; }
         const isInUnit = !(sourceY < UNDRAW_HEIGHT && targetY < UNDRAW_HEIGHT);
         const isInside = checkIsValidLine({ targetX, targetY, sourceX, sourceY, width: canvasWidth, height: canvasHeight });
         // 跳过隐藏泳道或不在画布内的连线
