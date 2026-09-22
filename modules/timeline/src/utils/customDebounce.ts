@@ -18,15 +18,22 @@
 type Callback<T extends unknown[], K> = (...args: T) => Promise<K>;
 export const customDebounce = function<T extends unknown[], K>(callback: Callback<T, K>): Callback<T, K> {
     let waitingTask: ReturnType<Callback<T, K>> | null = null;
-    let curTask: Callback<T, K> | null = null;
     const taskQueue: Array<(value: K) => void> = [];
+    const runCallback = (...args: T): ReturnType<Callback<T, K>> => {
+        const task = callback(...args);
+        task.catch(() => {
+            if (waitingTask === task) {
+                waitingTask = null;
+            }
+        });
+        return task;
+    };
     return (...args) => {
         if (waitingTask === null) {
-            waitingTask = callback(...args);
+            waitingTask = runCallback(...args);
             return waitingTask;
         }
         return new Promise((resolve, reject) => {
-            curTask = callback;
             taskQueue.push(resolve);
             waitingTask?.then((res) => {
                 if (resolve !== taskQueue[taskQueue.length - 1]) {
@@ -35,14 +42,20 @@ export const customDebounce = function<T extends unknown[], K>(callback: Callbac
                     taskQueue.splice(0, index + 1);
                     return;
                 }
-                waitingTask = curTask?.(...args) ?? null;
-                waitingTask?.then((finalRes) => {
+                waitingTask = runCallback(...args);
+                return waitingTask.then((finalRes) => {
                     const index = taskQueue.indexOf(resolve);
                     resolve(finalRes);
                     taskQueue.splice(0, index + 1);
                 });
             })
-                .catch(e => reject(e));
+                .catch(e => {
+                    const index = taskQueue.indexOf(resolve);
+                    if (index >= 0) {
+                        taskQueue.splice(index, 1);
+                    }
+                    reject(e);
+                });
         });
     };
 };
