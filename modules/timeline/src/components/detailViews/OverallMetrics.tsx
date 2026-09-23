@@ -44,6 +44,7 @@ import type { SelectContentViewProps } from './SystemView';
 import { getTimeOffset } from '../../insight/units/utils';
 import { ResponseValidator } from '../../utils/response-validator';
 import { ClassificationRules, loadClassificationRules } from './ClassificationRules';
+import { OverallCategoryCell } from './OverallCategoryCell';
 
 export const overallMetricsColumns = (
     t: TFunction, classificationRules?: React.ReactNode, customCategoryNames: ReadonlySet<string> = new Set(),
@@ -54,6 +55,7 @@ export const overallMetricsColumns = (
         title: t('Category'),
         dataIndex: 'name',
         ellipsis: true,
+        width: 200,
         render: (name: string, record: GetOverallMetricsResultItem): React.ReactNode => {
             const isComputing = name === 'Computing Time' && record.level === 1;
             const isCustomCategory = record.level === 2 && record.categoryList?.[0] === 'Computing Time' &&
@@ -61,11 +63,12 @@ export const overallMetricsColumns = (
             if (!isComputing && !isCustomCategory) {
                 return name;
             }
-            return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span>{name}</span>
-                {isComputing && classificationRules}
-                {isCustomCategory && <Tag color="blue" style={{ marginRight: 0, padding: '0 4px', fontSize: 10, lineHeight: '14px' }}>{classificationT('Custom Badge')}</Tag>}
-            </span>;
+            const suffix = isComputing
+                ? classificationRules
+                : <Tag color="blue" style={{ marginRight: 0, padding: '0 4px', fontSize: 10, lineHeight: '14px' }}>
+                    {classificationT('Custom Badge')}
+                </Tag>;
+            return <OverallCategoryCell name={name} suffix={suffix} suffixFollowsName={isComputing}/>;
         },
     },
     { title: t('Total Time(us)'), dataIndex: 'totalTime' },
