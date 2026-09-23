@@ -19,15 +19,19 @@
 import { register } from './register';
 import type { Session } from '../entity/session';
 import { runInAction } from 'mobx';
-import type { ChartDesc, InsightUnit } from '../entity/insight';
+import type { InsightUnit } from '../entity/insight';
 import type { StackStatusConfig } from '../entity/chart';
-import { getUnitUniqueId } from '../utils';
+import { getRootUnit, getUnitUniqueId } from '../utils';
+
+export type AllUnitsToggleState = 'expand' | 'collapse' | 'idle';
+
+const hasChart = (unit: InsightUnit): boolean => Array.isArray(unit.chart) ? unit.chart.length > 0 : unit.chart !== undefined;
 
 export function updateThreadsToFetch(session: Session, isExpand: boolean, unitOrFetchMap: InsightUnit | Map<string, InsightUnit>): void {
     if (unitOrFetchMap instanceof Map) {
         if (isExpand) {
             for (const [key, value] of unitOrFetchMap) {
-                session.threadsToFetch.set(key, value);
+                hasChart(value) && session.threadsToFetch.set(key, value);
             }
         } else {
             for (const key of unitOrFetchMap.keys()) {
@@ -38,7 +42,7 @@ export function updateThreadsToFetch(session: Session, isExpand: boolean, unitOr
         const unitKey = getUnitUniqueId(unitOrFetchMap);
         const isExisted = session.threadsToFetch.has(unitKey);
         if (isExpand) {
-            !isExisted && session.threadsToFetch.set(unitKey, unitOrFetchMap);
+            hasChart(unitOrFetchMap) && !isExisted && session.threadsToFetch.set(unitKey, unitOrFetchMap);
         } else {
             isExisted && session.threadsToFetch.delete(unitKey);
         }
@@ -49,17 +53,33 @@ const expandUnits = (_unit: InsightUnit, shouldExpand: boolean, session: Session
     const subUnits = _unit.children ?? [];
     if (!subUnits.length) return;
     subUnits.forEach(unit => {
+        delete unit.onceExpand;
         expandUnits(unit, shouldExpand, session, _threadsToFetch);
         unit.isExpanded = shouldExpand;
         const isThread = unit.name === 'Thread';
-        if (isThread && !unit.hasExpanded) {
+        if (isThread && hasChart(unit) && !unit.hasExpanded) {
             const unitKey = getUnitUniqueId(unit);
             _threadsToFetch.set(unitKey, unit);
         }
-        if (isThread && unit.collapsible) {
-            const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const chart = Array.isArray(unit.chart) ? undefined : unit.chart;
+        if (isThread && unit.collapsible && chart?.type === 'stackStatus' && typeof chart.config !== 'function') {
             (chart.config as StackStatusConfig).isCollapse = shouldExpand;
             unit.collapseAction?.(unit);
+        }
+    });
+};
+
+const collapseOrExpandUnits = (session: Session, targetUnits: InsightUnit[], shouldExpand: boolean, keepTargetsExpanded = true): void => {
+    runInAction(() => {
+        const _threadsToFetchMap: Map<string, InsightUnit> = new Map();
+        targetUnits.forEach(unit => {
+            delete unit.onceExpand;
+            expandUnits(unit, shouldExpand, session, _threadsToFetchMap);
+            unit.isExpanded = shouldExpand || keepTargetsExpanded;
+        });
+        session.renderTrigger = !session.renderTrigger;
+        if (_threadsToFetchMap.size > 0) {
+            updateThreadsToFetch(session, shouldExpand, _threadsToFetchMap);
         }
     });
 };
@@ -69,18 +89,7 @@ const collapseOrExpandAll = (session: Session, shouldExpand: boolean): void => {
     if (session.selectedUnits.length !== 1) {
         return;
     }
-    const selectedUnit = session.selectedUnits[0];
-    runInAction(() => {
-        const _threadsToFetchMap: Map<string, InsightUnit> = new Map();
-        if (selectedUnit !== undefined) {
-            expandUnits(selectedUnit, shouldExpand, session, _threadsToFetchMap);
-            selectedUnit.isExpanded = true;
-        }
-        session.renderTrigger = !session.renderTrigger;
-        if (_threadsToFetchMap.size > 0) {
-            updateThreadsToFetch(session, shouldExpand, _threadsToFetchMap);
-        }
-    });
+    collapseOrExpandUnits(session, session.selectedUnits, shouldExpand);
 };
 
 const haveExpandedChildren = (_unit: InsightUnit): boolean => {
@@ -126,6 +135,26 @@ const isExpandAllVisible = (session: Session): boolean => {
         return haveCollapsedChildren(selectedUnit);
     }
     return false;
+};
+
+export const getAllUnitsToggleState = (session: Session): AllUnitsToggleState => {
+    const rootUnits = getRootUnit(session.units);
+    const haveCollapsedUnit = rootUnits.some(unit => {
+        const rootIsCollapsed = unit.collapsible && !unit.isExpanded && Boolean(unit.children?.length);
+        return rootIsCollapsed ? true : haveCollapsedChildren(unit);
+    });
+    if (haveCollapsedUnit) {
+        return 'expand';
+    }
+    return rootUnits.some(unit => haveExpandedChildren(unit)) ? 'collapse' : 'idle';
+};
+
+export const toggleAllUnits = (session: Session): void => {
+    const state = getAllUnitsToggleState(session);
+    if (state === 'idle') {
+        return;
+    }
+    collapseOrExpandUnits(session, getRootUnit(session.units), state === 'expand', false);
 };
 
 export const actionExpandAllUnits = register({

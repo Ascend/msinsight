@@ -49,6 +49,8 @@
     "None": "全部取消",
     "Card Filter": "卡过滤",
     "Units Filter": "泳道过滤",
+    "Expand all lanes": "展开所有泳道",
+    "Collapse all lanes": "收起所有泳道",
     "Select filter type": "选择过滤类型",
     "Please select card": "请选择卡",
     "Please select unit": "请选择泳道",

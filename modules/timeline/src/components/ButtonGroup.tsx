@@ -18,11 +18,15 @@
 import styled from '@emotion/styled';
 import { observer } from 'mobx-react';
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
+import { CollapseAllLanesIcon, ExpandAllLanesIcon } from '@insight/lib/icon';
 import type { Session } from '../entity/session';
+import { getAllUnitsToggleState, toggleAllUnits } from '../actions/actionExpandUnits';
 import { TimeMakerButton } from './TimeMakerButton';
 import { UnitsFilter } from './UnitsFilter';
 import { CategorySearch } from './CategorySearch';
 import { FilterLinkLine } from './FilterLinkLine';
+import { CustomButton } from './base/StyledButton';
 
 const Container = styled.div`
     display: flex;
@@ -35,14 +39,35 @@ const Container = styled.div`
     }
 `;
 
+const ToggleAllButton = styled(CustomButton)`
+    &:hover,
+    &:focus:not(:focus-visible) {
+        color: ${(props): string => props.theme.textColorPrimary};
+        background-color: ${(props): string => props.theme.buttonColor.unSuspendBGColor};
+        border-color: transparent;
+        box-shadow: none;
+    }
+`;
+
 export const ButtonGroup = observer(({ session }: { session: Session }) => {
+    const { t } = useTranslation('timeline');
     const unit = session.selectedUnits[0];
     const isRenderLink = !(session.isSimulation && session.areFlagEventsHidden);
+    const toggleState = getAllUnitsToggleState(session);
+    const isCollapse = toggleState === 'collapse';
+    const tooltip = t(isCollapse ? 'Collapse all lanes' : 'Expand all lanes');
     return (<Container>
         <TimeMakerButton session={session} />
         <UnitsFilter session={session} />
         <CategorySearch session={session} />
         {isRenderLink && <FilterLinkLine session={session}/>}
+        <ToggleAllButton
+            data-testid={'tool-toggle-all-units'}
+            aria-label={tooltip}
+            tooltip={tooltip}
+            icon={(isCollapse ? CollapseAllLanesIcon : ExpandAllLanesIcon) as any}
+            onClick={(): void => toggleAllUnits(session)}
+        />
         {session.buttons.map((_Button, index) => <_Button session={session} key={`${session.id}-${index}`} />)}
         {unit?.buttons?.map((_Button, index) => <_Button session={session} key={`${unit.name}-${index}`} />)}
     </Container>);

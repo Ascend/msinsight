@@ -30,6 +30,7 @@ import { TimeMakerAxis } from '../TimeMakerAxis';
 const HeaderToolbar = styled.div<{ width?: number }>`
     display: flex;
     justify-content: space-between;
+    box-sizing: border-box;
     padding-left: 10px;
     padding-right: 10px;
     width: ${(props): number | undefined => props.width}px;
