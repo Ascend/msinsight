@@ -19,8 +19,34 @@
 .theme_dark .ant-pagination{
     color:white;
 }
-.theme_dark .ant-message-notice-content{ background: var(--mi-bg-color); color: var(--mi-text-color-primary); }
-.theme_dark .ant-message-custom-content > span{ color: var(--mi-text-color-primary); }
+.theme_dark .ant-message-notice-content{
+    background: var(--mi-bg-color);
+    color: var(--mi-text-color-primary);
+}
+.theme_dark .ant-message-custom-content > span:not(.anticon){
+    color: var(--mi-text-color-primary);
+}
+.theme_dark .ant-message-notice-content:has(.ant-message-error){
+    background: var(--grey85);
+}
+.theme_dark .ant-message-error > span:not(.anticon){
+    color: var(--grey0);
+}
+.theme_dark .ant-message-error .anticon{
+    color: var(--mi-color-danger);
+}
+.theme_dark .ant-message-success .anticon{
+    color: var(--mi-color-success);
+}
+.theme_dark .ant-message-warning .anticon{
+    color: var(--mi-color-warning);
+}
+.theme_dark .ant-message-info .anticon{
+    color: var(--mi-color-info);
+}
+.theme_dark .ant-message-loading .anticon{
+    color: var(--mi-color-primary);
+}
 
 .theme_dark .ant-notification-notice{
     background: var(--grey85);
