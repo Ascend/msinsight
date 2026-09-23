@@ -49,6 +49,8 @@
     "None": "None",
     "Card Filter": "Card Filter",
     "Units Filter": "Units Filter",
+    "Expand all lanes": "Expand all lanes",
+    "Collapse all lanes": "Collapse all lanes",
     "Select filter type": "Select filter type",
     "Please select card": "Please select card",
     "Please select unit": "Please select unit",

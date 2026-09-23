@@ -37,6 +37,8 @@ import { ReactComponent as ArrowUpSvg } from './img/arrow_up.svg';
 import { ReactComponent as ColumnFilterSvg } from './img/column_filter.svg';
 import { ReactComponent as ExpandSvg } from './img/expand.svg';
 import { ReactComponent as ExpandRightSvg } from './img/expand_right.svg';
+import { ReactComponent as ExpandAllLanesSvg } from './img/expand_all_lanes.svg';
+import { ReactComponent as CollapseAllLanesSvg } from './img/collapse_all_lanes.svg';
 import { ReactComponent as ImportDataSvg } from './img/import_data.svg';
 import { ReactComponent as RefreshSvg } from './img/refresh.svg';
 import { ReactComponent as FileSvg } from './img/file.svg';
@@ -264,6 +266,18 @@ export function ExpandIcon(props: ISVGProps): JSX.Element {
 export function CollapseIcon(props: ISVGProps): JSX.Element {
     const { style = {}, ...restProps } = props;
     return <Icon svgElement={ExpandRightSvg} style={{ verticalAlign: 'middle', margin: '-5px 5px 0 -2px', ...style }} {...restProps} />;
+}
+
+export function ExpandAllLanesIcon(props: ISVGProps): JSX.Element {
+    const { style = {}, ...restProps } = props;
+    const iconColor = useTheme().iconColor;
+    return <Icon svgElement={ExpandAllLanesSvg} color={iconColor} style={{ color: iconColor, ...style }} {...restProps} />;
+}
+
+export function CollapseAllLanesIcon(props: ISVGProps): JSX.Element {
+    const { style = {}, ...restProps } = props;
+    const iconColor = useTheme().iconColor;
+    return <Icon svgElement={CollapseAllLanesSvg} color={iconColor} style={{ color: iconColor, ...style }} {...restProps} />;
 }
 
 export function AlarmIcon(props: ISVGProps): JSX.Element {

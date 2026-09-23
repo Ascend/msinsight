@@ -48,7 +48,7 @@ import KeyInfoTooltip from './KeyInfoTooltip';
 import FloatingToolbar from './FloatingToolbar';
 import { isMac } from '../../utils/is';
 
-const DEFAULT_LANE_INFO_WIDTH = 250;
+const DEFAULT_LANE_INFO_WIDTH = 275;
 const DEFAULT_LANE_CHART_WIDTH = 100;
 export const TIME_LINE_AXIS_HEIGHT_PX = 30;
 const LANE_INFO_WIDTH_PX = observable({ value: DEFAULT_LANE_INFO_WIDTH });
