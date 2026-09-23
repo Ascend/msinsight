@@ -558,7 +558,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
     <tr>
     <td class="tg-0pky">CCU</td>
     <td class="tg-0pky">Communication</td>
-    <td class="tg-0pky">包含集合通信指令数据，CCU任务的起止时间以及CCU任务的一级索引指令的起止时间，以及同步及数据搬运耗时。<br>CCU泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">包含集合通信指令数据，CCU任务的起止时间以及CCU任务的一级索引指令的起止时间，以及同步及数据搬运耗时。<br>CCU泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
     <tr>
     <td class="tg-0pky" rowspan="4">Overlap Analysis</td>
@@ -589,19 +589,19 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="22">NPU Metrics</td>
     <td class="tg-0pky">Low Power</td>
-    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
-    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。DB格式文件下，每个Port对应一条UB Port&lt;id&gt;泳道，泳道同时展示Rx Bandwidth和Tx Bandwidth。<br>UB泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。DB格式文件下，每个Port对应一条UB Port&lt;id&gt;泳道，泳道同时展示Rx Bandwidth和Tx Bandwidth。<br>UB泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Block Detail</td>
-    <td class="tg-0pky">展示各个算子在最早和最晚的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">展示各个算子在最早和最晚的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">HBM</td>
@@ -633,7 +633,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。导入Ascend 950PR&950DT 系列产品的DB格式文件时，按Die ID分别展示为AI Core Freq Die &lt;id&gt;泳道。<br>AI Core Freq泳道支持展示Atlas A2 系列产品和Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。导入Ascend 950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为AI Core Freq Die &lt;id&gt;泳道。<br>AI Core Freq泳道支持展示Atlas A2系列产品和Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">SIO</td>
@@ -641,7 +641,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>
-    <td class="tg-0pky">设备QoS带宽信息。导入Ascend 950PR&950DT 系列产品的DB格式文件时，按Die ID分别展示为QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth泳道。</td>
+    <td class="tg-0pky">设备QoS带宽信息。导入Ascend 950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>
@@ -649,7 +649,11 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">RoCE</td>
-    <td class="tg-0pky">RoCE通信接口带宽数据。RoCE泳道仅支持在text格式文件下展示。</td>
+    <td class="tg-0pky">RoCE通信接口带宽数据。</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">NetDev Stats</td>
+    <td class="tg-0pky">通过硬件采样带宽能力，可以部分识别通信问题，作为总览项，初步排查通信问题，如出现通信耗时异常，即可优先排查是否为网络拥塞导致。NetDev Stats数据只支持在db格式文件下展示。</td>
   </tr>
   <tr>
     <td class="tg-0pky">PCIe</td>
@@ -717,22 +721,22 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 <tr>
     <td class="tg-0pky">Low Power</td>
     <td class="tg-0pky">-</td>
-    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
     <td class="tg-0pky">Group&lt;id&gt;-aiv&lt;id&gt;</td>
-    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
     <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;<br>UB Port&lt;id&gt;</td>
-    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。DB格式文件下，每个Port对应一条UB Port&lt;id&gt;泳道，泳道同时展示Rx Bandwidth和Tx Bandwidth。<br>UB泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。DB格式文件下，每个Port对应一条UB Port&lt;id&gt;泳道，泳道同时展示Rx Bandwidth和Tx Bandwidth。<br>UB泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Block Detail</td>
     <td class="tg-0pky">AIC/AIV Earliest</td>
-    <td class="tg-0pky">展示各个算子在最早的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">展示各个算子在最早的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
     <tr>
     <td class="tg-0pky">AIC/AIV Latest</td>
@@ -802,7 +806,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="4">acc_pmu</td>
     <td class="tg-0pky">Accelerator {accId}/readBwLevel</td>
-    <td class="tg-0pky">DVPP和DSA加速器读带宽。<br>Ascend 950PR&950DT 系列产品不支持acc_pmu泳道。</td>
+    <td class="tg-0pky">DVPP和DSA加速器读带宽。<br>Ascend 950PR&950DT系列产品不支持acc_pmu泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Accelerator {accId}/readOstLevel</td>
@@ -828,12 +832,12 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
     <td class="tg-0pky">AI Core Freq<br>AI Core Freq Die &lt;id&gt;</td>
-    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。导入Ascend 950PR&950DT 系列产品的DB格式文件时，按Die ID分别展示为AI Core Freq Die &lt;id&gt;泳道。<br>AI Core Freq泳道支持展示Atlas A2 系列产品和Ascend 950PR&950DT 系列产品导出的性能数据。</td>
+    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。导入Ascend 950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为AI Core Freq Die &lt;id&gt;泳道。<br>AI Core Freq泳道支持展示Atlas A2系列产品和Ascend 950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>
     <td class="tg-0pky">dat_rx、dat_tx<br>dat_rx/&lt;name&gt;、dat_tx/&lt;name&gt;（DB格式）</td>
-    <td class="tg-0pky">数据流通道的接收、发送带宽。SIO泳道支持在text格式文件下展示；对于Ascend 950PR&950DT 系列产品，还支持在DB格式文件下展示。DB格式下，各子泳道名称末尾会追加“/&lt;name&gt;”以区分SIO通道。<br>SIO泳道仅支持展示Atlas A2 系列产品和Ascend 950PR&950DT 系列产品DIE间传输带宽信息。</td>
+    <td class="tg-0pky">数据流通道的接收、发送带宽。SIO泳道支持在text格式文件下展示；对于Ascend 950PR&950DT系列产品，还支持在DB格式文件下展示。DB格式下，各子泳道名称末尾会追加“/&lt;name&gt;”以区分SIO通道。<br>SIO泳道仅支持展示Atlas A2系列产品和Ascend 950PR&950DT系列产品DIE间传输带宽信息。</td>
   </tr>
   <tr>
     <td class="tg-0pky">req_rx、req_tx<br>req_rx/&lt;name&gt;、req_tx/&lt;name&gt;（DB格式）</td>
@@ -850,17 +854,22 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky">QoS</td>
     <td class="tg-0pky">QoS &lt;id&gt;:OTHERS<br>QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth</td>
-    <td class="tg-0pky">设备QoS带宽信息。导入Ascend 950PR&950DT 系列产品的DB格式文件时，按Die ID分别展示为QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth泳道。</td>
+    <td class="tg-0pky">设备QoS带宽信息。导入Ascend 950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>
-    <td class="tg-0pky">Port &lt;id&gt;/Rx<br>Port &lt;id&gt;/Tx</td>
-    <td class="tg-0pky">text场景：展示每个时间节点网络信息数据。<br>db场景：展示带宽信息数据。<br>泳道名称会根据导入的数据不同而变化。</td>
+    <td class="tg-0pky">具体泳道信息详见：<br>1. 《DB格式性能数据文件参考》文档中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references_db.md#nic">NIC</a>”章节“表 1 格式”字段名列；<br>2. 《性能数据文件参考》文档“Text格式性能数据”章节中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references.md#nic%E6%AF%8F%E4%B8%AA%E6%97%B6%E9%97%B4%E8%8A%82%E7%82%B9%E7%BD%91%E7%BB%9C%E4%BF%A1%E6%81%AF">nic（每个时间节点网络信息）</a>”章节“表 1 字段说明”字段名列和“表 2 字段说明”字段名列。</td>
+    <td class="tg-0pky">具体泳道含义详见：<br>1. 《DB格式性能数据文件参考》文档中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references_db.md#nic">NIC</a>”章节“表 1 格式”含义列；<br>2. 《性能数据文件参考》文档“Text格式性能数据”章节中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references.md#nic%E6%AF%8F%E4%B8%AA%E6%97%B6%E9%97%B4%E8%8A%82%E7%82%B9%E7%BD%91%E7%BB%9C%E4%BF%A1%E6%81%AF">nic（每个时间节点网络信息）</a>”章节“表 1 字段说明”字段含义列和“表 2 字段说明”字段含义列。</td>
   </tr>
   <tr>
     <td class="tg-0pky">RoCE</td>
-    <td class="tg-0pky">Port &lt;id&gt;/Rx<br>Port &lt;id&gt;/Tx</td>
-    <td class="tg-0pky">RoCE通信接口带宽数据。RoCE泳道仅支持在text格式文件下展示。</td>
+    <td class="tg-0pky">具体泳道信息详见：<br>1. 《DB格式性能数据文件参考》文档中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references_db.md#roce">ROCE</a>”章节“表 1 格式”字段名列<br>2. 《性能数据文件参考》文档“Text格式性能数据”章节中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references.md#roceroce%E9%80%9A%E4%BF%A1%E6%8E%A5%E5%8F%A3%E5%B8%A6%E5%AE%BD">roce（RoCE通信接口带宽）</a>”章节“表 1 字段说明”字段名列和“表 2 字段说明”字段名列。</td>
+    <td class="tg-0pky">具体泳道含义详见：<br>1. 《DB格式性能数据文件参考》文档中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references_db.md#roce">ROCE</a>”章节“表 1 格式”含义列<br>2. 《性能数据文件参考》文档“Text格式性能数据”章节中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references.md#roceroce%E9%80%9A%E4%BF%A1%E6%8E%A5%E5%8F%A3%E5%B8%A6%E5%AE%BD">roce（RoCE通信接口带宽）</a>”章节“表 1 字段说明”字段含义列和“表 2 字段说明”字段含义列。</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">NetDev Stats</td>
+    <td class="tg-0pky">具体泳道信息详见《DB格式性能数据文件参考》文档中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references_db.md#netdev_stats">NETDEV_STATS</a>”章节“表 1 格式”字段名列</td>
+    <td class="tg-0pky">具体泳道含义详见《DB格式性能数据文件参考》文档中“<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/zh/user_guide/profile_data_file_references_db.md#netdev_stats">NETDEV_STATS</a>”章节“表 1 格式”含义列</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">PCIe</td>
@@ -942,7 +951,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="4">Stars Chip Trans</td>
     <td class="tg-0pky">PA Link Rx</td>
-    <td class="tg-0pky">PA流量接收等级。当有集合通信带宽时，不建议参考该字段值，该字段为粗粒度的统计值。Stars Chip Trans泳道仅支持在text格式文件下展示，且Ascend 950PR&950DT 系列产品不支持该泳道。</td>
+    <td class="tg-0pky">PA流量接收等级。当有集合通信带宽时，不建议参考该字段值，该字段为粗粒度的统计值。Stars Chip Trans泳道仅支持在text格式文件下展示，且Ascend 950PR&950DT系列产品不支持该泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">PA Link Tx</td>
