@@ -480,6 +480,6 @@ Vector0（~12 μs）和 Vector1（~21.5 μs）之间的 ~9 μs 差距说明 SetD
 - [算子调优](../user_guide/operator_tuning.md)
 - [Ascend C MatmulLeakyRelu 融合算子示例（Basic API）](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
 - [Ascend C MatmulLeakyRelu 融合算子示例（Advanced API）](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
-- [Ascend C 融合算子编程指南（CV 融合）](https://gitcode.com/cann/asc-devkit/tree/master/docs/guide/算子实践参考/SIMD算子实现/融合算子编程/CV融合)
+- [Ascend C 融合算子编程指南（CV 融合）](https://gitcode.com/cann/asc-devkit/tree/master/docs/zh/guide/operator_practice/simd_operator_impl/fusion_operator_programming/cv_fusion)
 - [msOpProf 用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)
-- [CANN 商用版 Profiling 数据采集指南](https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/devaids/Profilling/atlasprofiling_16_0010.html)
+- [CANN Profiling 数据采集指南](https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/devaids/Profilling/atlasprofiling_16_0010.html)
