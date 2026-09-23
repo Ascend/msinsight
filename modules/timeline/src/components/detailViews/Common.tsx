@@ -364,6 +364,43 @@ export const searchAllSlices = async (param: {
     return window.requestData('search/all/slices', param, 'timeline');
 };
 
+const SEARCH_PAGE_SIZE_LIMIT = 1000;
+const SEARCH_BATCH_CONCURRENCY = 4;
+
+export const searchAllSlicesByBatch = async (
+    param: Omit<Parameters<typeof searchAllSlices>[0], 'pageSize' | 'current'>, candidateCount: number,
+): Promise<any> => {
+    const firstResponse = await searchAllSlices({
+        ...param,
+        pageSize: Math.min(candidateCount, SEARCH_PAGE_SIZE_LIMIT),
+        current: 1,
+    });
+    const batchCount = Math.ceil(
+        Math.min(candidateCount, firstResponse.count) / SEARCH_PAGE_SIZE_LIMIT,
+    );
+    if (batchCount <= 1) {
+        return firstResponse;
+    }
+    const remainingResponses = [];
+    for (let start = 2; start <= batchCount; start += SEARCH_BATCH_CONCURRENCY) {
+        const currentBatchCount = Math.min(SEARCH_BATCH_CONCURRENCY, batchCount - start + 1);
+        const responses = await Promise.all(Array.from({ length: currentBatchCount }, (_, index) =>
+            searchAllSlices({
+                ...param,
+                pageSize: SEARCH_PAGE_SIZE_LIMIT,
+                current: start + index,
+            }),
+        ));
+        remainingResponses.push(...responses);
+    }
+    return {
+        ...firstResponse,
+        searchAllSlicesDetails: [firstResponse, ...remainingResponses]
+            .flatMap(response => response.searchAllSlicesDetails)
+            .slice(0, candidateCount),
+    };
+};
+
 export const queryAffinityOptimizer = async (param: {
     rankId: string; dbPath: string; pageSize: number; current: number; orderBy: string; order: string;
     startTime: number; endTime: number;

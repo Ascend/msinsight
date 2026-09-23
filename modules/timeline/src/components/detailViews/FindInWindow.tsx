@@ -17,11 +17,11 @@
  */
 
 import type { Session } from '../../entity/session';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { observer } from 'mobx-react';
 import { Button } from '@insight/lib/components';
-import { getDefaultColumData, getPageData, queryOneKernel, searchAllSlices } from './Common';
+import { getDefaultColumData, getPageData, queryOneKernel, searchAllSlicesByBatch } from './Common';
 import { ResizeTable, fetchColumnFilterProps } from '@insight/lib/resize';
 import { ChartErrorBoundary } from '../error/ChartErrorBoundary';
 import styled from '@emotion/styled';
@@ -31,6 +31,7 @@ import type { InsightUnit } from '../../entity/insight';
 import { getTimeOffset } from '../../insight/units/utils';
 import { type CardMetaData, getCardSourceDbPaths, ProcessMetaData, type ThreadMetaData } from '../../entity/data';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
+import { ResponseValidator } from '../../utils/response-validator';
 
 const CONTAINER = styled.div`
     height: calc(100% - 50px);
@@ -203,6 +204,7 @@ const FindDetail = observer((props: FindDetailProps) => {
     const [isLoading, setLoading] = useState(false);
     const [rowData, setRowData] = useState<Partial<SearchAllSlicesDetails>>({});
     const [nameFilter, setNameFilter] = useState<string>('');
+    const responseValidatorRef = useRef(new ResponseValidator());
     const [allCondition, setAllCondition] = useState<AllConditionType>(
         { doContextSearch: props.session.doContextSearch, page, sorter, selectCard: props.card, nameFilter: '' });
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
@@ -248,6 +250,10 @@ const FindDetail = observer((props: FindDetailProps) => {
     }, [allCondition.sorter, allCondition.selectCard.cardId, allCondition.page.current,
         allCondition.page.pageSize, allCondition.doContextSearch, allCondition.nameFilter, props.session.doReset]);
 
+    useEffect(() => () => {
+        responseValidatorRef.current.markUpdate();
+    }, []);
+
     useEffect(() => {
         if (rowData.name === null || rowData.name === undefined) {
             return;
@@ -256,8 +262,10 @@ const FindDetail = observer((props: FindDetailProps) => {
     }, [rowData]);
 
     const updateData = async(pages: any, sorters: {field: string;order: string}, prop: FindDetailProps): Promise<void> => {
+        const requestVersion = responseValidatorRef.current.markUpdate();
         if (props.card === undefined || props.card.cardId === '') {
             setDataSource([]);
+            setLoading(false);
             setPage(defaultPage);
             setSorter(defaultSorter);
             setAllCondition({ ...allCondition, page: defaultPage, sorter: defaultSorter });
@@ -265,20 +273,30 @@ const FindDetail = observer((props: FindDetailProps) => {
         }
         if (prop.session.searchData === undefined || prop.session.searchData?.content === '') {
             setDataSource([]);
+            setLoading(false);
             setPage(defaultPage);
             setSorter(defaultSorter);
             setAllCondition({ ...allCondition, page: defaultPage, sorter: defaultSorter });
             return;
         }
         setLoading(true);
-        const res = await searchData(pages, sorters, prop, allCondition.nameFilter).finally(() => setLoading(false));
-        const timestampoffset = getTimeOffset(props.session, props.card);
-        const data = res.searchAllSlicesDetails.map(item => {
-            item.startTime = getDetailTimeDisplay(item.timestamp - timestampoffset);
-            return item;
-        });
-        setDataSource(data);
-        setPage({ ...page, total: res.count });
+        try {
+            const res = await searchData(pages, sorters, prop, allCondition.nameFilter);
+            if (!responseValidatorRef.current.isValid(requestVersion)) {
+                return;
+            }
+            const timestampoffset = getTimeOffset(props.session, props.card);
+            const data = res.searchAllSlicesDetails.map(item => {
+                item.startTime = getDetailTimeDisplay(item.timestamp - timestampoffset);
+                return item;
+            });
+            setDataSource(data);
+            setPage(currentPage => ({ ...currentPage, total: res.count }));
+        } finally {
+            if (responseValidatorRef.current.isValid(requestVersion)) {
+                setLoading(false);
+            }
+        }
     };
 
     return <CONTAINER>
@@ -325,19 +343,20 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
     const orderBy = sorters.field === 'startTime' ? 'timestamp' : sorters.field ?? defaultSorter.field;
     const order = sorters.order ?? defaultSorter.order;
     const candidateCount = pages.current * pages.pageSize;
-    const responses = await Promise.all(queryDbPaths.map(dbPath => searchAllSlices({
-        rankId: prop.card.cardId,
-        dbPath,
-        pageSize: candidateCount,
-        current: 1,
-        orderBy,
-        order,
-        searchContent: prop.session.searchData?.content,
-        isMatchCase: prop.session.searchData?.isMatchCase,
-        isMatchExact: prop.session.searchData?.isMatchExact,
-        metadataList: metadataList.filter(item => item.dbPath === undefined || item.dbPath === dbPath),
-        nameFilter,
-    })));
+    const responses = [];
+    for (const dbPath of queryDbPaths) {
+        responses.push(await searchAllSlicesByBatch({
+            rankId: prop.card.cardId,
+            dbPath,
+            orderBy,
+            order,
+            searchContent: prop.session.searchData?.content,
+            isMatchCase: prop.session.searchData?.isMatchCase,
+            isMatchExact: prop.session.searchData?.isMatchExact,
+            metadataList: metadataList.filter(item => item.dbPath === undefined || item.dbPath === dbPath),
+            nameFilter,
+        }, candidateCount));
+    }
     const searchAllSlicesDetails = responses.flatMap(response => response.searchAllSlicesDetails);
     const direction = order === 'ascend' ? 1 : -1;
     searchAllSlicesDetails.sort((first, second) => {
