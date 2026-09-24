@@ -11,15 +11,22 @@ import { resolve } from "node:path";
 
 const MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 30 * 1000;
-const DENIED_COMMANDS = [
+const COMMON_DENIED_COMMANDS = [
+    /(^|[\s;&|()`/])git(?=[\s;&|]|$)(?=[^;\r\n&|]*\bpush\b)(?=[^;\r\n&|]*(?:--force|-f)(?:\s|$))/i,
+    /(^|[\s;&|()`/])git(?=[\s;&|]|$)(?=[^;\r\n&|]*\breset\s+--hard(?:\s|$))/i,
+    /(^|[\s;&|()`/])git(?=[\s;&|]|$)(?=[^;\r\n&|]*\bclean\b)(?=[^;\r\n&|]*\s-[^\s]*f)/i,
+];
+const BASH_DENIED_COMMANDS = [
     /(^|[\s;&|()`/])sudo(?:\s|$)/i,
     /(^|[\s;&|()`/])shutdown(?:\s|$)/i,
     /(^|[\s;&|()`/])reboot(?:\s|$)/i,
     /(^|[\s;&|()`/])(?:nohup|disown|bg)(?:\s|$)/i,
     /(^|[\s;&|()`/])rm(?=[^;\r\n&|]*\s-[^\s]*r)(?=[^;\r\n&|]*\s-[^\s]*f)(?:\s|$)/i,
-    /(^|[\s;&|()`/])git(?=[\s;&|]|$)(?=[^;\r\n&|]*\bpush\b)(?=[^;\r\n&|]*(?:--force|-f)(?:\s|$))/i,
-    /(^|[\s;&|()`/])git(?=[\s;&|]|$)(?=[^;\r\n&|]*\breset\s+--hard(?:\s|$))/i,
-    /(^|[\s;&|()`/])git(?=[\s;&|]|$)(?=[^;\r\n&|]*\bclean\b)(?=[^;\r\n&|]*\s-[^\s]*f)/i,
+];
+const POWERSHELL_DENIED_COMMANDS = [
+    /(^|[\s;|&()])remove-item(?=[^;\r\n|&]*\s-recurse(?:\s|$))(?=[^;\r\n|&]*\s-force(?:\s|$))/i,
+    /(^|[\s;|&()])(?:stop-computer|restart-computer)(?:\s|$)/i,
+    /(^|[\s;|&()])start-process(?=[^;\r\n|&]*\s-verb\s+runas(?:\s|$))/i,
 ];
 const SHELL_CONTROL_SYNTAX = /[\r\n;&|<>`$()]/;
 
@@ -40,11 +47,15 @@ export const normalizeBashInput = async (input, session, defaultCwd) => {
 };
 
 /** 功能：按产品硬策略和 Agent 命令模式裁决 Bash，并返回可记忆的规范规则。 */
-export const evaluateBashPolicy = ({ command, rules = [] }) => {
+export const evaluateBashPolicy = ({ command, rules = [], shellKind = "bash" }) => {
     const productCommand = normalizeForProductPolicy(command);
     const denyCommand = productCommand.replace(/["']/g, "");
-    if (hasUnquotedBackgroundOperator(productCommand) || DENIED_COMMANDS.some((pattern) => pattern.test(denyCommand))) {
-        return { behavior: "deny", message: "Command is denied by the product Bash policy", normalizedRule: command };
+    const deniedCommands = shellKind === "powershell"
+        ? [...COMMON_DENIED_COMMANDS, ...POWERSHELL_DENIED_COMMANDS]
+        : [...COMMON_DENIED_COMMANDS, ...BASH_DENIED_COMMANDS];
+    if (hasUnquotedBackgroundOperator(productCommand) || deniedCommands.some((pattern) => pattern.test(denyCommand))) {
+        const policyName = shellKind === "powershell" ? "PowerShell" : "Bash";
+        return { behavior: "deny", message: `Command is denied by the product ${policyName} policy`, normalizedRule: command };
     }
     const matched = rules
         .map((rule, index) => ({ ...rule, index, specificity: rule.pattern === "*" ? 0 : rule.pattern.replaceAll("*", "").length }))

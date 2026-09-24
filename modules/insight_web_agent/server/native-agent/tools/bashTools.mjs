@@ -9,22 +9,23 @@
  */
 import { spawn } from "node:child_process";
 import { evaluateBashPolicy, normalizeBashInput } from "../permissions/bashPolicy.mjs";
+import { resolveShellRuntime } from "./shellRuntime.mjs";
 
 const MAX_OUTPUT_BYTES = 200 * 1024;
 
 export const createBashTools = ({
     sessions,
     hostClient,
-    cwd = process.cwd(),
     env = process.env,
-    shell = env.MSINSIGHT_NATIVE_BASH_PATH ?? "bash",
+    cwd = process.cwd(),
+    shellRuntime = resolveShellRuntime({ env }),
     spawnProcess = spawn,
 }) => {
     const active = new Map();
 
     return [{
         name: "Bash",
-        description: "Run one foreground, non-interactive Bash command inside an allowed filesystem root. Commands are subject to product policy and may require user approval.",
+        description: shellRuntime.description,
         inputSchema: {
             type: "object",
             properties: {
@@ -42,9 +43,15 @@ export const createBashTools = ({
             const reservation = Symbol(session.sessionId);
             active.set(session.sessionId, reservation);
             try {
-                const normalized = await authorizeBash({ input, session, signal, cwd, hostClient });
-                if (signal?.aborted) throw signal.reason ?? new Error("Bash command was cancelled");
-                return await runBashCommand({ input: normalized, signal, shell, spawnProcess, env: createBashEnvironment(env) });
+                const normalized = await authorizeBash({ input, session, signal, cwd, hostClient, shellRuntime });
+                if (signal?.aborted) throw signal.reason ?? new Error(`${shellRuntime.displayName} command was cancelled`);
+                return await runShellCommand({
+                    input: normalized,
+                    signal,
+                    shellRuntime,
+                    spawnProcess,
+                    env: createBashEnvironment(env),
+                });
             } finally {
                 if (active.get(session.sessionId) === reservation) active.delete(session.sessionId);
             }
@@ -52,15 +59,19 @@ export const createBashTools = ({
     }];
 };
 
-const authorizeBash = async ({ input, session, signal, cwd, hostClient }) => {
+const authorizeBash = async ({ input, session, signal, cwd, hostClient, shellRuntime }) => {
     const normalized = await normalizeBashInput(input, session, cwd);
-    const policy = evaluateBashPolicy({ command: normalized.command, rules: session.primaryAgentBashRules });
+    const policy = evaluateBashPolicy({
+        command: normalized.command,
+        rules: session.primaryAgentBashRules,
+        shellKind: shellRuntime.kind,
+    });
     if (policy.behavior === "deny") throw new Error(policy.message);
     if (policy.behavior === "allow") return normalized;
     const result = await hostClient.request("session/request_permission", {
         sessionId: session.sessionId,
         kind: "bash",
-        title: "Run Bash command",
+        title: `Run ${shellRuntime.displayName} command`,
         target: normalized.command,
         rememberKey: `bash:${session.primaryAgentId}:${policy.normalizedRule}`,
         details: {
@@ -79,8 +90,11 @@ const authorizeBash = async ({ input, session, signal, cwd, hostClient }) => {
     return normalized;
 };
 
-const runBashCommand = ({ input, signal, shell, spawnProcess, env }) => new Promise((resolve, reject) => {
-    const child = spawnProcess(shell, ["-lc", input.command], {
+const runShellCommand = ({ input, signal, shellRuntime, spawnProcess, env }) => new Promise((resolve, reject) => {
+    const child = spawnProcess(shellRuntime.executable, [
+        ...shellRuntime.commandArgs,
+        shellRuntime.prepareCommand(input.command),
+    ], {
         cwd: input.cwd,
         env,
         stdio: ["ignore", "pipe", "pipe"],
@@ -117,14 +131,14 @@ const runBashCommand = ({ input, signal, shell, spawnProcess, env }) => new Prom
             else stderr += text;
         }
         outputBytes += data.length;
-        if (outputBytes > MAX_OUTPUT_BYTES) terminate(new Error(`Bash output exceeded ${MAX_OUTPUT_BYTES} bytes`));
+        if (outputBytes > MAX_OUTPUT_BYTES) terminate(new Error(`${shellRuntime.displayName} output exceeded ${MAX_OUTPUT_BYTES} bytes`));
     };
-    const abort = () => terminate(signal?.reason instanceof Error ? signal.reason : new Error("Bash command was cancelled"));
-    const timeout = setTimeout(() => terminate(new Error(`Bash command timed out after ${input.timeout} milliseconds`)), input.timeout);
+    const abort = () => terminate(signal?.reason instanceof Error ? signal.reason : new Error(`${shellRuntime.displayName} command was cancelled`));
+    const timeout = setTimeout(() => terminate(new Error(`${shellRuntime.displayName} command timed out after ${input.timeout} milliseconds`)), input.timeout);
 
     child.stdout?.on("data", (chunk) => append("stdout", chunk));
     child.stderr?.on("data", (chunk) => append("stderr", chunk));
-    child.once("error", (error) => finish(reject, new Error(`Failed to start Bash: ${error.message}`)));
+    child.once("error", (error) => finish(reject, new Error(`Failed to start ${shellRuntime.displayName}: ${error.message}`)));
     child.once("close", (code, childSignal) => {
         if (terminationError) {
             terminationError.stdout = stdout;
