@@ -36,6 +36,7 @@
 #include "RankLaneMergeCoordinator.h"
 #include "RankOverlapStore.h"
 #include "RankOverlapCalculator.h"
+#include "NumaDataSourceResolver.h"
 
 namespace Dic {
 namespace Module {
@@ -43,6 +44,39 @@ using namespace Timeline;
 using namespace Dic::Server;
 
 namespace {
+bool HasNumaData(const Dic::Protocol::ImportActionResponse &response, const std::string &projectName) {
+    std::set<std::pair<std::string, std::string>> candidates;
+    const auto addCandidate = [&candidates](const std::string &rankId, const std::string &fileId) {
+        if (!rankId.empty() || !fileId.empty()) {
+            candidates.emplace(rankId, fileId);
+        }
+    };
+    for (const auto &action : response.body.result) {
+        addCandidate(action.rankId, action.fileId);
+    }
+    const auto projectExplorerInfo =
+        Dic::Module::Global::ProjectExplorerManager::Instance().QueryProjectExplorer(projectName, {});
+    for (const auto &project : projectExplorerInfo) {
+        for (const auto &file : project.subParseFileInfo) {
+            if (file != nullptr) {
+                addCandidate(file->rankId, file->fileId);
+            }
+        }
+        for (const auto &dbPath : project.dbPath) {
+            addCandidate("", dbPath);
+        }
+    }
+
+    Dic::Module::Numa::NumaDataSourceResolver resolver;
+    for (const auto &[rankId, fileId] : candidates) {
+        const Dic::Module::Numa::NumaDataSourceContext context = {rankId, fileId};
+        if (resolver.Resolve(context) != nullptr) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool ContainsParseFilePath(const std::shared_ptr<ParseFileInfo> &fileInfo, const std::string &parseFilePath) {
     if (fileInfo == nullptr) {
         return false;
@@ -126,6 +160,7 @@ void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &pro
     }
     // 执行集群数据解析
     ParseClusterInfo(projectInfos, isCluster, curProjectTypeEnum);
+    response.body.hasNumaData = HasNumaData(response, request.params.projectName);
 }
 
 void ProjectParserDb::SetHostInfo(
