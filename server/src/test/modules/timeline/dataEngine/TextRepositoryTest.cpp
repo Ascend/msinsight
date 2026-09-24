@@ -189,7 +189,7 @@ TEST_F(TextRepositoryTest, FullRangeQueryWithTimestampOffsetDoesNotOverflow) {
     EXPECT_EQ(flowPoints[0].flowId, "flow_1");
 }
 
-TEST_F(TextRepositoryTest, QueryFlowPointByCategoryUsesPersistedOrdinarySliceDepth) {
+TEST_F(TextRepositoryTest, QueryFlowPointByCategoryDefersPersistedDepthResolution) {
     ASSERT_TRUE(testDatabase.ExecSql(
         "INSERT INTO slice(id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id, "
         "group_id) VALUES (4, 170, 20, 'next_slice', 11, 101, '', '{}', '', 190, '', '');"
@@ -206,12 +206,14 @@ TEST_F(TextRepositoryTest, QueryFlowPointByCategoryUsesPersistedOrdinarySliceDep
 
     ASSERT_EQ(flowPoints.size(), 2);
     EXPECT_EQ(flowPoints[0].type, Protocol::LINE_START);
-    EXPECT_EQ(flowPoints[0].depth, 9);
+    EXPECT_EQ(flowPoints[0].depth, 0);
+    EXPECT_TRUE(flowPoints[0].resolveDepthAfterSampling);
     EXPECT_EQ(flowPoints[1].type, Protocol::LINE_END);
-    EXPECT_EQ(flowPoints[1].depth, 11);
+    EXPECT_EQ(flowPoints[1].depth, 0);
+    EXPECT_TRUE(flowPoints[1].resolveDepthAfterSampling);
 }
 
-TEST_F(TextRepositoryTest, QueryFlowPointByCategoryKeepsLegacyStartPointFallback) {
+TEST_F(TextRepositoryTest, QueryFlowPointByCategoryMarksLegacyStartPointForDeferredResolution) {
     ASSERT_TRUE(testDatabase.ExecSql(
         "DELETE FROM flow;"
         "INSERT INTO slice(id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id, "
@@ -228,6 +230,7 @@ TEST_F(TextRepositoryTest, QueryFlowPointByCategoryKeepsLegacyStartPointFallback
     repository.QueryFlowPointByCategory(flowQuery, flowPoints);
 
     ASSERT_EQ(flowPoints.size(), 1);
-    EXPECT_EQ(flowPoints[0].depth, 9);
+    EXPECT_EQ(flowPoints[0].depth, 0);
+    EXPECT_TRUE(flowPoints[0].resolveDepthAfterSampling);
 }
 } // namespace

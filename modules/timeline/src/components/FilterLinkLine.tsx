@@ -34,6 +34,7 @@ import { getLinkLineColor, getTimeOffset } from '../insight/units/utils';
 import {
     CardMetaData,
     getCardFlowQueryDbPaths,
+    getCardFlowQuerySources,
     getCardFlowSourceDbPaths,
     type HostMetaData,
     ProcessMetaData,
@@ -188,6 +189,7 @@ const getLockRangeMetaList = (session: Session, cardId: string | undefined): any
 };
 
 interface QueryFlowLinesConfig extends Pick<ProcessMetaData, 'dataSource' | 'cardId' | 'dbPath'> {
+    sourceDbPath?: string;
     host: string;
     category: string;
     timestampOffset: number;
@@ -204,7 +206,7 @@ interface QueryFlowLinesConfig extends Pick<ProcessMetaData, 'dataSource' | 'car
  */
 const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Session,
     config: QueryFlowLinesConfig): Promise<CategoryEvents['flowDetailList']> => {
-    const { host, dataSource, cardId, dbPath, category, timestampOffset, domainStart, domainEnd, timePerPx } = config;
+    const { host, dataSource, cardId, dbPath, sourceDbPath = dbPath, category, timestampOffset, domainStart, domainEnd, timePerPx } = config;
     // 如果不在可视范围内就不查询
     if (!viewedCardIdSet.has(cardId)) {
         return [];
@@ -231,7 +233,7 @@ const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Sessi
     try {
         const res = await window.request(dataSource, { command: 'flow/categoryEvents', params });
         return (res as CategoryEvents).flowDetailList.map(data => ({
-            ...normalizeCategoryFlowEvent(data, { rankId: cardId, dbPath }),
+            ...normalizeCategoryFlowEvent(data, { rankId: cardId, dbPath: sourceDbPath }),
             cardId,
         }));
     } catch (e) {
@@ -317,9 +319,11 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
                         cardLinkLines = await queryLinkLinesForHostCards(unit, viewedCardIdSet, session, config);
                     } else {
                         const sourceDbPaths = getCardFlowSourceDbPaths(unit, cardId);
-                        const queryDbPaths = getCardFlowQueryDbPaths(dbPath, sourceDbPaths, isTextProject(unit));
-                        const results = await Promise.all(queryDbPaths.map(sourceDbPath =>
-                            fetchLinkLineForCard(viewedCardIdSet, session, { ...config, cardId, dbPath: sourceDbPath })));
+                        const querySources = getCardFlowQuerySources(dbPath, sourceDbPaths, isTextProject(unit));
+                        const results = await Promise.all(querySources.map(({ queryDbPath, sourceDbPath }) =>
+                            fetchLinkLineForCard(viewedCardIdSet, session, {
+                                ...config, cardId, dbPath: queryDbPath, sourceDbPath,
+                            })));
                         cardLinkLines = results.flat();
                     }
                     res = res.concat(cardLinkLines);
