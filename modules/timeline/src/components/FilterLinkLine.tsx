@@ -242,7 +242,8 @@ const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Sessi
 };
 
 const isTextProject = (unit: InsightUnit): boolean =>
-    unit.projectType === ProjectType.BIN || unit.projectType === ProjectType.TEXT_CLUSTER || unit.projectType === ProjectType.TRACE;
+    unit.projectType === ProjectType.BIN || unit.projectType === ProjectType.TEXT_CLUSTER ||
+    unit.projectType === ProjectType.TRACE || unit.projectType === ProjectType.IE;
 /**
  * 查询 host 下打开的卡的连线
  * @param unit
