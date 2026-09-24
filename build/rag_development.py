@@ -28,6 +28,22 @@ PACKAGE_FILENAME = "knowledge-pack-v5.zip"
 PACKAGE_SIDECAR_SUFFIX = ".sha256"
 
 
+def numeric_fallback(value: str) -> str:
+    # Master-style numeric extraction (build/build.py extract_numeric_part):
+    # keep the leading dotted-numeric segments of the version and pad to 4
+    # components, so any naming (26.2.0-beta.1, 26.1.0.B100_002, 26.1, ...)
+    # builds without being rejected.
+    parts = []
+    for part in value.split('.'):
+        if part.isdigit():
+            parts.append(str(int(part)))
+        else:
+            break
+    while len(parts) < 4:
+        parts.append('0')
+    return '.'.join(parts)
+
+
 @dataclass(frozen=True)
 class DevelopmentVersion:
     product: str
@@ -35,13 +51,15 @@ class DevelopmentVersion:
 
     @classmethod
     def parse(cls, value: str) -> "DevelopmentVersion":
+        # Naming follows build/build.py on master: any version string is
+        # accepted. MAJOR.MINOR.PATCH-rag-dev.SERIAL / -beta-vSERIAL keep the
+        # serial in the 4th component (existing published installs); any other
+        # naming falls back to the master-style numeric extraction.
         match = VERSION_RE.fullmatch(value)
-        if match is None:
-            raise ValueError(
-                "development version must use MAJOR.MINOR.PATCH-rag-dev.SERIAL or MAJOR.MINOR.PATCH-beta-vSERIAL"
-            )
-        major, minor, patch, serial = match.groups()
-        return cls(value, f"{int(major)}.{int(minor)}.{int(patch)}.{int(serial)}")
+        if match is not None:
+            major, minor, patch, serial = match.groups()
+            return cls(value, f"{int(major)}.{int(minor)}.{int(patch)}.{int(serial)}")
+        return cls(value, numeric_fallback(value))
 
 
 @dataclass(frozen=True)
@@ -51,11 +69,13 @@ class ProductVersion:
 
     @classmethod
     def parse(cls, value: str) -> "ProductVersion":
+        # MAJOR.MINOR.PATCH (the master product naming rule) appends ".0";
+        # any other string is accepted via the master-style numeric fallback.
         match = PRODUCT_VERSION_RE.fullmatch(value)
-        if match is None:
-            raise ValueError("product-bundled version must use MAJOR.MINOR.PATCH")
-        major, minor, patch = match.groups()
-        return cls(value, f"{int(major)}.{int(minor)}.{int(patch)}.0")
+        if match is not None:
+            major, minor, patch = match.groups()
+            return cls(value, f"{int(major)}.{int(minor)}.{int(patch)}.0")
+        return cls(value, numeric_fallback(value))
 
 
 @dataclass(frozen=True)

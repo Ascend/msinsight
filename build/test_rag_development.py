@@ -30,25 +30,30 @@ def test_development_version_maps_string_to_exact_pe_numeric_identity() -> None:
     beta = DevelopmentVersion.parse("26.2.0-beta-v1")
     assert beta.product == "26.2.0-beta-v1"
     assert beta.pe_numeric == "26.2.0.1"
-    for invalid in [
-        "26.1.1",
-        "26.1.1-rag-dev.0",
-        "26.1-rag-dev.1",
-        "26.1.1-rag-dev.01",
-        "26.2.0-beta-v0",
-        "26.2.0-beta-1",
-    ]:
-        with pytest.raises(ValueError):
-            DevelopmentVersion.parse(invalid)
+    # Any other naming is accepted via the master-style numeric fallback
+    # (build/build.py extract_numeric_part): leading dotted-numeric segments,
+    # zero-padded to 4 components.
+    fallback = DevelopmentVersion.parse("26.2.0-beta.1")
+    assert fallback.product == "26.2.0-beta.1"
+    assert fallback.pe_numeric == "26.2.0.0"
+    release_style = DevelopmentVersion.parse("26.1.0.B100_002")
+    assert release_style.pe_numeric == "26.1.0.0"
+    short = DevelopmentVersion.parse("26.1")
+    assert short.pe_numeric == "26.1.0.0"
 
 
 def test_product_version_maps_plain_release_to_stable_pe_identity() -> None:
     version = ProductVersion.parse("26.1.1")
     assert version.product == "26.1.1"
     assert version.pe_numeric == "26.1.1.0"
-    for invalid in ["26.1.1-rag-dev.1", "26.1", "26.1.1.0"]:
-        with pytest.raises(ValueError):
-            ProductVersion.parse(invalid)
+    # Non-plain release naming is accepted via the master-style numeric
+    # fallback instead of being rejected.
+    beta = ProductVersion.parse("26.2.0-beta-v11")
+    assert beta.product == "26.2.0-beta-v11"
+    assert beta.pe_numeric == "26.2.0.0"
+    short = ProductVersion.parse("26.1")
+    assert short.product == "26.1"
+    assert short.pe_numeric == "26.1.0.0"
 
 
 def test_rag_arguments_are_all_or_none_and_reject_forbidden_values(tmp_path: Path) -> None:
