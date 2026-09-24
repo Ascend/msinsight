@@ -72,7 +72,7 @@ for output in outputs:
     print(f"Prompt: {output.prompt!r}, Generated text: {output.outputs[0].text!r}")
 ```
 
-注：该推理脚本在vllm 0.11.0版本已验证通过，仅供参考，请以最新的vllm版本的profiling采集方式为准，如https://github.com/vllm-project/vllm/blob/main/examples/features/profiling/simple_profiling_offline.py
+注：该推理脚本在vllm 0.11.0版本已验证通过，仅供参考，请以最新的vllm版本的profiling采集方式为准，如`https://github.com/vllm-project/vllm/blob/main/examples/features/profiling/simple_profiling_offline.py`。
 
 ## 4. 宿主机启动 ftrace 采集
 
