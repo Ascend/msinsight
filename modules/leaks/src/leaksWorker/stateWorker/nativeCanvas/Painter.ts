@@ -94,7 +94,8 @@ export class Painter {
         const { offsetX, offsetY, blocks } = data;
         if (type === 'segment') {
             for (let j = 0; j < blocks.length; j++) {
-                this.drawShape(offsetX + blocks[j].offset, offsetY, blocks[j].size, options, getColorStringByIndex(j));
+                this.drawShape(offsetX + blocks[j].offset, offsetY, blocks[j].size, options,
+                    getColorStringByIndex(blocks[j].colorIndex ?? j));
             }
             return;
         }

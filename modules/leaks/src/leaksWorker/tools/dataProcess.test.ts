@@ -8,7 +8,13 @@
  */
 
 import { BlockDataOPFS } from './BlockDataOPFS';
-import { buildBlockViewPathAndWriteToOPFS, getZoom, searchBlockDataByPointFromOPFS } from './dataProcess';
+import {
+    buildBlockViewPathAndWriteToOPFS,
+    getMemoryStateRenderData,
+    getZoom,
+    searchBlockDataByPointFromOPFS,
+} from './dataProcess';
+import { getColorStringByAddr, getColorStringByIndex } from './color';
 
 const createStorage = (): BlockDataOPFS => ({
     clear: jest.fn().mockResolvedValue(undefined),
@@ -100,6 +106,28 @@ describe('getZoom', () => {
         expect(Number.isFinite(zoom.x)).toBe(true);
         expect(zoom.x).toBe(200);
         expect(zoom.offset).toBe(8091);
+    });
+});
+
+describe('getMemoryStateRenderData', () => {
+    it('uses the lifecycle address hash for memory state block colors', () => {
+        const data: Segment[] = [{
+            address: '0x1000',
+            stream: 0,
+            size: 128,
+            blocks: [
+                { id: 1, offset: 0, size: 32 },
+                { id: 2, offset: 32, size: 32 },
+            ],
+            offsetX: 0,
+            offsetY: 0,
+            allocOrMapEventId: 1,
+        }];
+
+        const [segment] = getMemoryStateRenderData(data);
+
+        expect(getColorStringByIndex(segment.blocks[0].colorIndex ?? -1)).toBe(getColorStringByAddr('0x1000'));
+        expect(getColorStringByIndex(segment.blocks[1].colorIndex ?? -1)).toBe(getColorStringByAddr('0x1020'));
     });
 });
 

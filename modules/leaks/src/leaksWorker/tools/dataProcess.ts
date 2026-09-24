@@ -24,6 +24,7 @@ import {
     type PackedBlockPath,
 } from './BlockDataOPFS';
 import { isPackedRenderData } from './packedBlockData';
+import { hashAddressWithOffsetToIndex } from './color';
 
 const processAllocationLine = <T extends { timestamp: number }>(points: T[] | undefined, valueKey: keyof T): {
     points: Array<[number, number]>;
@@ -1267,6 +1268,9 @@ export const getMemoryStateRenderData = (data: Segment[]): Segment[] => {
     let currentRowSum = X_GAP; // 当前行总长
     for (let i = 0; i < data.length; i++) {
         const segment = data[i];
+        for (const block of segment.blocks) {
+            block.colorIndex = hashAddressWithOffsetToIndex(segment.address, block.offset);
+        }
         if (segment.size + currentRowSum + X_GAP <= maxSizeX) {
             segment.offsetX = currentRowSum;
             segment.offsetY = currentRow * (LINE_HEIGHT + Y_GAP) + Y_GAP;
@@ -1307,7 +1311,7 @@ const getStateBlockSnapCandidate = (
         return null;
     }
     return {
-        block: { ...block, colorIndex: blockIndex },
+        block,
         distance: Math.min(Math.abs(localX - visibleStart), Math.abs(localX - visibleEnd)),
         order: blockIndex,
     };
@@ -1334,7 +1338,7 @@ const searchStateDataDynamically = (
                 const blockEnd = Math.max(block.offset + block.size, block.offset + minHitWidth);
                 if (localX >= block.offset && localX <= blockEnd) {
                     const { blocks, ...newSegment } = segment;
-                    return { type: 'block', data: { ...newSegment, blocks: [{ ...block, colorIndex: blockIndex }] } };
+                    return { type: 'block', data: { ...newSegment, blocks: [block] } };
                 }
             }
             const { blocks, ...newSegment } = segment;

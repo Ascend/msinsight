@@ -16,8 +16,11 @@
  * -------------------------------------------------------------------------
  */
 
-import { GL_COLORS } from '@/leaksWorker/tools/color';
+import { normalizeColorIndex } from '@/leaksWorker/tools/color';
 import { Program } from './Program';
+
+const MIN_INSTANCE_BUFFER_FLOATS = 1024;
+const BUFFER_SHRINK_RATIO = 4;
 
 export class MemoryStateProgram extends Program {
     protected glInstanceData: Float32Array = new Float32Array();
@@ -31,7 +34,7 @@ export class MemoryStateProgram extends Program {
         if (this.instanceBuffer) {
             gl.deleteBuffer(this.instanceBuffer);
         }
-        this.instanceBuffer = this.createBuffer(4 * Math.max(this.glInstanceDataSize, 1));
+        this.instanceBuffer = this.createBuffer(4 * Math.max(this.glInstanceData.length, 1));
         gl.bindVertexArray(this.vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
         const strideBytes = this.stride * 4;
@@ -57,8 +60,13 @@ export class MemoryStateProgram extends Program {
             totalLength += data[i].blocks.length * this.stride;
         }
 
-        const needRealloc = !this.glInstanceData || this.glInstanceData.length < totalLength;
-        const instanceData = needRealloc ? new Float32Array(totalLength) : this.glInstanceData;
+        const currentCapacity = this.glInstanceData.length;
+        const shouldGrow = currentCapacity < totalLength;
+        const shouldShrink = currentCapacity > Math.max(MIN_INSTANCE_BUFFER_FLOATS, totalLength * BUFFER_SHRINK_RATIO);
+        const needRealloc = shouldGrow || shouldShrink;
+        const instanceData = needRealloc
+            ? new Float32Array(Math.max(totalLength, MIN_INSTANCE_BUFFER_FLOATS))
+            : this.glInstanceData;
 
         let offset = 0;
         for (let i = 0; i < data.length; i++) {
@@ -69,7 +77,7 @@ export class MemoryStateProgram extends Program {
                 instanceData[offset++] = segment.offsetX + block.offset;
                 instanceData[offset++] = segment.offsetY;
                 instanceData[offset++] = block.size;
-                instanceData[offset++] = colorIndex % GL_COLORS.length;
+                instanceData[offset++] = normalizeColorIndex(colorIndex);
             }
         }
 
@@ -77,10 +85,11 @@ export class MemoryStateProgram extends Program {
         this.glInstanceDataSize = totalLength;
         if (needRealloc || this.instanceBuffer === null) {
             this.bindBuffer();
-        } else {
+        }
+        if (totalLength > 0) {
             this.updateSubBuffer(instanceData, totalLength);
         }
-        this.hasBuffer = true;
+        this.hasBuffer = totalLength > 0;
     }
 
     setDimBase(dimBase: boolean): void {
@@ -92,7 +101,6 @@ export class MemoryStateProgram extends Program {
             return;
         }
         const gl = this.gl;
-        this.updateSubBuffer(this.glInstanceData, this.glInstanceDataSize);
         gl.useProgram(this.program);
         this.setBaseUniforms();
         this.setColorUniforms(this.dimBase ? 'dimmed' : 'normal');

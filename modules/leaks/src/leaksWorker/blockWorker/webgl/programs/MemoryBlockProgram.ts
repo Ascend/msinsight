@@ -164,7 +164,7 @@ export class MemoryBlockProgram extends Program {
         gl.useProgram(this.program);
         this.setBaseUniforms();
         gl.uniform1f(this.uniformLoc.uOffset, this.uniformData[8]);
-        this.setColorUniforms(this.isHighlight ? 'highlight' : this.dimBase ? 'dimmed' : 'normal');
+        this.setColorUniforms(this.dimBase ? 'dimmed' : 'normal');
         gl.bindVertexArray(this.vao);
         if (this.blockDataOPFS && this.blockBatchCount > 0) {
             this.renderBlockDataFromOPFS(this.blockDataOPFS, options);
