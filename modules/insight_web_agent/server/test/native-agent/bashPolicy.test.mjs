@@ -8,7 +8,7 @@
  * -------------------------------------------------------------------------
  */
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -34,6 +34,33 @@ test("product deny overrides Agent allow inside compound commands", () => {
             rules: [{ pattern: "pt-snap query *", behavior: "allow" }],
         }).behavior, "deny");
     }
+});
+
+test("PowerShell product deny blocks destructive and elevated commands", () => {
+    for (const command of [
+        "Remove-Item C:\\work -Recurse -Force",
+        "Remove-Item -LiteralPath C:\\work -Force -Recurse",
+        "Stop-Computer",
+        "Restart-Computer -Force",
+        "Start-Process powershell.exe -Verb RunAs",
+        "git reset --hard",
+        "git clean -fd",
+        "git push --force",
+    ]) {
+        assert.equal(evaluateBashPolicy({
+            command,
+            shellKind: "powershell",
+            rules: [{ pattern: "*", behavior: "allow" }],
+        }).behavior, "deny", command);
+    }
+});
+
+test("PowerShell product policy still applies Agent rules to ordinary commands", () => {
+    assert.equal(evaluateBashPolicy({
+        command: "Get-ChildItem",
+        shellKind: "powershell",
+        rules: [{ pattern: "Get-ChildItem", behavior: "allow" }],
+    }).behavior, "allow");
 });
 
 test("quoted ampersands do not count as background execution", () => {
@@ -122,7 +149,7 @@ test("Bash input resolves relative cwd and requires a bounded timeout", async (t
     const workspace = join(root, "workspace");
     const outside = join(root, "outside");
     await Promise.all([mkdir(workspace), mkdir(outside)]);
-    const session = { canonicalFilesystemRoots: [workspace] };
+    const session = { canonicalFilesystemRoots: [await realpath(workspace)] };
 
     assert.deepEqual(await normalizeBashInput({ command: "python -V" }, session, workspace), {
         command: "python -V",
