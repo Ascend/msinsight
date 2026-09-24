@@ -132,7 +132,7 @@ export class FrontendAgentCommandController {
         if (Date.now() >= message.deadline) throw timeout();
         if (this.running.has(message.requestId)) throw invalid(`Request '${message.requestId}' is already running.`);
         const entry = this.catalog.getVisible(commandName, this.activeModule);
-        if (!entry) throw unavailable(commandName);
+        if (!entry) throw this.commandUnavailable(commandName);
         if (commandName === 'help') return this.help(args);
         const controller = new AbortController();
         const timeoutId = window.setTimeout(() => {
@@ -153,7 +153,8 @@ export class FrontendAgentCommandController {
                 this.running.set(message.requestId, { controller });
                 return await this.executeGlobal(entry, args, message, controller.signal);
             }
-            if (entry.source !== 'module') throw unavailable(commandName);
+            // Built-in help/observe are handled above; reaching here means the catalog returned an entry that cannot be dispatched.
+            if (entry.source !== 'module') throw this.commandUnavailable(commandName);
             const transport = this.requireModuleTransport(entry.moduleId);
             this.running.set(message.requestId, {
                 controller,
@@ -260,7 +261,27 @@ export class FrontendAgentCommandController {
     private requireModuleTransport(moduleId: string): ModuleFrameTransport {
         const transport = this.moduleTransports.get(moduleId);
         if (transport) return transport;
-        throw unavailable(moduleId);
+        throw connectionLost(`Module '${moduleId}' is not connected to the Agent framework.`);
+    }
+
+    private commandUnavailable(commandName: string): CommandError {
+        const separator = commandName.indexOf('.');
+        if (separator <= 0) return commandNotFound(commandName);
+
+        const targetModule = commandName.slice(0, separator);
+        if (targetModule === 'framework') return commandNotFound(commandName, targetModule);
+        if (targetModule !== this.activeModule) {
+            if (this.catalog.hasModuleCommand(targetModule, commandName)) {
+                return inactiveModule(commandName, targetModule, this.activeModule);
+            }
+            return commandNotFound(commandName);
+        }
+        if (this.catalog.hasModule(targetModule)) return commandNotFound(commandName, targetModule);
+        // An attached active iframe without a catalog entry has not completed command registration.
+        if (this.moduleTransports.has(targetModule)) {
+            return moduleNotRegistered(commandName, targetModule, this.activeModule);
+        }
+        return commandNotFound(commandName);
     }
 
     private ensureActive(): void {
@@ -286,10 +307,37 @@ const invalid = (message: string): CommandError => new CommandError({
     message,
     retryable: false,
 });
-const unavailable = (name: string): CommandError => new CommandError({
-    code: COMMAND_ERROR_CODES.UNAVAILABLE,
-    message: `Command '${name}' is unavailable.`,
+const commandNotFound = (name: string, moduleId?: string): CommandError => new CommandError({
+    code: COMMAND_ERROR_CODES.NOT_FOUND,
+    message: moduleId
+        ? `Command '${name}' is not registered by module '${moduleId}'. Use help with empty args to discover the current commands.`
+        : `Command '${name}' is not recognized. Use help with empty args to discover the current commands.`,
     retryable: false,
+    details: moduleId
+        ? { reason: 'command_not_registered', command: name, moduleId }
+        : { reason: 'command_not_found', command: name },
+});
+const inactiveModule = (name: string, targetModule: string, activeModule: string): CommandError => new CommandError({
+    code: COMMAND_ERROR_CODES.UNAVAILABLE,
+    message: `Command '${name}' belongs to module '${targetModule}', but the active module is '${activeModule || 'none'}'. Open '${targetModule}' and retry.`,
+    retryable: true,
+    details: {
+        reason: 'module_not_active',
+        command: name,
+        targetModule,
+        activeModule: activeModule || null,
+    },
+});
+const moduleNotRegistered = (name: string, moduleId: string, activeModule: string): CommandError => new CommandError({
+    code: COMMAND_ERROR_CODES.UNAVAILABLE,
+    message: `Command '${name}' cannot run because module '${moduleId}' has not registered any commands with the Agent framework.`,
+    retryable: false,
+    details: {
+        reason: 'module_not_registered',
+        command: name,
+        moduleId,
+        activeModule: activeModule || null,
+    },
 });
 const unavailableHelpCommand = (name: string): CommandError => new CommandError({
     code: COMMAND_ERROR_CODES.UNAVAILABLE,

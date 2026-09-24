@@ -21,21 +21,24 @@ import { register } from './register';
 import { runInAction } from 'mobx';
 import type { Session } from '../entity/session';
 
-function zoomIntoSelection(session: Session): void {
+function zoomIntoSelection(session: Session, range: [number, number]): void {
     runInAction(() => {
-        if (session.selectedRange !== undefined) {
-            session.domainRange = { domainStart: session.selectedRange[0], domainEnd: session.selectedRange[1] };
-        }
+        session.domainRange = { domainStart: range[0], domainEnd: range[1] };
     });
 }
+
+const hasZoomableSelection = (range: [number, number] | undefined): range is [number, number] =>
+    range !== undefined && Number.isFinite(range[0]) && Number.isFinite(range[1]) && range[1] > range[0];
 
 export const actionZoomIntoSelection = register({
     name: 'zoomIntoSelection',
     label: 'timeline:contextMenu.Zoom into selection',
-    disabled: (session) => session.selectedData?.duration === 0,
+    disabled: (session) => !hasZoomableSelection(session.selectedRange),
     visible: (session) => session.selectedRange !== undefined,
     perform: (session): void => {
-        zoomIntoSelection(session);
+        const range = session.selectedRange;
+        if (!hasZoomableSelection(range)) return;
+        zoomIntoSelection(session, range);
     },
     keyTest: (event) => {
         return event.shiftKey && event.key.toLowerCase() === KEYS.Z;

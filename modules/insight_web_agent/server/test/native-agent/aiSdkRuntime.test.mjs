@@ -107,6 +107,12 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     assert.match(capturedOptions.messages[0].content, /<current_user_message>\nfind leaks/);
     assert.equal(capturedOptions.system.includes("Use Read, Glob, and Grep"), false);
     assert.equal(await capturedOptions.stopWhen({ steps: Array.from({ length: 8 }) }), true);
+    assert.equal(capturedOptions.prepareStep({ stepNumber: 6 }), undefined);
+    const finalStep = capturedOptions.prepareStep({ stepNumber: 7 });
+    assert.equal(finalStep.toolChoice, "none");
+    assert.ok(finalStep.system.startsWith(capturedOptions.system));
+    assert.match(finalStep.system, /including help/);
+    assert.match(finalStep.system, /unfinished work/);
     assert.deepEqual(executions.map(({ name }) => name), ["msinsight", "skill"]);
     assert.equal(executions[0].context.sessionId, session.sessionId);
     assert.equal(executions[0].context.signal, controller.signal);
@@ -129,6 +135,51 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     await restoredRuntime.restoreSession(restoredSession);
     assert.deepEqual(restoredSession.messages, session.messages);
 });
+
+for (const progressText of ["", "正在调整视域。"]) {
+    test(`AI SDK runtime keeps tool history without a final answer (progress=${Boolean(progressText)})`, async (t) => {
+        const root = await mkdtemp(join(tmpdir(), "msinsight-ai-sdk-no-answer-"));
+        t.after(() => rm(root, { recursive: true, force: true }));
+        const notifier = createNotifier();
+        const input = { command: "Timeline.zoom", args: { direction: "in" } };
+        const output = { viewport: { start: 0, end: 600000000, duration: 600000000 } };
+        const responseMessages = [
+            { role: "assistant", content: [{ type: "tool-call", toolCallId: "zoom-1", toolName: "msinsight", input }] },
+            { role: "tool", content: [{ type: "tool-result", toolCallId: "zoom-1", toolName: "msinsight", output: { type: "json", value: output } }] },
+        ];
+        const runtime = createRuntime({
+            aiSdkStoragePath: root,
+            toolRegistry: { list: () => [], execute: async () => undefined },
+            notifier,
+            createModel: () => ({ modelId: "test-model" }),
+            streamTextImpl: () => ({
+                fullStream: asAsyncStream(async function* () {
+                    if (progressText) yield { type: "text-delta", text: progressText };
+                    yield { type: "tool-call", toolCallId: "zoom-1", toolName: "msinsight", input };
+                    yield { type: "tool-result", toolCallId: "zoom-1", toolName: "msinsight", input, output };
+                    yield { type: "finish", finishReason: "tool-calls", totalUsage: {} };
+                }),
+                response: Promise.resolve({ messages: responseMessages }),
+            }),
+        });
+        const session = createSession();
+
+        assert.deepEqual(await runtime.runPrompt({
+            session, sessionId: session.sessionId, userText: "放大到500ms", controller: new AbortController(),
+        }), { ok: true });
+
+        const stored = JSON.parse(await readFile(join(root, "sessions", session.sessionId + ".json"), "utf8"));
+        assert.deepEqual(stored.modelMessages.slice(1, 3), responseMessages);
+        const summary = stored.modelMessages.at(-1).content;
+        assert.match(summary, /无法确认任务已完成/);
+        assert.equal(stored.uiMessages[0].content[0].text, "放大到500ms");
+        const toolBlock = stored.uiMessages[1].content.find((block) => block.type === "tool");
+        assert.equal(toolBlock.toolCall.status, "completed");
+        assert.equal(stored.uiMessages[1].content.at(-1).text, summary);
+        assert.ok(notifier.updates.some((update) => update.type === "text" && update.text === summary));
+        assert.equal(responseMessages.length, 2);
+    });
+}
 
 test("AI SDK runtime persists interrupted UI output without adding partial model history", async (t) => {
     const root = await mkdtemp(join(tmpdir(), "msinsight-ai-sdk-cancel-"));

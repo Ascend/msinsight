@@ -28,6 +28,18 @@ describe('CommandCatalog', () => {
         expect(catalog.getVisible('Timeline.operator.locate', 'Timeline')).toBeDefined();
     });
 
+    test('reports registered modules and commands outside the visible catalog', () => {
+        const catalog = new CommandCatalog();
+        catalog.replaceModule('Timeline', [definition('Timeline.operator.locate')]);
+        catalog.replaceModule('Compute', []);
+
+        expect(catalog.hasModule('Timeline')).toBe(true);
+        expect(catalog.hasModule('Compute')).toBe(true);
+        expect(catalog.hasModule('Memory')).toBe(false);
+        expect(catalog.hasModuleCommand('Timeline', 'Timeline.operator.locate')).toBe(true);
+        expect(catalog.hasModuleCommand('Timeline', 'Timeline.operator.missing')).toBe(false);
+    });
+
     test('rejects commands outside the owner namespace', () => {
         const catalog = new CommandCatalog();
 

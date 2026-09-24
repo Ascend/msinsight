@@ -29,6 +29,8 @@ import { GlobalStyles, themeInstance } from '@insight/lib/theme';
 import connector from './connection';
 import { disableShortcuts } from '@insight/lib/utils';
 import { ActionManager } from './actions/manager';
+import { startTimelineAgentRuntime, stopTimelineAgentRuntime } from './agent/runtime';
+import { setTimelineAgentSession } from './agent/timelineController';
 
 const Window = styled.div`
     height: 100vh;
@@ -102,11 +104,18 @@ export const App = observer(() => {
     }, [session?.language]);
 
     useEffect(() => {
+        setTimelineAgentSession(session);
+        return () => setTimelineAgentSession(undefined);
+    }, [session]);
+
+    useEffect(() => {
         insightStore.loadTemplates().then(() => {
             session = sessionStore.activeSession;
         });
         getLanguage();
         getTheme();
+        startTimelineAgentRuntime();
+        return stopTimelineAgentRuntime;
     }, []);
 
     const getLanguage = (): void => {

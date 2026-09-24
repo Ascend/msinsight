@@ -25,6 +25,7 @@ import { loadCapabilityCenterConfig } from "../../config/capabilityCenterConfig.
 const DEFAULT_BASE_URL = "http://127.0.0.1:9090";
 const DEFAULT_CAPABILITY_TIMEOUT_MS = 30000;
 const MAX_CAPABILITY_TIMEOUT_MS = 60000;
+const CAPABILITY_TIMEOUT_GRACE_MS = 1000;
 const SESSION_APPROVALS = Symbol("nativeCapabilityApprovals");
 const SESSION_ACTIVE_CAPABILITIES = Symbol("nativeActiveCapabilities");
 
@@ -116,8 +117,8 @@ const authorizeCapability = async ({ definition, input, session, signal, hostCli
 
 // 该内部 HTTP 路径避免 Native Runtime 再建立 MCP 连接，同时保留统一校验和取消语义。
 const requestCapability = async (baseUrl, capabilityToken, body) => {
-    const timeoutMs = capabilityTimeoutMs();
-    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    // Let the backend return its structured COMMAND_TIMEOUT before the native HTTP guard aborts the same request.
+    const timeoutSignal = AbortSignal.timeout(capabilityTimeoutMs() + CAPABILITY_TIMEOUT_GRACE_MS);
     const signal = body.signal ? AbortSignal.any([body.signal, timeoutSignal]) : timeoutSignal;
     const url = new URL("/api/capabilities/invoke", baseUrl);
     const headers = { "content-type": "application/json" };
@@ -135,8 +136,17 @@ const requestCapability = async (baseUrl, capabilityToken, body) => {
     });
     const result = await response.json();
     if (!response.ok) {
-        const errorBody = result.error ?? {};
-        throw Object.assign(new Error(errorBody.message ?? `HTTP ${response.status}`), errorBody);
+        // 错误响应同时兼容归一化后的扁平结构（error/code/message）与嵌套的 error 对象。
+        const nestedError = result.error && typeof result.error === "object" ? result.error : undefined;
+        const code = String(result.code ?? nestedError?.code ?? (typeof result.error === "string" ? result.error : "CAPABILITY_EXECUTION_FAILED"));
+        const message = String(result.message ?? nestedError?.message ?? `Capability request failed with HTTP ${response.status}`);
+        throw Object.assign(new Error(message), {
+            code,
+            retryable: Boolean(result.retryable ?? nestedError?.retryable),
+            details: result.details ?? nestedError?.details,
+            state: result.state ?? nestedError?.state,
+            status: response.status,
+        });
     }
     return result.result;
 };

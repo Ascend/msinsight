@@ -57,14 +57,21 @@ export const createRuntime = ({
         const modelInput = createPageContextPrompt(userText, observationContext);
         const userMessage = { role: "user", content: modelInput || "Please analyze the current Insight page." };
         const streamState = createStreamState();
+        const maxSteps = readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 12);
+        const system = createNativeSystemPrompt(session);
         session.runtimeSession.activeController = controller;
         try {
             const result = streamTextImpl({
                 model,
-                system: createNativeSystemPrompt(session),
+                system,
                 messages: [...state.modelMessages, userMessage],
                 tools: createAiSdkTools(toolRegistry),
-                stopWhen: stepCountIs(readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 12)),
+                stopWhen: stepCountIs(maxSteps),
+                // Reserve the last step for a summary, rather than ending immediately after a tool changes the page.
+                prepareStep: ({ stepNumber }) => stepNumber >= maxSteps - 1 ? {
+                    toolChoice: "none",
+                    system: `${system}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
+                } : undefined,
                 maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 4096),
                 maxRetries: 2,
                 abortSignal: controller.signal,
@@ -73,10 +80,16 @@ export const createRuntime = ({
             });
             await collectAiSdkStream({ result, streamState, sessionId, controller, notifier });
             const response = await result.response;
-            if (!streamState.content.some((block) => block.type === "text" && block.text.trim())) {
-                throw new Error("AI SDK runtime completed without a final answer");
+            const responseMessages = [...response.messages];
+            const lastToolIndex = streamState.content.findLastIndex((block) => block.type === "tool");
+            if (!streamState.content.slice(lastToolIndex + 1).some((block) => block.type === "text" && block.text.trim())) {
+                // A missing summary must not discard completed tool calls or imply that their effects were rolled back.
+                const text = "本轮未生成最终总结，无法确认任务已完成。已执行的操作不会自动撤销，请确认当前页面状态后再继续。";
+                appendTextBlock(streamState, "text", text);
+                notifier.sendSessionChunk(sessionId, text);
+                responseMessages.push({ role: "assistant", content: text });
             }
-            state.modelMessages.push(userMessage, ...response.messages);
+            state.modelMessages.push(userMessage, ...responseMessages);
             state.uiMessages.push(
                 createUserMessage(userText),
                 { id: randomUUID(), role: "assistant", content: streamState.content },

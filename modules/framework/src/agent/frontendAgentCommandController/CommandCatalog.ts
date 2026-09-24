@@ -103,6 +103,14 @@ export class CommandCatalog {
         return this.builtins.get(name) ?? this.globals.get(name) ?? this.modules.get(activeModule)?.get(name);
     }
 
+    hasModule(moduleId: string): boolean {
+        return this.modules.has(moduleId);
+    }
+
+    hasModuleCommand(moduleId: string, name: string): boolean {
+        return this.modules.get(moduleId)?.has(name) ?? false;
+    }
+
     private ensureNameAvailable(name: string): void {
         if (this.builtins.has(name) || this.globals.has(name) || [...this.modules.values()].some(commands => commands.has(name))) {
             throw invalid(`Command '${name}' is already registered.`);

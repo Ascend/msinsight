@@ -24,11 +24,9 @@ export const createFrontendCommandController = ({ frontendCommandService }) => (
             return json(res, {
                 error: code,
                 message: error.message || "The frontend command could not be completed",
-                details: {
-                    retryable: Boolean(error.retryable),
-                    commandDetails: error.details,
-                    state: error.state,
-                },
+                retryable: Boolean(error.retryable),
+                details: error.details,
+                state: error.state,
             }, commandErrorStatus(error.code));
         }
     },
@@ -66,11 +64,12 @@ export const createFrontendCommandController = ({ frontendCommandService }) => (
 });
 
 const commandErrorStatus = (code) => {
-    if (code === "COMMAND_INVALID") {
-        return 400;
-    }
-    if (code === "COMMAND_TIMEOUT") {
-        return 408;
-    }
-    return 409;
+    if (code === "COMMAND_INVALID") return 400;
+    if (code === "COMMAND_NOT_FOUND") return 404;
+    if (code === "COMMAND_PERMISSION_DENIED") return 403;
+    if (code === "COMMAND_TIMEOUT") return 408;
+    if (code === "COMMAND_BUSY") return 409;
+    if (code === "COMMAND_UNAVAILABLE") return 422;
+    if (code === "COMMAND_CONNECTION_LOST") return 503;
+    return 500;
 };
