@@ -200,7 +200,7 @@ describe('automatic alignment menu', () => {
     });
 
     it.each([
-        { language: 'zhCN', automaticLabel: '时间对齐', benchmarkLabel: '与基准算子对齐' },
+        { language: 'zhCN', automaticLabel: '时间对齐', benchmarkLabel: '与基准算子时间对齐' },
         { language: 'enUS', automaticLabel: 'Time Alignment', benchmarkLabel: 'Align to Base Slice' },
     ])('updates the $language parent label when the benchmark is set and cleared', ({ language, automaticLabel, benchmarkLabel }) => {
         const currentSession = createActionSession('CANN_API');

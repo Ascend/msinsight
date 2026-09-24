@@ -684,6 +684,9 @@ function resetSession(): void {
             selectedDetails: [],
             searchData: undefined,
             linkLines: {},
+            benchMarkData: undefined,
+            alignSliceData: [],
+            alignRender: !session.alignRender,
         });
         session.clearSelectionLock();
         session.singleLinkLine = {};
