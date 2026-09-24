@@ -513,6 +513,62 @@ describe('timeline unit metadata expansion', () => {
         expect(cardUnit.children?.[1].children?.[0].metadata.offsetSide).toBe('device');
     });
 
+    it('updates an existing Text lane to host when Python Stack metadata is merged later', () => {
+        const cardUnit = createCardUnit();
+        const createTextTree = (withPythonStack: boolean): InsightMetaData<'card'> => ({
+            type: 'card',
+            dataSource,
+            metadata: cardUnit.metadata,
+            children: [{
+                type: 'process',
+                dataSource,
+                metadata: { cardId: 'rank0', dbPath: 'rank0.db', dataSource, processId: '100', processName: 'python', metaType: '' },
+                children: [{
+                    type: 'thread',
+                    dataSource,
+                    metadata: {
+                        cardId: 'rank0',
+                        dbPath: 'rank0.db',
+                        dataSource,
+                        processId: '100',
+                        processName: 'python',
+                        threadId: '101',
+                        threadName: 'Main',
+                        metaType: 'TEXT',
+                    },
+                    children: withPythonStack
+                        ? [{
+                            type: 'thread',
+                            dataSource,
+                            metadata: {
+                                cardId: 'rank0',
+                                dbPath: 'rank0.db',
+                                dataSource,
+                                processId: '100',
+                                processName: 'python',
+                                threadId: 'python_stack:text:101',
+                                threadName: 'Python Stack 101',
+                                metaType: 'PYTORCH_API_PYTHON_STACK',
+                            },
+                        }]
+                        : [],
+                }],
+            }],
+        } as unknown as InsightMetaData<'card'>);
+        const initialTree = createTextTree(false);
+        updateDataSourceAndParentMetaDataMap(initialTree, dataSource);
+        recursiveExpandUnit(initialTree.children ?? [], cardUnit);
+        expect(cardUnit.children?.[0].metadata.offsetSide).toBe('device');
+
+        const processUnit = cardUnit.children?.[0];
+        const pythonTree = createTextTree(true);
+        updateDataSourceAndParentMetaDataMap(pythonTree, dataSource);
+        recursiveExpandUnit(pythonTree.children?.[0].children ?? [], processUnit as InsightUnit);
+
+        expect(processUnit?.children?.[0].metadata.offsetSide).toBe('host');
+        expect(processUnit?.children?.[0].children?.[0].metadata.offsetSide).toBe('host');
+    });
+
     it('keeps host lanes with the same process id separated during metadata expansion', () => {
         const cardUnit = createCardUnit();
         const metadataTree = createHostTree();
