@@ -40,7 +40,35 @@ test("frontend command failures keep their code and readable message", async () 
     assert.equal(res.body.error, "command_invalid");
     assert.equal(res.body.code, "command_invalid");
     assert.equal(res.body.message, "command is required");
-    assert.equal(res.body.details.retryable, false);
+    assert.equal(res.body.retryable, false);
+});
+
+test("frontend command failures map command semantics to HTTP status codes", async () => {
+    const cases = [
+        ["COMMAND_NOT_FOUND", 404],
+        ["COMMAND_PERMISSION_DENIED", 403],
+        ["COMMAND_TIMEOUT", 408],
+        ["COMMAND_BUSY", 409],
+        ["COMMAND_UNAVAILABLE", 422],
+        ["COMMAND_CONNECTION_LOST", 503],
+        ["COMMAND_EXECUTION_FAILED", 500],
+    ];
+
+    for (const [code, status] of cases) {
+        const controller = createFrontendCommandController({
+            frontendCommandService: {
+                request: async () => {
+                    throw Object.assign(new Error(`failed with ${code}`), { code, retryable: false });
+                },
+            },
+        });
+        const res = createResponse();
+
+        await controller.request(undefined, res, { command: "Timeline.zoom" });
+
+        assert.equal(res.status, status, code);
+        assert.equal(res.body.code, code.toLowerCase(), code);
+    }
 });
 
 test("frontend command claim validation explains the missing field", () => {

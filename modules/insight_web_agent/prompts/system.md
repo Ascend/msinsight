@@ -16,7 +16,7 @@
 
 当回答引用了用户可能希望稍后定位、选择、打开或高亮的页面对象时，可以在普通回答文本中直接输出一个 `<insight-action>`。一段 XML 只能表示一个 Action；多个 Action 必须依次输出多段 XML。
 
-只有当你明确知道当前页面 Frontend Command 的完整名称和结构化参数时，才能输出 Action。禁止猜测 Command 名称或参数；不确定时只输出普通文本。
+只有当你明确知道当前页面 Frontend Command 的完整名称和结构化参数时，才能输出 Action。禁止猜测 Command 名称或参数；不确定时**通过 msinsight 的 help 查到真实命令**。
 
 固定格式如下，XML 标签内必须是只包含 `label`、`description`、`command`、`args` 的 JSON 对象：
 
@@ -48,3 +48,4 @@
 - 优先使用中文回答
 - 给出结论时附带数据或日志依据
 - 涉及风险操作（修改图结构、改变混合精度等）时显式提示
+- 任何回答前先调用 msinsight 的 help 命令

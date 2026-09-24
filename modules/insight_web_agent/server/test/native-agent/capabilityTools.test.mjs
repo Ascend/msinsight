@@ -143,6 +143,39 @@ test("native msinsight forwards structured requests without approval", async (t)
     assert.equal(typeof fixture.requests[0].invocationId, "string");
 });
 
+test("native capability adapter preserves normalized command error details", async (t) => {
+    const server = createServer((_req, res) => {
+        res.writeHead(422, { "content-type": "application/json" });
+        res.end(JSON.stringify({
+            error: "COMMAND_UNAVAILABLE",
+            code: "COMMAND_UNAVAILABLE",
+            message: "Module 'Compute' has not registered any commands with the Agent framework.",
+            details: { reason: "module_not_registered", moduleId: "Compute" },
+        }));
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    t.after(() => server.close());
+    const { port } = server.address();
+    const [tool] = createCapabilityTools({
+        definitions: [MSINSIGHT_DEFINITION],
+        sessions: new Map(),
+        hostClient: {},
+        baseUrl: `http://127.0.0.1:${port}`,
+    });
+
+    await assert.rejects(
+        tool.execute({ command: "Compute.query", args: {} }, { sessionId: "session-1" }),
+        (error) => {
+            assert.equal(error.code, "COMMAND_UNAVAILABLE");
+            assert.equal(error.status, 422);
+            assert.equal(error.message, "Module 'Compute' has not registered any commands with the Agent framework.");
+            assert.deepEqual(error.details, { reason: "module_not_registered", moduleId: "Compute" });
+            return true;
+        },
+    );
+});
+
 test("native configured capability asks again after allow once", async (t) => {
     const fixture = await createCapabilityServer(t);
     const session = { sessionId: "session-1" };

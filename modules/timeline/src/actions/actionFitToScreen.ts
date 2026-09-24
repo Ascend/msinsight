@@ -18,20 +18,25 @@
 
 import { register } from './register';
 import { runInAction } from 'mobx';
+import type { SelectedDataType } from '../entity/session';
+
+const isFocusableOperator = (selectedData: SelectedDataType | undefined): selectedData is SelectedDataType =>
+    selectedData !== undefined && Number.isFinite(selectedData.startTime) && Number.isFinite(selectedData.duration) &&
+    selectedData.duration > 0 && Number.isFinite(selectedData.startTime + selectedData.duration);
 
 export const actionFitToScreen = register({
     name: 'fitToScreen',
     label: 'timeline:contextMenu.Fit to screen',
     visible: (session) => session.selectedData !== undefined,
+    disabled: (session) => !isFocusableOperator(session.selectedData),
     perform: (session): void => {
+        const selectedData = session.selectedData;
+        if (!isFocusableOperator(selectedData)) return;
         runInAction(() => {
-            if (session.selectedData !== undefined) {
-                const selectedData = session.selectedData;
-                session.domainRange = {
-                    domainStart: selectedData.startTime,
-                    domainEnd: selectedData.startTime + selectedData.duration,
-                };
-            }
+            session.domainRange = {
+                domainStart: selectedData.startTime,
+                domainEnd: selectedData.startTime + selectedData.duration,
+            };
         });
     },
 });

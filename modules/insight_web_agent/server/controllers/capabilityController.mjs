@@ -32,19 +32,25 @@ export const createCapabilityController = ({ capabilityCenter, accessToken }) =>
     },
 });
 
-const capabilityErrorResponse = (res, error) => json(res, {
-    error: {
-        code: error.code ?? "CAPABILITY_EXECUTION_FAILED",
-        message: error.message,
+const capabilityErrorResponse = (res, error) => {
+    const code = error.code ?? "CAPABILITY_EXECUTION_FAILED";
+    return json(res, {
+        error: code,
+        code,
+        message: error.message || "The capability could not be completed",
         retryable: Boolean(error.retryable),
         details: error.details,
-    },
-}, capabilityErrorStatus(error.code));
+        state: error.state,
+    }, capabilityErrorStatus(error.code));
+};
 
 const capabilityErrorStatus = (code) => {
-    if (code === "CAPABILITY_NOT_FOUND") return 404;
-    if (code === "CAPABILITY_INVALID_ARGUMENT") return 400;
+    if (code === "CAPABILITY_NOT_FOUND" || code === "COMMAND_NOT_FOUND") return 404;
+    if (code === "CAPABILITY_INVALID_ARGUMENT" || code === "COMMAND_INVALID") return 400;
+    if (code === "COMMAND_PERMISSION_DENIED") return 403;
     if (code === "COMMAND_TIMEOUT" || code === "CLI_TIMEOUT") return 408;
-    if (code === "CLI_START_FAILED" || code === "CLI_EXIT_NONZERO" || code === "CLI_OUTPUT_LIMIT") return 422;
-    return 409;
+    if (code === "COMMAND_BUSY" || code === "CLI_BUSY") return 409;
+    if (code === "COMMAND_UNAVAILABLE" || code === "CLI_START_FAILED" || code === "CLI_EXIT_NONZERO" || code === "CLI_OUTPUT_LIMIT") return 422;
+    if (code === "COMMAND_CONNECTION_LOST") return 503;
+    return 500;
 };

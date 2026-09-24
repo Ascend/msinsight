@@ -330,6 +330,7 @@ export class Session {
             singleLinkLine: false,
             resetOfSliceSelection: false,
             threadsToFetch: false,
+            debouncedSetZoomingHistory: false,
         });
         this._name = conf?.name ?? this.id;
         this._interval = 100;
@@ -589,6 +590,14 @@ export class Session {
         if (this.contextMenu.zoomHistory.length > MAX_ZOOM_COUNT) {
             this.contextMenu.zoomHistory = this.contextMenu.zoomHistory.slice(-MAX_ZOOM_COUNT);
         }
+    }
+
+    flushZoomingHistory(): void {
+        this.debouncedSetZoomingHistory.flush();
+    }
+
+    cancelZoomingHistory(): void {
+        this.debouncedSetZoomingHistory.cancel();
     }
 
     resetOfSliceSelection(isSelecting = true): void {

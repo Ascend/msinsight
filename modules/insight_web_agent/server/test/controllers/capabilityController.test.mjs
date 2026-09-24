@@ -39,6 +39,38 @@ test("Native capability controller rejects the frontend API token", async () => 
     assert.equal(invocations, 0);
 });
 
+test("Native capability controller maps capability errors to specific HTTP statuses", async () => {
+    const cases = [
+        ["COMMAND_NOT_FOUND", 404],
+        ["COMMAND_INVALID", 400],
+        ["COMMAND_PERMISSION_DENIED", 403],
+        ["COMMAND_TIMEOUT", 408],
+        ["COMMAND_BUSY", 409],
+        ["COMMAND_UNAVAILABLE", 422],
+        ["COMMAND_CONNECTION_LOST", 503],
+        ["CAPABILITY_EXECUTION_FAILED", 500],
+    ];
+
+    for (const [code, status] of cases) {
+        const controller = createCapabilityController({
+            capabilityCenter: {
+                invoke: async () => {
+                    throw Object.assign(new Error(`failed with ${code}`), { code, retryable: false });
+                },
+            },
+            accessToken: "native-only",
+        });
+        const res = createResponse();
+
+        await controller.invoke(createRequest("native-only"), res, { name: "msinsight" });
+
+        assert.equal(res.status, status, code);
+        assert.equal(res.body.code, code, code);
+        assert.equal(res.body.error, code, code);
+        assert.equal(res.body.message, `failed with ${code}`, code);
+    }
+});
+
 test("Native capability controller accepts its process token", async () => {
     const requests = [];
     const controller = createCapabilityController({
