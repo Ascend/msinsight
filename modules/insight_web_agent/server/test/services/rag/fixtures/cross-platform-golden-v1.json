@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "kbVersion": "26.1.4",
+  "kbVersion": "26.1.6",
   "retrievalMode": "hybrid_rrf",
   "results": [
     {
@@ -10,7 +10,7 @@
         { "projectId": "msinsight", "title": "MindStudio Insight内存调优", "section": "MindStudio Insight内存调优" },
         { "projectId": "msinsight", "title": "基于 PyTorch Snapshot 定位 ResNet50 训练内存泄漏", "section": "基于 PyTorch Snapshot 定位 ResNet50 训练内存泄漏" },
         { "projectId": "msinsight", "title": "基于 MindStudio Insight 定位集群快慢卡问题", "section": "基于 MindStudio Insight 定位集群快慢卡问题" },
-        { "projectId": "msinsight", "title": "MindStudio Insight Memory Tuning", "section": "MindStudio Insight Memory Tuning" }
+        { "projectId": "msinsight", "title": "MindStudio Insight Operator Tuning", "section": "Usage Description" }
       ]
     },
     {
@@ -18,16 +18,16 @@
       "hits": [
         { "projectId": "hccl", "title": "HCCL简介", "section": "HCCL简介" },
         { "projectId": "hccl", "title": "HCCLSOCKETFAMILY", "section": "HCCLSOCKETFAMILY" },
-        { "projectId": "hccl", "title": "使用通信库API实现通信功能", "section": "使用通信库API实现通信功能" },
-        { "projectId": "hccl", "title": "HCCLINTERHCCSDISABLE", "section": "HCCLINTERHCCSDISABLE" },
-        { "projectId": "hccl", "title": "HCCLLOGICSUPERPODID", "section": "HCCLLOGICSUPERPODID" }
+        { "projectId": "hccl", "title": "HCCLOPEXPANSIONMODE", "section": "HCCLOPEXPANSIONMODE" },
+        { "projectId": "hccl", "title": "HCCLLOGICSUPERPODID", "section": "HCCLLOGICSUPERPODID" },
+        { "projectId": "hccl", "title": "相关概念", "section": "相关概念" }
       ]
     },
     {
       "query": "PyTorch Profiler性能数据如何导入MindStudio Insight",
       "hits": [
-        { "projectId": "msinsight", "title": "FAQ", "section": "12. 导入数据后通信界面未显示数据怎么办？" },
         { "projectId": "msinsight", "title": "MindStudio Insight系统调优", "section": "MindStudio Insight系统调优" },
+        { "projectId": "msinsight", "title": "FAQ", "section": "12. 导入数据后通信界面未显示数据怎么办？" },
         { "projectId": "msinsight", "title": "FAQ", "section": "11. 导入数据时页面显示黑屏怎么办？" },
         { "projectId": "msinsight", "title": "MindStudio Insight基础操作", "section": "MindStudio Insight基础操作" },
         { "projectId": "pytorch", "title": "Ascend PyTorch调优工具", "section": "PyTorch多卡大集群场景如何避免性能数据直接落盘到共享存储时导致的性能膨胀问题" }
@@ -37,20 +37,20 @@
       "query": "AscendC算子性能如何调优",
       "hits": [
         { "projectId": "AscendNPU-IR", "title": "常见问题（FAQ）", "section": "性能调优" },
-        { "projectId": "cannbot-skills", "title": "CANNBot TileLang 算子开发快速入门指南", "section": "Q: 如何选择 Developer 模式还是 Expert 模式？" },
         { "projectId": "msinsight", "title": "快速入门（算子调优篇）", "section": "快速入门（算子调优篇）" },
         { "projectId": "MindSpeed", "title": "性能调优指导", "section": "性能调优指导" },
-        { "projectId": "cannbot-skills", "title": "CANNBot Ascend C 算子性能进化优化快速入门指南", "section": "CANNBot Ascend C 算子性能进化优化快速入门指南" }
+        { "projectId": "mskl", "title": "MindStudio Kernel Launch 常见问题", "section": "4.1 自动调优运行很慢，如何处理？" },
+        { "projectId": "asc-devkit", "title": "FlashAttention算子性能调优案例", "section": "FlashAttention算子性能调优案例" }
       ]
     },
     {
       "query": "MindIE大模型推理性能优化方法",
       "hits": [
+        { "projectId": "msprobe", "title": "大模型推理精度定位指南", "section": "大模型推理精度定位指南" },
         { "projectId": "msmodelslim", "title": "压缩与结构优化（大模型为主）", "section": "压缩与结构优化（大模型为主）" },
         { "projectId": "msserviceprofiler", "title": "服务化与纯模型性能差异过大", "section": "服务化与纯模型性能差异过大" },
-        { "projectId": "cannbot-skills", "title": "NPU 模型推理优化快速入门", "section": "NPU 模型推理优化快速入门" },
-        { "projectId": "cannbot-skills", "title": "CANNBot Ascend C 算子性能进化优化快速入门指南", "section": "CANNBot Ascend C 算子性能进化优化快速入门指南" },
-        { "projectId": "msserviceprofiler", "title": "模型性能劣化导致SLO劣化", "section": "模型性能劣化导致SLO劣化" }
+        { "projectId": "asc-devkit", "title": "Matmul性能优化策略总览", "section": "Matmul性能优化策略总览" },
+        { "projectId": "msmodeling", "title": "模型推理性能仿真 使用指南", "section": "模型推理性能仿真 使用指南" }
       ]
     }
   ]

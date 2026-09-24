@@ -81,15 +81,32 @@ test("bundled RAG is preactivated and passes lifecycle verify", {
     assert.equal(["development", "product-bundled"].includes(metadata.mode), true);
     assert.equal(metadata.releaseEligible, metadata.mode === "product-bundled");
     if (metadata.mode === "development") {
-        // Pinned to the current development build version; bump together with
-        // the build version for each new dev/beta installer (dev.1 carried KB
-        // 26.1.3, 26.2.0-beta-v1 carried KB 26.1.5, beta-v2 adds pre-seeded
-        // skills, beta-v3 was superseded before install, beta-v4 adds pip
-        // cluster-analysis dependencies, beta-v5 was superseded (missing
-        // msprof_analyze), beta-v6 completed all 15 pip packages, and beta-v7
-        // carries RAG 26.1.6 without ascend-npu-snapshot-analyzer).
-        assert.equal(metadata.productVersion, "26.2.0-beta-v7");
-        assert.equal(metadata.peNumericVersion, "26.2.0.7");
+        // Optional stale-artifact guard: when the build pipeline wants to pin
+        // the expected dev installer version (protect against verifying a
+        // stale bundle), set MSI_EXPECTED_PRODUCT_VERSION, e.g.
+        //   MSI_EXPECTED_PRODUCT_VERSION=26.2.0-beta-v11
+        // The numeric cross-check mirrors build/build.py extract_numeric_part
+        // on master: keep the leading dotted-numeric segments of the version
+        // and compare them against peNumericVersion. The remaining segments
+        // (beta-vN, rag-dev.N, B100_002, ...) follow whatever naming the build
+        // uses, so the test never pins a specific naming scheme. Without the
+        // variable the bundle integrity checks above run for any version.
+        const expectedVersion = process.env.MSI_EXPECTED_PRODUCT_VERSION;
+        if (expectedVersion) {
+            assert.equal(metadata.productVersion, expectedVersion);
+            const expected = [];
+            for (const part of expectedVersion.split('.')) {
+                if (/^\d+$/.test(part)) {
+                    expected.push(Number(part));
+                } else {
+                    break;
+                }
+            }
+            const actual = metadata.peNumericVersion.split('.');
+            for (let i = 0; i < expected.length; i++) {
+                assert.equal(Number(actual[i]), expected[i], `peNumericVersion segment ${i + 1}`);
+            }
+        }
     }
     assert.equal(metadata.consumerAcceptanceEvaluated, false);
     assert.equal(metadata.promotionEvaluated, false);
