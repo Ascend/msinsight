@@ -8,7 +8,7 @@
 
 然而，融合算子涉及 Cube 和 Vector 两种计算单元的协同工作，以及核间同步（CrossCoreSetFlag/CrossCoreWaitFlag）机制的配合，其性能表现受多种因素影响：计算负载是否均衡、数据搬运是否隐藏、同步开销是否过大等。借助 MindStudio Insight 的算子调优功能，可以直观地可视化融合算子的计算负载和内存带宽，帮助开发者快速定位融合算子的性能瓶颈。
 
-本案例以 Ascend C 官方示例 [MatmulLeakyRelu 融合算子](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation) 为例，介绍如何使用 MindStudio Insight 分析 Cube-Vector 融合算子的性能。
+本案例以 Ascend C 官方示例 [MatmulLeakyRelu 融合算子](https://gitcode.com/cann/asc-devkit/tree/9.2.0/examples/01_simd_cpp_api/00_introduction/03_fusion_operation) 为例，介绍如何使用 MindStudio Insight 分析 Cube-Vector 融合算子的性能。
 
 Ascend C 提供了两种编程风格的 MatmulLeakyRelu 融合算子实现：
 
@@ -472,14 +472,14 @@ Vector0（~12 μs）和 Vector1（~21.5 μs）之间的 ~9 μs 差距说明 SetD
 
 两个示例的完整代码和详细说明，请参见 Ascend C 官方示例仓库：
 
-- [MatmulLeakyRelu Basic API 示例](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
-- [MatmulLeakyRelu Advanced API 示例](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
+- [MatmulLeakyRelu Basic API 示例](https://gitcode.com/cann/asc-devkit/tree/9.2.0/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
+- [MatmulLeakyRelu Advanced API 示例](https://gitcode.com/cann/asc-devkit/tree/9.2.0/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
 
 ## 参考信息
 
 - [算子调优](../user_guide/operator_tuning.md)
-- [Ascend C MatmulLeakyRelu 融合算子示例（Basic API）](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
-- [Ascend C MatmulLeakyRelu 融合算子示例（Advanced API）](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
-- [Ascend C 融合算子编程指南（CV 融合）](https://gitcode.com/cann/asc-devkit/tree/master/docs/guide/算子实践参考/SIMD算子实现/融合算子编程/CV融合)
-- [msOpProf 用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)
-- [CANN 商用版 Profiling 数据采集指南](https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/devaids/Profilling/atlasprofiling_16_0010.html)
+- [Ascend C MatmulLeakyRelu 融合算子示例（Basic API）](https://gitcode.com/cann/asc-devkit/tree/9.2.0/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
+- [Ascend C MatmulLeakyRelu 融合算子示例（Advanced API）](https://gitcode.com/cann/asc-devkit/tree/9.2.0/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
+- [Ascend C 融合算子编程指南（CV 融合）](https://gitcode.com/cann/asc-devkit/tree/9.2.0/docs/zh/guide/operator_practice/simd_operator_impl/fusion_operator_programming/cv_fusion)
+- [msOpProf 用户指南](https://gitcode.com/Ascend/msopprof/blob/26.2.0/docs/zh/user_guide/msopprof_user_guide.md)
+- [CANN Profiling 数据采集指南](https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/devaids/Profilling/atlasprofiling_16_0010.html)
