@@ -166,7 +166,9 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0);
     const [welcomeAnimationRequest, setWelcomeAnimationRequest] = useState(0);
     const stateRef = useRef(state);
-    const queuedPromptInFlightRef = useRef(false);
+    const pendingSessionSequenceRef = useRef(0);
+    const queuedPromptsInFlightRef = useRef(new Set<string>());
+    const pendingCreationsRef = useRef(new Map<string, ReturnType<typeof sendPrompt>>());
     const frontendCommandsRef = useRef(new Set<string>());
     const cancelledFrontendCommandsRef = useRef(new Set<string>());
     const initialSessionInitializedRef = useRef(false);
@@ -523,16 +525,18 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     }, [state.agentDiscoveryLoading, state.initialized]);
 
     useEffect(() => {
-        const nextPrompt = getNextQueuedPrompt(state);
+        const nextPrompt = getNextQueuedPrompt(state, queuedPromptsInFlightRef.current);
         if (!nextPrompt) return;
-        if (queuedPromptInFlightRef.current) return;
-        queuedPromptInFlightRef.current = true;
+        const key = nextPrompt.sessionId ?? 'draft';
+        queuedPromptsInFlightRef.current.add(key);
         setState((current) => dequeuePrompt(current, nextPrompt));
         const runQueuedPrompt = async (): Promise<void> => {
             try {
                 await sendPromptNow(nextPrompt.prompt, nextPrompt.isDraftSession, nextPrompt.sessionId);
             } finally {
-                queuedPromptInFlightRef.current = false;
+                queuedPromptsInFlightRef.current.delete(key);
+                // Recheck queues if SSE completed before the HTTP request settled.
+                setState((current) => ({ ...current }));
             }
         };
         runQueuedPrompt();
@@ -553,7 +557,6 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const createDraftSession = async (): Promise<void> => {
-        if (activePendingPrompt(stateRef.current)) return;
         setWelcomeAnimationRequest((current) => current + 1);
         setInput('');
         setImages([]);
@@ -669,16 +672,27 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const sendPromptNow = async (prompt: QueuedPrompt, isDraftSession: boolean, sessionId?: string): Promise<void> => {
-        const optimisticSession = createOptimisticSession(prompt, isDraftSession);
-        setState((current) => markPromptStarted(current, prompt, isDraftSession, sessionId, optimisticSession));
+        const pendingSession = stateRef.current.sessions.find((session) => session.sessionId === sessionId && session.isPending);
+        const optimisticSession = isDraftSession || !sessionId
+            ? createOptimisticSession(prompt, `__pending_session__:${++pendingSessionSequenceRef.current}`)
+            : pendingSession;
+        setState((current) => markPromptStarted(current, sessionId, optimisticSession));
 
+        let request: ReturnType<typeof sendPrompt> | undefined;
         try {
-            const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode, undefined, prompt.promptPreset);
+            // A queued prompt may need to create the session again after its initial request failed.
+            request = sendPrompt(prompt.text, Boolean(optimisticSession), optimisticSession ? undefined : sessionId, prompt.images, prompt.mode, undefined, prompt.promptPreset);
+            if (optimisticSession) pendingCreationsRef.current.set(optimisticSession.sessionId, request);
+            const body = await request;
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
             setState((current) => markPromptFailed(current, optimisticSession, sessionId));
             showError(error);
             await refreshInitialState();
+        } finally {
+            if (optimisticSession && pendingCreationsRef.current.get(optimisticSession.sessionId) === request) {
+                pendingCreationsRef.current.delete(optimisticSession.sessionId);
+            }
         }
     };
 
@@ -699,10 +713,18 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const cancelMessage = async (): Promise<void> => {
-        const sessionId = state.activeSessionId;
-        setState((current) => markPromptCancelled(current, sessionId));
-        if (!sessionId) return;
+        let sessionId = state.activeSessionId;
         try {
+            const creation = sessionId ? pendingCreationsRef.current.get(sessionId) : undefined;
+            if (creation) {
+                setState(clearActiveQueuedPrompts);
+                // The backend can only cancel after assigning the real session ID.
+                const result = await creation;
+                sessionId = result.sessionId;
+                if (!sessionId) return;
+            }
+            setState((current) => markPromptCancelled(current, sessionId));
+            if (!sessionId) return;
             await cancelPrompt(sessionId);
         } catch (error) {
             showError(error);
@@ -1054,13 +1076,13 @@ const removeActiveQueuedPrompt = (state: ChatState, index: number): ChatState =>
     return { ...state, sessionRecords, sessions: mergeSessionStatuses(state.sessions, sessionRecords) };
 };
 
-const getNextQueuedPrompt = (state: ChatState): { prompt: QueuedPrompt; isDraftSession: boolean; sessionId?: string } | undefined => {
-    if (!state.draftPendingPrompt && state.draftQueuedPrompts.length) {
+const getNextQueuedPrompt = (state: ChatState, inFlight: Set<string>): { prompt: QueuedPrompt; isDraftSession: boolean; sessionId?: string } | undefined => {
+    if (!inFlight.has('draft') && !state.draftPendingPrompt && state.draftQueuedPrompts.length) {
         return { prompt: state.draftQueuedPrompts[0], isDraftSession: true };
     }
 
     for (const record of Object.values(state.sessionRecords)) {
-        if (!record.pendingPrompt && record.queuedPrompts.length) {
+        if (!inFlight.has(record.sessionId) && !record.pendingPrompt && record.queuedPrompts.length) {
             return { prompt: record.queuedPrompts[0], isDraftSession: false, sessionId: record.sessionId };
         }
     }
@@ -1149,10 +1171,9 @@ const mergeSessionStatuses = (sessions: SessionItem[], records: Record<string, S
     });
 };
 
-const createOptimisticSession = (prompt: QueuedPrompt, isDraftSession?: boolean): SessionItem | undefined => {
-    if (!isDraftSession) return undefined;
+const createOptimisticSession = (prompt: QueuedPrompt, sessionId: string): SessionItem => {
     return {
-        sessionId: '__pending_session__',
+        sessionId,
         title: getPromptTitle(prompt),
         updatedAt: 'Creating...',
         isPending: true,
@@ -1169,27 +1190,30 @@ const applyPromptSessionResult = (
 ): ChatState => {
     if (!sessionId) return state;
 
+    const provisionalRecord = optimisticSession ? state.sessionRecords[optimisticSession.sessionId] : undefined;
+    if (optimisticSession && !provisionalRecord) return state;
+
     const existingRecord = getSessionRecord(state, sessionId);
     // A fast reply can finish through SSE before the HTTP acknowledgement arrives.
     const alreadyFinished = existingRecord.status === 'completed' || existingRecord.status === 'error';
+    const { [optimisticSession?.sessionId ?? '']: _provisionalRecord, ...retainedRecords } = state.sessionRecords;
     const sessionRecords = {
-        ...state.sessionRecords,
+        ...retainedRecords,
         [sessionId]: {
             ...existingRecord,
             loaded: true,
             pendingPrompt: !alreadyFinished,
             status: alreadyFinished ? existingRecord.status : 'working' as SessionStatus,
-            notices: state.isDraftSession ? state.draftNotices : existingRecord.notices,
+            configOptions: state.sessionRecords[sessionId]?.configOptions ?? provisionalRecord?.configOptions ?? existingRecord.configOptions,
+            queuedPrompts: [...(provisionalRecord?.queuedPrompts ?? []), ...existingRecord.queuedPrompts],
+            notices: [...(provisionalRecord?.notices ?? []), ...(existingRecord.notices ?? [])],
         },
     };
 
     const sessions = ensureCreatedSession(state.sessions, optimisticSession, sessionId, getPromptTitle(prompt));
     return {
         ...state,
-        activeSessionId: state.isDraftSession ? sessionId : state.activeSessionId,
-        isDraftSession: state.isDraftSession ? false : state.isDraftSession,
-        draftPendingPrompt: false,
-        draftNotices: state.isDraftSession ? [] : state.draftNotices,
+        activeSessionId: optimisticSession && state.activeSessionId === optimisticSession.sessionId ? sessionId : state.activeSessionId,
         sessionRecords,
         sessions: mergeSessionStatuses(sessions, sessionRecords),
     };
@@ -1197,18 +1221,37 @@ const applyPromptSessionResult = (
 
 const markPromptStarted = (
     state: ChatState,
-    _prompt: QueuedPrompt,
-    isDraftSession: boolean,
     sessionId: string | undefined,
     optimisticSession: SessionItem | undefined,
 ): ChatState => {
-    if (isDraftSession || !sessionId) {
+    if (optimisticSession && optimisticSession.sessionId !== sessionId) {
+        const provisionalId = optimisticSession.sessionId;
+        // Give each initial request its own state before the HTTP acknowledgement arrives.
         return {
             ...state,
-            draftPendingPrompt: true,
-            sessions: optimisticSession ? [optimisticSession, ...state.sessions] : state.sessions,
+            activeSessionId: provisionalId,
+            isDraftSession: false,
+            draftMessages: [],
+            draftPendingPrompt: false,
+            draftQueuedPrompts: [],
+            draftNotices: [],
+            sessionRecords: {
+                ...state.sessionRecords,
+                [provisionalId]: {
+                    ...getSessionRecord(state, provisionalId),
+                    messages: state.draftMessages,
+                    configOptions: getActiveConfigOptions(state),
+                    notices: state.draftNotices,
+                    queuedPrompts: state.draftQueuedPrompts,
+                    loaded: true,
+                    pendingPrompt: true,
+                    status: 'working',
+                },
+            },
+            sessions: [optimisticSession, ...state.sessions],
         };
     }
+    if (!sessionId) return state;
 
     const record = getSessionRecord(state, sessionId);
     const sessionRecords = {
@@ -1232,13 +1275,29 @@ const markPromptFailed = (
     optimisticSession: SessionItem | undefined,
     sessionId: string | undefined,
 ): ChatState => {
-    if (!sessionId) {
+    if (optimisticSession) {
+        const provisionalId = optimisticSession.sessionId;
+        const record = state.sessionRecords[provisionalId];
+        // Keep the provisional conversation so its remaining queue can retry independently.
+        if (record?.queuedPrompts.length) return markPromptFailed(state, undefined, provisionalId);
+        const { [provisionalId]: _removed, ...sessionRecords } = state.sessionRecords;
+        const isActive = state.activeSessionId === provisionalId;
         return {
             ...state,
-            draftPendingPrompt: false,
-            sessions: optimisticSession ? state.sessions.filter((session) => session.sessionId !== optimisticSession.sessionId) : state.sessions,
+            ...(isActive
+                ? {
+                    activeSessionId: undefined,
+                    isDraftSession: true,
+                    draftPendingPrompt: false,
+                    draftMessages: record?.messages ?? [],
+                    draftNotices: record?.notices ?? [],
+                }
+                : {}),
+            sessionRecords,
+            sessions: state.sessions.filter((session) => session.sessionId !== provisionalId),
         };
     }
+    if (!sessionId) return state;
 
     const record = getSessionRecord(state, sessionId);
     const sessionRecords = {
