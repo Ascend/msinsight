@@ -16,9 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { GL_COLORS, GL_DIMMED_COLORS, GL_HIGHLIGHT_COLORS } from '@/leaksWorker/tools/color';
-
-type ColorMode = 'normal' | 'highlight' | 'dimmed';
+import { ColorMode, getGLColorPalette, GL_COLORS } from '@/leaksWorker/tools/color';
 
 export abstract class Program {
     readonly uniformLoc: Record<string, WebGLUniformLocation | null> = {};
@@ -27,6 +25,7 @@ export abstract class Program {
     vao: WebGLVertexArrayObject | null = null;
     instanceBuffer: WebGLBuffer | null = null;
     readonly uniformData: Float32Array;
+    private colorMode: ColorMode | null = null;
 
     constructor(gl: WebGL2RenderingContext, uniformData: Float32Array, shader: Shader) {
         this.gl = gl;
@@ -103,8 +102,12 @@ export abstract class Program {
     }
 
     setColorUniforms(mode: ColorMode = 'normal'): void {
+        if (this.colorMode === mode) {
+            return;
+        }
+        this.colorMode = mode;
         const gl = this.gl;
-        const colors = mode === 'highlight' ? GL_HIGHLIGHT_COLORS : mode === 'dimmed' ? GL_DIMMED_COLORS : GL_COLORS;
+        const colors = getGLColorPalette(mode);
         for (let i = 0; i < colors.length; i++) {
             gl.uniform4f(this.uniformLoc[`uColors[${i}]`], colors[i][0], colors[i][1], colors[i][2], colors[i][3]);
         }

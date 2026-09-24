@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { getColorStringByAddr, getDimmedColorStringByAddr } from '@/leaksWorker/tools/color';
+import { getColorStringByAddr, getDimmedColorStringByAddr, SELECTION_BORDER_COLOR } from '@/leaksWorker/tools/color';
 import { BlockDataOPFS, getPointFromPathData } from '../../tools/BlockDataOPFS';
 import { ALLOCATION_LINE_STYLES, isAllocationLineVisible } from '../allocationLineStyles';
 
@@ -280,7 +280,7 @@ export class Painter {
             this.context.lineTo(toX(pt), (pt[1] + meta.size) * zoom.y);
         }
         this.context.closePath();
-        this.context.strokeStyle = getColorStringByAddr(meta.addr, true);
+        this.context.strokeStyle = SELECTION_BORDER_COLOR;
         this.context.lineWidth = 2 / Math.max(this.getScaleX(options.transform), this.getScaleY(options.transform));
         this.context.stroke();
     }
@@ -315,7 +315,7 @@ export class Painter {
             this.context.lineTo(toX(path[i]), (path[i][1] + size) * zoom.y);
         }
         this.context.closePath();
-        this.context.strokeStyle = getColorStringByAddr(addr, true);
+        this.context.strokeStyle = SELECTION_BORDER_COLOR;
         this.context.lineWidth = 2 / Math.max(this.getScaleX(options.transform), this.getScaleY(options.transform));
         this.context.stroke();
     }

@@ -17,7 +17,8 @@
  */
 
 export const colors = ['#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f', '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'];
-export const highlightColors = ['#8cb3d9', '#f7bc77', '#f08a8c', '#b3dce0', '#9dd68a', '#f5e082', '#e0b3d9', '#ffcdd2', '#d4bfa1', '#e0dbd7'];
+export const SELECTION_BORDER_COLOR = '#000000';
+export type ColorMode = 'normal' | 'dimmed';
 
 const hexToRgba = (hex: string, opacity: number = 1): [number, number, number, number] => {
     if (!hex) { return [0.5, 0.5, 0.5, opacity]; }
@@ -40,8 +41,20 @@ const dimHexColor = (hex: string): string => {
 };
 
 export const GL_COLORS: Array<[number, number, number, number]> = colors.map(color => hexToRgba(color));
-export const GL_HIGHLIGHT_COLORS: Array<[number, number, number, number]> = highlightColors.map(color => hexToRgba(color));
 export const GL_DIMMED_COLORS: Array<[number, number, number, number]> = colors.map(color => hexToRgba(dimHexColor(color)));
+const dimmedColors = colors.map(dimHexColor);
+
+export const normalizeColorIndex = (index: number): number => {
+    if (!Number.isFinite(index)) {
+        return 0;
+    }
+    const normalized = Math.trunc(index) % colors.length;
+    return normalized < 0 ? normalized + colors.length : normalized;
+};
+
+export const getGLColorPalette = (mode: ColorMode): Array<[number, number, number, number]> => (
+    mode === 'dimmed' ? GL_DIMMED_COLORS : GL_COLORS
+);
 
 const hashString = (str: string): number => {
     let hash = 5381;
@@ -56,15 +69,22 @@ export const hashHexAddressToIndex = (addr: string): number => {
     return hashString(clean) % GL_COLORS.length;
 };
 
+export const hashAddressWithOffsetToIndex = (address: string, offset: number): number => {
+    try {
+        const blockAddress = BigInt(address) + BigInt(Math.trunc(offset));
+        const normalizedAddress = /^0x/i.test(address) ? `0x${blockAddress.toString(16)}` : blockAddress.toString();
+        return hashHexAddressToIndex(normalizedAddress);
+    } catch (_error) {
+        return hashHexAddressToIndex(address);
+    }
+};
+
 const hexToRgbaString = (hex: string, opacity: number = 1): string => {
     const [r, g, b, a] = hexToRgba(hex, opacity);
     return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a})`;
 };
 
-export const getColorStringByAddr = (addr: string, isHighlight: boolean = false, opacity: number = 1): string => {
-    if (isHighlight) {
-        return opacity >= 1 ? '#000000' : hexToRgbaString('#000000', opacity);
-    }
+export const getColorStringByAddr = (addr: string, opacity: number = 1): string => {
     const index = hashHexAddressToIndex(addr);
     const color = colors[index];
     return opacity >= 1 ? color : hexToRgbaString(color, opacity);
@@ -76,10 +96,8 @@ export const getDimmedColorStringByAddr = (addr: string, opacity: number = 1): s
     return opacity >= 1 ? color : hexToRgbaString(color, opacity);
 };
 
-export const getColorStringByIndex = (index: number, isHighlight: boolean = false): string => {
-    return isHighlight ? highlightColors[index % GL_COLORS.length] : colors[index % GL_COLORS.length];
-};
+export const getColorStringByIndex = (index: number): string => colors[normalizeColorIndex(index)];
 
 export const getDimmedColorStringByIndex = (index: number): string => {
-    return dimHexColor(colors[index % colors.length]);
+    return dimmedColors[normalizeColorIndex(index)];
 };
