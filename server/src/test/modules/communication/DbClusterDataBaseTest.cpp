@@ -253,13 +253,17 @@ TEST_F(DbClusterDataBaseTest, KernelMfuQueryListUsesFixedSchemaAndFilters) {
     EXPECT_EQ(count, 1);
 }
 
-TEST_F(DbClusterDataBaseTest, KernelMfuAvailabilityRequiresAllKnownColumns) {
+TEST_F(DbClusterDataBaseTest, KernelMfuListRequiresAllKnownColumns) {
     std::recursive_mutex sqlMutex;
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     auto database = std::make_shared<MockDatabase>(sqlMutex);
     database->SetDbPtr(dbPtr);
     ASSERT_TRUE(database->ExecSql("CREATE TABLE OperatorMFU (rank_id TEXT);"));
-    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::CheckAvailability(database),
+    Dic::Protocol::KernelMfuListParams params;
+    std::vector<Dic::Protocol::KernelMfuRow> rows;
+    std::vector<std::string> rankOptions;
+    uint64_t count = 0;
+    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::QueryList(database, params, rows, rankOptions, count),
         Dic::Module::Timeline::KernelMfuQueryStatus::UNAVAILABLE);
 }

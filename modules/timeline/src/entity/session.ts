@@ -32,10 +32,7 @@ import { SimpleCache } from '../cache/simplecache';
 import { InsightUnitSet } from '../utils/PageSetting';
 import { getCardOffsetKey, getCardSideOffset, type OffsetSide } from '../insight/units/offset';
 import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from './data';
-import type {
-    CardRankInfo,
-    KernelMfuAvailabilityResponse,
-} from '../api/interface';
+import type { CardRankInfo } from '../api/interface';
 import { getRootUnit } from '../utils';
 import { getAutoKey } from '../utils/dataAutoKey';
 import type { FlowPoint } from '../insight/units/AscendUnit';
@@ -170,11 +167,7 @@ export class Session {
     kernelMfuProjectGeneration = 0;
     selectedClusterPath = '';
     kernelMfuProjectName = '';
-    kernelMfuClusterList: Array<{ path: string; durationParsed: boolean }> = [];
-    kernelMfuDurationParsed = false;
-    kernelMfuAvailability: boolean | undefined = undefined;
-    kernelMfuAvailabilityChecking = false;
-    kernelMfuAvailabilityRequestSequence = 0;
+    kernelMfuClusterCompleted = false;
     // context menu state
     contextMenu: ContextMenu = {
         isVisible: false,
@@ -440,68 +433,18 @@ export class Session {
 
     resetKernelMfuState(): void {
         this.kernelMfuProjectGeneration += 1;
+        this.kernelMfuClusterCompleted = false;
         this.selectedClusterPath = '';
         this.kernelMfuProjectName = '';
-        this.kernelMfuClusterList = [];
-        this.kernelMfuDurationParsed = false;
-        this.kernelMfuAvailability = undefined;
-        this.kernelMfuAvailabilityChecking = false;
-        this.kernelMfuAvailabilityRequestSequence += 1;
     }
 
-    updateKernelMfuClusterContext(
-        projectName: string,
-        clusterPath: string,
-        clusterList: Array<{ path: string; durationParsed?: boolean }>,
-    ): void {
+    updateKernelMfuClusterContext(projectName: string, clusterPath: string): void {
         const contextChanged = this.selectedClusterPath !== clusterPath || this.kernelMfuProjectName !== projectName;
         if (contextChanged) {
             this.resetKernelMfuState();
         }
         this.selectedClusterPath = clusterPath;
         this.kernelMfuProjectName = projectName;
-        this.kernelMfuClusterList = clusterList.map(({ path, durationParsed }) => ({
-            path,
-            durationParsed: durationParsed === true,
-        }));
-        this.kernelMfuDurationParsed = this.kernelMfuClusterList.some(
-            (item) => item.path === clusterPath && item.durationParsed,
-        );
-    }
-
-    markKernelMfuDurationParsed(clusterPath: string): void {
-        if (clusterPath !== this.selectedClusterPath) {
-            return;
-        }
-        this.kernelMfuDurationParsed = true;
-        this.kernelMfuClusterList = this.kernelMfuClusterList.map((item) =>
-            item.path === clusterPath ? { ...item, durationParsed: true } : item,
-        );
-    }
-
-    startKernelMfuAvailabilityRequest(clusterPath: string): number | undefined {
-        if (clusterPath === '' || clusterPath !== this.selectedClusterPath || !this.kernelMfuDurationParsed ||
-            this.kernelMfuAvailability !== undefined || this.kernelMfuAvailabilityChecking) {
-            return undefined;
-        }
-        const sequence = this.kernelMfuAvailabilityRequestSequence + 1;
-        this.kernelMfuAvailabilityRequestSequence = sequence;
-        this.kernelMfuAvailabilityChecking = true;
-        return sequence;
-    }
-
-    isCurrentKernelMfuAvailabilityRequest(sequence: number, clusterPath: string): boolean {
-        return this.kernelMfuAvailabilityRequestSequence === sequence && this.selectedClusterPath === clusterPath;
-    }
-
-    updateKernelMfuAvailability(response: KernelMfuAvailabilityResponse): void {
-        this.kernelMfuAvailability = response.available;
-        this.kernelMfuAvailabilityChecking = false;
-    }
-
-    markKernelMfuAvailabilityError(): void {
-        this.kernelMfuAvailability = false;
-        this.kernelMfuAvailabilityChecking = false;
     }
 
     get availableUnits(): InsightUnit[] {

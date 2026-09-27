@@ -80,6 +80,8 @@ const static std::string TABLE_COMM_ANALYZER_BANDWIDTH = "ClusterCommunicationBa
 const static std::string TABLE_COMM_ANALYZER_MATRIX = "ClusterCommunicationMatrix";
 const static std::string TABLE_COMM_GROUP = "CommunicationGroupMapping";
 const static std::string TABLE_CLUSTER_BASE_INFO = "ClusterBaseInfo";
+// cluster db其它分析功能对应表
+const static std::string TABLE_OPERATOR_MFU = "OperatorMFU";
 
 // 集群公共表（text和db共有）
 const static std::string TABLE_EXPERT_HOTSPOT_INTO = "ExpertHotspotInfo";

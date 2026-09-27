@@ -41,7 +41,7 @@ OPEN_SOURCE = [
     ['uWebSockets', 'v20.48.0', 'https://gitcode.com/gh_mirrors/uw/uWebSockets.git'],
     ['rapidjson', 'master', 'https://gitcode.com/GitHub_Trending/ra/rapidjson.git'],
     ['sqlite3_src', 'version-3.46.1', 'https://gitcode.com/gh_mirrors/sq/sqlite.git'],
-    ['msprof-analyze', '26.1.0', 'https://gitcode.com/Ascend/msprof-analyze.git'],
+    ['msprof-analyze', 'tag_MindStudio_26.2.0.B080_002', 'https://gitcode.com/Ascend/msprof-analyze.git'],
 ]
 
 

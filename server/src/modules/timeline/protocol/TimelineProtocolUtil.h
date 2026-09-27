@@ -71,8 +71,6 @@ template <>
 std::optional<document_t> ToResponseJson<SystemViewOverallResponse>(const SystemViewOverallResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const SystemViewFtraceStatResponse &response);
-template <>
-std::optional<document_t> ToResponseJson<KernelMfuAvailabilityResponse>(const KernelMfuAvailabilityResponse &response);
 template <> std::optional<document_t> ToResponseJson<KernelMfuListResponse>(const KernelMfuListResponse &response);
 template <> std::optional<document_t> ToResponseJson<RankOffsetResponse>(const RankOffsetResponse &response);
 // event

@@ -290,14 +290,9 @@ TEST_F(TimelineProtocolRequestTest, KernelOverallParams) {
 }
 
 TEST_F(TimelineProtocolRequestTest, KernelMfuParams) {
-    Dic::Protocol::KernelMfuAvailabilityParams availabilityParams;
     std::string errorMsg;
-    EXPECT_TRUE(availabilityParams.CheckParams(errorMsg));
-    availabilityParams.clusterPath = "cluster_0";
-    EXPECT_TRUE(availabilityParams.CheckParams(errorMsg));
-
     Dic::Protocol::KernelMfuListParams listParams;
-    listParams.clusterPath = availabilityParams.clusterPath;
+    listParams.clusterPath = "cluster_0";
     listParams.rankIds = {"0", "1"};
     listParams.current = 1;
     listParams.pageSize = 10;

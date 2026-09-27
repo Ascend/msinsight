@@ -41,15 +41,6 @@ export interface CardRankInfo {
     isFtrace?: boolean;
 }
 
-export interface KernelMfuAvailabilityParams {
-    clusterPath: string;
-    allowMissingDatabase?: boolean;
-}
-
-export interface KernelMfuAvailabilityResponse {
-    available: boolean;
-}
-
 export interface KernelMfuListParams extends PaginationParams {
     clusterPath: string;
     rankIds?: string[];
