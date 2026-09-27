@@ -27,7 +27,6 @@ import {
     statsSystemViewItems,
     expertSystemViewItems,
     getVisibleStatsSystemViewItems,
-    KERNEL_MFU_VIEW_NAME,
     type IQueryCondition,
     SystemViewItem, queryTableDataNameList, type IndexedSystemViewItem, ftraceTypes,
 } from './Common';
@@ -45,7 +44,6 @@ import { TableDataView } from './TableDataView';
 import { Session } from '../../entity/session';
 import type { BaseSummaryRowItemType, CardRankInfo } from '../../api/interface';
 import { ProjectType } from '../../entity/insight';
-import { useKernelMfuAvailability } from './KernelMfuAvailability';
 
 export const DETAIL_HEADER_HEIGHT_ETC_PX = 146;
 const Container = styled.div`
@@ -174,18 +172,14 @@ export const SystemView = observer((props: any) => {
     const [viewOption, setViewOption] = useState(0);
     const [key, setKey] = useState(0);
     const isFtraceStatsItem = viewOption === 0 && ftraceTypes.includes(statsSystemViewItems[key]?.name ?? '');
-    const isKernelMfuStatsItem = viewOption === 0 && statsSystemViewItems[key]?.name === KERNEL_MFU_VIEW_NAME;
     // eslint-disable-next-line camelcase
     const SelectContent = useMemo(() => {
         // 第四个tab的特殊逻辑
         if (viewOption === 0 && key >= statsSystemViewItems.length) {
             return null;
         }
-        if (isKernelMfuStatsItem && props.session.kernelMfuAvailability !== true) {
-            return null;
-        }
         return contentList[viewOption][key];
-    }, [isKernelMfuStatsItem, key, props.session.kernelMfuAvailability, viewOption]);
+    }, [key, viewOption]);
     const [conditions, setConditions] = useState<SelectedCardInfo>(DEFAULT_CARD_VALUE);
     const handleChange = (card: SelectedCardInfo): void => {
         setConditions(card);
@@ -370,10 +364,6 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
     const [selectedKey, setSelectedKey] = useState(0);
     const [systemViewItems, setSystemViewItems] = useState<SystemViewItem[]>([]);
     const { t } = useTranslation('timeline', { keyPrefix: 'systemView' });
-    useKernelMfuAvailability({
-        session: props.session,
-        enabled: props.viewOption === 0,
-    });
     const handleClick = (key: number): void => {
         props.setKey(key);
         setSelectedKey(key);
@@ -396,12 +386,10 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
             systemViewItems,
             props.session.hasFtraceData,
             props.session.hasNonFtraceData,
-            props.session.kernelMfuAvailability === true,
         );
     }, [
         props.session.hasFtraceData,
         props.session.hasNonFtraceData,
-        props.session.kernelMfuAvailability,
         props.viewOption,
         systemViewItems,
     ]);

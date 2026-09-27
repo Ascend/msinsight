@@ -452,11 +452,6 @@ struct SystemViewFtraceStatResponse : public Response {
     PageParam pageParam;
 };
 
-struct KernelMfuAvailabilityResponse : public Response {
-    KernelMfuAvailabilityResponse() : Response(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY) {}
-    bool available = false;
-};
-
 struct KernelMfuRow {
     std::string rankId;
     std::string opName;

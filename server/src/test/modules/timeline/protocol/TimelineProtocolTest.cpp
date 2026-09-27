@@ -121,23 +121,6 @@ TEST_F(ProtocolTest, ToKernelMfuRequests) {
     timelineProtocol.Register();
     std::string error;
 
-    Dic::document_t availabilityJson(Dic::kObjectType);
-    auto &availabilityAllocator = availabilityJson.GetAllocator();
-    Dic::JsonUtil::AddMember(availabilityJson, "id", 1, availabilityAllocator);
-    Dic::JsonUtil::AddMember(availabilityJson, "moduleName", "timeline", availabilityAllocator);
-    Dic::JsonUtil::AddMember(availabilityJson, "type", "request", availabilityAllocator);
-    Dic::JsonUtil::AddMember(availabilityJson, "command", "systemView/kernelMfu/availability", availabilityAllocator);
-    Dic::json_t availabilityParams(Dic::kObjectType);
-    Dic::JsonUtil::AddMember(availabilityParams, "clusterPath", "cluster_0", availabilityAllocator);
-    Dic::JsonUtil::AddMember(availabilityParams, "allowMissingDatabase", true, availabilityAllocator);
-    Dic::JsonUtil::AddMember(availabilityJson, "params", availabilityParams, availabilityAllocator);
-    auto availabilityRequest = timelineProtocol.FromJson(availabilityJson, error);
-    ASSERT_NE(availabilityRequest, nullptr);
-    auto *typedAvailabilityRequest =
-        dynamic_cast<Dic::Protocol::KernelMfuAvailabilityRequest *>(availabilityRequest.get());
-    ASSERT_NE(typedAvailabilityRequest, nullptr);
-    EXPECT_TRUE(typedAvailabilityRequest->params.allowMissingDatabase);
-
     Dic::document_t listJson(Dic::kObjectType);
     auto &listAllocator = listJson.GetAllocator();
     Dic::JsonUtil::AddMember(listJson, "id", 2, listAllocator);

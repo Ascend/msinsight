@@ -50,8 +50,10 @@ THIRD_PARTY_DIR = os.path.join(HOME_DIR, 'third_party')
 SRC_DIR = os.path.join(HOME_DIR, 'src')
 CLUSTER_ANALYSE = 'cluster_analyse'
 PROF_COMMON = 'prof_common'
+PROF_EXPORTS = 'prof_exports'
 CLUSTER_ANALYSE_DIR = os.path.join(THIRD_PARTY_DIR, 'msprof-analyze', 'msprof_analyze', CLUSTER_ANALYSE)
 PROF_COMMON_DIR = os.path.join(THIRD_PARTY_DIR, 'msprof-analyze', 'msprof_analyze', PROF_COMMON)
+PROF_EXPORTS_DIR = os.path.join(THIRD_PARTY_DIR, 'msprof-analyze', 'msprof_analyze', PROF_EXPORTS)
 PROTO_DIR = os.path.join(SRC_DIR, 'protos')
 
 OUTPUT_DIR = os.path.join(HOME_DIR, 'output')
@@ -148,6 +150,7 @@ def copy_msprof2server_dir():
         shutil.rmtree(script_path)
     shutil.copytree(CLUSTER_ANALYSE_DIR, os.path.join(script_path, CLUSTER_ANALYSE), copy_function=shutil.copy2)
     shutil.copytree(PROF_COMMON_DIR, os.path.join(script_path, PROF_COMMON), copy_function=shutil.copy2)
+    shutil.copytree(PROF_EXPORTS_DIR, os.path.join(script_path, PROF_EXPORTS), copy_function=shutil.copy2)
 
 
 def move_snapdump2server_dir():

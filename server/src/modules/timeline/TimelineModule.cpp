@@ -57,7 +57,6 @@
 #include "QueryKernelE2ETimeHandler.h"
 #include "RankOffsetHandler.h"
 #include "QuerySystemViewTraceHandler.h"
-#include "QueryKernelMfuAvailabilityHandler.h"
 #include "QueryKernelMfuListHandler.h"
 
 namespace Dic {
@@ -120,8 +119,6 @@ void TimelineModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(REQ_RES_KERNEL_OVERALL, std::make_unique<QueryKernelOverallHandler>());
     requestHandlerMap.emplace(REQ_RES_MEMCPY_DETAIL, std::make_unique<QueryMemcpyDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_SYSTEM_VIEW_FTRACE_STAT, std::make_unique<QuerySystemViewFtraceStatHandler>());
-    requestHandlerMap.emplace(
-        REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY, std::make_unique<QueryKernelMfuAvailabilityHandler>());
     requestHandlerMap.emplace(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_LIST, std::make_unique<QueryKernelMfuListHandler>());
     requestHandlerMap.emplace(REQ_RES_RANK_OFFSET, std::make_unique<RankOffsetHandler>());
 }
