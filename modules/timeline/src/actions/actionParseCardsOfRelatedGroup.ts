@@ -41,7 +41,8 @@ function getUnparsedCards(session: Session, rankIds: string[]): InsightUnit[] {
     return preOrderFlatten(getRootUnit(session.units), 0, {
         when: (node) => !(node instanceof CardUnit && node.metadata?.cardName !== 'Host'),
     })
-        .filter((item) => item instanceof CardUnit && item.metadata?.cardName !== 'Host' && item.shouldParse)
+        .filter((item) => item instanceof CardUnit && item.metadata?.cardName !== 'Host' && item.shouldParse &&
+            !item.isParseLoading && !item.isWaitingParseSuccessEvent)
         .filter((item) => rankIds.includes(getRankIdByCardId((item.metadata as CardMetaData).cardId)));
 }
 
