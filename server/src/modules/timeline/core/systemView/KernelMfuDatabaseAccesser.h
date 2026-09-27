@@ -32,8 +32,6 @@ enum class KernelMfuQueryStatus { SUCCESS, UNAVAILABLE, FAILED };
 
 class KernelMfuDatabaseAccesser {
   public:
-    static KernelMfuQueryStatus CheckAvailability(const std::shared_ptr<VirtualClusterDatabase> &database);
-
     static KernelMfuQueryStatus QueryList(const std::shared_ptr<VirtualClusterDatabase> &database,
         const Protocol::KernelMfuListParams &params, std::vector<Protocol::KernelMfuRow> &rows,
         std::vector<std::string> &rankOptions, uint64_t &count);

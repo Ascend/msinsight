@@ -263,11 +263,6 @@ bool ExecuteRows(const std::shared_ptr<VirtualClusterDatabase> &database, const 
 }
 } // namespace
 
-KernelMfuQueryStatus KernelMfuDatabaseAccesser::CheckAvailability(
-    const std::shared_ptr<VirtualClusterDatabase> &database) {
-    return CheckSchema(database);
-}
-
 KernelMfuQueryStatus KernelMfuDatabaseAccesser::QueryList(const std::shared_ptr<VirtualClusterDatabase> &database,
     const Protocol::KernelMfuListParams &params, std::vector<Protocol::KernelMfuRow> &rows,
     std::vector<std::string> &rankOptions, uint64_t &count) {

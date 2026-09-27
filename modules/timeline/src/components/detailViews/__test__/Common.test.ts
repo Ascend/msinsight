@@ -29,12 +29,12 @@ describe('getVisibleStatsSystemViewItems', () => {
     const dynamicLayer = { name: 'Custom Layer', description: 'custom layer description' };
     const itemsWithDynamicLayer = [...statsSystemViewItems, dynamicLayer];
 
-    it('shows only ftrace labels when only ftrace data has been imported', () => {
+    it('shows ftrace and MFU labels when only ftrace data has been imported', () => {
         const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, true, false);
 
-        expect(getNames(visibleItems)).toEqual(ftraceTypes);
+        expect(getNames(visibleItems)).toEqual([...ftraceTypes, KERNEL_MFU_VIEW_NAME]);
         expect(visibleItems.map(item => item.originIndex)).toEqual(
-            ftraceTypes.map(name => statsSystemViewItems.findIndex(item => item.name === name)),
+            [...ftraceTypes, KERNEL_MFU_VIEW_NAME].map(name => statsSystemViewItems.findIndex(item => item.name === name)),
         );
     });
 
@@ -53,17 +53,6 @@ describe('getVisibleStatsSystemViewItems', () => {
             KERNEL_MFU_VIEW_NAME,
             'Custom Layer',
         ]);
-    });
-
-    it('hides the MFU label without changing the original indexes', () => {
-        const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, true, true, false);
-        const mfuIndex = statsSystemViewItems.findIndex(item => item.name === KERNEL_MFU_VIEW_NAME);
-
-        expect(getNames(visibleItems)).not.toContain(KERNEL_MFU_VIEW_NAME);
-        expect(visibleItems.find(item => item.name === 'Ftrace Task Summary')?.originIndex).toBe(
-            statsSystemViewItems.findIndex(item => item.name === 'Ftrace Task Summary'),
-        );
-        expect(visibleItems.find(item => item.originIndex > mfuIndex)?.originIndex).toBeGreaterThan(mfuIndex);
     });
 
     it('shows all labels after ftrace and non-ftrace data are both imported', () => {

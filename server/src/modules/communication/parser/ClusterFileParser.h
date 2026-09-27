@@ -58,8 +58,6 @@ class ClusterFileParser {
     std::string uniqueKey;
     const std::string CLUSTER_IDENTIFY = "cluster_";
     std::shared_ptr<VirtualClusterDatabase> database;
-    static bool AttAnalyze(
-        const std::string &selectedPath, const std::string &mode, AttDataType dataType = AttDataType::TEXT);
     bool TransCommunicationToDb(const std::string &selectedPath, const std::regex &patternCommunication);
     bool InitCommunicationGroupInfo(std::vector<CommGroupParallelInfo> &groupInfos);
     static bool CheckDocumentValid(const Document &doc);
@@ -71,6 +69,10 @@ class ClusterFileParser {
         const std::vector<std::string> &backUpGroupList, const std::vector<std::string> &backUpStepList);
     bool RestoreClusterFiles(const std::vector<std::string> &backUpMatrixList,
         const std::vector<std::string> &backUpGroupList, const std::vector<std::string> &backUpStepList);
+    // 调用msprof-analyze的系列函数
+    static bool MsprofAnalyzeCluster(
+        const std::string &selectedPath, const std::string &mode, AttDataType dataType = AttDataType::TEXT);
+    static bool MsprofAnalyzeOperatorMfu(const std::string &selectedPath);
 };
 } // end of namespace Timeline
 } // end of namespace Module

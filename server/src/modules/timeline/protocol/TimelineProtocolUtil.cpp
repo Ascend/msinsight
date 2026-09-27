@@ -900,17 +900,6 @@ std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const Sys
     return std::optional<document_t>{std::move(json)};
 }
 
-template <>
-std::optional<document_t> ToResponseJson<KernelMfuAvailabilityResponse>(const KernelMfuAvailabilityResponse &response) {
-    document_t json(kObjectType);
-    auto &allocator = json.GetAllocator();
-    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
-    json_t body(kObjectType);
-    JsonUtil::AddMember(body, "available", response.available, allocator);
-    JsonUtil::AddMember(json, "body", body, allocator);
-    return std::optional<document_t>{std::move(json)};
-}
-
 template <> std::optional<document_t> ToResponseJson<KernelMfuListResponse>(const KernelMfuListResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
