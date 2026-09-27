@@ -20,7 +20,7 @@ import type { CardMetaData, ThreadMetaData, ThreadTrace } from '../entity/data';
 import { runInAction } from 'mobx';
 import { updateDataSourceAndParentMetaDataMap, recursiveExpandUnit, clearParentMap } from '../insight/units/unitFunc';
 import { setUnitPhaseByCardId, setUnitProgressByFileId } from '../entity/insight';
-import type { InsightUnit } from '../entity/insight';
+import { ProjectType, type InsightUnit } from '../entity/insight';
 import { CardUnit, ROOT_UNIT, ThreadUnit } from '../insight/units/AscendUnit';
 import type { ImportCardInfo } from '../components/ImportSelect';
 import { Session } from '../entity/session';
@@ -159,7 +159,11 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
             }
             // 判断是否为全局解析模式
             const isGlobal = session.modeOfParse === 'global_parse';
-            // parse success之后关闭进度条
+            // 卡片结果已返回，退出等待状态并关闭进度条
+            const parsedUnit = session.units.find(unit => unit.metadata.cardId === unitData.unit.metadata.cardId);
+            if (parsedUnit) {
+                parsedUnit.isWaitingParseSuccessEvent = false;
+            }
             setUnitProgressByFileId(unitData, session);
             session.units.forEach((unit) => {
                 // 如果 unit 的 cardId 与 unitData 的 cardId 匹配
@@ -201,7 +205,7 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
             } else {
                 remoteAttrs.maxTimeStamp = defaultEndTimeAll;
             }
-            // 设置单元阶段为下载
+            // 在同一个同步 action 中清除等待标志并切到 download；即使 allPagesSuccess 随后到达，也不会重新标记此卡。
             setUnitPhaseByCardId(unitData.unit.metadata.cardId, session, 'download');
             // 如果 startTimeUpdated 为 true，清除缓存
             if (unitData.startTimeUpdated === true) {
@@ -265,6 +269,11 @@ export const parseFailHandler: NotificationHandler = (data): void => {
     runInAction(() => {
         if (!session) {
             return;
+        }
+        const failedUnit = session.units.find(unit => unit.metadata.cardId === (data as any).rankId);
+        if (failedUnit) {
+            failedUnit.isWaitingParseSuccessEvent = false;
+            failedUnit.isParseLoading = false;
         }
         setUnitPhaseByCardId((data as any).rankId, session, 'error');
     });
@@ -334,7 +343,8 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
                 cardUnit.isParseLoading = !(result.isPending as boolean);
                 cardUnit.shouldParse = item.cardName !== 'Host';
                 cardUnit.phase = 'analyzing';
-                cardUnit.progress = 0;
+                // DB 导入目前没有逐步的 parse/progress；用 50% 表示解析中的占位进度，而非实际完成比例。
+                cardUnit.progress = item.projectType === ProjectType.DB || item.projectType === ProjectType.DB_CLUSTER ? 50 : 0;
                 cardUnit.showProgress = true;
             } else {
                 cardUnit.phase = 'error';
@@ -697,6 +707,7 @@ function resetSession(): void {
         session.mMaskRange = [];
         session.ridLineType = '';
         session.drawLineMode = 'all';
+        session.selectedData = undefined;
     });
 }
 
@@ -950,7 +961,7 @@ export const findBlock: NotificationHandler = (data): void => {
         // 查询内核
         queryOneKernel({
             rankId: data.rankId as string,
-            dbPath: data.rankId as string,
+            dbPath: undefined,
             name: data.name as string,
             timestamp: data.startTime as number,
             duration: 0,
@@ -1061,6 +1072,13 @@ export const allSuccessHandler: NotificationHandler = async (data): Promise<void
             }
             if (data.isAllPageParsed as boolean) {
                 session.isPending = false;
+                // 后端先标记全部解析完成，再逐卡生成 parse/success；两种事件也可能反序到达。
+                // 已处理成功的卡已在同步 action 中切到 download，失败的卡为 error，只有仍在解析的卡进入等待。
+                const waitingUnits = session.units.filter(unit => unit.phase === 'analyzing' && unit.shouldParse && unit.isParseLoading);
+                waitingUnits.forEach(unit => {
+                    unit.isWaitingParseSuccessEvent = true;
+                });
+                // 全局解析任务已结束；各卡等待结果的 loading 由 isWaitingParseSuccessEvent 单独维持。
                 session.isParserLoading = false;
                 session.startTime = data.minTime as string;
             }

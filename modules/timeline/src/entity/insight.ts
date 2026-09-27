@@ -271,6 +271,7 @@ export interface InsightUnit extends InsightUnitParams<MetaDataBase, Record<stri
     isTraceLoading: boolean; // 泳道内容是否加载中
     parent?: InsightUnit;
     isParseLoading: boolean;
+    isWaitingParseSuccessEvent: boolean; // 后端解析已完成，等待 parse/success 事件返回
     shouldParse: boolean; // 判断timeline卡是否需要解析
     progress: number; // 解析进度：实际解析进度
     showProgress: boolean; // 解析进度：是否显示进度条
@@ -367,6 +368,7 @@ Omit<InsightUnitParams<T, Record<string, unknown>, Record<string, unknown>, Reco
         searchConfig = params.searchConfig;
         collapsible = params.collapsible ?? true;
         isParseLoading: boolean = false; // 是否正在解析
+        isWaitingParseSuccessEvent: boolean = false; // 后端解析已完成，等待 parse/success 事件返回
         shouldParse: boolean = false; // 是否需要解析
         progress: number = 0; // 解析进度：实际解析进度
         showProgress: boolean = false; // 解析进度：是否显示进度条

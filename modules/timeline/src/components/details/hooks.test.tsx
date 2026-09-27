@@ -41,6 +41,7 @@ describe('hooks test', () => {
         type: 'basic',
         phase: 'download',
         isParseLoading: false,
+        isWaitingParseSuccessEvent: false,
         shouldParse: false,
         progress: 0,
         showProgress: true,
