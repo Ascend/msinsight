@@ -9,6 +9,8 @@ This container image and its contents are governed by the Huawei Container Licen
 A copy of this License is made available in this container at: https://www.hiascend.com/en/legal/ascendhub-download
 
 Note: You agree and undertake that when using Huawei or third-party software in this image, you will comply with the license agreement of the corresponding Huawei or third-party software.
+
+All Ascend container images released in this repository are community editions. They are not intended for commercial support or warranty and are provided solely as references for production practices.
 EOF
 
 echo "=== MindStudio Insight Container Starting ==="
