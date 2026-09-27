@@ -531,6 +531,9 @@ const UnitInfoContent = observer(({ unit, session, ...props }: UnitInfoContentPr
         }
     }, [session.isParserLoading]);
     const handleStartClick = (): void => {
+        if (unit.isWaitingParseSuccessEvent) {
+            return;
+        }
         const param: ParseCardsParam = { cards: [], dbPaths: [] };
         if (unit instanceof CardUnit && unit.metadata?.cardName !== '' && unit.metadata?.cardName !== 'Host') {
             param.cards.push(unit.metadata.cardId);
@@ -575,14 +578,16 @@ const UnitInfoContent = observer(({ unit, session, ...props }: UnitInfoContentPr
             unit={unit}
             {...props}
         />}
-        { (getProgressVisiable(unit) && unit.isParseLoading)
+        { getProgressVisiable(unit) && unit.isParseLoading && !unit.isWaitingParseSuccessEvent
             ? <div><UnitProgress unit={unit} realProgress={unit.progress} showProgress={unit.showProgress}/></div>
             : <></> }
+        { unit instanceof CardUnit && unit.isWaitingParseSuccessEvent && <span>{t('Returning Data')}</span> }
         { getParserVisiable(unit)
             ? <div>
                 <StyledButton transparent
                     icon={<StartIcon height={14} width={14}/>}
-                    loading={unit.isParseLoading} onClick={(): void => handleStartClick()}/>
+                    // 解析与等待结果是独立状态，仅在展示 loading 时合并，不互相赋值。
+                    loading={unit.isParseLoading || unit.isWaitingParseSuccessEvent} onClick={(): void => handleStartClick()}/>
             </div>
             : <></> }
     </InsightLaneInfoContainer>;
