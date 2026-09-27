@@ -52,8 +52,8 @@ const getPropFromData = function <T extends keyof U, U extends Record<string, un
 };
 
 interface KernelMfuClusterPageInfo {
-    clusterList?: Array<{ path: string; durationParsed?: boolean }>;
     selectedClusterPath?: string;
+    clusterList?: Array<{ path: string; durationParsed: boolean }>;
 }
 
 interface KernelMfuPageNotification {
@@ -74,8 +74,10 @@ const updateKernelMfuClusterContext = (data: KernelMfuPageNotification): void =>
         session.updateKernelMfuClusterContext(
             data.selectedProjectName ?? session.kernelMfuProjectName,
             clusterPath,
-            clusterPageInfo.clusterList ?? [],
         );
+        session.kernelMfuClusterCompleted = clusterPageInfo.clusterList?.find(
+            cluster => cluster.path === clusterPath,
+        )?.durationParsed ?? session.kernelMfuClusterCompleted;
     });
 };
 
@@ -939,9 +941,9 @@ export const clusterDurationCompletedHandler: NotificationHandler = (data): void
     // 获取集群路径，若不存在则设为空字符串
     const clusterPath = data?.clusterPath as string ?? '';
     const session = store.sessionStore.activeSession;
-    if (clusterRes && session !== undefined) {
+    if (session !== undefined && clusterPath === session.selectedClusterPath) {
         runInAction(() => {
-            session.markKernelMfuDurationParsed(clusterPath);
+            session.kernelMfuClusterCompleted = clusterRes;
         });
     }
     // 发送集群持续时间完成事件

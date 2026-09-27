@@ -297,11 +297,6 @@ bool SystemViewFtraceStatParams::CheckParams(std::string &warnMsg) const {
     return true;
 }
 
-bool KernelMfuAvailabilityParams::CheckParams(std::string &errorMsg) const {
-    (void)errorMsg;
-    return true;
-}
-
 bool KernelMfuListParams::CheckParams(std::string &errorMsg) const {
     for (const auto &rankId : rankIds) {
         if (!CheckStrParamValid(rankId, errorMsg)) {

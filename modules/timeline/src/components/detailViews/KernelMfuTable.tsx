@@ -128,7 +128,8 @@ export const KernelMfuTable = observer((props: SelectContentViewProps) => {
     }, [projectGeneration]);
 
     useEffect(() => {
-        if (projectGenerationChanged || clusterPath === '') {
+        if (projectGenerationChanged || !props.session.isCluster ||
+            !props.session.kernelMfuClusterCompleted || clusterPath === '') {
             return;
         }
         const requestSequence = ++listRequestSequence.current;
@@ -155,7 +156,6 @@ export const KernelMfuTable = observer((props: SelectContentViewProps) => {
                 setDataSource([]);
                 setRankOptions([]);
                 setPage((currentPage) => ({ ...currentPage, total: 0 }));
-                props.session.updateKernelMfuAvailability({ available: false });
                 return;
             }
             setDataSource(response.data);
@@ -199,6 +199,8 @@ export const KernelMfuTable = observer((props: SelectContentViewProps) => {
         projectGeneration,
         projectGenerationChanged,
         props.session,
+        props.session.isCluster,
+        props.session.kernelMfuClusterCompleted,
         rankIds,
         sortKey,
         clusterPath,

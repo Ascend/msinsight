@@ -231,7 +231,7 @@ bool ClusterFileParser::InitBaseInfoAndMatrixData() {
         FileUtil::FindFirstFileByRegex(selectedFilePath, patternCommunicationTime);
     // cluster analysis
     if ((communicationMatrixFileList.empty() && communicationTimeFileList.empty()) &&
-        !AttAnalyze(selectedFilePath, ATT_MODEL_MATRIX, AttDataType::TEXT)) {
+        !MsprofAnalyzeCluster(selectedFilePath, ATT_MODEL_MATRIX, AttDataType::TEXT)) {
         return false;
     }
     // 解析group数据并进行落库，解析失败不阻塞进程
@@ -317,7 +317,7 @@ bool ClusterFileParser::ParseClusterStep2Files() {
     }
 
     // cluster analysis
-    if (communicationFileList.empty() && !AttAnalyze(selectedFilePath, ATT_MODEL_TIME, AttDataType::TEXT)) {
+    if (communicationFileList.empty() && !MsprofAnalyzeCluster(selectedFilePath, ATT_MODEL_TIME, AttDataType::TEXT)) {
         ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::FINISH);
         return false;
     }
@@ -411,7 +411,8 @@ bool ClusterFileParser::CheckDocumentValid(const Document &doc) {
     return true;
 }
 
-bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::string &mode, AttDataType dataType) {
+bool ClusterFileParser::MsprofAnalyzeCluster(
+    const std::string &selectedPath, const std::string &mode, AttDataType dataType) {
     ServerLog::Info("Start execute cluster analysis");
     if (!StringUtil::ValidateCommandFilePathParam(selectedPath)) {
         ServerLog::Warn("validate string select path failed! select path", selectedPath);
@@ -447,6 +448,26 @@ bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::s
     return true;
 }
 // LCOV_EXCL_BR_STOP
+
+bool ClusterFileParser::MsprofAnalyzeOperatorMfu(const std::string &selectedPath) {
+    ServerLog::Info("Start execute operator mfu analysis");
+    if (!StringUtil::ValidateCommandFilePathParam(selectedPath)) {
+        ServerLog::Warn("Validate string select path failed! selected path: ", selectedPath);
+        return false;
+    }
+    std::string logPath = FileUtil::SplicePath(selectedPath, "cluster_analysis.log");
+
+    const std::string scriptPath =
+        std::string("msprof_analyze") + FILE_SEPARATOR + "cluster_analyse" + FILE_SEPARATOR + "cluster_analysis.py";
+    std::vector<std::string> arguments{"-m", "operator_mfu", "-d", selectedPath};
+    ServerLog::Info("Start execute command, selected path: ", selectedPath);
+    if (PythonUtil::ExecuteScript(scriptPath, arguments, logPath) != 0) {
+        ServerLog::Warn("Execute operator mfu analysis failed, selected path: ", selectedPath);
+        return false;
+    }
+    ServerLog::Info("Execute operator mfu analysis succeeded, selected path: ", selectedPath);
+    return true;
+}
 
 StepStatistic ClusterFileParser::MapToStepStatistic(
     std::map<std::string, size_t> &dataMap, const std::vector<std::string> &tokens) {
@@ -518,7 +539,7 @@ bool ClusterFileParser::ParserClusterOfDb() {
     std::vector<std::string> clusterPath = FileUtil::FindFilesWithFilter(tempPath, std::regex(clusterDBReg));
     // 集群解析，判断是否已经存在集群db，如果存在则不进行重复解析，如果不存在，则调用mstt进行重新解析
     if (clusterPath.empty()) {
-        if (!AttAnalyze(tempPath, ATT_MODEL_DEFAULT, AttDataType::DB)) {
+        if (!MsprofAnalyzeCluster(tempPath, ATT_MODEL_DEFAULT, AttDataType::DB)) {
             ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::FINISH);
             return false;
         }
@@ -539,6 +560,22 @@ bool ClusterFileParser::ParserClusterOfDb() {
         ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::FINISH);
         return false;
     }
+    // 可能出现用户手动调用msprof-analyze的一些其它分析能力，生成了cluster_analysis.db，但是该db文件没有集群相关表的情形
+    // 所以如果db文件没有ClusterStepTraceTime表，需要调用msprof-analyze的集群分析能力
+    if (!clusterDatabase->CheckTableExist(TABLE_STEP_TRACE_TIME)) {
+        if (!MsprofAnalyzeCluster(tempPath, ATT_MODEL_DEFAULT, AttDataType::DB)) {
+            ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::FINISH);
+            return false;
+        }
+    }
+
+    // 默认执行算子MFU分析功能，如果执行失败，也不阻塞主流程
+    if (!clusterDatabase->CheckTableExist(TABLE_OPERATOR_MFU)) {
+        if (!MsprofAnalyzeOperatorMfu(tempPath)) {
+            ServerLog::Warn("Failed to execute operator mfu analysis.");
+        }
+    }
+
     if (!clusterDatabase->IsDatabaseVersionChange() && clusterDatabase->HasFinishedParseLastTime()) {
         ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::FINISH);
         /// FIX: 单独导入 cluster_analysis.db 时，由于没有 Timeline 的数据需要解析，因此无法运行到 Timeline 的更新 TraceTime 的方法

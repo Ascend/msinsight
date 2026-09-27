@@ -18,27 +18,9 @@
 #include <gtest/gtest.h>
 
 #include "HandlerTest.cpp"
-#include "QueryKernelMfuAvailabilityHandler.h"
 #include "QueryKernelMfuListHandler.h"
 
 class QueryKernelMfuHandlerTest : public HandlerTest {};
-
-TEST_F(QueryKernelMfuHandlerTest, OptionalThreadingProbeReportsMissingClusterDatabaseAsUnavailable) {
-    Dic::Module::Timeline::QueryKernelMfuAvailabilityHandler handler;
-    auto request = std::make_unique<Dic::Protocol::KernelMfuAvailabilityRequest>();
-    request->params.clusterPath = "threading-analysis-without-cluster-database";
-    request->params.allowMissingDatabase = true;
-
-    EXPECT_TRUE(handler.HandleRequest(std::move(request)));
-}
-
-TEST_F(QueryKernelMfuHandlerTest, StandardAvailabilityProbePreservesMissingDatabaseError) {
-    Dic::Module::Timeline::QueryKernelMfuAvailabilityHandler handler;
-    auto request = std::make_unique<Dic::Protocol::KernelMfuAvailabilityRequest>();
-    request->params.clusterPath = "standard-project-without-cluster-database";
-
-    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
-}
 
 TEST_F(QueryKernelMfuHandlerTest, StandardListRequestPreservesMissingDatabaseError) {
     Dic::Module::Timeline::QueryKernelMfuListHandler handler;

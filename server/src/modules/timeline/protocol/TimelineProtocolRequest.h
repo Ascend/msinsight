@@ -432,18 +432,6 @@ struct SystemViewFtraceStatRequest : public Request {
     SystemViewFtraceStatParams params;
 };
 
-struct KernelMfuAvailabilityParams {
-    std::string clusterPath;
-    bool allowMissingDatabase = false;
-
-    bool CheckParams(std::string &errorMsg) const;
-};
-
-struct KernelMfuAvailabilityRequest : public Request {
-    KernelMfuAvailabilityRequest() : Request(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY) {}
-    KernelMfuAvailabilityParams params;
-};
-
 struct KernelMfuListParams {
     std::string clusterPath;
     uint64_t current = 0;
