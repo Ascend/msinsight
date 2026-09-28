@@ -21,11 +21,14 @@ import type { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandCl
 import { actionPanLeft, actionPanRight } from '../actions/actionPan';
 import { actionFitToScreen } from '../actions/actionFitToScreen';
 import { actionZoomIntoSelection } from '../actions/actionZoomIntoSelection';
+import { actionPinByUnitName } from '../actions/actionPinUnits';
+import { isPinned } from '../components/ChartContainer/unitPin';
 import { resetZoom, undoZoom } from '../actions/zoomHistory';
 import type { Action } from '../actions/types';
 import { MAX_ZOOM_DURATION, PAN_RATE, type DomainRange } from '../entity/domain';
 import { isValidSession, type SelectedDataType, type Session } from '../entity/session';
 import type { InsightUnit } from '../entity/insight';
+import { selectSlice, selectSliceDefinition } from './selectSlice';
 
 const MODULE_ID = 'Timeline';
 const UNIT_SUMMARY_LIMIT = 10;
@@ -73,6 +76,8 @@ export const observeTimeline = (): ObservationData => {
             units: summarizeUnits(session),
         },
         navigation: availableNavigation(session),
+        actions: { pinByUnitName: canPinByUnitName(session) },
+        pinnedUnitCount: session.pinnedUnits.length,
     };
 };
 
@@ -118,6 +123,22 @@ export const registerTimelineCommands = (client: ModuleAgentCommandClient): (() 
             'target',
             FOCUS_TARGETS,
         ), focus),
+        client.registerCommand({
+            name: 'Timeline.pinByUnitName',
+            title: 'Pin lanes with the same name',
+            description: 'Runs the Pin by Unit Name context-menu action for the currently selected lanes. Matches lanes at the same level by name (or legacy group), and pins at most 100 matching lanes per call. Select a slice first to select its lane. Available only when observation.actions.pinByUnitName is true.',
+            inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+        }, pinByUnitName),
+        client.registerCommand(selectSliceDefinition, async (args, context) => {
+            const session = requireSession();
+            const result = await selectSlice(args, context, session, () => activeSession === session && isValidSession(session));
+            return {
+                ...result,
+                ...(result.needsChoice === true ? {} : { operator: summarizeOperator(session.selectedData) }),
+                viewport: viewportOf(session),
+                requiresObserve: true,
+            };
+        }),
     ];
     return () => unregister.forEach(stop => stop());
 };
@@ -222,6 +243,29 @@ const focus: CommandHandler = (args) => {
         const action = target === 'operator' ? actionFitToScreen : actionZoomIntoSelection;
         if (canPerform(action, session)) action.perform(session);
     });
+};
+
+const canPinByUnitName = (session: Session): boolean =>
+    session.selectedUnits.length > 0 && canPerform(actionPinByUnitName, session);
+
+const pinByUnitName: CommandHandler = (args) => {
+    if (Object.keys(args).length !== 0) throw invalid('This command does not accept arguments.');
+    const session = requireSession();
+    if (!canPinByUnitName(session)) {
+        throw new CommandError({
+            code: COMMAND_ERROR_CODES.UNAVAILABLE,
+            message: 'Pin by Unit Name is not available for the current lane selection.',
+            retryable: false,
+        });
+    }
+    const before = session.pinnedUnits.length;
+    actionPinByUnitName.perform(session);
+    return {
+        unchanged: session.pinnedUnits.length === before,
+        addedCount: session.pinnedUnits.length - before,
+        pinnedUnitCount: session.pinnedUnits.length,
+        requiresObserve: true,
+    };
 };
 
 const navigate = (operation: (session: Session) => void): JsonObject => {
@@ -353,6 +397,7 @@ const summarizeUnits = (session: Session): JsonObject => ({
         name: unit.name,
         expanded: unit.isExpanded,
         visible: unit.isDisplay && unit.isUnitVisible && !unit.isMultiDeviceHidden && !unit.isMerged,
+        pinned: isPinned(unit),
     })),
     truncated: session.selectedUnits.length > UNIT_SUMMARY_LIMIT,
 });

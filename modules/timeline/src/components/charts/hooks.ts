@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type React from 'react';
-import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useState } from 'react';
 import type { ChartData, ChartType, MapFunc } from '../../entity/chart';
 import type { Session } from '../../entity/session';
 import { logger } from '../../utils/Logger';
@@ -89,40 +89,37 @@ function onAutoFetchLines(session: Session, unit: InsightUnit): void {
  * @param width width
  * @returns the data that this chart is currently rendering
  */
-export const useData = <T extends ChartType>({ session, mapFunc, unit, metadata, width, processor }: UseDataParams<T>): ChartData<T> => {
+export const useData = <T extends ChartType>(params: UseDataParams<T>): ChartData<T> => useDataState(params).data;
+
+export const useDataState = <T extends ChartType>({ session, mapFunc, unit, metadata, width, processor }: UseDataParams<T>): { data: ChartData<T>; ready: boolean } => {
     const { domainStart, domainEnd } = session.domainRange;
     const { endTimeAll } = session;
-    const [dataState, setDatasState] = useState<ChartData<T>>([]);
-    const requestedWidth = useRef(0);
+    const [state, setState] = useState<{ data: ChartData<T>; revision?: object }>({ data: [] });
     const theme = useTheme();
     const timestampOffset = getTimeOffset(session, metadata as ThreadTraceRequest);
+    const revision = useMemo(() => ({}), [session, unit, metadata, session.phase, session.isNsMode, domainStart, domainEnd, endTimeAll, width,
+        timestampOffset, session.unitsConfig.filterConfig.pythonFunction, session.autoAdjustUnitHeight, session.areFlagEventsHidden, session.alignRender]);
     useEffect(() => {
+        let active = true;
         if (width === 0) {
-            setDatasState([]);
+            setState({ data: [] });
             return;
         }
-        requestedWidth.current = width;
         mapFunc(session, metadata, unit, theme).then(data => {
+            if (!active) return;
             // 展开泳道时须泳道的所有子项的算子查询结束才触发session.shouldRefetchLines变更。（场景：先按类型连线，再展开从未展开过的泳道）
             onAutoFetchLines(session, unit);
-            if (requestedWidth.current !== width) {
-                // drop the data if width has been changed since when request was made
-                return;
-            }
             // the data should be sorted by startTime(min -> max).
-            setDatasState(processor?.(data, width, domainStart, domainEnd) ?? data);
+            setState({ data: processor?.(data, width, domainStart, domainEnd) ?? data, revision });
         }).catch(() => {
             logger('hooks useData', 'mapFunc occurred an exception.');
         }).finally(() => {
-            runInAction(() => { unit.phase = 'download'; });
+            if (active) runInAction(() => { unit.phase = 'download'; });
         });
-    }, [session.phase, domainStart, domainEnd, endTimeAll, width,
-        timestampOffset,
-        session.unitsConfig.filterConfig.pythonFunction,
-        session.autoAdjustUnitHeight,
-        session.areFlagEventsHidden,
-        session.alignRender]);
-    return dataState;
+        // A late response from an old viewport must not become the selectable rendered data.
+        return () => { active = false; };
+    }, [revision]);
+    return { data: state.data, ready: state.revision === revision && width > 0 };
 };
 
 export const useRangeAndDomain = (session: Session, width: number, margin: number): Array<[number, number]> => {

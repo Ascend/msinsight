@@ -52,6 +52,49 @@ msinsight({ command, args });
 
 `help` 和 `observe` 是保留名，业务代码不得覆盖，也不要注册 `${moduleId}.observe`。
 
+### 2.1 Timeline 算子定位与泳道置顶
+
+自然语言请求“查看 MatMul 算子”“看看 MatMul”“定位 MatMul 算子”和“选中 MatMul 算子”均表示在当前 Timeline 屏幕内查找并选中该算子、展示其详情。
+Agent 应通过 `help` 发现并确认 `Timeline.selectSlice` 的参数，将算子名称 `MatMul` 作为 `name`，而非传入整句提示词。
+“MatMul 算子是什么/原理是什么”属于概念解释，不触发选中；`Timeline.focus` 只调整已有选中对象的视口，不能代替按名称查找。
+
+在 Timeline 页面展开泳道并等待当前画布加载完成后，可以按名称选中当前屏幕内的算子，再置顶同名泳道：
+
+```json
+{"command":"Timeline.selectSlice","args":{"name":"MatMul"}}
+```
+
+按名称查找时，默认区分大小写且精确匹配；模糊匹配示例：
+
+```json
+{"command":"Timeline.selectSlice","args":{"name":"add","isMatchCase":false,"isMatchExact":false}}
+```
+
+命令读取当前画布已经显示的算子数据，范围同时受时间视口和屏幕可见泳道限制，包括置顶区域。
+折叠、隐藏、垂直滚动区域外或时间范围外的算子不参与匹配；可传入 `cardId` 进一步限定卡。
+选中效果复用画布点击逻辑，保持当前视口，不自动展开泳道或跳到窗口外。
+
+只有一个匹配时直接选中；多个匹配时返回 `status: "needsChoice"`、`needsChoice: true` 和 `candidates`，保留当前选中状态。
+Agent 应列出候选的名称、卡号、泳道、开始时间、耗时，让用户选择，不能默认选第一个。
+`timeUnit` 指明时间单位，`offset`/`limit` 可分页读取候选（默认每页 20 条，最多 50 条）。
+候选的 `index` 仅用于展示序号，确认时必须使用返回的 `candidateRef`：
+
+```json
+{"command":"Timeline.selectSlice","args":{"candidateRef":"<用户选中项的 candidateRef>"}}
+```
+
+`name` 查询参数与 `candidateRef` 确认参数互斥，不再接受旧版 `index` 输入。
+滚动、缩放、布局或画布数据变化后，应重新查询候选并让用户选择，旧引用不能用于选择新的匹配项。
+可见泳道尚在加载、选中区域锁定、当前屏幕没有匹配项、引用过期或有其他定位进行中时会返回对应错误。
+
+```json
+{"command":"Timeline.pinByUnitName","args":{}}
+```
+
+置顶命令复用右键菜单“置顶同名泳道”，按照现有名称/分组规则匹配同层级泳道，每次最多处理 100 条，重复调用不会重复置顶。
+调用前可通过 `observe` 检查 `actions.pinByUnitName`；调用后检查 `pinnedUnitCount` 和选中泳道的 `pinned` 状态。
+两项命令均返回 `requiresObserve: true`，应再次观察页面以确认最终状态。
+
 ## 3. 一个 Command 的组成
 
 公共类型由 `@insight/lib/FrontendAgentCommand` 导出：

@@ -25,10 +25,12 @@ import type { ChartProps, ChartReaction, Scale, StackStatusData, TextConfig } fr
 import { UnitHeight } from '../../entity/insight';
 import type { Session } from '../../entity/session';
 import { Canvas, CanvasContainer, zipStatusData } from './common';
-import { useBatchedRender, useClick, useData, useHoverPos, useRangeAndDomain } from './hooks';
+import { useBatchedRender, useClick, useDataState, useHoverPos, useRangeAndDomain } from './hooks';
 import { TooltipComponent, type TooltipProps } from './TooltipComp';
 import type { ThreadMetaData } from '../../entity/data';
 import { Spin } from 'antd';
+import { registerVisibleSliceSource, visibleSliceScope } from '../../agent/visibleSlices';
+import { selectRenderedSlice } from '../../utils/selectRenderedSlice';
 
 type StackStatusChartProps = ChartProps<'stackStatus'>;
 type OverflowType = 'hidden' | 'ellipsis';
@@ -273,25 +275,7 @@ interface MouseUpFuncParams {
 }
 const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, metadata, onClick }: MouseUpFuncParams): void => {
     const clickedData = findDataByXY({ x: e.offsetX, y: e.offsetY }, datasState, rangeAndDomain, rowHeight, session.endTimeAll ?? 0);
-    if (clickedData !== undefined) {
-        clickedData.showSelectedData = true; // 强制设置优先显示“选中详情”
-    }
-    runInAction(() => {
-        session.selectedData = clickedData
-            ? {
-                ...clickedData,
-                threadId: (metadata as ThreadMetaData).threadId ?? clickedData.threadId ?? '',
-                processId: (metadata as ThreadMetaData).processId ?? '',
-                timestamp: clickedData.originalStartTime as number,
-                metaType: (metadata as ThreadMetaData).metaType ?? '',
-            }
-            : undefined;
-        if (!session.selectedData) {
-            session.drawLineMode = 'all';
-        }
-        onClick?.(clickedData, session, metadata);
-        session.selectedRangeData = undefined;
-    });
+    selectRenderedSlice(session, metadata as ThreadMetaData, clickedData, onClick);
 };
 
 const mouseMoveUpFunc = ([downX, upX]: number[], datasState: StackStatusData[][], rangeAndDomain: Array<[number, number]>,
@@ -319,7 +303,7 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
     const canvasContainer = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
     const { action: drawExt = (): void => { }, triggers = [] } = decorator?.(session, metadata) ?? {};
-    const datasState = useData({
+    const { data: datasState, ready } = useDataState({
         session,
         mapFunc,
         unit,
@@ -327,6 +311,31 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
         width,
         processor: (data, processedWidth, start, end) => data.map(row => zipStatusData(row, processedWidth, start, end)),
     });
+    const { domainStart, domainEnd } = session.domainRange;
+    const scope = visibleSliceScope(session, unit);
+    useEffect(() => {
+        if (isCollapse || unit.name !== 'Thread' || !canvasContainer.current) return;
+        return registerVisibleSliceSource(session, {
+            unit,
+            element: canvasContainer.current,
+            data: datasState,
+            domainStart,
+            domainEnd,
+            rowHeight,
+            ready,
+            scope,
+            select: slice => {
+                runInAction(() => {
+                    if (session.sliceSelection.active) {
+                        session.resetOfSliceSelection();
+                        session.sliceSelection.targetUnit = unit;
+                    }
+                    session.selectedUnits = [unit];
+                    selectRenderedSlice(session, metadata as ThreadMetaData, slice, onClick);
+                });
+            },
+        });
+    }, [session, unit, metadata, datasState, domainStart, domainEnd, rowHeight, height, width, isCollapse, ready, onClick, scope]);
     const rangeAndDomain = useRangeAndDomain(session, width, margin); const mousePos = useHoverPos(canvasContainer);
     const hoveredData = useMemo(
         () => findDataByXY(mousePos, datasState, rangeAndDomain, rowHeight, session.endTimeAll ?? 0),
