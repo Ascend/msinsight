@@ -27,6 +27,7 @@
 #include "SliceCacheManager.h"
 #include "DataBaseManager.h"
 #include "SingleRankCommunicationJsonParser.h"
+#include "TimeRangeUtils.h"
 #include "RenderEngine.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
@@ -224,6 +225,67 @@ void AppendCommunicationDetail(
             bandwidth.transportType, bandwidth.transitSize, bandwidth.transitTime, bandwidth.bandwidth});
     }
 }
+
+class TextFlowDepthResolver {
+  public:
+    explicit TextFlowDepthResolver(const std::vector<SliceDomain> &slices) : slices(slices) {}
+
+    /**
+     * 匹配语义边界：FlowPoint 未携带对应 Slice 的 ID。没有同时间 Slice 且多个历史 Slice
+     * 同时包裹 FlowPoint 时，选择开始时间最晚的 Slice，而不能识别业务上可能对应的中间层。
+     * 例如 A=[100, 300]、B=[120, 250]、C=[140, 180]，FlowPoint 时间为 150 时会选择 C。
+     * 这与修改前 ORDER BY timestamp DESC, id DESC LIMIT 1 的 SQL 规则一致；本次修改仅将
+     * 该规则改为采样后的内存计算，没有改变关联语义。
+     */
+    uint32_t Resolve(const std::string &type, uint64_t timestamp) {
+        AdvanceTo(timestamp);
+        const bool hasFutureSlice = nextSliceIndex < slices.size();
+        if (type == Protocol::LINE_START) {
+            if (hasFutureSlice && slices[nextSliceIndex].timestamp == timestamp) {
+                return slices[nextSliceIndex].depth;
+            }
+            if (!hasFutureSlice) {
+                return 0;
+            }
+            return activeSliceIndexes.empty() ? slices.front().depth : slices[activeSliceIndexes.back()].depth;
+        }
+        if ((type == Protocol::LINE_END || type == Protocol::LINE_END_OPTIONAL) && hasFutureSlice) {
+            return slices[nextSliceIndex].depth;
+        }
+        return 0;
+    }
+
+  private:
+    // 将内部状态推进到当前 FlowPoint 的时间，并准备好计算该点 depth 所需的 Slice。
+    void AdvanceTo(uint64_t timestamp) {
+        // Flow 点和 Slice 均已按时间戳排序。仅保留可能包裹当前或后续 Flow 点的较早 Slice，
+        // 并确保能够找到其中开始时间最晚的 Slice。
+        while (nextSliceIndex < slices.size() && slices[nextSliceIndex].timestamp < timestamp) {
+            // A later slice whose end time is not earlier permanently supersedes the previous candidate.
+            while (!activeSliceIndexes.empty() &&
+                slices[activeSliceIndexes.back()].endTime <= slices[nextSliceIndex].endTime) {
+                activeSliceIndexes.pop_back();
+            }
+            activeSliceIndexes.emplace_back(nextSliceIndex);
+            ++nextSliceIndex;
+        }
+        while (!activeSliceIndexes.empty() && slices[activeSliceIndexes.back()].endTime < timestamp) {
+            activeSliceIndexes.pop_back();
+        }
+    }
+
+    const std::vector<SliceDomain> &slices;
+    size_t nextSliceIndex = 0;
+    // 保存仍可能成为当前或后续 FlowPoint“包裹 Slice”的候选下标子集。
+    // 从栈底到栈顶，开始时间越来越晚，结束时间越来越早。
+    // 例如：
+    // A: 100 ├──────────────────────────┤ 300
+    // C:      150 ├──────────────┤ 220
+    // D:           170 ├────┤ 180
+    // 栈顶 D 是开始时间最晚的候选，所以只要 D 仍然包裹当前时间，就应该优先选择 D。
+    // D 结束后将其弹出，C 重新成为栈顶；C 结束后，A 重新成为栈顶。
+    std::vector<size_t> activeSliceIndexes;
+};
 }
 
 void RenderEngine::SetDataEngineInterface(std::shared_ptr<DataEngineInterface> dataEngineInterface) {
@@ -315,6 +377,8 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
         return true;
     }
     uint64_t curTrackId = 0;
+    std::vector<SliceDomain> textSlices;
+    std::unique_ptr<TextFlowDepthResolver> textDepthResolver;
     for (auto &item : flowPointResult) {
         if (item.trackId != curTrackId) {
             curTrackId = item.trackId;
@@ -326,6 +390,22 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
                 trackInfoFound = TrackInfoManager::Instance().GetTrackInfo(curTrackId, endpointTrackInfo, queryFileId);
             }
             trackInfo = trackInfoFound ? endpointTrackInfo : TrackInfo{};
+            textDepthResolver.reset();
+            textSlices.clear();
+            if (item.resolveDepthAfterSampling) {
+                SliceQuery sliceQuery;
+                sliceQuery.trackId = curTrackId;
+                sliceQuery.rankId = endpointSourceId;
+                sliceQuery.dbPath = params.dbPath;
+                sliceQuery.metaType = PROCESS_TYPE::TEXT;
+                const SliceQuery pagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
+                dataEngine->QuerySimpleSliceWithOutNameByTrackId(pagedQuery, textSlices);
+                SliceAnalyzer::SortByTimestampASC(textSlices);
+                textDepthResolver = std::make_unique<TextFlowDepthResolver>(textSlices);
+            }
+        }
+        if (item.resolveDepthAfterSampling && textDepthResolver != nullptr) {
+            item.depth = textDepthResolver->Resolve(item.type, AddTimestampOffset(item.timestamp, minTimestamp));
         }
         item.pid = trackInfo.processId;
         item.tid = trackInfo.threadId;

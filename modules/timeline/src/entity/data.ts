@@ -852,6 +852,14 @@ export const getCardFlowQueryDbPaths = (cardDbPath: string, sourceDbPaths: strin
     return sourceDbPaths.length > 1 ? sourceDbPaths : [cardDbPath];
 };
 
+export const getCardFlowQuerySources = (cardDbPath: string, sourceDbPaths: string[], useRankSource = false):
+Array<{ queryDbPath: string; sourceDbPath: string }> => {
+    return getCardFlowQueryDbPaths(cardDbPath, sourceDbPaths, useRankSource).map(queryDbPath => ({
+        queryDbPath,
+        sourceDbPath: useRankSource ? cardDbPath : queryDbPath,
+    }));
+};
+
 export interface ProcessMetaData extends MetaDataInnerBase {
     processId: string;
     processName: string;
