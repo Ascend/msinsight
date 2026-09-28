@@ -195,11 +195,8 @@ def pip_install_third_party_for_cluster_analysis():
 
     if IS_WINDOWS:
         python_interpreter_path = os.path.join(server_output_bin_python_dir, 'python.exe')
-        pip_site_packages_path = os.path.join(server_output_bin_python_dir, 'Lib', 'site-packages')
     elif IS_DARWIN:
         python_interpreter_path = os.path.join(server_output_bin_python_dir, 'bin', 'python3')
-        version = '3.12'
-        pip_site_packages_path = os.path.join(server_output_bin_python_dir, 'lib', 'python' + version, 'site-packages')
     else:
         return 0
 
@@ -211,7 +208,7 @@ def pip_install_third_party_for_cluster_analysis():
     # pandas->numpy, python-dateutil, pytz, tzdata
     # python-dateutil->six
     # sqlalchemy->greenlet, typing-extensions
-    # Python解释器使用绝对路径，三方库安装到指定目录
+    # 在复制后的解释器中安装，避免 --target 跳过已有文件并留下重复版本元数据。
     requirements_path = os.path.join(BUILD_DIR, 'requirements.txt')
     pip_install_cmds = [
         python_interpreter_path,
@@ -220,8 +217,6 @@ def pip_install_third_party_for_cluster_analysis():
         'install',
         '-r',
         requirements_path,
-        '--target',
-        pip_site_packages_path,
         '-i',
         'https://mirrors.aliyun.com/pypi/simple/',
         '--only-binary',
@@ -231,6 +226,10 @@ def pip_install_third_party_for_cluster_analysis():
     result = execute_cmd(pip_install_cmds, None)
     if result != 0:
         build_log('Failed to pip install third party packages for cluster analysis.')
+        return result
+    result = execute_cmd([python_interpreter_path, '-m', 'pip', 'check'], None)
+    if result != 0:
+        build_log('Packaged Python dependencies are inconsistent.')
         return result
     build_log('Successfully pip install third party packages for cluster analysis.')
     return 0

@@ -67,7 +67,7 @@ msinsight({ command: string, args?: object })
 pt_snap({ args: string[], timeoutMs?: number }) // CLI 可解析时
 ```
 
-`msinsight` 的页面动态能力通过 `help/observe` 发现。其他能力由产品资源目录中的 `capability-center.json` 声明；`pt_snap.args` 原样映射为 `pt-snap` 可执行文件后的 argv，工作目录固定为 Host 注册目录，能力中心不解析或改变 CLI 子命令语义。
+`msinsight` 的页面动态能力通过 `help/observe` 发现。其他能力由产品资源目录中的 `capability-center.json` 声明；`pt_snap.args` 原样追加到配置的固定参数之后，工作目录固定为 Host 注册目录，能力中心不解析或改变 CLI 子命令语义。Windows 和 macOS 产品通过内置 Python 的模块入口启动 `pt-snap`，不依赖 pip 生成的 launcher 或系统 PATH。
 
 ### 3.2 Capability Registry
 
@@ -197,15 +197,26 @@ Session C ─┘
     "type": "cli",
     "name": "pt_snap",
     "description": "Run the pt-snap CLI.",
-    "executable": {
-      "win32": ["../pt-snap/bin/pt-snap.exe", "pt-snap.exe", "pt-snap"],
-      "default": ["../pt-snap/bin/pt-snap", "pt-snap"]
+    "timeout": 180000,
+    "command": {
+      "win32": [{
+        "executable": "../python/python.exe",
+        "argsPrefix": ["-m", "pt_snap_cli.cli"]
+      }],
+      "darwin": [{
+        "executable": "../../../python/bin/python3",
+        "argsPrefix": ["-m", "pt_snap_cli.cli"]
+      }],
+      "default": [{
+        "executable": "pt-snap",
+        "argsPrefix": []
+      }]
     }
   }]
 }
 ```
 
-候选按顺序解析：带路径的相对值以产品 `resourceDir` 为基准；裸命令名从 Host 的 PATH 查找。解析成功后统一转换为绝对路径并由 `createCliCapability` 以 `shell:false` 执行。超时、输出上限和并发限制使用 Host 内部安全默认值，不暴露为产品配置。配置仅在 Host 启动时加载，修改后需重启。
+`command` 将可执行文件与固定前置参数原子绑定，候选按顺序解析：带路径的相对值以产品 `resourceDir` 为基准；裸命令名从 Host 的 PATH 查找。调用参数追加到 `argsPrefix` 后，统一由 `createCliCapability` 以 `shell:false` 执行。旧的 `executable` 字符串或候选列表仍受支持，并等价于空 `argsPrefix`。每个 CLI 可单独设置 `timeout`（毫秒，1000～3600000），未设置时默认 120000；调用中的 `input.timeoutMs` 可覆盖该默认值。Native Agent 的内部请求超时随实际 CLI 超时调整并留出 5 秒传输余量。输出上限和并发限制使用 Host 内部安全默认值。配置仅在 Host 启动时加载，修改后需重启。
 
 新增 CLI 只需增加配置项；无需修改 Host 组合代码。新增能力仍需明确副作用、审批要求和是否适合全局作用域。
 

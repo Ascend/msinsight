@@ -665,7 +665,7 @@ def test_nsis_uses_forced_crc_and_extraction_errors_without_rag_validation() -> 
     assert "$profile\\rag-data" not in installer.casefold()
 
 
-def test_development_server_build_uses_prepared_offline_dependencies() -> None:
+def test_development_server_build_installs_python_dependencies() -> None:
     top_level = (Path(__file__).parent / "build.py").read_text(encoding="utf-8")
     server_build = (Path(__file__).parents[1] / "server" / "build" / "build.py").read_text(encoding="utf-8")
     preprocess = (Path(__file__).parents[1] / "server" / "build" / "preprocess_third_party.py").read_text(
@@ -679,12 +679,14 @@ def test_development_server_build_uses_prepared_offline_dependencies() -> None:
 
     assert "def build_server_offline" in top_level
     assert "preprocess_command.append('--offline')" in top_level
-    assert "server_command.extend(['--no-install', '--jobs', '2'])" in top_level
+    assert "server_command.extend(['--jobs', '2'])" in top_level
     assert "cmd_list.insert(1, '--offline')" in top_level
     assert "cmd_list.append('--offline')" not in top_level
     assert "if context.rag is not None:" in top_level
     assert "for name, builder in [('server', server_builder), ('frontend', frontend_builder)]" in top_level
     assert "allow_dependency_install and pip_install_third_party" in server_build
+    assert "        '--target'," not in server_build
+    assert "[python_interpreter_path, '-m', 'pip', 'check']" in server_build
     assert "['cmake', '--build', '.', '-j', str(jobs)]" in server_build
     assert "shutil.copytree(os.path.join(SCRIPTS_DIR, 'MemSnapDump')" in server_build
     assert "shutil.move(os.path.join(SCRIPTS_DIR, 'MemSnapDump')" not in server_build
@@ -696,6 +698,29 @@ def test_development_server_build_uses_prepared_offline_dependencies() -> None:
     assert 'ENV{MSINSIGHT_SERVER_DATABASE_VERSION}' in server_cmake
     assert 'MATCHES "^[0-9]+$"' in server_cmake
     assert "COMPILE_TIME_LENGTH EQUAL 10" in server_cmake
+
+
+def test_packaged_python_installs_into_copied_interpreter_and_checks_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = Path(__file__).parents[1] / "server" / "build" / "build.py"
+    spec = importlib.util.spec_from_file_location("insight_server_build_test", path)
+    assert spec is not None and spec.loader is not None
+    server = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(server)
+    monkeypatch.setattr(server, "IS_WINDOWS", True)
+    monkeypatch.setattr(server, "OUTPUT_DIR", str(tmp_path))
+    commands = []
+    monkeypatch.setattr(server, "execute_cmd", lambda cmd, cwd: commands.append(cmd) or 0)
+
+    assert server.pip_install_third_party_for_cluster_analysis() == 0
+    python = str(tmp_path / "win_mingw64" / "bin" / "python" / "python.exe")
+    assert commands[0][:5] == [python, "-m", "pip", "install", "-r"]
+    assert "--target" not in commands[0]
+    assert commands[1] == [python, "-m", "pip", "check"]
+
+    monkeypatch.setattr(server, "execute_cmd", lambda cmd, cwd: 1 if cmd[-1] == "check" else 0)
+    assert server.pip_install_third_party_for_cluster_analysis() == 1
 
 
 def test_final_metadata_is_copied_after_single_writer_and_before_packaging() -> None:

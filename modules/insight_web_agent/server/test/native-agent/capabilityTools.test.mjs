@@ -15,7 +15,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCliCapabilityDefinition } from "../../capability-center/cliCapability.mjs";
 import { RAG_RETRIEVE_CAPABILITY } from "../../capability-center/definitions.mjs";
-import { createCapabilityTools, loadNativeCapabilityDefinitions } from "../../native-agent/tools/capabilityTools.mjs";
+import { capabilityTimeoutMs, createCapabilityTools, loadNativeCapabilityDefinitions } from "../../native-agent/tools/capabilityTools.mjs";
 
 const MSINSIGHT_DEFINITION = {
     name: "msinsight",
@@ -92,6 +92,7 @@ test("native capability adapter loads CLI definitions from the product config", 
             type: "cli",
             name: "pt_snap",
             description: "Run pt-snap",
+            timeout: 45000,
             executable: process.platform === "win32" ? "./pt-snap.exe" : "./pt-snap",
         }],
     })}\n`, "utf8");
@@ -103,7 +104,16 @@ test("native capability adapter loads CLI definitions from the product config", 
     assert.equal(definitions[0].requiresApproval, false);
     assert.equal(definitions[1].requiresApproval, false);
     assert.equal(definitions[2].requiresApproval, true);
+    assert.equal(definitions[2].timeoutMs, 45000);
     assert.deepEqual(tools[2].inputSchema, PT_SNAP_DEFINITION.inputSchema);
+});
+
+test("native request timeout covers the per-tool default and invocation override", () => {
+    const env = { MSINSIGHT_FRONTEND_COMMAND_TIMEOUT_MS: "30000" };
+    assert.equal(capabilityTimeoutMs({ env: {} }), 125000);
+    assert.equal(capabilityTimeoutMs({ defaultTimeoutMs: 45000, env }), 50000);
+    assert.equal(capabilityTimeoutMs({ defaultTimeoutMs: 45000, requestedTimeoutMs: 180000, env }), 185000);
+    assert.equal(capabilityTimeoutMs({ defaultTimeoutMs: 120000, requestedTimeoutMs: 3600000, env }), 3605000);
 });
 
 test("native RAG capability forwards queries without approval", async (t) => {

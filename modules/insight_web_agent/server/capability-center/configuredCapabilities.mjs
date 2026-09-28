@@ -22,6 +22,8 @@ const capabilityFactories = {
         name: definition.name,
         description: definition.description,
         executable: definition.executable,
+        argsPrefix: definition.argsPrefix,
+        defaultTimeoutMs: definition.timeoutMs,
         cwd: context.cwd,
     }),
 };

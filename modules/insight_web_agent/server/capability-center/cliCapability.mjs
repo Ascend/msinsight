@@ -19,8 +19,8 @@ import { isAbsolute } from "node:path";
 import { runBoundedProcess } from "../infrastructure/boundedProcess.mjs";
 import { capabilityError } from "./registry.mjs";
 
-const DEFAULT_TIMEOUT_MS = 30000;
-const MAX_TIMEOUT_MS = 300000;
+export const DEFAULT_CLI_TIMEOUT_MS = 120000;
+export const MAX_CLI_TIMEOUT_MS = 3600000;
 const DEFAULT_MAX_OUTPUT_BYTES = 200 * 1024;
 
 /**
@@ -31,11 +31,12 @@ export const createCliCapability = ({
     name,
     description,
     executable,
+    argsPrefix = [],
     cwd = process.cwd(),
     env = process.env,
     spawnProcess,
-    defaultTimeoutMs = DEFAULT_TIMEOUT_MS,
-    maxTimeoutMs = MAX_TIMEOUT_MS,
+    defaultTimeoutMs = DEFAULT_CLI_TIMEOUT_MS,
+    maxTimeoutMs = MAX_CLI_TIMEOUT_MS,
     maxOutputBytes = DEFAULT_MAX_OUTPUT_BYTES,
     maxConcurrency = 1,
     envKeys = defaultEnvironmentKeys(),
@@ -44,6 +45,9 @@ export const createCliCapability = ({
     const definition = createCliCapabilityDefinition({ name, description, maxTimeoutMs });
     if (!isAbsolute(String(executable ?? ""))) {
         throw capabilityError("CAPABILITY_INVALID", `CLI capability '${definition.name}' requires an absolute executable path.`);
+    }
+    if (!Array.isArray(argsPrefix) || argsPrefix.some((arg) => typeof arg !== "string" || arg.includes("\0"))) {
+        throw capabilityError("CAPABILITY_INVALID", `CLI capability '${definition.name}' requires argsPrefix to be an array of strings without null bytes.`);
     }
     if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
         throw capabilityError("CAPABILITY_INVALID", `CLI capability '${definition.name}' requires a positive maxConcurrency.`);
@@ -63,7 +67,7 @@ export const createCliCapability = ({
             try {
                 const result = await runBoundedProcess({
                     executable,
-                    args: [...input.args],
+                    args: [...argsPrefix, ...input.args],
                     cwd,
                     env: createCliEnvironment(env, envKeys, extraEnv),
                     signal: context.signal,
@@ -85,7 +89,7 @@ export const createCliCapability = ({
     };
 };
 
-export const createCliCapabilityDefinition = ({ name, description, maxTimeoutMs = MAX_TIMEOUT_MS } = {}) => {
+export const createCliCapabilityDefinition = ({ name, description, maxTimeoutMs = MAX_CLI_TIMEOUT_MS } = {}) => {
     const toolName = String(name ?? "").trim();
     if (!toolName) throw capabilityError("CAPABILITY_INVALID", "CLI capability name is required.");
     return {
