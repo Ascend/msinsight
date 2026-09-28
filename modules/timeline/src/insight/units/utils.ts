@@ -47,8 +47,13 @@ export function getLinkLineColor(category: string, theme: Theme): string {
     return theme.colorPalette[colorKey];
 }
 
-export function getTimeOffset(session: Session, metaData: { cardId?: string; processId?: string; metaType?: string }, units: InsightUnit[] = [],
-    timestampOffset?: Record<string, number>, cardIdIndex?: CardIdIndex): number {
+export function getTimeOffset(session: Session, metaData: {
+    cardId?: string;
+    processId?: string;
+    metaType?: string;
+    offsetSide?: 'host' | 'device';
+}, units: InsightUnit[] = [],
+timestampOffset?: Record<string, number>, cardIdIndex?: CardIdIndex): number {
     return getCategoryTimeOffset(session, metaData, units, timestampOffset, cardIdIndex);
 }
 
