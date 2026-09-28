@@ -23,9 +23,9 @@ import { MSINSIGHT_CAPABILITY, RAG_RETRIEVE_CAPABILITY } from "../../capability-
 import { loadCapabilityCenterConfig } from "../../config/capabilityCenterConfig.mjs";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:9090";
-const DEFAULT_CAPABILITY_TIMEOUT_MS = 30000;
-const MAX_CAPABILITY_TIMEOUT_MS = 60000;
-const CAPABILITY_TIMEOUT_GRACE_MS = 1000;
+const DEFAULT_CAPABILITY_TIMEOUT_MS = 120000;
+const MAX_CAPABILITY_TIMEOUT_MS = 3605000;
+const REQUEST_GRACE_MS = 5000;
 const SESSION_APPROVALS = Symbol("nativeCapabilityApprovals");
 const SESSION_ACTIVE_CAPABILITIES = Symbol("nativeActiveCapabilities");
 
@@ -39,8 +39,9 @@ export const loadNativeCapabilityDefinitions = ({ resourceDir, env = process.env
     const configured = loadCapabilityCenterConfig({ configPath, resourceDir, env });
     return [
         ...definitions,
-        ...configured.map(({ name, description }) => ({
+        ...configured.map(({ name, description, timeoutMs }) => ({
             ...createCliCapabilityDefinition({ name, description }),
+            timeoutMs,
             requiresApproval: true,
         })),
     ];
@@ -65,6 +66,7 @@ export const createCapabilityTools = ({
                 sessionId: context.sessionId,
                 name: definition.name,
                 input,
+                timeoutMs: definition.timeoutMs,
                 signal: context.signal,
             });
         }
@@ -80,6 +82,7 @@ export const createCapabilityTools = ({
                 sessionId: context.sessionId,
                 name: definition.name,
                 input,
+                timeoutMs: definition.timeoutMs,
                 signal: context.signal,
             });
         } finally {
@@ -117,8 +120,9 @@ const authorizeCapability = async ({ definition, input, session, signal, hostCli
 
 // 该内部 HTTP 路径避免 Native Runtime 再建立 MCP 连接，同时保留统一校验和取消语义。
 const requestCapability = async (baseUrl, capabilityToken, body) => {
-    // Let the backend return its structured COMMAND_TIMEOUT before the native HTTP guard aborts the same request.
-    const timeoutSignal = AbortSignal.timeout(capabilityTimeoutMs() + CAPABILITY_TIMEOUT_GRACE_MS);
+    // Let the backend return a structured timeout error before the native HTTP guard aborts.
+    const timeoutMs = capabilityTimeoutMs({ defaultTimeoutMs: body.timeoutMs, requestedTimeoutMs: body.input?.timeoutMs });
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const signal = body.signal ? AbortSignal.any([body.signal, timeoutSignal]) : timeoutSignal;
     const url = new URL("/api/capabilities/invoke", baseUrl);
     const headers = { "content-type": "application/json" };
@@ -151,8 +155,10 @@ const requestCapability = async (baseUrl, capabilityToken, body) => {
     return result.result;
 };
 
-const capabilityTimeoutMs = () => {
-    const configured = Number(process.env.MSINSIGHT_FRONTEND_COMMAND_TIMEOUT_MS);
-    if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_CAPABILITY_TIMEOUT_MS;
-    return Math.min(configured, MAX_CAPABILITY_TIMEOUT_MS);
+export const capabilityTimeoutMs = ({ defaultTimeoutMs, requestedTimeoutMs, env = process.env } = {}) => {
+    const configured = Number(env.MSINSIGHT_FRONTEND_COMMAND_TIMEOUT_MS);
+    const fallback = Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_CAPABILITY_TIMEOUT_MS;
+    const baseline = defaultTimeoutMs ?? fallback;
+    const requested = Number.isFinite(requestedTimeoutMs) && requestedTimeoutMs > 0 ? requestedTimeoutMs : 0;
+    return Math.min(Math.max(baseline, requested) + REQUEST_GRACE_MS, MAX_CAPABILITY_TIMEOUT_MS);
 };

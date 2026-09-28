@@ -22,7 +22,7 @@ const createChild = () => {
     return child;
 };
 
-test("CLI capability passes structured argv without a shell", async () => {
+test("CLI capability prepends fixed arguments and passes structured argv without a shell", async () => {
     const calls = [];
     const spawnProcess = (command, args, options) => {
         calls.push({ command, args, options });
@@ -38,6 +38,7 @@ test("CLI capability passes structured argv without a shell", async () => {
     const capability = createCliCapability({
         name: "pt_snap",
         executable,
+        argsPrefix: ["-m", "pt_snap_cli.cli"],
         cwd,
         env: { PATH: "C:\\Windows", API_TOKEN: "secret", HTTP_PROXY: "http://user:pass@proxy" },
         spawnProcess,
@@ -47,7 +48,7 @@ test("CLI capability passes structured argv without a shell", async () => {
 
     assert.deepEqual(result, { exitCode: 0, signal: undefined, stdout: "ok", stderr: "" });
     assert.equal(calls[0].command, executable);
-    assert.deepEqual(calls[0].args, ["query", "--list"]);
+    assert.deepEqual(calls[0].args, ["-m", "pt_snap_cli.cli", "query", "--list"]);
     assert.equal(calls[0].options.shell, false);
     assert.equal(calls[0].options.cwd, cwd);
     assert.deepEqual(calls[0].options.env, { PATH: "C:\\Windows" });
@@ -91,5 +92,7 @@ test("CLI capability rejects malformed input and non-zero exits", async () => {
     assert.throws(() => capability.validate({ args: "query" }), { code: "CAPABILITY_INVALID_ARGUMENT" });
     assert.throws(() => capability.validate({ args: ["query\0bad"] }), { code: "CAPABILITY_INVALID_ARGUMENT" });
     assert.throws(() => capability.validate({ args: ["query"], cwd: resolve("other") }), { code: "CAPABILITY_INVALID_ARGUMENT" });
+    assert.doesNotThrow(() => capability.validate({ args: ["query"], timeoutMs: 3600000 }));
+    assert.throws(() => capability.validate({ args: ["query"], timeoutMs: 3600001 }), { code: "CAPABILITY_INVALID_ARGUMENT" });
     await assert.rejects(capability.execute({ args: ["query"] }, {}), { code: "CLI_EXIT_NONZERO" });
 });

@@ -17,6 +17,7 @@
  */
 import { accessSync, constants, readFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, resolve } from "node:path";
+import { DEFAULT_CLI_TIMEOUT_MS, MAX_CLI_TIMEOUT_MS } from "../capability-center/cliCapability.mjs";
 
 export const loadCapabilityCenterConfig = ({ configPath, resourceDir, env = process.env, platform = process.platform }) => {
     const config = readConfig(configPath);
@@ -52,7 +53,7 @@ const normalizeCapability = (entry, index, context) => {
         throw new Error(`Capability at index ${index} must be an object.`);
     }
     if (entry.type !== "cli") throw new Error(`Capability at index ${index} has unsupported type '${entry.type}'.`);
-    const supportedFields = new Set(["type", "name", "description", "executable"]);
+    const supportedFields = new Set(["type", "name", "description", "executable", "command", "timeout"]);
     const unknownField = Object.keys(entry).find((field) => !supportedFields.has(field));
     if (unknownField) throw new Error(`CLI capability at index ${index} has unknown field '${unknownField}'.`);
     if (typeof entry.name !== "string" || !entry.name.trim()) {
@@ -62,15 +63,26 @@ const normalizeCapability = (entry, index, context) => {
         throw new Error(`CLI capability '${entry.name}' requires description to be a string.`);
     }
     const name = entry.name.trim();
-    const candidates = platformExecutableCandidates(entry.executable, context.platform);
+    const timeoutMs = entry.timeout === undefined ? DEFAULT_CLI_TIMEOUT_MS : entry.timeout;
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > MAX_CLI_TIMEOUT_MS) {
+        throw new Error(`CLI capability '${name}' timeout must be an integer between 1000 and ${MAX_CLI_TIMEOUT_MS} milliseconds.`);
+    }
+    if (entry.executable !== undefined && entry.command !== undefined) {
+        throw new Error(`CLI capability '${name}' cannot configure both executable and command.`);
+    }
+    const candidates = entry.command === undefined
+        ? platformExecutableCandidates(entry.executable, context.platform).map((executable) => ({ executable, argsPrefix: [] }))
+        : platformCommandCandidates(entry.command, context.platform);
     if (!candidates.length) throw new Error(`CLI capability '${name}' requires at least one executable candidate.`);
-    const executable = resolveFirstExecutable(candidates, context);
-    if (!executable) console.warn(`CLI capability '${name}' is unavailable; checked: ${candidates.join(", ")}`);
+    const command = resolveFirstCommand(candidates, context);
+    if (!command) console.warn(`CLI capability '${name}' is unavailable; checked: ${candidates.map(({ executable }) => executable).join(", ")}`);
     return {
         type: "cli",
         name,
         description: entry.description ?? "",
-        executable,
+        executable: command?.executable,
+        argsPrefix: command?.argsPrefix ?? [],
+        timeoutMs,
     };
 };
 
@@ -91,13 +103,42 @@ const platformExecutableCandidates = (configured, platform) => {
     return candidates.map((candidate) => candidate.trim()).filter(Boolean);
 };
 
-const resolveFirstExecutable = (candidates, context) => {
+const platformCommandCandidates = (configured, platform) => {
+    const selected = selectPlatformValue(configured, platform, "Command");
+    const candidates = Array.isArray(selected) ? selected : [selected];
+    return candidates.filter((candidate) => candidate !== undefined).map((candidate) => {
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+            throw new Error("Command candidates must be objects.");
+        }
+        const unknownField = Object.keys(candidate).find((field) => !["executable", "argsPrefix"].includes(field));
+        if (unknownField) throw new Error(`Command candidate has unknown field '${unknownField}'.`);
+        if (typeof candidate.executable !== "string" || !candidate.executable.trim()) {
+            throw new Error("Command candidate executable must be a non-empty string.");
+        }
+        const argsPrefix = candidate.argsPrefix ?? [];
+        if (!Array.isArray(argsPrefix) || argsPrefix.some((arg) => typeof arg !== "string" || arg.includes("\0"))) {
+            throw new Error("Command candidate argsPrefix must be an array of strings without null bytes.");
+        }
+        return { executable: candidate.executable.trim(), argsPrefix: [...argsPrefix] };
+    });
+};
+
+const selectPlatformValue = (configured, platform, label) => {
+    if (!configured || typeof configured !== "object" || Array.isArray(configured)) {
+        throw new Error(`${label} config must be a platform object.`);
+    }
+    const unknownPlatform = Object.keys(configured).find((key) => !["win32", "darwin", "linux", "default"].includes(key));
+    if (unknownPlatform) throw new Error(`${label} config has unknown platform '${unknownPlatform}'.`);
+    return configured[platform] ?? configured.default;
+};
+
+const resolveFirstCommand = (candidates, context) => {
     for (const candidate of candidates) {
         // 配置中的路径相对产品资源目录解析；裸命令名仅用于从当前进程 PATH 查找实际绝对路径。
-        const resolved = isPathCandidate(candidate)
-            ? resolvePathCandidate(candidate, context.resourceDir, context.platform)
-            : resolvePathCommand(candidate, context.env, context.platform);
-        if (resolved) return resolved;
+        const resolved = isPathCandidate(candidate.executable)
+            ? resolvePathCandidate(candidate.executable, context.resourceDir, context.platform)
+            : resolvePathCommand(candidate.executable, context.env, context.platform);
+        if (resolved) return { executable: resolved, argsPrefix: candidate.argsPrefix };
     }
     return undefined;
 };

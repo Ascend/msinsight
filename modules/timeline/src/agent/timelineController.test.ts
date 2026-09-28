@@ -323,7 +323,7 @@ describe('percentage zoom', () => {
         expect(session.contextMenu.zoomHistory).toHaveLength(1);
     });
 
-    test('applies hundreds of equivalent W/S steps with one Domain update', () => {
+    test('applies a bounded W/S burst with one Domain update', () => {
         const session = createValidSession();
         session.realTimeUpdate = false;
         session.endTimeAll = Number.MAX_VALUE;
@@ -341,8 +341,10 @@ describe('percentage zoom', () => {
 
         const result = invoke('Timeline.zoom', { percentage: 1 }) as JsonObject;
 
-        expect(result.completedSteps).toBe(MAX_TEST_ZOOM_STEPS);
-        expect(result.stepLimitReached).toBe(true);
+        expect(result.completedSteps).toBeGreaterThan(1);
+        expect(result.completedSteps).toBeLessThan(MAX_TEST_ZOOM_STEPS);
+        expect(result.limitedByBounds).toBe(true);
+        expect(result.stepLimitReached).toBe(false);
         expect(zoomAssignments).toBe(1);
     });
 

@@ -202,7 +202,7 @@ def build_server(offline=False):
     # 编译代码
     server_command = [Const.PYTHON, 'build.py', 'build']
     if offline:
-        server_command.extend(['--no-install', '--jobs', '2'])
+        server_command.extend(['--jobs', '2'])
     result = exec_command(server_command, build_path, Const.SERVER_DIR)
     if result != 0:
         return 1
