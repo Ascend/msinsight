@@ -118,6 +118,9 @@ struct FlowPoint {
     std::string pid;
     std::string rankId;
     std::string metaType;
+    // 默认 false 是重要的兼容性约束。只有 TEXT Repository 显式设置为 true；
+    // DB 应继续使用已有 depth，并且不触发 TEXT Slice 查询。
+    bool resolveDepthAfterSampling = false;
     bool operator<(const FlowPoint &right) const {
         if (trackId < right.trackId) {
             return true;

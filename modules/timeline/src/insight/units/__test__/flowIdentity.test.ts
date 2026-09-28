@@ -18,6 +18,7 @@
 import {
     getCardFlowSourceDbPaths,
     getCardFlowQueryDbPaths,
+    getCardFlowQuerySources,
     getCardSourceDbPaths,
     getFlowPointIdentity,
     getLaneProcessIdentity,
@@ -117,6 +118,20 @@ describe('flow identity', () => {
 
     it('uses rank-based queries for TEXT projects even when an internal database exists', () => {
         expect(getCardFlowQueryDbPaths('mindstudio_insight_data.db', ['mindstudio_insight_data.db'], true)).toEqual(['']);
+    });
+
+    it('keeps the displayed database source when TEXT flow queries use the rank source', () => {
+        expect(getCardFlowQuerySources('mindstudio_insight_data.db', ['mindstudio_insight_data.db'], true)).toEqual([{
+            queryDbPath: '',
+            sourceDbPath: 'mindstudio_insight_data.db',
+        }]);
+    });
+
+    it('uses the queried database as the displayed source for DB flows', () => {
+        expect(getCardFlowQuerySources('profile.db', ['thread-1.db', 'thread-2.db'])).toEqual([
+            { queryDbPath: 'thread-1.db', sourceDbPath: 'thread-1.db' },
+            { queryDbPath: 'thread-2.db', sourceDbPath: 'thread-2.db' },
+        ]);
     });
 
     it('queries each physical source for multi-source cards', () => {

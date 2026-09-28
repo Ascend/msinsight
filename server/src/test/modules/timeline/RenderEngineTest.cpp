@@ -145,7 +145,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesPersistedDepthForSelfTime) {
     EXPECT_EQ(response.data.selfTime, 10);
 }
 
-TEST_F(RenderEngineTest, QueryFlowCategoryEventsUsesRepositoryPersistedDepth) {
+TEST_F(RenderEngineTest, QueryFlowCategoryEventsKeepsDbRepositoryDepth) {
     class DataEngineMock : public DataEngine {
       public:
         void QueryFlowPointByCategory(const FlowQuery &, std::vector<FlowPoint> &flowPointVec) override {
@@ -169,6 +169,10 @@ TEST_F(RenderEngineTest, QueryFlowCategoryEventsUsesRepositoryPersistedDepth) {
             endPoint.rankId = "rank0";
             flowPointVec.emplace_back(endPoint);
         }
+
+        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &, std::vector<SliceDomain> &) override {
+            ADD_FAILURE() << "DB flow points must not trigger TEXT depth resolution";
+        }
     };
 
     TrackInfoManager::Instance().UpdateTrackIdMap(
@@ -187,6 +191,193 @@ TEST_F(RenderEngineTest, QueryFlowCategoryEventsUsesRepositoryPersistedDepth) {
     ASSERT_EQ(flowDetailList.size(), 1);
     EXPECT_EQ(flowDetailList[0]->from.depth, 4);
     EXPECT_EQ(flowDetailList[0]->to.depth, 7);
+}
+
+TEST_F(RenderEngineTest, QueryFlowCategoryEventsResolvesTextDepthAfterSampling) {
+    class DataEngineMock : public DataEngine {
+      public:
+        void QueryFlowPointByCategory(const FlowQuery &, std::vector<FlowPoint> &flowPointVec) override {
+            FlowPoint startPoint;
+            startPoint.id = 1;
+            startPoint.flowId = "deferred_depth_flow";
+            startPoint.trackId = 10;
+            startPoint.timestamp = 10;
+            startPoint.type = Protocol::LINE_START;
+            startPoint.resolveDepthAfterSampling = true;
+            flowPointVec.emplace_back(startPoint);
+
+            FlowPoint endPoint;
+            endPoint.id = 2;
+            endPoint.flowId = "deferred_depth_flow";
+            endPoint.trackId = 20;
+            endPoint.timestamp = 20;
+            endPoint.type = Protocol::LINE_END;
+            endPoint.resolveDepthAfterSampling = true;
+            flowPointVec.emplace_back(endPoint);
+        }
+
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            ++sliceQueryCount;
+            EXPECT_EQ(sliceQuery.metaType, PROCESS_TYPE::TEXT);
+            EXPECT_EQ(sliceQuery.rankId, "rank0");
+            EXPECT_TRUE(sliceQuery.dbPath.empty());
+            EXPECT_EQ(sliceQuery.startTime, 0);
+            EXPECT_EQ(sliceQuery.endTime, UINT64_MAX);
+            if (sliceQuery.trackId == 10) {
+                sliceVec = {SliceDomain{1, 110, 130, 4, ""}};
+            } else if (sliceQuery.trackId == 20) {
+                sliceVec = {SliceDomain{2, 125, 140, 7, ""}};
+            }
+        }
+
+        uint32_t sliceQueryCount = 0;
+    };
+
+    TrackInfoManager::Instance().UpdateTrackIdMap(
+        "rank0", {{10, {"thread0", "process0"}}, {20, {"thread1", "process1"}}});
+    RenderEngine renderEngine;
+    auto dataEngine = std::make_shared<DataEngineMock>();
+    renderEngine.SetDataEngineInterface(dataEngine);
+    FlowCategoryEventsParams params;
+    params.rankId = "rank0";
+    params.category = "test_flow";
+    params.startTime = 0;
+    params.endTime = 100;
+    std::vector<std::unique_ptr<UnitSingleFlow>> flowDetailList;
+
+    ASSERT_TRUE(renderEngine.QueryFlowCategoryEvents(params, 100, flowDetailList));
+
+    ASSERT_EQ(flowDetailList.size(), 1);
+    EXPECT_EQ(flowDetailList[0]->from.depth, 4);
+    EXPECT_EQ(flowDetailList[0]->to.depth, 7);
+    EXPECT_EQ(flowDetailList[0]->from.pid, "process0");
+    EXPECT_EQ(flowDetailList[0]->from.tid, "thread0");
+    EXPECT_EQ(flowDetailList[0]->to.pid, "process1");
+    EXPECT_EQ(flowDetailList[0]->to.tid, "thread1");
+
+    flowDetailList.clear();
+    ASSERT_TRUE(renderEngine.QueryFlowCategoryEvents(params, 100, flowDetailList));
+    ASSERT_EQ(flowDetailList.size(), 1);
+    EXPECT_EQ(dataEngine->sliceQueryCount, 4);
+}
+
+TEST_F(RenderEngineTest, QueryFlowCategoryEventsFindsLatestWrappingTextSlice) {
+    class DataEngineMock : public DataEngine {
+      public:
+        void QueryFlowPointByCategory(const FlowQuery &, std::vector<FlowPoint> &flowPointVec) override {
+            flowPointVec = {
+                FlowPoint{.id = 1,
+                    .flowId = "nested_flow",
+                    .trackId = 10,
+                    .timestamp = 65,
+                    .type = Protocol::LINE_START,
+                    .resolveDepthAfterSampling = true},
+                FlowPoint{.id = 2,
+                    .flowId = "nested_flow",
+                    .trackId = 20,
+                    .timestamp = 75,
+                    .type = Protocol::LINE_END,
+                    .resolveDepthAfterSampling = true},
+            };
+        }
+
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            if (sliceQuery.trackId == 10) {
+                sliceVec = {
+                    SliceDomain{1, 100, 300, 3, ""},
+                    SliceDomain{2, 150, 200, 9, ""},
+                    SliceDomain{3, 150, 220, 11, ""},
+                    SliceDomain{4, 170, 180, 13, ""},
+                };
+            } else if (sliceQuery.trackId == 20) {
+                sliceVec = {SliceDomain{5, 180, 190, 15, ""}};
+            }
+        }
+    };
+
+    TrackInfoManager::Instance().UpdateTrackIdMap(
+        "rank0", {{10, {"thread0", "process0"}}, {20, {"thread1", "process1"}}});
+    RenderEngine renderEngine;
+    renderEngine.SetDataEngineInterface(std::make_shared<DataEngineMock>());
+    FlowCategoryEventsParams params;
+    params.rankId = "rank0";
+    params.category = "test_flow";
+    params.startTime = 0;
+    params.endTime = 100;
+    std::vector<std::unique_ptr<UnitSingleFlow>> flowDetailList;
+
+    ASSERT_TRUE(renderEngine.QueryFlowCategoryEvents(params, 100, flowDetailList));
+
+    ASSERT_EQ(flowDetailList.size(), 1);
+    EXPECT_EQ(flowDetailList[0]->from.depth, 11);
+    EXPECT_EQ(flowDetailList[0]->to.depth, 15);
+}
+
+TEST_F(RenderEngineTest, QueryFlowCategoryEventsKeepsTextDepthFallbackSemantics) {
+    class DataEngineMock : public DataEngine {
+      public:
+        void QueryFlowPointByCategory(const FlowQuery &, std::vector<FlowPoint> &flowPointVec) override {
+            flowPointVec = {
+                FlowPoint{.id = 1,
+                    .flowId = "fallback_flow",
+                    .trackId = 10,
+                    .timestamp = 65,
+                    .type = Protocol::LINE_START,
+                    .resolveDepthAfterSampling = true},
+                FlowPoint{.id = 2,
+                    .flowId = "fallback_flow",
+                    .trackId = 20,
+                    .timestamp = 75,
+                    .type = Protocol::LINE_END,
+                    .resolveDepthAfterSampling = true},
+                FlowPoint{.id = 3,
+                    .flowId = "after_last_slice_flow",
+                    .trackId = 30,
+                    .timestamp = 100,
+                    .type = Protocol::LINE_START,
+                    .resolveDepthAfterSampling = true},
+                FlowPoint{.id = 4,
+                    .flowId = "after_last_slice_flow",
+                    .trackId = 40,
+                    .timestamp = 110,
+                    .type = Protocol::LINE_END,
+                    .resolveDepthAfterSampling = true},
+            };
+        }
+
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            if (sliceQuery.trackId == 10) {
+                sliceVec = {SliceDomain{1, 150, 160, 9, ""}, SliceDomain{2, 170, 180, 11, ""}};
+            } else if (sliceQuery.trackId == 20) {
+                sliceVec = {SliceDomain{3, 180, 190, 13, ""}};
+            } else if (sliceQuery.trackId == 30) {
+                sliceVec = {SliceDomain{4, 180, 190, 15, ""}};
+            }
+        }
+    };
+
+    TrackInfoManager::Instance().UpdateTrackIdMap("rank0",
+        {{10, {"thread0", "process0"}}, {20, {"thread1", "process1"}}, {30, {"thread2", "process2"}},
+            {40, {"thread3", "process3"}}});
+    RenderEngine renderEngine;
+    renderEngine.SetDataEngineInterface(std::make_shared<DataEngineMock>());
+    FlowCategoryEventsParams params;
+    params.rankId = "rank0";
+    params.category = "test_flow";
+    params.startTime = 0;
+    params.endTime = 200;
+    std::vector<std::unique_ptr<UnitSingleFlow>> flowDetailList;
+
+    ASSERT_TRUE(renderEngine.QueryFlowCategoryEvents(params, 100, flowDetailList));
+
+    ASSERT_EQ(flowDetailList.size(), 2);
+    EXPECT_EQ(flowDetailList[0]->from.depth, 0);
+    EXPECT_EQ(flowDetailList[0]->to.depth, 0);
+    EXPECT_EQ(flowDetailList[1]->from.depth, 9);
+    EXPECT_EQ(flowDetailList[1]->to.depth, 13);
 }
 
 TEST_F(RenderEngineTest, PythonStackThreadTracesKeepVirtualLaneIdentityForDetailRequests) {
