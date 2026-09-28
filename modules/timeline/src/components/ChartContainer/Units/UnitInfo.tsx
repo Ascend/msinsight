@@ -581,7 +581,8 @@ const UnitInfoContent = observer(({ unit, session, ...props }: UnitInfoContentPr
         { getProgressVisiable(unit) && unit.isParseLoading && !unit.isWaitingParseSuccessEvent
             ? <div><UnitProgress unit={unit} realProgress={unit.progress} showProgress={unit.showProgress}/></div>
             : <></> }
-        { unit instanceof CardUnit && unit.isWaitingParseSuccessEvent && <span>{t('Returning Data')}</span> }
+        { unit instanceof CardUnit && unit.isWaitingParseSuccessEvent &&
+            <span style={{ whiteSpace: 'nowrap' }}>{t('Returning Data')}</span> }
         { getParserVisiable(unit)
             ? <div>
                 <StyledButton transparent
