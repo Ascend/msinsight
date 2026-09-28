@@ -34,6 +34,7 @@ import AdviceLabel, { type CommunicationAdvice } from './CommunicationDuration/A
 import Operators from './CommunicationDuration/Opertators';
 import DiffTimeTable from './DiffTimeTable';
 import { GetSlowRankListResult } from '../../utils/interface';
+import { clearCommunicationPageState, updateCommunicationPageState } from '../../agent/communicationController';
 
 interface showDataType {
     chartData: [];
@@ -88,6 +89,27 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
         });
         setShowData(res);
     };
+
+    useEffect(() => {
+        if (!active || !session.clusterCompleted) {
+            clearCommunicationPageState();
+            return;
+        }
+        updateCommunicationPageState({
+            analysisType: conditions.type,
+            scope: {
+                iterationId: conditions.iterationId,
+                baselineIterationId: conditions.baselineIterationId,
+                stage: conditions.stage,
+                pgName: conditions.pgName,
+                groupIdHash: conditions.groupIdHash,
+                baselineGroupIdHash: conditions.baselineGroupIdHash,
+                operatorName: conditions.operatorName,
+            },
+            selection: card.cardId === '' ? null : { kind: 'rank-detail', rankId: card.cardId },
+        });
+        return clearCommunicationPageState;
+    }, [session, session.clusterCompleted, active, conditions, card.cardId]);
 
     useEffect(() => {
         if (session.durationFileCompleted) {
