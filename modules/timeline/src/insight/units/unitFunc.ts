@@ -59,7 +59,8 @@ function inheritOffsetSide(
     parentMetaData: MetaDataInnerBase,
     subtreeOffsetSide?: typeof OFFSET_SIDE.HOST,
 ): void {
-    if (subtreeOffsetSide !== undefined || metaData.metaType === 'PYTORCH_API_PYTHON_STACK') {
+    if (subtreeOffsetSide !== undefined || metaData.metaType === 'PYTORCH_API_PYTHON_STACK' ||
+        (metaData as ProcessMetaData).label === 'CPU') {
         metaData.offsetSide = OFFSET_SIDE.HOST;
     } else if (parentMetaData.offsetSide !== undefined) {
         metaData.offsetSide = parentMetaData.offsetSide;
