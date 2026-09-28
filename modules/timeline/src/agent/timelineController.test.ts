@@ -71,11 +71,13 @@ afterEach(() => {
 const getObs = (key: string): unknown => (observeTimeline() as Record<string, unknown>)[key];
 
 describe('registration', () => {
-    test('registers exactly four Timeline commands', () => {
+    test('registers exactly six Timeline commands', () => {
         expect([...definitions.keys()].sort()).toEqual([
             'Timeline.focus',
             'Timeline.pan',
+            'Timeline.pinByUnitName',
             'Timeline.restore',
+            'Timeline.selectSlice',
             'Timeline.zoom',
         ]);
     });
@@ -93,6 +95,11 @@ describe('registration', () => {
             if (name === 'Timeline.zoom') {
                 expect(def.inputSchema.oneOf).toEqual([{ required: ['direction'] }, { required: ['percentage'] }]);
                 expect(def.inputSchema.properties).toHaveProperty('percentage', expect.objectContaining({ minimum: 1, maximum: 90 }));
+            } else if (name === 'Timeline.pinByUnitName') {
+                expect(def.inputSchema.properties).toEqual({});
+            } else if (name === 'Timeline.selectSlice') {
+                expect(def.inputSchema.oneOf).toEqual([{ required: ['name'] }, { required: ['candidateRef'] }]);
+                expect(def.inputSchema.properties).not.toHaveProperty('index');
             } else {
                 expect(def.inputSchema.required).toEqual([expect.any(String)]);
             }
@@ -180,13 +187,13 @@ describe('observation', () => {
         setTimelineAgentSession(session);
         const sel = getObs('selection') as Record<string, unknown>;
         const unitsSummary = sel.units as Record<string, unknown>;
-        const items = unitsSummary.items as Record<string, unknown>[];
+        const items = unitsSummary.items as Array<Record<string, unknown>>;
 
         expect(unitsSummary.count).toBe(15);
         expect(items).toHaveLength(10);
         expect(unitsSummary.truncated).toBe(true);
         items.forEach(item => {
-            expect(Object.keys(item)).toEqual(['name', 'expanded', 'visible']);
+            expect(Object.keys(item)).toEqual(['name', 'expanded', 'visible', 'pinned']);
         });
     });
 
@@ -546,9 +553,12 @@ describe('all commands return requiresObserve: true and a viewport', () => {
 
             // Annotate JsonObject explicitly: the ternary chain infers a union with optional `undefined`
             // properties, which the JsonObject index signature rejects.
-            const input: JsonObject = name === 'Timeline.zoom' ? { direction: 'in' }
-                : name === 'Timeline.pan' ? { direction: 'right' }
-                    : name === 'Timeline.restore' ? { mode: 'undo' }
+            const input: JsonObject = name === 'Timeline.zoom'
+                ? { direction: 'in' }
+                : name === 'Timeline.pan'
+                    ? { direction: 'right' }
+                    : name === 'Timeline.restore'
+                        ? { mode: 'undo' }
                         : { target: 'operator' };
             const result = invoke(name, input) as Record<string, unknown>;
             expect(result).toHaveProperty('viewport');
