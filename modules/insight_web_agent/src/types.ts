@@ -99,6 +99,24 @@ export interface SessionItem {
     status?: SessionStatus;
 }
 
+export interface SessionExportDocument {
+    format: string;
+    exportedAt: string;
+    filename: string;
+    markdown: string;
+    agent: {
+        name?: string | null;
+        version?: string | null;
+    };
+    session: {
+        sessionId: string;
+        title: string;
+        updatedAt?: string | null;
+    };
+    messages: ChatMessage[];
+    savedPath?: string;
+}
+
 export interface ConfigOptionValue {
     value: string;
     name: string;

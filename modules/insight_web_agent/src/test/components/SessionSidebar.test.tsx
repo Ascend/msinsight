@@ -43,10 +43,11 @@ const renderSidebar = (overrides: Record<string, unknown> = {}) => {
         createSession: jest.fn(),
         activeAgentName: 'DeepSeek',
         agentError: undefined,
-        agentServers: [{ name: 'DeepSeek' }, { name: 'Claude' }],
+        agentServers: [{ name: 'DeepSeek', available: true }, { name: 'Claude', available: true }],
         availableCapabilities: [],
         currentSessionId: 'session-1',
         deleteSession: jest.fn(),
+        exportSession: jest.fn(),
         sessions: [{ sessionId: 'session-1', title: 'Chat' }],
         selectSession: jest.fn(),
         setAgent: jest.fn(),
@@ -73,6 +74,13 @@ test('refreshes agents from the top-left agent picker footer', async () => {
     expect(state.refreshAgents).toHaveBeenCalledTimes(1);
 });
 
+test('exports the current conversation from the toolbar', () => {
+    const state = renderSidebar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export current conversation' }));
+    expect(state.exportSession).toHaveBeenCalledWith(state.sessions[0]);
+});
+
 test('disables agent refresh while discovery is running', async () => {
     renderSidebar({ agentDiscoveryLoading: true });
 
@@ -84,10 +92,10 @@ test('renders theme-following logos for catalog agents', async () => {
     renderSidebar({
         activeAgentName: 'OpenCode(auto)',
         agentServers: [
-            { name: 'OpenCode(auto)' },
-            { name: 'Claude Code(auto)' },
-            { name: 'Codex(auto)' },
-            { name: 'Trae(auto)' },
+            { name: 'OpenCode(auto)', available: true },
+            { name: 'Claude Code(auto)', available: true },
+            { name: 'Codex(auto)', available: true },
+            { name: 'Trae(auto)', available: true },
         ],
     });
 
@@ -101,15 +109,15 @@ test('renders theme-following logos for catalog agents', async () => {
     expect((await screen.findByRole('option', { name: 'Trae(auto)' })).querySelector('[data-agent-icon="static"]')).not.toBeNull();
 });
 
-test('shows undetected catalog agents as unavailable options', async () => {
+test('hides undetected catalog agents from the picker', async () => {
     renderSidebar({
         agentServers: [
-            { name: 'DeepSeek' },
+            { name: 'DeepSeek', available: true },
             { name: 'OpenCode(auto)', available: false },
         ],
     });
 
     fireEvent.click(screen.getByRole('button', { name: /DeepSeek/i }));
-    const unavailable = await screen.findByRole('option', { name: /OpenCode\(auto\) \(Unavailable\)/i });
-    expect(unavailable).toBeDisabled();
+    expect(await screen.findByRole('option', { name: 'DeepSeek' })).toBeVisible();
+    expect(screen.queryByRole('option', { name: /OpenCode\(auto\)/i })).not.toBeInTheDocument();
 });

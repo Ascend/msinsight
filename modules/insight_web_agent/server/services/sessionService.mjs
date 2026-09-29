@@ -19,6 +19,7 @@ import { publicState } from "../state/runtimeState.mjs";
 import { supportsSessionDelete, supportsSessionList, supportsSessionLoad, supportsSessionResume, supportsSetConfigOption } from "./capabilityService.mjs";
 import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setConfigOptions } from "./configOptionService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
+import { buildSessionExport, writeSessionExport } from "./sessionExport.mjs";
 
 export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration }) => {
     let mutationQueue = Promise.resolve();
@@ -187,6 +188,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         }
 
         console.log(`Loading session context: sessionId=${targetSessionId}`);
+        const hadExistingContext = state.sessionContexts.has(targetSessionId);
         const context = getOrCreateSessionContext(targetSessionId);
         context.messages = [];
         context.replayingHistory = true;
@@ -198,6 +200,8 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         } catch (error) {
             const cause = errorCause(error);
             context.messages = [];
+            // 失败的 load 不能留下空消息的桩上下文，否则后续导出会静默产出空文档。
+            if (!hadExistingContext) state.sessionContexts.delete(targetSessionId);
             console.error(`Load session failed: sessionId=${targetSessionId}, error=${cause}`);
             if (/not found|unknown session/i.test(cause)) {
                 return errorResult(
@@ -245,6 +249,47 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         };
         state.sessionContexts.set(sessionId, context);
         return context;
+    };
+
+    const exportSessionById = async (sessionId, { persist = false } = {}) => {
+        const targetSessionId = String(sessionId ?? "").trim();
+        if (!targetSessionId) {
+            console.warn("Export session rejected: sessionId is required");
+            return errorResult("session_id_required", "sessionId is required to export a session", 400);
+        }
+
+        const existing = state.sessionContexts.get(targetSessionId);
+        let messages;
+        if (existing) {
+            // 内存中已有该会话上下文（含新建空会话）时直接导出，不再 load，避免切换当前对话或对不支持 load 的 Agent 报错。
+            messages = existing.messages;
+        } else {
+            const loaded = await loadSessionById(targetSessionId);
+            if (loaded.error) return loaded;
+            messages = loaded.messages;
+        }
+
+        const listed = (state.sessions ?? []).find((session) => session.sessionId === targetSessionId);
+        const document = buildSessionExport({
+            sessionId: targetSessionId,
+            title: listed?.title ?? existing?.title,
+            updatedAt: listed?.updatedAt,
+            messages,
+            agent: state.agentInfo,
+        });
+        if (!persist) {
+            console.log(`Session exported: sessionId=${targetSessionId}, messages=${document.messages.length}, filename=${document.filename}`);
+            return { ok: true, ...document };
+        }
+
+        let savedPath;
+        try {
+            savedPath = await writeSessionExport(document, config.sessionExportDir);
+            console.log(`Session exported: sessionId=${targetSessionId}, messages=${document.messages.length}, filename=${document.filename}, savedPath=${savedPath}`);
+        } catch (error) {
+            console.warn(`Session export file write failed: sessionId=${targetSessionId}, error=${error.message}`);
+        }
+        return { ok: true, ...document, savedPath };
     };
 
     const deleteSessionById = async (sessionId) => {
@@ -474,6 +519,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         createEmptySession,
         createSessionContext,
         deleteSessionById,
+        exportSessionById,
         listSessions,
         loadSessionById,
         loadConfigOptions,

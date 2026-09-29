@@ -25,6 +25,7 @@ import { AgentKindIcon } from './AgentKindIcon';
 import { requestHostClose } from '../connection';
 import { useChatState } from '../hooks/useChatState';
 import closeIcon from '../icons/close.svg';
+import exportIcon from '../icons/export.svg';
 import historyIcon from '../icons/history-session.svg';
 import newSessionIcon from '../icons/new-session.svg';
 import refreshIcon from '../icons/refresh.svg';
@@ -232,6 +233,7 @@ export const SessionSidebar = (): JSX.Element => {
         availableCapabilities,
         currentSessionId,
         deleteSession,
+        exportSession,
         sessions,
         selectSession,
         setAgent,
@@ -298,6 +300,19 @@ export const SessionSidebar = (): JSX.Element => {
                     <img src={newSessionIcon} alt="" />
                 </button>
                 <button
+                    aria-label={t('exportCurrentSession')}
+                    className="icon-button"
+                    disabled={!currentSessionId}
+                    onClick={() => {
+                        const current = sessions.find((session) => session.sessionId === currentSessionId);
+                        if (current) exportSession(current);
+                    }}
+                    title={t('exportCurrentSession')}
+                    type="button"
+                >
+                    <img src={exportIcon} alt="" />
+                </button>
+                <button
                     aria-expanded={open}
                     aria-haspopup="dialog"
                     className="icon-button drawer-toggle"
@@ -327,6 +342,7 @@ export const SessionSidebar = (): JSX.Element => {
                 currentSessionId={currentSessionId}
                 onClose={() => setOpen(false)}
                 onDelete={deleteSession}
+                onExport={exportSession}
                 onAttentionChange={setHistoryAttention}
                 onSelect={selectSession}
                 open={open}

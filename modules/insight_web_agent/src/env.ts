@@ -100,6 +100,16 @@ export const resolveAcpPortBase = (
 
 export const apiBase = resolveAcpApiBase();
 
+export const JUPYTERLAB_PROXY = jupyterlabProxy;
+
+export const shouldPersistSessionExport = (
+    location: Pick<Location, 'protocol' | 'hostname'> = window.location,
+    isJupyter: boolean = jupyterlabProxy,
+): boolean => {
+    if (isJupyter) return false;
+    return location.protocol === 'wry:' || location.hostname === 'wry.localhost';
+};
+
 export const apiUrl = (path: string): string => (apiBase ? `${apiBase}${path}` : path);
 
 export const capabilityAuthHeaders = (): Record<string, string> => (

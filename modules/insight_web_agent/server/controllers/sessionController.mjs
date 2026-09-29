@@ -50,6 +50,14 @@ export const createSessionController = ({ sessionService }) => ({
         return json(res, normalizeBody(result), result.status ?? 200);
     },
 
+    async export(_req, res, body) {
+        console.log(`Export session requested: sessionId=${String(body?.sessionId ?? "")}`);
+        const result = await sessionService.exportSessionById(body?.sessionId, { persist: body?.persist === true });
+        if (result.error) console.warn(`Export session failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
+        else console.log(`Export session completed: sessionId=${result.session.sessionId}, filename=${result.filename}`);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+
     async delete(_req, res, body) {
         console.log(`Delete session requested: sessionId=${String(body?.sessionId ?? "")}`);
         const result = await sessionService.deleteSessionById(body?.sessionId);

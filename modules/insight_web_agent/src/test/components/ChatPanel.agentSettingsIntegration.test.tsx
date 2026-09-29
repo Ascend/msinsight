@@ -83,6 +83,7 @@ jest.mock('../../api', () => ({
     cancelPrompt: jest.fn(),
     createSession: jest.fn(),
     deleteSession: jest.fn(),
+    exportSession: jest.fn(),
     fetchAgentConfig: jest.fn(),
     fetchAgents: jest.fn(),
     fetchSessions: jest.fn(),
