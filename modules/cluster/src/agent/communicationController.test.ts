@@ -25,6 +25,7 @@ let mockFilterChange: (conditions: ConditionDataType) => Promise<void>;
 let mockShowOperator: (card: CardInfo) => void;
 let mockReturnHome: () => void;
 
+jest.mock('../connection', () => ({ __esModule: true, default: { send: jest.fn() } }));
 jest.mock('../components/communication/Filter', () => ({
     __esModule: true,
     ...jest.requireActual<typeof import('../components/communication/Filter')>('../components/communication/Filter'),

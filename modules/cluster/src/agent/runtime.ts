@@ -7,7 +7,7 @@
  * -------------------------------------------------------------------------
  */
 import { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandClient';
-import { observeCommunication, registerCommunicationCommands } from './communicationController';
+import { observeCommunication, registerCommunicationCommands, setCommunicationAgentState } from './communicationController';
 
 const client = new ModuleAgentCommandClient({
     moduleId: 'Communication',
@@ -26,4 +26,5 @@ export const startCommunicationAgentRuntime = (): void => {
 export const stopCommunicationAgentRuntime = (): void => {
     stopClient?.();
     stopClient = undefined;
+    setCommunicationAgentState(undefined);
 };

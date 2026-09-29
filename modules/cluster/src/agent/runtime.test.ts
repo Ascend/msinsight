@@ -113,7 +113,11 @@ describe('Communication agent runtime with the actual module client', () => {
             event: MODULE_AGENT_READY, moduleId: 'Communication', connectionToken: 'connection-1',
         }), window.location.origin);
         expect(post).toHaveBeenCalledWith(expect.objectContaining({
-            event: MODULE_AGENT_COMMANDS_CHANGED, commands: [], connectionToken: 'connection-1',
+            event: MODULE_AGENT_COMMANDS_CHANGED, commands: expect.arrayContaining([
+                expect.objectContaining({ name: 'Communication.switchAnalysis' }),
+                expect.objectContaining({ name: 'Communication.highlightSlowRank' }),
+                expect.objectContaining({ name: 'Communication.locateInTimeline' }),
+            ]), connectionToken: 'connection-1',
         }), window.location.origin);
     });
 
@@ -137,7 +141,11 @@ describe('Communication agent runtime with the actual module client', () => {
         await flush();
         expect(post).toHaveBeenCalledTimes(2);
         expect(post).toHaveBeenCalledWith(expect.objectContaining({
-            event: MODULE_AGENT_COMMANDS_CHANGED, commands: [], connectionToken: 'connection-2',
+            event: MODULE_AGENT_COMMANDS_CHANGED, commands: expect.arrayContaining([
+                expect.objectContaining({ name: 'Communication.switchAnalysis' }),
+                expect.objectContaining({ name: 'Communication.highlightSlowRank' }),
+                expect.objectContaining({ name: 'Communication.locateInTimeline' }),
+            ]), connectionToken: 'connection-2',
         }), window.location.origin);
     });
 
