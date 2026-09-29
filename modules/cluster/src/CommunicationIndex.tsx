@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useState } from 'react';
 import { SharedConfigProvider } from '@insight/lib';
 import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from '@emotion/react';
@@ -27,11 +27,24 @@ import { themeInstance } from './theme/theme';
 import CommunicationAnalysis from './components/communication/CommunicationAnalysis';
 import { Loading } from './index';
 import { GlobalStyles } from '@insight/lib/theme';
+import { setCommunicationAgentSession } from './agent/communicationController';
+import { startCommunicationAgentRuntime, stopCommunicationAgentRuntime } from './agent/runtime';
 
 export const App = observer(() => {
     const { sessionStore } = useRootStore();
     let session = sessionStore.activeSession;
     const [locale, setLocale] = useState<'zhCN' | 'enUS'>('zhCN');
+
+    // Bind before child passive effects publish their page state.
+    useLayoutEffect(() => {
+        setCommunicationAgentSession(session);
+        return () => setCommunicationAgentSession(undefined);
+    }, [session]);
+
+    useEffect(() => {
+        startCommunicationAgentRuntime();
+        return stopCommunicationAgentRuntime;
+    }, []);
 
     useEffect(() => {
         if (session) {
