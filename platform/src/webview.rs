@@ -81,7 +81,7 @@ fn create_webview(
 
             build_protocol_response(200, mimetype, content)
         })
-        .with_url(frontend_index_url(port, acp_port, capability_token, acp_status, acp_node_version).as_str())?
+        .with_url(frontend_index_url(port, acp_port, capability_token, acp_status, acp_node_version).as_str())
         .with_file_drop_handler(move |ev| {
             match ev {
                 FileDropEvent::Dropped { paths, .. } => {
