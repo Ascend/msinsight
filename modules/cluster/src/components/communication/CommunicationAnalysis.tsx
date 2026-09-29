@@ -34,7 +34,7 @@ import AdviceLabel, { type CommunicationAdvice } from './CommunicationDuration/A
 import Operators from './CommunicationDuration/Opertators';
 import DiffTimeTable from './DiffTimeTable';
 import { GetSlowRankListResult } from '../../utils/interface';
-import { clearCommunicationPageState, updateCommunicationPageState } from '../../agent/communicationController';
+import { clearCommunicationPageState, updateCommunicationPageState, setCommunicationAgentState } from '../../agent/communicationController';
 
 interface showDataType {
     chartData: [];
@@ -140,6 +140,12 @@ const CommunicationAnalysisCom = (props: {[propName: string]: any}): JSX.Element
     const { t } = useTranslation('communication');
     const [loadingSlowRank, setLoadingSlowRank] = useState(false);
     const [slowRankData, setSlowRankData] = useState<GetSlowRankListResult | null>(null);
+    useEffect(() => {
+        setCommunicationAgentState(active && session.clusterCompleted
+            ? { conditions, slowRanks: slowRankData, chart: showData.analysisChartData, unitcount: session.unitcount, isCompare: session.isCompare }
+            : undefined);
+    }, [active, session, session.clusterCompleted, conditions, slowRankData, showData.analysisChartData, session.unitcount, session.isCompare]);
+    useEffect(() => () => setCommunicationAgentState(undefined), []);
     const slowRankTooltipContent = t('slowRankList.TitleTooltip', { returnObjects: true }) as string[];
     const slowRankTooltipList = slowRankTooltipContent.map((item, index) => <div style={{ padding: '6px 0' }} key={index}>{item}</div>);
 
