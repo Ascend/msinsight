@@ -36,6 +36,16 @@ test('packaged Wry frontend connects ACP over IPv4 loopback', () => {
     expect(windowsBase).toBe('http://127.0.0.1:9090');
 });
 
+test('only packaged desktop WebViews persist session exports to disk', () => {
+    const { shouldPersistSessionExport } = require('../env');
+
+    expect(shouldPersistSessionExport({ protocol: 'wry:', hostname: 'localhost' }, false)).toBe(true);
+    expect(shouldPersistSessionExport({ protocol: 'http:', hostname: 'wry.localhost' }, false)).toBe(true);
+    expect(shouldPersistSessionExport({ protocol: 'wry:', hostname: 'localhost' }, true)).toBe(false);
+    expect(shouldPersistSessionExport({ protocol: 'https:', hostname: 'jupyter.example.com' }, true)).toBe(false);
+    expect(shouldPersistSessionExport({ protocol: 'http:', hostname: '127.0.0.1' }, false)).toBe(false);
+});
+
 test('Jupyter proxy resolution keeps its host and base path', () => {
     const { resolveAcpPortBase } = require('../env');
 

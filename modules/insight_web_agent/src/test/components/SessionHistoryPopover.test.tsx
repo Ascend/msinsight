@@ -29,12 +29,14 @@ const sessions = [
 const renderPopover = (overrides: Partial<React.ComponentProps<typeof SessionHistoryPopover>> = {}): {
     onClose: jest.Mock;
     onDelete: jest.Mock;
+    onExport: jest.Mock;
     onAttentionChange: jest.Mock;
     onSelect: jest.Mock;
 } => {
     const anchorRef = createRef<HTMLButtonElement>();
     const onClose = jest.fn();
     const onDelete = jest.fn();
+    const onExport = jest.fn();
     const onAttentionChange = jest.fn();
     const onSelect = jest.fn();
     render(<>
@@ -44,6 +46,7 @@ const renderPopover = (overrides: Partial<React.ComponentProps<typeof SessionHis
             currentSessionId="session-1"
             onClose={onClose}
             onDelete={onDelete}
+            onExport={onExport}
             onAttentionChange={onAttentionChange}
             onSelect={onSelect}
             open
@@ -51,7 +54,7 @@ const renderPopover = (overrides: Partial<React.ComponentProps<typeof SessionHis
             {...overrides}
         />
     </>);
-    return { onAttentionChange, onClose, onDelete, onSelect };
+    return { onAttentionChange, onClose, onDelete, onExport, onSelect };
 };
 
 test('filters sessions and selects a matching conversation', async () => {
@@ -71,6 +74,14 @@ test('deletes a conversation without selecting it', async () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Delete conversation: Analyze operator jitter' }));
     expect(onDelete).toHaveBeenCalledWith(sessions[0]);
+    expect(onSelect).not.toHaveBeenCalled();
+});
+
+test('exports a conversation without selecting it', async () => {
+    const { onExport, onSelect } = renderPopover();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Export conversation: Analyze operator jitter' }));
+    expect(onExport).toHaveBeenCalledWith(sessions[0]);
     expect(onSelect).not.toHaveBeenCalled();
 });
 
@@ -99,6 +110,7 @@ test('marks a newly completed background session as unread', async () => {
         currentSessionId: 'session-2',
         onClose: jest.fn(),
         onDelete: jest.fn(),
+        onExport: jest.fn(),
         onSelect: jest.fn(),
         open: true,
     };

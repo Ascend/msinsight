@@ -28,9 +28,11 @@ import {
 import { message } from 'antd';
 import { t } from 'i18next';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
-import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelPrompt, claimFrontendCommand, deleteSession, exportSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { downloadSessionExport } from '../sessionExportDownload';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { subscribeEvents } from '../eventStream';
+import { shouldPersistSessionExport } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
@@ -62,6 +64,7 @@ interface ChatStateValue {
     sessions: SessionItem[];
     createSession: () => Promise<void>;
     deleteSession: (session: SessionItem) => Promise<void>;
+    exportSession: (session: SessionItem) => Promise<void>;
     sendMessage: () => Promise<void>;
     cancelMessage: () => Promise<void>;
     selectSession: (session: SessionItem) => Promise<void>;
@@ -608,6 +611,21 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
+    const handleExportSession = async (session: SessionItem): Promise<void> => {
+        if (!session.sessionId || session.isPending) return;
+        try {
+            const document = await exportSession(session.sessionId, shouldPersistSessionExport());
+            downloadSessionExport(document);
+            if (document.savedPath) {
+                message.success(t('exportSaved', { ns: 'insightWebAgent', path: document.savedPath }));
+                return;
+            }
+            message.success(t('exportDownloaded', { ns: 'insightWebAgent', filename: document.filename }));
+        } catch (error) {
+            showError(error);
+        }
+    };
+
     const handleDeleteSession = async (session: SessionItem): Promise<void> => {
         if (session.pendingPrompt || session.isPending) return;
         const previousState = state;
@@ -919,6 +937,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         sessions: state.sessions,
         createSession: createDraftSession,
         deleteSession: handleDeleteSession,
+        exportSession: handleExportSession,
         sendMessage,
         cancelMessage,
         selectSession: handleSelectSession,

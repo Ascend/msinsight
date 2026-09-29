@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { formatRelativeTime } from '@insight/lib/utils';
 import type { SessionItem } from '../types';
 import deleteIcon from '../icons/delete.svg';
+import exportIcon from '../icons/export.svg';
 import searchIcon from '../icons/search.svg';
 
 interface SessionHistoryPopoverProps {
@@ -31,6 +32,7 @@ interface SessionHistoryPopoverProps {
     currentSessionId?: string;
     onClose: () => void;
     onDelete: (session: SessionItem) => void;
+    onExport: (session: SessionItem) => void;
     onAttentionChange?: (attentionRequired: boolean) => void;
     onSelect: (session: SessionItem) => void;
     open: boolean;
@@ -209,36 +211,41 @@ const PopoverContainer = styled.div`
         visibility: hidden;
     }
 
-    .session-delete {
-        width: 24px;
-        height: 24px;
+    .session-actions {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
         position: absolute;
         top: 3px;
         right: 2px;
-        border: 0;
-        border-radius: ${(props): string => props.theme.borderRadiusLarge};
-        padding: 4px;
-        background: transparent;
-        cursor: pointer;
         opacity: 0;
         pointer-events: none;
         transition: opacity 120ms ease;
     }
 
-    .history-row:hover .session-delete,
-    .session-delete:focus-visible {
+    .history-row:hover .session-actions,
+    .session-actions:focus-within {
         opacity: 1;
         pointer-events: auto;
     }
 
-    .session-delete:hover {
+    .session-action {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        padding: 4px;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .session-action:hover {
         background: ${(props): string => props.theme.bgColorDark};
     }
 
-    .session-delete img {
+    .session-action img {
         width: 16px;
         height: 16px;
         opacity: 0.65;
@@ -260,6 +267,7 @@ export const SessionHistoryPopover = ({
     currentSessionId,
     onClose,
     onDelete,
+    onExport,
     onAttentionChange,
     onSelect,
     open,
@@ -390,15 +398,26 @@ export const SessionHistoryPopover = ({
                     <span className="session-title">{sessionTitle}</span>
                     <span className="session-meta">{getSessionMeta(session, t, unread)}</span>
                 </button>
-                <button
-                    aria-label={t('deleteSession', { title: sessionTitle })}
-                    className="session-delete"
-                    onClick={() => onDelete(session)}
-                    title={t('deleteSession', { title: sessionTitle })}
-                    type="button"
-                >
-                    <img alt="" src={deleteIcon} />
-                </button>
+                <div className="session-actions">
+                    <button
+                        aria-label={t('exportSession', { title: sessionTitle })}
+                        className="session-action"
+                        onClick={() => onExport(session)}
+                        title={t('exportSession', { title: sessionTitle })}
+                        type="button"
+                    >
+                        <img alt="" src={exportIcon} />
+                    </button>
+                    <button
+                        aria-label={t('deleteSession', { title: sessionTitle })}
+                        className="session-action"
+                        onClick={() => onDelete(session)}
+                        title={t('deleteSession', { title: sessionTitle })}
+                        type="button"
+                    >
+                        <img alt="" src={deleteIcon} />
+                    </button>
+                </div>
             </div>
         );
     });

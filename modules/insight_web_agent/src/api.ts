@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
+import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
 import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, capabilityAuthHeaders } from './env';
@@ -250,6 +250,13 @@ export const deleteSession = (sessionId: string): Promise<OkResponse> => {
     return requestJson<OkResponse>('/api/sessions/delete', {
         method: 'POST',
         body: JSON.stringify({ sessionId }),
+    });
+};
+
+export const exportSession = (sessionId: string, persist = false): Promise<SessionExportDocument> => {
+    return requestJson<SessionExportDocument>('/api/sessions/export', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, persist }),
     });
 };
 

@@ -16,10 +16,22 @@
  * -------------------------------------------------------------------------
  */
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
 import { createSessionService } from "../../services/sessionService.mjs";
 import { createChatService } from "../../services/chatService.mjs";
+
+const withExportDir = async (run) => {
+    const sessionExportDir = await mkdtemp(join(tmpdir(), "insight-session-export-"));
+    try {
+        return await run(sessionExportDir);
+    } finally {
+        await rm(sessionExportDir, { recursive: true, force: true });
+    }
+};
 
 for (const canDelete of [true, false]) {
     test(`welcome configuration loads before initialization completes (session deletion: ${canDelete})`, async () => {
@@ -174,6 +186,172 @@ test("loadSessionById injects the global capability MCP server", async () => {
     assert.equal(calls[0].method, "session/load");
     assert.equal(calls[0].params.cwd, "/tmp");
     assert.deepEqual(calls[0].params.mcpServers, mcpServers);
+});
+
+test("exportSessionById uses cached messages without calling session/load", async () => {
+    await withExportDir(async (sessionExportDir) => {
+        const calls = [];
+        const state = createRuntimeState();
+        state.agentInfo = { name: "OpenCode", version: "1.18.30" };
+        state.sessions = [{ sessionId: "session-1", title: "Memory growth", updatedAt: "2026-09-13T06:31:33.000Z" }];
+        state.sessionContexts.set("session-1", {
+            sessionId: "session-1",
+            messages: [{ id: "m1", role: "user", content: [{ id: "t1", type: "text", text: "hello" }] }],
+        });
+        const service = createSessionService({
+            acpClient: {
+                async request(method) {
+                    calls.push(method);
+                    throw new Error(`Unexpected method: ${method}`);
+                },
+            },
+            config: { sessionExportDir },
+            eventBus: { broadcast: () => {} },
+            state,
+        });
+
+        const result = await service.exportSessionById("session-1", { persist: true });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.session.sessionId, "session-1");
+        assert.equal(result.session.title, "Memory growth");
+        assert.equal(result.agent.name, "OpenCode");
+        assert.equal(result.messages.length, 1);
+        assert.match(result.filename, /\.json$/);
+        assert.match(result.markdown, /hello/);
+        assert.equal(result.savedPath, join(sessionExportDir, result.filename));
+        assert.match(await readFile(result.savedPath, "utf8"), /hello/);
+        assert.deepEqual(calls, []);
+    });
+});
+
+test("exportSessionById skips disk persistence for browser and Jupyter clients", async () => {
+    await withExportDir(async (sessionExportDir) => {
+        const state = createRuntimeState();
+        state.sessions = [{ sessionId: "session-1", title: "Memory growth" }];
+        state.sessionContexts.set("session-1", {
+            sessionId: "session-1",
+            messages: [{ id: "m1", role: "user", content: [{ id: "t1", type: "text", text: "hello" }] }],
+        });
+        const service = createSessionService({
+            acpClient: { async request() { throw new Error("should not be called"); } },
+            config: { sessionExportDir },
+            eventBus: { broadcast: () => {} },
+            state,
+        });
+
+        const result = await service.exportSessionById("session-1");
+
+        assert.equal(result.ok, true);
+        assert.equal(result.savedPath, undefined);
+        await assert.rejects(readFile(join(sessionExportDir, result.filename)));
+    });
+});
+
+test("exportSessionById loads a remote session when the cache is empty", async () => {
+    await withExportDir(async (sessionExportDir) => {
+        const calls = [];
+        const state = createRuntimeState();
+        state.agentCapabilities = { loadSession: true, session: {}, mcp: { http: true } };
+        state.agentInfo = { name: "msinsight-native", version: "0.1.0" };
+        const service = createSessionService({
+            acpClient: {
+                async request(method, params) {
+                    calls.push({ method, params });
+                    if (method === "session/load") {
+                        // 模拟 load 回放：loadSessionById 期间消息会写回上下文。
+                        state.sessionContexts.get(params.sessionId).messages = [
+                            { id: "m2", role: "assistant", content: [{ id: "t2", type: "text", text: "loaded" }] },
+                        ];
+                    }
+                    return { configOptions: [] };
+                },
+            },
+            config: { cwd: "/tmp", sessionExportDir },
+            eventBus: { broadcast: () => {} },
+            state,
+        });
+        // 内存中无该会话上下文：导出走 session/load 拉取历史。
+        const result = await service.exportSessionById("session-2", { persist: true });
+
+        assert.equal(calls[0].method, "session/load");
+        assert.equal(calls[0].params.sessionId, "session-2");
+        assert.equal(result.ok, true);
+        assert.equal(result.session.sessionId, "session-2");
+        assert.equal(result.messages.length, 1);
+        assert.match(result.markdown, /loaded/);
+        assert.equal(result.savedPath, join(sessionExportDir, result.filename));
+    });
+});
+
+test("exportSessionById exports an in-memory empty session without loading", async () => {
+    await withExportDir(async (sessionExportDir) => {
+        const calls = [];
+        const state = createRuntimeState();
+        // 不声明 loadSession/load 支持的 Agent：空会话导出不应触发 session/load。
+        state.agentInfo = { name: "msinsight-native", version: "0.1.0" };
+        state.sessions = [{ sessionId: "session-empty", title: "New session", updatedAt: "2026-09-13T06:31:33.000Z" }];
+        state.sessionContexts.set("session-empty", {
+            sessionId: "session-empty",
+            messages: [],
+        });
+        const service = createSessionService({
+            acpClient: {
+                async request(method) {
+                    calls.push(method);
+                    throw new Error(`Unexpected method: ${method}`);
+                },
+            },
+            config: { sessionExportDir },
+            eventBus: { broadcast: () => {} },
+            state,
+        });
+
+        const result = await service.exportSessionById("session-empty", { persist: true });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.session.sessionId, "session-empty");
+        assert.equal(result.messages.length, 0);
+        assert.match(result.markdown, /no messages/);
+        assert.equal(result.savedPath, join(sessionExportDir, result.filename));
+        assert.deepEqual(calls, []);
+    });
+});
+
+test("exportSessionById does not leave a stub context after a failed load", async () => {
+    await withExportDir(async (sessionExportDir) => {
+        const state = createRuntimeState();
+        state.agentCapabilities = { loadSession: true, session: {}, mcp: { http: true } };
+        state.sessions = [{ sessionId: "session-missing", title: "Missing session" }];
+        const service = createSessionService({
+            acpClient: {
+                async request(method) {
+                    throw new Error(`session not found: ${method}`);
+                },
+            },
+            config: { cwd: "/tmp", sessionExportDir },
+            eventBus: { broadcast: () => {} },
+            state,
+        });
+
+        const result = await service.exportSessionById("session-missing");
+
+        assert.equal(result.error, "session_not_found");
+        assert.equal(result.status, 404);
+        assert.equal(state.sessionContexts.has("session-missing"), false);
+    });
+});
+
+test("exportSessionById rejects a missing sessionId", async () => {
+    const service = createSessionService({
+        acpClient: { async request() { throw new Error("should not be called"); } },
+        config: {},
+        eventBus: { broadcast: () => {} },
+        state: createRuntimeState(),
+    });
+    const result = await service.exportSessionById("  ");
+    assert.equal(result.status, 400);
+    assert.equal(result.error, "session_id_required");
 });
 
 test("deleteSessionById rejects deletion while a prompt is pending", async () => {

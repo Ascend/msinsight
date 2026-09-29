@@ -374,6 +374,37 @@ runtime 启动时按以下顺序加载：
 
 **响应 5xx：** 实际响应状态码与错误信息由 `session/load` 或 `session/resume` 的失败决定；典型值为 500。
 
+### 4.6.1 `POST /api/sessions/export`
+
+一键导出指定会话。对 OpenCode、Claude Code、Codex、Insight-native 走同一条 ACP `session/load` 归一化通道；若该会话已有内存上下文（含新建的空会话），则不再次 load，直接导出当前消息，避免切换当前对话或对不支持 load 的 Agent 报错。
+
+桌面 App（Mac `wry:` / Windows `wry.localhost`）因 WebView 忽略 `<a download>`，请求 `persist: true` 后写入当前平台用户下载目录：macOS/Linux 为 `~/Downloads`（尊重 `XDG_DOWNLOAD_DIR`），Windows 为 `%USERPROFILE%\\Downloads`，也可用 `INSIGHT_SESSION_EXPORT_DIR` 覆盖。Jupyter 不落盘，由浏览器下载（外层 iframe 需 `allow-downloads`）。
+
+**请求 body：**
+
+```json
+{ "sessionId": "0a91...", "persist": true }
+```
+
+**响应 200：**
+
+```json
+{
+  "ok": true,
+  "format": "msinsight.agent-session.v1",
+  "exportedAt": "2026-09-13T06:41:00.000Z",
+  "filename": "insight-session-title-id-2026-09-13-06-41-00.json",
+  "markdown": "# title\n...",
+  "agent": { "name": "OpenCode", "version": "1.18.30" },
+  "session": { "sessionId": "0a91...", "title": "title", "updatedAt": "..." },
+  "messages": [],
+  "savedPath": "/Users/me/Downloads/insight-session-title-id-2026-09-13-06-41-00.json"
+}
+```
+
+**响应 400：** 缺 `sessionId`。
+**响应 404/409/5xx：** 与 `POST /api/sessions/load` 相同，仅在需要从 Agent 拉历史时出现。
+
 ### 4.7 `POST /api/sessions/delete`
 
 删除指定 session。
