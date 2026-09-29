@@ -110,10 +110,39 @@ test('searches model labels and identifiers and selects from filtered enabled op
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
     expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229, which: 229 });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onChange).toHaveBeenCalledWith('other/beta-pro');
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+});
+
+test('restores keyboard navigation after closing mid-composition', async () => {
+    const onChange = jest.fn();
+    render(<AgentSelect dropdownWidth={320} onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
+    const trigger = screen.getByRole('button', { name: 'Alpha' });
+    fireEvent.click(trigger);
+    const input = await screen.findByRole('combobox', { name: 'Search models' });
+    await waitFor(() => expect(input).toHaveFocus());
+
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(trigger);
+    await waitFor(() => expect(screen.queryByRole('combobox')).not.toBeInTheDocument());
+
+    fireEvent.click(trigger);
+    const reopened = await screen.findByRole('combobox', { name: 'Search models' });
+    await waitFor(() => expect(reopened).toHaveFocus());
+    fireEvent.keyDown(reopened, { key: 'ArrowDown' });
+    fireEvent.keyDown(reopened, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('provider/beta-fast');
 });
 
 test('shows an empty search result without selecting and resets search after closing', async () => {

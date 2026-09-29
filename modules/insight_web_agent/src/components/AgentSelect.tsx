@@ -19,6 +19,7 @@ import styled from '@emotion/styled';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import { createImeCompositionTracker } from '../imeComposition';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import checkIcon from '../icons/check.svg';
 
@@ -302,6 +303,7 @@ export const AgentSelect = ({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const optionsRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
+    const ime = useRef(createImeCompositionTracker()).current;
     const listboxId = useId();
     const selectedOption = options.find((option) => option.value === value);
     const displayedIcon = triggerIcon ?? selectedOption?.icon;
@@ -316,7 +318,10 @@ export const AgentSelect = ({
     }, [options, query, searchable]);
 
     useEffect(() => {
-        if (!open) setQuery('');
+        if (!open) {
+            setQuery('');
+            ime.reset();
+        }
     }, [open]);
 
     useEffect(() => {
@@ -440,7 +445,11 @@ export const AgentSelect = ({
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
-        if (event.nativeEvent.isComposing) return;
+        if (ime.shouldIgnoreShortcut(event)) return;
+        if (ime.consumeSuppressedEnter(event)) {
+            event.preventDefault();
+            return;
+        }
         if (event.key === 'Escape') {
             event.preventDefault();
             event.stopPropagation();
@@ -481,6 +490,9 @@ export const AgentSelect = ({
                     aria-activedescendant={visibleOptions[focusedIndex] ? `${listboxId}-${focusedIndex}` : undefined}
                     className="agent-select-search"
                     onChange={(event) => setQuery(event.target.value)}
+                    onCompositionEnd={ime.onCompositionEnd}
+                    onCompositionStart={ime.onCompositionStart}
+                    onCompositionUpdate={ime.onCompositionUpdate}
                     onKeyDown={handleKeyDown}
                     placeholder={search.placeholder}
                     ref={searchRef}

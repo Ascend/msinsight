@@ -17,9 +17,11 @@
  */
 import styled from '@emotion/styled';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import { ArrowUpOutlined } from '@ant-design/icons';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { createImeCompositionTracker } from '../imeComposition';
 import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
 import { useChatState } from '../hooks/useChatState';
 import arrowDownIcon from '../icons/arrow-down.svg';
@@ -421,7 +423,7 @@ const Container = styled.div`
 `;
 
 export const Composer = (): JSX.Element => {
-    const isComposingRef = useRef(false);
+    const ime = useRef(createImeCompositionTracker()).current;
     const commandMenuRef = useRef<HTMLDivElement>(null);
     const activeCommandRef = useRef<HTMLButtonElement>(null);
     const commandMenuId = useId();
@@ -488,10 +490,13 @@ export const Composer = (): JSX.Element => {
         sendMessage();
     };
 
-    const handleKeyDown = (event: any) => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
         const isPlainEnter = event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey;
-        const isComposing = isComposingRef.current || event.nativeEvent?.isComposing || event.isComposing;
-        if (isComposing) return;
+        if (ime.shouldIgnoreShortcut(event)) return;
+        if (ime.consumeSuppressedEnter(event)) {
+            event.preventDefault();
+            return;
+        }
         const isPlainArrow = !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
         if (showCommandMenu && isPlainArrow && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
             event.preventDefault();
@@ -585,8 +590,9 @@ export const Composer = (): JSX.Element => {
                         aria-controls={showCommandMenu ? commandMenuId : undefined}
                         aria-activedescendant={showCommandMenu ? `${commandMenuId}-${activeCommandIndex}` : undefined}
                         onChange={(event) => setInput(event.target.value)}
-                        onCompositionEnd={() => { isComposingRef.current = false; }}
-                        onCompositionStart={() => { isComposingRef.current = true; }}
+                        onCompositionEnd={ime.onCompositionEnd}
+                        onCompositionStart={ime.onCompositionStart}
+                        onCompositionUpdate={ime.onCompositionUpdate}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
                         placeholder={t('newMessagePlaceholder')}

@@ -117,6 +117,40 @@ test('does not send or prevent Enter while IME composition is active', () => {
     expect(state.sendMessage).not.toHaveBeenCalled();
 });
 
+test('does not send or prevent Enter when the key is still owned by IME', () => {
+    const state = renderComposer();
+    const input = screen.getByRole('textbox');
+
+    const defaultAllowed = fireEvent.keyDown(input, { key: 'Enter', keyCode: 229, which: 229 });
+
+    expect(defaultAllowed).toBe(true);
+    expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
+test('does not send the leftover Mac Enter that follows IME confirmation', () => {
+    const state = renderComposer();
+    const input = screen.getByRole('textbox');
+
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input);
+    const defaultAllowed = fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(defaultAllowed).toBe(false);
+    expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
+test('sends on Enter after IME confirmation has settled', async () => {
+    const state = renderComposer();
+    const input = screen.getByRole('textbox');
+
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input);
+    await Promise.resolve();
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(state.sendMessage).toHaveBeenCalledTimes(1);
+});
+
 test('sends on normal Enter when not composing', () => {
     const state = renderComposer();
     const input = screen.getByRole('textbox');

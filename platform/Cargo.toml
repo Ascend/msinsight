@@ -15,7 +15,7 @@ strip = "symbols"
 getrandom = "0.3"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
-wry = { registry = "crates-io", version="0.36", features = ["file-drop"], optional = true }
+wry = { registry = "crates-io", version="0.37", features = ["file-drop"], optional = true }
 tao = { registry = "crates-io", version="0.35", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
