@@ -16,6 +16,9 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
+#include <iomanip>
+#include <limits>
+#include <sstream>
 #include "SummaryDef.h"
 #include "OperatorProtocolRequest.h"
 #include "OperatorGroupConverter.h"
@@ -28,9 +31,32 @@
 #include "TrackInfoManager.h"
 #include "DbSummaryDataBase.h"
 
+namespace {
+const std::string PMU_TIME_SUFFIX = "_time";
+constexpr double NS_PER_US = 1000.0;
+} // namespace
+
 namespace Dic::Module::FullDb {
 using namespace Server;
 using namespace Dic::Module::Timeline;
+
+bool DbSummaryDataBase::IsPmuTimeColumn(const std::string &columnName) {
+    return StringUtil::EndWith(columnName, PMU_TIME_SUFFIX);
+}
+
+std::string DbSummaryDataBase::GetPmuDisplayColumnName(const std::string &columnName) {
+    return IsPmuTimeColumn(columnName) ? columnName + "(us)" : columnName;
+}
+
+std::string DbSummaryDataBase::GetPmuDisplayValue(const std::string &columnName, const std::string &value) {
+    if (!IsPmuTimeColumn(columnName) || !NumberUtil::IsDouble(value)) {
+        return value;
+    }
+    std::ostringstream stream;
+    stream << std::setprecision(std::numeric_limits<double>::digits10) << NumberUtil::StringToDouble(value) / NS_PER_US;
+    return stream.str();
+}
+
 bool DbSummaryDataBase::OpenDb(const std::string &dbPath, bool clearAllTable) {
     auto result =
         Database::OpenDb(dbPath, clearAllTable) && QueryMetaVersion() && AddCommunicationOpTableOpTypeIfNotExists();
@@ -431,7 +457,9 @@ bool DbSummaryDataBase::QueryOperatorDetailInfo(
         tmpInfo.compare = data;
         resultData.emplace_back(tmpInfo);
     }
-    response.pmuHeaders = FetchPmuColumnNames();
+    ConvertPmuTimeColumnsToUs(
+        rawPmuColumns_, pmuColumns_, resultData, [](auto &row) -> auto & { return row.compare.pmuDatas; });
+    response.pmuHeaders = pmuColumns_;
     response.data = resultData;
     response.level = OperatorGetLevel(sqlRes);
     return true;
@@ -450,6 +478,7 @@ bool DbSummaryDataBase::QueryAllOperatorDetailInfo(Protocol::OperatorStatisticRe
     } else {
         level = OperatorGetLevel(res);
     }
+    ConvertPmuTimeColumnsToUs(rawPmuColumns_, pmuColumns_, res, [](auto &row) -> auto & { return row.pmuDatas; });
     return true;
 }
 
@@ -552,7 +581,7 @@ OperatorDetailInfoRes DbSummaryDataBase::GetOperatorDetailRow(sqlite3_stmt *stmt
     one.outputShape = sqlite3_column_string(stmt, col++);
     one.outputType = sqlite3_column_string(stmt, col++);
     one.outputFormat = sqlite3_column_string(stmt, col++);
-    for (const auto &pmuCol : pmuColumns_) {
+    for (const auto &pmuCol : rawPmuColumns_) {
         // 注意这里不要判空，有多少存储多少，防止和pmuheaders错行
         one.pmuDatas[pmuCol] = sqlite3_column_string(stmt, col++);
     }
@@ -674,12 +703,13 @@ bool DbSummaryDataBase::QueryOperatorMoreInfo(
         one.outputShape = sqlite3_column_string(stmt, col++);
         one.outputType = sqlite3_column_string(stmt, col++);
         one.outputFormat = sqlite3_column_string(stmt, col++);
-        for (const auto &pmuCol : pmuColumns_) {
+        for (const auto &pmuCol : rawPmuColumns_) {
             // 注意这里不要判空，有多少存储多少，防止和pmuheaders错行
             one.pmuDatas[pmuCol] = sqlite3_column_string(stmt, col++);
         }
         res.emplace_back(one);
     }
+    ConvertPmuTimeColumnsToUs(rawPmuColumns_, pmuColumns_, res, [](auto &row) -> auto & { return row.pmuDatas; });
     response.level = OperatorGetLevel(res);
     response.data = res;
     response.pmuHeaders = pmuColumns_;
@@ -888,10 +918,10 @@ bool DbSummaryDataBase::QueryDetailTotalNum(OperatorStatisticReqParams &reqParam
 
 std::set<std::string> DbSummaryDataBase::FetchPmuColumnNames() {
     if (!isOpen || db == nullptr) {
-        return pmuColumns_;
+        return rawPmuColumns_;
     }
-    if (!CheckTableExist(TABLE_TASK_PMU_INFO) || !pmuColumns_.empty()) {
-        return pmuColumns_;
+    if (!CheckTableExist(TABLE_TASK_PMU_INFO) || !rawPmuColumns_.empty()) {
+        return rawPmuColumns_;
     }
     std::string queryColumnSql = "SELECT STRING_IDS.value "
                                  "FROM STRING_IDS "
@@ -909,7 +939,7 @@ std::set<std::string> DbSummaryDataBase::FetchPmuColumnNames() {
     int result = sqlite3_prepare_v2(db, queryColumnSql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         ServerLog::Error("Failed to get pmu cols Info. Msg:", sqlite3_errmsg(db), " ", result);
-        return pmuColumns_;
+        return rawPmuColumns_;
     }
     // 执行SQL查询并处理结果
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -920,11 +950,11 @@ std::set<std::string> DbSummaryDataBase::FetchPmuColumnNames() {
             ServerLog::Error("There is an SQL injection attack on colName. error colName: %", colName);
             return {};
         }
-        pmuColumns_.insert(colName);
+        rawPmuColumns_.insert(colName);
     }
     // 释放资源
     sqlite3_finalize(stmt);
-    return pmuColumns_;
+    return rawPmuColumns_;
 }
 
 // STRING_IDS 和 TASK_PMU_INFO表联查，用 globalTaskId分组
