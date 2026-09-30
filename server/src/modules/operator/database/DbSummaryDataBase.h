@@ -19,6 +19,7 @@
 #ifndef PROFILER_SERVER_DBSUMMARYDATABASE_H
 #define PROFILER_SERVER_DBSUMMARYDATABASE_H
 
+#include <utility>
 #include "VirtualSummaryDataBase.h"
 #include "OperatorProtocolRequest.h"
 #include "OperatorGroupConverter.h"
@@ -52,10 +53,37 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
     static void ParserEnd(const std::string &rankId, const std::string &fileId, bool result, const std::string &msg);
     static void Reset();
 
+    template <typename Row, typename GetPmuData>
+    static void ConvertPmuTimeColumnsToUs(const std::set<std::string> &rawHeaders,
+        std::set<std::string> &displayHeaders, std::vector<Row> &rows, GetPmuData getPmuData) {
+        displayHeaders.clear();
+        for (const auto &rawHeader : rawHeaders) {
+            const std::string displayHeader = GetPmuDisplayColumnName(rawHeader);
+            displayHeaders.insert(displayHeader);
+            if (displayHeader == rawHeader) {
+                continue;
+            }
+            for (auto &row : rows) {
+                auto &pmuData = getPmuData(row);
+                auto it = pmuData.find(rawHeader);
+                if (it == pmuData.end()) {
+                    continue;
+                }
+                std::string displayValue = GetPmuDisplayValue(rawHeader, it->second);
+                pmuData.erase(it);
+                pmuData.emplace(displayHeader, std::move(displayValue));
+            }
+        }
+    }
+
     bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) override;
 
   private:
     enum class TableCheckResult { AVAILABLE, MISSING, FAILED };
+
+    static bool IsPmuTimeColumn(const std::string &columnName);
+    static std::string GetPmuDisplayColumnName(const std::string &columnName);
+    static std::string GetPmuDisplayValue(const std::string &columnName, const std::string &value);
 
     std::set<std::string> FetchPmuColumnNames();
     std::string GenerateQueryDetailSqlForOperator();
@@ -104,6 +132,7 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
     OperatorDetailInfoRes GetOperatorDetailRow(sqlite3_stmt *stmt);
     std::string GetGroupNameByIdListStr(const std::string &idListStr);
 
+    std::set<std::string> rawPmuColumns_;
     std::string blockNumColumnName;
 };
 
