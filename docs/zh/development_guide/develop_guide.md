@@ -238,9 +238,16 @@ RAG 前端构建优先复用工作区依赖。即使传入 `modules/build/build.
 | 环境变量 | 含义 | 输入要求 |
 | --- | --- | --- |
 | `MSINSIGHT_RAG_MODE` | RAG 构建模式 | 可选。`development`（默认）或 `product-bundled` |
+| `MSINSIGHT_RAG_BUILD_MODE` | RAG 依赖构建策略 | 可选。`1` 使用 online 构建；未设置、空值或 `0` 保持现有 offline 路径 |
 | `MSINSIGHT_RAG_PACKAGE` | RAG Knowledge Package v4 路径 | 指向 `knowledge-pack-v4.zip` 普通文件 |
 | `MSINSIGHT_RAG_PACKAGE_SHA256` | 知识包 SHA256 sidecar 路径 | 指向与知识包匹配的 `knowledge-pack-v4.zip.sha256` 普通文件 |
 | `MSINSIGHT_RAG_MODEL_DIR` | 已解压的 ONNX Embedding 模型目录 | 包含 `model-manifest.json`、`onnx/model.onnx` 和 Tokenizer 配置文件 |
+
+设置 `MSINSIGHT_RAG_BUILD_MODE=1` 时仍须提供完整、有效的知识包、SHA256 sidecar 和模型目录；输入预检失败会在清理和编译前终止。online 模式允许前端 pnpm 安装依赖、后端预处理下载缺失源码，并取消 Cargo 的 `--offline`。知识包与 ONNX 模型仍从上述本地目录读取，不在线下载；RAG 顺序编译、预激活、元数据与 smoke 校验保持不变。此变量独立于 `MSINSIGHT_RAG_MODE`，开发模式和产品模式均支持。
+
+```powershell
+$env:MSINSIGHT_RAG_BUILD_MODE = "1"
+```
 
 Package schemaVersion 仍为 `4.0`，但知识包必须包含 `bm25-domain-dict.txt`，并满足以下约束：
 
