@@ -307,6 +307,132 @@ def test_top_level_rejects_partial_rag_environment() -> None:
         top.build_context_from_args(args, {top.Const.RAG_MODE_ENV: "release"})
 
 
+@pytest.mark.parametrize("mode,offline", [(None, True), ("", True), ("0", True), ("1", False)])
+@pytest.mark.parametrize("rag_mode", ["development", "product-bundled"])
+def test_rag_build_mode_selects_dependency_policy_without_changing_inputs(tmp_path, mode, offline, rag_mode):
+    top = load_top_build_module()
+    args = SimpleNamespace(build_version="26.2.0", whl_version=None, type=None)
+    environment = {
+        top.Const.RAG_MODE_ENV: rag_mode,
+        top.Const.RAG_PACKAGE_ENV: str(tmp_path / "knowledge-pack-v5.zip"),
+        top.Const.RAG_PACKAGE_SHA256_ENV: str(tmp_path / "knowledge-pack-v5.zip.sha256"),
+        top.Const.RAG_MODEL_DIR_ENV: str(tmp_path / "model"),
+    }
+    if mode is not None:
+        environment[top.Const.RAG_BUILD_MODE_ENV] = mode
+
+    context = top.build_context_from_args(args, environment)
+
+    assert context.offline is offline
+    assert context.rag.mode == rag_mode
+    assert context.rag.pack == tmp_path / "knowledge-pack-v5.zip"
+    assert context.rag.model_dir == tmp_path / "model"
+    child = top.rag_subprocess_environment(context, {top.Const.RAG_BUILD_MODE_ENV: "1"})
+    assert child[top.Const.RAG_PACKAGE_ENV] == environment[top.Const.RAG_PACKAGE_ENV]
+    assert child[top.Const.RAG_MODEL_DIR_ENV] == environment[top.Const.RAG_MODEL_DIR_ENV]
+    assert top.Const.RAG_BUILD_MODE_ENV not in child
+
+
+def test_online_rag_requires_complete_inputs_and_valid_build_mode():
+    top = load_top_build_module()
+    args = SimpleNamespace(build_version="26.2.0", whl_version=None, type=None)
+    with pytest.raises(ValueError, match="requires complete bundled RAG inputs"):
+        top.build_context_from_args(args, {top.Const.RAG_BUILD_MODE_ENV: "1"})
+    with pytest.raises(ValueError, match="bundled RAG options must be complete"):
+        top.build_context_from_args(args, {top.Const.RAG_BUILD_MODE_ENV: "1", top.Const.RAG_PACKAGE_ENV: "pack.zip"})
+    for value in ("2", "online", "false"):
+        with pytest.raises(ValueError, match="must be 0 or 1"):
+            top.build_context_from_args(args, {top.Const.RAG_BUILD_MODE_ENV: value})
+    assert top.build_context_from_args(args, {}).offline is False
+    assert top.build_context_from_args(args, {top.Const.RAG_BUILD_MODE_ENV: "0"}).rag is None
+
+
+@pytest.mark.parametrize("online", [False, True])
+def test_rag_online_routes_builders_and_packaging_without_dropping_rag(monkeypatch, online):
+    top = load_top_build_module()
+    calls = []
+    context = top.BuildContext("26.2.0", "26.2.0", "win", rag=object(), rag_build_online=online)
+    for name in ("build_server", "build_frontend", "build_server_offline", "build_frontend_offline"):
+        monkeypatch.setattr(top, name, lambda name=name: calls.append(name) or 0)
+    monkeypatch.setattr(top, "run_parallel_functions", lambda _: pytest.fail("RAG builds must remain sequential"))
+    monkeypatch.setattr(top, "build_acp_node_service", lambda received: calls.append(received) or 0)
+    assert top.build_core_artifacts(context) == 0
+    suffix = "" if online else "_offline"
+    assert calls == ["build_server" + suffix, "build_frontend" + suffix, context]
+    monkeypatch.setattr(top, "build_product_parallel", lambda *args, **kwargs: calls.append(kwargs["offline"]) or 0)
+    assert top.package_products(context) == 0
+    assert calls[-1] is (not online)
+
+
+def test_online_rag_preflight_fails_before_cleanup_or_dependency_install(monkeypatch, tmp_path):
+    top = load_top_build_module()
+    monkeypatch.setattr(top, "parse_args", lambda: SimpleNamespace(build_version="26.2.0", whl_version=None, type=None))
+    environment = {
+        top.Const.RAG_BUILD_MODE_ENV: "1",
+        top.Const.RAG_PACKAGE_ENV: str(tmp_path / "missing.zip"),
+        top.Const.RAG_PACKAGE_SHA256_ENV: str(tmp_path / "missing.zip.sha256"),
+        top.Const.RAG_MODEL_DIR_ENV: str(tmp_path / "model"),
+    }
+    monkeypatch.setattr(top.os, "environ", environment)
+    monkeypatch.setattr(top, "capture_source_snapshot", lambda _: object())
+    monkeypatch.setattr(top, "prepare", lambda _: pytest.fail("Invalid inputs must not trigger cleanup"))
+    with pytest.raises(ValueError, match="Package must be a regular file"):
+        top.main()
+
+
+@pytest.mark.parametrize("system", ["Windows", "Darwin", "Linux"])
+def test_online_package_does_not_pass_cargo_offline(monkeypatch, tmp_path, system):
+    top = load_top_build_module()
+    platform_dir = tmp_path / "platform"
+    (platform_dir / "resources").mkdir(parents=True)
+    monkeypatch.setattr(top.Const, "PLATFORM_DIR", str(platform_dir))
+    monkeypatch.setattr(top.Const, "PLATFORM_PREVIEW_DIR", str(tmp_path / "preview"))
+    monkeypatch.setattr(top.Const, "PLATFORM_TARGET_DIR", str(tmp_path / "target"))
+    monkeypatch.setattr(top.platform, "system", lambda: system)
+    monkeypatch.setattr(top.os, "putenv", lambda *_: None)
+    monkeypatch.setattr(top, "assemble_profiler_runtime", lambda _: None)
+    monkeypatch.setattr(top, "seed_default_workspace_skills", lambda _: 0)
+    monkeypatch.setattr(top, "set_mac_app_signature_certificate_id", lambda: None)
+    monkeypatch.setattr(top, "zip_package", lambda *_: 0)
+    commands = []
+    monkeypatch.setattr(top, "exec_command", lambda command, *_: commands.append(command) or 0)
+    assert top.build_package("26.2.0", "test", offline=False) == 0
+    assert len(commands) == 1
+    assert "--offline" not in commands[0]
+    assert "--release" in commands[0]
+
+
+@pytest.mark.parametrize("online", [False, True])
+def test_frontend_dependency_commands_follow_selected_policy(monkeypatch, online):
+    top = load_top_build_module()
+    commands = []
+    monkeypatch.setattr(top.os, "putenv", lambda *_: None)
+    monkeypatch.setattr(top, "exec_command", lambda command, *_: commands.append(command) or 0)
+    assert top.build_frontend(allow_dependency_install=online) == 0
+    assert ("--no-install" in commands[0]) is (not online)
+    assert ([top.Const.PNPM, "install"] in commands) is online
+    assert commands[-1] == [top.Const.PNPM, "build"]
+
+
+def test_online_server_allows_source_preparation_and_python_install(monkeypatch, tmp_path):
+    top = load_top_build_module()
+    monkeypatch.setattr(top, "PROJECT_PATH", str(tmp_path))
+    (tmp_path / "server").mkdir()
+    commands = []
+
+    def execute(command, *_):
+        commands.append(command)
+        # Stop before output normalization: native compilation is not part of this test.
+        return 0 if len(commands) == 1 else 1
+
+    monkeypatch.setattr(top, "exec_command", execute)
+    assert top.build_server(offline=False) == 1
+    assert commands == [
+        [top.Const.PYTHON, "preprocess_third_party.py"],
+        [top.Const.PYTHON, "build.py", "build"],
+    ]
+
+
 def test_top_level_passes_resolved_rag_inputs_only_through_child_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -552,6 +678,7 @@ def test_top_level_rejects_removed_rag_options_and_invalid_inputs_before_cleanup
     clean_environment = os.environ.copy()
     for name in (
         "MSINSIGHT_RAG_MODE",
+        "MSINSIGHT_RAG_BUILD_MODE",
         "MSINSIGHT_RAG_PACKAGE",
         "MSINSIGHT_RAG_PACKAGE_SHA256",
         "MSINSIGHT_RAG_MODEL_DIR",

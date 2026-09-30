@@ -96,6 +96,7 @@ class Const:
     RAG_PACKAGE_SHA256_ENV = 'MSINSIGHT_RAG_PACKAGE_SHA256'
     RAG_MODEL_DIR_ENV = 'MSINSIGHT_RAG_MODEL_DIR'
     RAG_MODE_ENV = 'MSINSIGHT_RAG_MODE'
+    RAG_BUILD_MODE_ENV = 'MSINSIGHT_RAG_BUILD_MODE'
     RAG_TARGET_PLATFORM_ENV = 'MSINSIGHT_RAG_TARGET_PLATFORM'
     RAG_TARGET_ARCH_ENV = 'MSINSIGHT_RAG_TARGET_ARCH'
     RAG_TARGET_LIBC_ENV = 'MSINSIGHT_RAG_TARGET_LIBC'
@@ -104,13 +105,18 @@ class Const:
 
 
 class BuildContext:
-    def __init__(self, build_version: str, whl_version: str, os_tag: str, rag=None):
+    def __init__(self, build_version: str, whl_version: str, os_tag: str, rag=None, rag_build_online=False):
         self.build_version = build_version
         self.whl_version = whl_version
         self.os_tag = os_tag
         self.rag = rag
+        self.rag_build_online = rag_build_online
         self.rag_facts = None
         self.source_snapshot = None
+
+    @property
+    def offline(self):
+        return self.rag is not None and not self.rag_build_online
 
 
 def init():
@@ -1117,6 +1123,7 @@ def rag_subprocess_environment(context, base_environment=None):
     environment = dict(os.environ if base_environment is None else base_environment)
     for name in (
         *rag_environment_names(),
+        Const.RAG_BUILD_MODE_ENV,
         Const.RAG_TARGET_PLATFORM_ENV,
         Const.RAG_TARGET_ARCH_ENV,
         Const.RAG_TARGET_LIBC_ENV,
@@ -1162,11 +1169,17 @@ def build_context_from_args(args, env=None) -> BuildContext:
     build_version = args.build_version or Const.DEFAULT_BUILD_VERSION
     whl_version = args.whl_version or Const.DEFAULT_BUILD_VERSION
     rag = resolve_rag_options(build_version, environment)
+    rag_build_mode = str(environment.get(Const.RAG_BUILD_MODE_ENV) or '').strip()
+    if rag_build_mode not in ('', '0', '1'):
+        raise ValueError(f'{Const.RAG_BUILD_MODE_ENV} must be 0 or 1')
+    if rag_build_mode == '1' and rag is None:
+        raise ValueError(f'{Const.RAG_BUILD_MODE_ENV}=1 requires complete bundled RAG inputs')
     return BuildContext(
         build_version=build_version,
         whl_version=whl_version,
         os_tag=get_os_tag(),
         rag=rag,
+        rag_build_online=rag_build_mode == '1',
     )
 
 
@@ -1194,8 +1207,8 @@ def run_parallel_functions(named_functions):
 
 
 def build_core_artifacts(context: BuildContext):
-    frontend_builder = build_frontend_offline if context.rag is not None else build_frontend
-    server_builder = build_server_offline if context.rag is not None else build_server
+    frontend_builder = build_frontend_offline if context.offline else build_frontend
+    server_builder = build_server_offline if context.offline else build_server
     if context.rag is not None:
         # Native MinGW compilation is memory-bound; development builds avoid competing frontends.
         for name, builder in [('server', server_builder), ('frontend', frontend_builder)]:
@@ -1225,7 +1238,7 @@ def package_products(context: BuildContext):
         context.build_version,
         context.whl_version,
         context.os_tag,
-        offline=context.rag is not None,
+        offline=context.offline,
     )
 
 
@@ -1365,12 +1378,14 @@ def main():
     logging.basicConfig(level=logging.INFO)
     args = parse_args()
     if is_clean_command(args):
-        if rag_environment_present(os.environ):
+        if rag_environment_present(os.environ) or os.environ.get(Const.RAG_BUILD_MODE_ENV, '').strip():
             raise ValueError('clean command does not accept bundled RAG options')
         return clean_build_cache()
 
     context = build_context_from_args(args)
     if context.rag is not None:
+        logging.info('RAG dependency build mode: %s; knowledge package and model use configured local inputs.',
+                     'offline' if context.offline else 'online')
         context.source_snapshot = capture_source_snapshot(Path(PROJECT_PATH))
         context.rag_facts = preflight_rag_inputs(
             context.rag.pack,
