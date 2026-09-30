@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details.
 # build modules
 
 import argparse
+import json
 import logging
 import multiprocessing
 import os
@@ -48,6 +49,47 @@ MODULES_MAP = {
 }
 
 BUILD_PROCESS_COUNT = 3
+
+
+def missing_build_dependencies():
+    missing = [] if os.path.isdir(os.path.join(MODULES_DIR, 'node_modules')) else ['node_modules']
+    # Packages without their own dependencies legitimately reuse the workspace root.
+    for module in ('lib', 'framework', *MODULES_MAP.keys()):
+        with open(os.path.join(MODULES_DIR, module, 'package.json'), encoding='utf-8') as stream:
+            manifest = json.load(stream)
+        if any(manifest.get(key) for key in ('dependencies', 'devDependencies', 'optionalDependencies')):
+            relative = os.path.join(module, 'node_modules')
+            if not os.path.isdir(os.path.join(MODULES_DIR, relative)):
+                missing.append(relative)
+    suffix = '.cmd' if platform.system() == 'Windows' else ''
+    for tool in ('cross-env', 'craco', 'react-scripts', 'esbuild'):
+        relative = os.path.join('node_modules', '.bin', tool + suffix)
+        if not os.path.isfile(os.path.join(MODULES_DIR, relative)):
+            missing.append(relative)
+    return missing
+
+
+def prepare_dependencies(install_dependencies=True):
+    missing = missing_build_dependencies()
+    if not install_dependencies and not missing:
+        logging.info('Using prepared frontend dependencies; dependency installation skipped.')
+        return 0
+
+    pnpm_cmd = 'pnpm.cmd' if platform.system() == 'Windows' else 'pnpm'
+    command = [pnpm_cmd, 'install']
+    if not install_dependencies:
+        logging.warning('Offline frontend dependencies are missing (%s); falling back to dependency installation.',
+                        ', '.join(missing))
+        command.extend(['--force', '--prod=false', '--frozen-lockfile'])
+    result = execute_cmd('modules', MODULES_DIR, command)
+    if result != 0:
+        logging.error('Failed to install frontend dependencies, %s', result)
+        return 1
+    missing = missing_build_dependencies()
+    if missing:
+        logging.error('Frontend dependencies remain incomplete after installation: %s', ', '.join(missing))
+        return 1
+    return 0
 
 
 def clean():
@@ -103,12 +145,8 @@ def parallel_build(install_dependencies=True):
     """
     logging.info('Start to build modules')
 
-    if install_dependencies:
-        pnpm_cmd = 'pnpm.cmd' if platform.system() == 'Windows' else 'pnpm'
-        result = execute_cmd('modules', MODULES_DIR, [pnpm_cmd, 'install'])
-        if result != 0:
-            logging.error('Failed to install dependencies, %s', result)
-            return 1
+    if prepare_dependencies(install_dependencies) != 0:
+        return 1
 
     modules = list(MODULES_MAP.keys())
     with multiprocessing.Pool(processes=BUILD_PROCESS_COUNT) as pool:
@@ -128,7 +166,8 @@ def main():
         multiprocessing.set_start_method('fork')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--no-install', action='store_true')
+    parser.add_argument('--no-install', action='store_true',
+                        help='reuse prepared dependencies; force-install if required frontend dependencies are missing')
     args = parser.parse_args()
 
     clean()

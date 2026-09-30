@@ -233,6 +233,8 @@ python3 build.py
 
 RAG 软件包通过环境变量提供知识包和 ONNX 模型输入，构建命令不再显式传递这些路径。路径变量全部设置时构建预激活 RAG；全部未设置时执行 code-only 构建；只设置部分变量会在清理和编译前直接报错。
 
+RAG 前端构建优先复用工作区依赖。即使传入 `modules/build/build.py --no-install`，若 workspace 或模块的 `node_modules` 缺失，或缺少 `cross-env`、`craco`、`react-scripts`、`esbuild`，也会在 `modules` 目录兜底执行 `pnpm install --force --prod=false --frozen-lockfile`。兜底安装需要可访问依赖源；安装失败或检查仍不完整时停止构建，不启动并行模块编译。完全离线的构建服务器必须提前准备完整依赖。
+
 | 环境变量 | 含义 | 输入要求 |
 | --- | --- | --- |
 | `MSINSIGHT_RAG_MODE` | RAG 构建模式 | 可选。`development`（默认）或 `product-bundled` |
