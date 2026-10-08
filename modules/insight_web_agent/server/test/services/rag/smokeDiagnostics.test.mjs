@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { EmbeddingRuntimeError } from "../../../services/rag/embeddingRuntime.mjs";
-import { formatSmokeError, redactSmokeText, smokeEnvironment, smokeFailureStage } from "../../../services/rag/smokeDiagnostics.mjs";
+import { formatSmokeError, redactSmokeText, smokeEnvironment, smokeFailureStage, smokeProcessSnapshot } from "../../../services/rag/smokeDiagnostics.mjs";
 
 test("smoke errors retain loader causes while redacting sensitive messages and stacks", () => {
     const directory = join(tmpdir(), "private model");
@@ -59,6 +59,19 @@ test("smoke error stacks redact multiline knowledge before limiting stack lines"
     const diagnostic = formatSmokeError(new Error(`Retrieval failed: ${knowledge}`), [knowledge]);
     assert.equal(JSON.stringify(diagnostic).includes("private knowledge line"), false);
     assert.match(diagnostic.stack, /Retrieval failed: <redacted>/);
+});
+
+test("original process snapshots select module paths and redact sensitive values without dumping report data", () => {
+    const privatePath = join(tmpdir(), "private-runtime", "binding.node");
+    const snapshot = smokeProcessSnapshot([dirname(privatePath)], () => ({
+        sharedObjects: [privatePath], environmentVariables: { token: "private-report-secret" },
+    }));
+    assert.equal(snapshot.pid, process.pid);
+    assert.equal(snapshot.loadedModules[0].path.includes("private-runtime"), false);
+    assert.equal(JSON.stringify(snapshot).includes("private-report-secret"), false);
+    assert.equal(typeof snapshot.memory.rss, "number");
+    const unavailable = smokeProcessSnapshot([], () => { throw new Error("report unavailable"); });
+    assert.equal(unavailable.error.message, "report unavailable");
 });
 
 test("smoke environment resolves ONNX from the bundle and reports missing native files", async (t) => {

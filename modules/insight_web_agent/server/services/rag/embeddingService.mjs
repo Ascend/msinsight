@@ -10,12 +10,13 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createEmbeddingRuntime, EmbeddingRuntimeError } from "./embeddingRuntime.mjs";
 
-export const createEmbeddingService = async ({ modelDir, runtimeDir, bundleRoot, nativeManifestRequired, runtime, platform, arch, libc } = {}) => {
+export const createEmbeddingService = async ({ modelDir, runtimeDir, bundleRoot, nativeManifestRequired, nativeLoadObserver, runtime, platform, arch, libc } = {}) => {
     const activeRuntime = runtime ?? await createEmbeddingRuntime({
         modelDir,
         runtimeDir,
         bundleRoot,
         nativeManifestRequired,
+        nativeLoadObserver,
         platform,
         arch,
         libc,

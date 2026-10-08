@@ -41,12 +41,16 @@ for (const phase of ["import", "initialization"]) {
             : "export const InferenceSession = {create: async () => {throw Object.assign(new Error('Invalid ONNX model'), {code:'ORT_INVALID_MODEL'});}};";
         const entry = await bundleFixture(root, "services/rag/embeddingRuntime.mjs", { "onnxruntime-node": nativeCode });
         const { createEmbeddingRuntime } = await import(pathToFileURL(entry).href);
-        await assert.rejects(createEmbeddingRuntime({ modelDir }), (error) => {
+        const phases = [];
+        await assert.rejects(createEmbeddingRuntime({ modelDir, nativeLoadObserver: (phase) => phases.push(phase) }), (error) => {
             assert.equal(error.code, phase === "import" ? "native_runtime_load_failed" : "onnx_initialization_failed");
             assert.equal(error.cause.code, phase === "import" ? "ERR_DLOPEN_FAILED" : "ORT_INVALID_MODEL");
             assert.match(error.cause.message, phase === "import" ? /specified module/ : /Invalid ONNX model/);
             return true;
         });
+        assert.deepEqual(phases, ["before_onnx_import"]);
+        await assert.rejects(createEmbeddingRuntime({ modelDir, nativeLoadObserver: () => { throw new Error("broken observer"); } }),
+            (error) => error.code === (phase === "import" ? "native_runtime_load_failed" : "onnx_initialization_failed"));
     });
 }
 
@@ -65,6 +69,7 @@ test("smoke entry emits precise loader stage and redacted original cause", async
     const failure = JSON.parse(result.stderr);
     assert.equal(failure.stage, "onnx_import");
     assert.equal(failure.error.cause.code, "ERR_DLOPEN_FAILED");
+    assert.equal(failure.process.pid > 0, true);
     assert.match(failure.error.cause.message, /Cannot load/);
     assert.equal(result.stderr.includes(modelDir), false);
     assert.equal(result.stderr.includes("required-smoke-credential-marker"), false);
@@ -116,10 +121,25 @@ for (const failure of [false, true]) {
         const root = await fixtureRoot(t);
         await prepareWrapperInputs(root);
         const error = { event: "rag_smoke_failure", stage: "onnx_import", error: { code: "native_runtime_load_failed", cause: { code: "ERR_DLOPEN_FAILED", message: `Cannot load ${join(root, "rag-runtime", "model.onnx")}` } } };
+        error.process = { loadedModules: Array.from({ length: 128 }, (_, index) => ({
+            name: `runtime${index}.dll`, path: `C:\\diagnostic-snapshot\\${"x".repeat(160)}\\runtime${index}.dll`,
+        })) };
         await writeFile(join(root, "rag-required-smoke.mjs"), failure
             ? `console.error(${JSON.stringify(JSON.stringify(error))}); process.exitCode=1;`
             : `console.log(${JSON.stringify(JSON.stringify(summary))});`);
-        const result = runWrapper(root);
+        const preload = failure ? join(root, "probe-fixture.cjs") : undefined;
+        if (preload) {
+            await writeFile(preload, `
+                const cp = require('node:child_process');
+                const original = cp.spawnSync;
+                cp.spawnSync = (command, args, options) =>
+                    String(args[0]).endsWith('probe-rag-native.mjs') || command.endsWith('powershell.exe')
+                        ? {status:0,signal:null,stdout:'{"event":"probe_fixture"}\\n',stderr:''}
+                        : original(command, args, options);
+                require('node:module').syncBuiltinESMExports();
+            `);
+        }
+        const result = runWrapper(root, preload);
         assert.equal(result.status, failure ? 1 : 0, result.stderr);
         const events = parseEvents(result.stderr);
         const exit = events.find(({ event }) => event === "rag_smoke_child_exit");
@@ -128,11 +148,16 @@ for (const failure of [false, true]) {
         if (failure) {
             const childFailure = events.find(({ event }) => event === "rag_smoke_failure");
             assert.equal(childFailure.error.cause.code, "ERR_DLOPEN_FAILED");
+            assert.equal(childFailure.process.loadedModules.length, 128);
             assert.equal(result.stderr.includes(JSON.stringify(join(root, "rag-runtime")).slice(1, -1)), false);
             assert.equal(events.at(-1).error.code, "required_rag_smoke_failed");
             assert.equal(result.stdout, "");
+            assert.equal(events.some(({ event }) => event === "rag_native_probes_start"), true);
+            assert.equal(events.some(({ probe }) => probe === "node_source"), true);
+            assert.equal(events.some(({ probe }) => probe === "node_bundle"), true);
         } else {
             assert.deepEqual(JSON.parse(result.stdout), summary);
+            assert.equal(events.some(({ event }) => event === "rag_native_probes_start"), false);
         }
     });
 }
@@ -203,9 +228,12 @@ function runNode(entry, cwd, env = process.env) {
     return spawnSync(process.execPath, [entry], { cwd, env, encoding: "utf8", timeout: 15_000, windowsHide: true });
 }
 
-function runWrapper(root) {
-    return runNode(join(packageRoot, "scripts", "run-required-rag-smoke.mjs"), packageRoot, {
-        ...process.env, MSINSIGHT_DIST_SERVER_DIR: root,
+function runWrapper(root, preload) {
+    return spawnSync(process.execPath, [
+        ...(preload ? ["--require", preload] : []), join(packageRoot, "scripts", "run-required-rag-smoke.mjs"),
+    ], {
+        cwd: packageRoot, env: { ...process.env, MSINSIGHT_DIST_SERVER_DIR: root },
+        encoding: "utf8", timeout: 15_000, windowsHide: true,
     });
 }
 

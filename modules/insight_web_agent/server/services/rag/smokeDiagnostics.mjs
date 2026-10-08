@@ -8,7 +8,7 @@
 
 import { lstatSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const redactSmokeText = (value, sensitiveValues = [], limit = 2048) => {
@@ -45,10 +45,40 @@ export const formatSmokeError = (error, sensitiveValues = [], seen = new Set()) 
     return result;
 };
 
+export const sanitizeSmokeDiagnostic = (value, sensitiveValues = [], depth = 0) => {
+    if (depth > 12) return "[truncated]";
+    if (typeof value === "string") return redactSmokeText(value, sensitiveValues, 4096);
+    if (Array.isArray(value)) return value.slice(0, 256).map((item) => sanitizeSmokeDiagnostic(item, sensitiveValues, depth + 1));
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).slice(0, 64)
+        .map(([key, item]) => [redactSmokeText(key, sensitiveValues, 128), sanitizeSmokeDiagnostic(item, sensitiveValues, depth + 1)]));
+    return value;
+};
+
 export const smokeFailureStage = (error, fallback) => ({
     native_runtime_load_failed: "onnx_import",
     onnx_initialization_failed: "onnx_initialization",
 }[error?.code] ?? fallback);
+
+export const smokeProcessSnapshot = (sensitiveValues = [], report = () => process.report.getReport()) => {
+    const clean = (value) => redactSmokeText(value, sensitiveValues);
+    try {
+        const modules = report().sharedObjects ?? [];
+        return {
+            pid: process.pid,
+            node: process.version,
+            arch: process.arch,
+            execPath: clean(process.execPath),
+            cwd: clean(process.cwd()),
+            execArgvFlags: process.execArgv.filter((argument) => argument.startsWith("-")).map((argument) => argument.split("=")[0]),
+            nodeOptionsFlags: [...new Set((process.env.NODE_OPTIONS ?? "").match(/--[a-z][a-z0-9-]*(?==|\s|$)/gi) ?? [])],
+            memory: process.memoryUsage(),
+            loadedModules: modules.slice(0, 128).map((path) => ({ name: clean(basename(path)), path: clean(path) })),
+            modulesTruncated: modules.length > 128,
+        };
+    } catch (error) {
+        return { error: formatSmokeError(error, sensitiveValues) };
+    }
+};
 
 export const smokeEnvironment = (bundleRoot, nativeFiles = []) => {
     const resolver = createRequire(join(bundleRoot, "rag-required-smoke.mjs"));

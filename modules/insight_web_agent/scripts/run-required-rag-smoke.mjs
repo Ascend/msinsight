@@ -13,7 +13,8 @@ import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expectedNativeFiles } from "../server/services/rag/nativeRuntimeManifest.mjs";
 import { resolveRagTarget } from "../server/services/rag/platformSupport.mjs";
-import { formatSmokeError, redactSmokeText, smokeEnvironment } from "../server/services/rag/smokeDiagnostics.mjs";
+import { formatSmokeError, redactSmokeText, sanitizeSmokeDiagnostic, smokeEnvironment } from "../server/services/rag/smokeDiagnostics.mjs";
+import { hasNativeLoadFailure, runNativeFailureDiagnostics } from "./rag-native-diagnostics.mjs";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const distDir = resolve(process.env.MSINSIGHT_DIST_SERVER_DIR ?? join(packageRoot, "dist-server"));
@@ -48,13 +49,31 @@ try {
         timeout: 120_000,
         windowsHide: true,
     });
-    if (result.stderr) process.stderr.write(`${redactSmokeText(result.stderr, sensitiveValues, 16_384).trimEnd()}\n`);
+    if (result.stderr) {
+        const lines = result.stderr.trimEnd().split(/\r?\n/);
+        const selected = lines.length <= 64 ? lines : [...lines.slice(0, 32), ...lines.slice(-32)];
+        for (const line of selected) {
+            try { diagnostic(sanitizeSmokeDiagnostic(JSON.parse(line), sensitiveValues)); }
+            catch { process.stderr.write(`${redactSmokeText(line, sensitiveValues, 4096)}\n`); }
+        }
+        if (lines.length > 64) diagnostic({ event: "rag_smoke_stderr_truncated", omittedLines: lines.length - 64 });
+    }
     diagnostic({
         event: "rag_smoke_child_exit",
         status: result.status,
         signal: result.signal,
         ...(result.error ? { error: formatSmokeError(result.error, sensitiveValues) } : {}),
     });
+    if (result.status !== 0 && hasNativeLoadFailure(result.stderr)) {
+        try {
+            const primaryFailure = result.stderr.split(/\r?\n/).map((line) => {
+                try { return JSON.parse(line); } catch { return undefined; }
+            }).find((value) => value?.event === "rag_smoke_failure");
+            runNativeFailureDiagnostics({ packageRoot, distDir, emit: diagnostic, primaryFailure });
+        } catch (error) {
+            diagnostic({ event: "rag_native_probes_failure", error: formatSmokeError(error, sensitiveValues) });
+        }
+    }
     assert.equal(result.error, undefined, "required packaged-smoke child did not exit cleanly");
     assert.equal(result.signal, null, "required packaged-smoke child was terminated");
     assert.equal(result.status, 0, "required packaged-smoke child failed; see preceding diagnostics");

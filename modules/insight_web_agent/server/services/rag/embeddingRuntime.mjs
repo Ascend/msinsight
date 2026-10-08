@@ -46,6 +46,7 @@ export const createEmbeddingRuntime = async ({
     runtimeDir,
     bundleRoot,
     nativeManifestRequired = false,
+    nativeLoadObserver,
     platform = process.platform,
     arch = process.arch,
     libc,
@@ -67,6 +68,8 @@ export const createEmbeddingRuntime = async ({
         });
     }
     let ort;
+    // Diagnostic observers must not alter native loading or replace its failure.
+    try { nativeLoadObserver?.("before_onnx_import"); } catch { }
     try {
         ort = await import("onnxruntime-node");
     } catch (cause) {

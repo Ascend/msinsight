@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { createCapabilityCenter } from "./capability-center/service.mjs";
 import { createRagService } from "./services/rag/ragService.mjs";
 import { fixedRagPaths } from "./services/rag/runtimePaths.mjs";
-import { formatSmokeError, smokeFailureStage } from "./services/rag/smokeDiagnostics.mjs";
+import { formatSmokeError, smokeFailureStage, smokeProcessSnapshot } from "./services/rag/smokeDiagnostics.mjs";
 
 const QUERY = "MindStudio Insight 内存分析如何定位异常分配";
 const CREDENTIAL_MARKER = "required-smoke-credential-marker";
@@ -32,6 +32,9 @@ for (const name of Object.keys(originalConsole)) {
 
 try {
     const ragService = await createRagService({
+        nativeLoadObserver: (stage) => originalConsole.error(JSON.stringify({
+            event: "rag_smoke_process", stage, process: smokeProcessSnapshot(diagnosticRedactions()),
+        })),
         config: {
             enabled: true,
             failOpen: false,
@@ -73,6 +76,7 @@ try {
         event: "rag_smoke_failure",
         stage: smokeFailureStage(error, stage),
         error: { code: "required_rag_smoke_failed", ...formatSmokeError(error, diagnosticRedactions()) },
+        process: smokeProcessSnapshot(diagnosticRedactions()),
     }));
     process.exitCode = 1;
 }
