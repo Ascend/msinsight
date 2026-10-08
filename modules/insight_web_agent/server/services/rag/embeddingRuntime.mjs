@@ -34,8 +34,8 @@ const REQUIRED_FILES = new Set([
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
 export class EmbeddingRuntimeError extends Error {
-    constructor(code, message) {
-        super(message);
+    constructor(code, message, options) {
+        super(message, options);
         this.name = "EmbeddingRuntimeError";
         this.code = code;
     }
@@ -69,14 +69,14 @@ export const createEmbeddingRuntime = async ({
     let ort;
     try {
         ort = await import("onnxruntime-node");
-    } catch {
-        throw new EmbeddingRuntimeError("native_runtime_load_failed", "Unable to load the RAG native runtime");
+    } catch (cause) {
+        throw new EmbeddingRuntimeError("native_runtime_load_failed", "Unable to load the RAG native runtime", { cause });
     }
     let session;
     try {
         session = await ort.InferenceSession.create(join(directory, "onnx", "model.onnx"), { executionProviders: ["cpu"] });
-    } catch {
-        throw new EmbeddingRuntimeError("onnx_initialization_failed", "Unable to initialize ONNX embedding model");
+    } catch (cause) {
+        throw new EmbeddingRuntimeError("onnx_initialization_failed", "Unable to initialize ONNX embedding model", { cause });
     }
     validateSession(session, manifest);
     return { modelDir: directory, manifest, session, ...(nativeRuntimeManifest ? { nativeRuntimeManifest } : {}) };

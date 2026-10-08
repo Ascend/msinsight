@@ -7,10 +7,12 @@
  */
 
 import assert from "node:assert/strict";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCapabilityCenter } from "./capability-center/service.mjs";
 import { createRagService } from "./services/rag/ragService.mjs";
 import { fixedRagPaths } from "./services/rag/runtimePaths.mjs";
+import { formatSmokeError, smokeFailureStage } from "./services/rag/smokeDiagnostics.mjs";
 
 const QUERY = "MindStudio Insight 内存分析如何定位异常分配";
 const CREDENTIAL_MARKER = "required-smoke-credential-marker";
@@ -18,13 +20,17 @@ const originalConsole = Object.fromEntries(
     ["log", "info", "warn", "error", "debug"].map((name) => [name, console[name].bind(console)]),
 );
 const capturedLogs = [];
+const entryPath = fileURLToPath(import.meta.url);
+const paths = fixedRagPaths(entryPath);
+const sensitiveValues = [QUERY, CREDENTIAL_MARKER, paths.ragDataDir, paths.runtimeDir, paths.modelDir];
+const diagnosticRedactions = () => [...sensitiveValues, dirname(entryPath), process.cwd()];
+let stage = "rag_service_initialization";
 
 for (const name of Object.keys(originalConsole)) {
     console[name] = (...values) => capturedLogs.push(values.map(safeLogValue).join(" "));
 }
 
 try {
-    const paths = fixedRagPaths(fileURLToPath(import.meta.url));
     const ragService = await createRagService({
         config: {
             enabled: true,
@@ -35,25 +41,23 @@ try {
     });
     assert.equal(ragService.isEnabled(), true, "required smoke must not fail open");
 
+    stage = "capability_registration";
     const capabilityCenter = createCapabilityCenter({
         ragService,
         frontendCommandService: { request() { throw new Error("frontend command is not used by RAG smoke"); } },
     });
     assert.equal(capabilityCenter.list().some(({ name }) => name === "rag_retrieve"), true);
+    stage = "rag_retrieve";
     const result = await capabilityCenter.invoke({ name: "rag_retrieve", input: { query: QUERY } });
+    if (Array.isArray(result?.sources)) sensitiveValues.push(...result.sources.map((source) => source?.knowledgeText));
+    stage = "result_validation";
     assert.equal(result.schemaVersion, "1.0");
     assert.equal(result.status, "ok");
     assert.ok(result.sources.length > 0);
     assert.ok(result.sources.every(({ sourceLabel, knowledgeText }) => sourceLabel && knowledgeText));
 
-    const forbidden = [
-        QUERY,
-        CREDENTIAL_MARKER,
-        paths.ragDataDir,
-        paths.runtimeDir,
-        paths.modelDir,
-        ...result.sources.map(({ knowledgeText }) => knowledgeText),
-    ].filter(Boolean);
+    stage = "sensitive_log_scan";
+    const forbidden = sensitiveValues.filter(Boolean);
     const logs = capturedLogs.join("\n");
     for (const value of forbidden) assert.equal(logs.includes(value), false, "sensitive smoke value leaked to logs");
 
@@ -65,7 +69,11 @@ try {
         sensitiveLogScan: "passed",
     }));
 } catch (error) {
-    originalConsole.error(JSON.stringify({ error: { code: error?.code ?? "required_rag_smoke_failed" } }));
+    originalConsole.error(JSON.stringify({
+        event: "rag_smoke_failure",
+        stage: smokeFailureStage(error, stage),
+        error: { code: "required_rag_smoke_failed", ...formatSmokeError(error, diagnosticRedactions()) },
+    }));
     process.exitCode = 1;
 }
 
