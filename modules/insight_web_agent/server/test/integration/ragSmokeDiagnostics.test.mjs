@@ -39,18 +39,24 @@ for (const phase of ["import", "initialization"]) {
         const nativeCode = phase === "import"
             ? "throw Object.assign(new Error('The specified module could not be found.'), {code:'ERR_DLOPEN_FAILED'}); export const InferenceSession = {};"
             : "export const InferenceSession = {create: async () => {throw Object.assign(new Error('Invalid ONNX model'), {code:'ORT_INVALID_MODEL'});}};";
-        const entry = await bundleFixture(root, "services/rag/embeddingRuntime.mjs", { "onnxruntime-node": nativeCode });
-        const { createEmbeddingRuntime } = await import(pathToFileURL(entry).href);
-        const phases = [];
-        await assert.rejects(createEmbeddingRuntime({ modelDir, nativeLoadObserver: (phase) => phases.push(phase) }), (error) => {
-            assert.equal(error.code, phase === "import" ? "native_runtime_load_failed" : "onnx_initialization_failed");
-            assert.equal(error.cause.code, phase === "import" ? "ERR_DLOPEN_FAILED" : "ORT_INVALID_MODEL");
-            assert.match(error.cause.message, phase === "import" ? /specified module/ : /Invalid ONNX model/);
-            return true;
-        });
-        assert.deepEqual(phases, ["before_onnx_import"]);
-        await assert.rejects(createEmbeddingRuntime({ modelDir, nativeLoadObserver: () => { throw new Error("broken observer"); } }),
-            (error) => error.code === (phase === "import" ? "native_runtime_load_failed" : "onnx_initialization_failed"));
+        for (const observerThrows of [false, true]) {
+            // esbuild 0.28.0 leaves a throwing mock partially initialized; isolate each scenario.
+            const scenarioRoot = await fixtureRoot(t);
+            const entry = await bundleFixture(scenarioRoot, "services/rag/embeddingRuntime.mjs", { "onnxruntime-node": nativeCode });
+            const { createEmbeddingRuntime } = await import(pathToFileURL(entry).href);
+            const phases = [];
+            const nativeLoadObserver = (phase) => {
+                phases.push(phase);
+                if (observerThrows) throw new Error("broken observer");
+            };
+            await assert.rejects(createEmbeddingRuntime({ modelDir, nativeLoadObserver }), (error) => {
+                assert.equal(error.code, phase === "import" ? "native_runtime_load_failed" : "onnx_initialization_failed");
+                assert.equal(error.cause.code, phase === "import" ? "ERR_DLOPEN_FAILED" : "ORT_INVALID_MODEL");
+                assert.match(error.cause.message, phase === "import" ? /specified module/ : /Invalid ONNX model/);
+                return true;
+            });
+            assert.deepEqual(phases, ["before_onnx_import"]);
+        }
     });
 }
 
