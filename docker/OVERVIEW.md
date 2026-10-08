@@ -31,7 +31,7 @@ Tags follow this format:
 
 | Field | Description | Example Value |
 | ------ | ------ | ------ |
-| Version | MindStudio Insight version | `26.1.0` |
+| Version | MindStudio Insight version | `26.2.0` |
 | OS | Base operating system of the image | `ubuntu22.04`, `openeuler24.03` |
 | Python Version | Built-in Python version of the image | `3.10` |
 
@@ -39,8 +39,8 @@ By default, images are published as multi-architecture manifests. The same tag s
 
 | Tag | Operating System | Built-in Python Version | Dockerfile |
 | ------ | ------ | ------ | ------ |
-| `26.1.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
-| `26.1.0-openeuler24.03-py3.11` | openEuler 24.03 LTS | 3.11 | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
+| `26.2.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
+| `26.2.0-openeuler24.03-py3.11` | openEuler 24.03 LTS | 3.11 | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
 
 ### Directory Structure
 
@@ -62,8 +62,8 @@ docker/
 
 | Parameter | Description | Default |
 | ------ | ------ | ------ |
-| `VERSION` | MindStudio Insight package version | `26.1.0` |
-| `TAG` | MindStudio Insight release tag | `26.1.0` |
+| `VERSION` | MindStudio Insight package version | `26.2.0` |
+| `TAG` | MindStudio Insight release tag | `26.2.0` |
 | `TARGETARCH` | Docker build target architecture injected by BuildKit/buildx | `amd64` or `arm64` |
 
 The Dockerfiles map Docker architecture names to release package architecture names:
@@ -110,7 +110,7 @@ docker run -d \
   -v /path/to/profile_data:/opt/insight/data \
   -v /path/to/certs:/etc/nginx/certs:ro \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04-py3.10
+  msinsight:26.2.0-ubuntu22.04-py3.10
 ```
 
 For example, when using host port `9443`, open the following URL in a browser:
@@ -129,7 +129,7 @@ docker run -d \
   -p <host_http_port>:80 \
   -v /path/to/profile_data:/opt/insight/data \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04-py3.10
+  msinsight:26.2.0-ubuntu22.04-py3.10
 ```
 
 For example, when using host port `9880`, open the following URL in a browser:
@@ -179,7 +179,7 @@ docker build \
 You can create a custom image based on the official image:
 
 ```dockerfile
-FROM msinsight:26.1.0-ubuntu22.04-py3.10
+FROM msinsight:26.2.0-ubuntu22.04-py3.10
 
 # Add custom build steps as needed.
 ```
