@@ -31,7 +31,7 @@ Tag 遵循以下格式：
 
 | 字段 | 说明 | 示例值 |
 | ------ | ------ | ------ |
-| 版本号 | MindStudio Insight 版本 | `26.1.0` |
+| 版本号 | MindStudio Insight 版本 | `26.2.0` |
 | 操作系统 | 镜像基础操作系统 | `ubuntu22.04`、`openeuler24.03` |
 | Python版本 | 镜像内置Python版本 | `3.10` |
 
@@ -39,8 +39,8 @@ Tag 遵循以下格式：
 
 | Tag | 操作系统 | 内置Python版本 | Dockerfile |
 | ------ | ------ | ------ | ------ |
-| `26.1.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
-| `26.1.0-openeuler24.03-py3.11` | openEuler 24.03 LTS | 3.11 | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
+| `26.2.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/26.2.0/docker/Dockerfile.ubuntu) |
+| `26.2.0-openeuler24.03-py3.11` | openEuler 24.03 LTS | 3.11 | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/26.2.0/docker/Dockerfile.openEuler) |
 
 ### 目录结构
 
@@ -62,8 +62,8 @@ docker/
 
 | 参数 | 说明 | 默认值 |
 | ------ | ------ | ------ |
-| `VERSION` | MindStudio Insight 软件包版本 | `26.1.0` |
-| `TAG` | MindStudio Insight 发布 Tag | `26.1.0` |
+| `VERSION` | MindStudio Insight 软件包版本 | `26.2.0` |
+| `TAG` | MindStudio Insight 发布 Tag | `26.2.0` |
 | `TARGETARCH` | Docker 构建目标架构，由 BuildKit/buildx 注入 | `amd64` 或 `arm64` |
 
 Dockerfile 会将 Docker 架构名称映射为发布包架构名称：
@@ -110,7 +110,7 @@ docker run -d \
   -v /path/to/profile_data:/opt/insight/data \
   -v /path/to/certs:/etc/nginx/certs:ro \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04-py3.10
+  msinsight:26.2.0-ubuntu22.04-py3.10
 ```
 
 例如使用宿主机端口 `9443` 时，浏览器访问：
@@ -129,7 +129,7 @@ docker run -d \
   -p <host_http_port>:80 \
   -v /path/to/profile_data:/opt/insight/data \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04-py3.10
+  msinsight:26.2.0-ubuntu22.04-py3.10
 ```
 
 例如使用宿主机端口 `9880` 时，浏览器访问：
@@ -179,7 +179,7 @@ docker build \
 可基于正式镜像制作自定义镜像：
 
 ```dockerfile
-FROM msinsight:26.1.0-ubuntu22.04-py3.10
+FROM msinsight:26.2.0-ubuntu22.04-py3.10
 
 # 根据需要添加自定义构建步骤。
 ```

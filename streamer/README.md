@@ -31,7 +31,7 @@ The scripts focus on the container runtime itself: image discovery, HTTP or HTTP
 Example image name:
 
 ```text
-msinsight:26.1.0-ubuntu22.04
+msinsight:26.2.0-ubuntu22.04-py3.10
 ```
 
 If no local `msinsight` image is found, download or build one first. Recommended download site:
@@ -150,7 +150,7 @@ curl -k \
 
 ```bash
 python3 run_insight_streamer.py \
-  --image msinsight:26.1.0-ubuntu22.04 \
+  --image msinsight:26.2.0-ubuntu22.04-py3.10 \
   -v /path/to/profile_data
 ```
 
@@ -158,7 +158,7 @@ python3 run_insight_streamer.py \
 
 ```bash
 python3 run_insight_streamer.py \
-  --image msinsight:26.1.0-ubuntu22.04 \
+  --image msinsight:26.2.0-ubuntu22.04-py3.10 \
   --https-port 9880 \
   --cert-dir /path/to/certs \
   -v /path/to/profile_data

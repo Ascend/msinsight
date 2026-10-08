@@ -173,7 +173,7 @@ def parse_args():
             "  run_insight_streamer.py\n"
             "  run_insight_streamer.py -v /path/to/profile_data\n"
             "  run_insight_streamer.py --cert-dir docker/certs -v /path/to/profile_data\n"
-            "  run_insight_streamer.py --image msinsight:26.1.0-ubuntu22.04 --https-port 8443 --cert-dir /path/to/certs\n"
+            "  run_insight_streamer.py --image msinsight:26.2.0-ubuntu22.04-py3.10 --https-port 8443 --cert-dir /path/to/certs\n"
             "\nAdditional docker arguments may be passed after '--'.\n"
             "  run_insight_streamer.py -v /data -- --cpus 2 --memory 4g"
         ),
@@ -234,7 +234,7 @@ def resolve_image(user_image):
 
     logging.error("no local MindStudio Insight Docker image was found.")
     logging.error("Expected a local image repository named '%s', for example:", IMAGE_REPOSITORY_NAME)
-    logging.error("  msinsight:26.1.0-ubuntu22.04")
+    logging.error("  msinsight:26.2.0-ubuntu22.04-py3.10")
     logging.error("Please download or build the image first. Recommended download site: %s", ASCENDHUB_URL)
     sys.exit(1)
 
