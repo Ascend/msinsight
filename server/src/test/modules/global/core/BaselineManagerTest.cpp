@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include <algorithm>
 #include <gtest/gtest.h>
 #include "BaselineManager.h"
 #include "BaselineManagerService.h"
@@ -30,6 +31,9 @@ using namespace Dic::Module::Global;
 class BaselineManagerTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {
+        auto dataEngine = Dic::Module::Timeline::DataEngine::Instance();
+        dataEngine->SetRepositoryFactory(Dic::Module::Timeline::RepositoryFactory::Instance());
+        Dic::Module::Timeline::RenderEngine::Instance()->SetDataEngineInterface(dataEngine);
         std::string systemDbPath = TestSuit::GetTestDataFile();
         ProjectExplorerManager::Instance().InitSystemMemoryDbPath(systemDbPath);
         InitProjectExplorerData();
@@ -38,7 +42,67 @@ class BaselineManagerTest : public ::testing::Test {
     static void TearDownTestSuite() { ClearProjectExplorerData(); }
 
   protected:
-    inline static int retry = 5;
+    std::vector<std::string> temporaryProjects;
+
+    void TearDown() override {
+        if (temporaryProjects.empty()) {
+            return;
+        }
+        BaselineManagerService::ResetBaseline(true);
+        Dic::Module::Timeline::DataBaseManager::Instance().Clear();
+        for (const auto &projectName : temporaryProjects) {
+            ClearTemporaryProject(projectName);
+        }
+    }
+
+    static void ClearTemporaryProject(const std::string &projectName) {
+        auto &manager = ProjectExplorerManager::Instance();
+        if (!manager.QueryProjectExplorer(projectName, {}).empty()) {
+            manager.ClearProjectExplorer({projectName});
+        }
+    }
+
+    bool SaveTemporaryProject(const ProjectExplorerInfo &info) {
+        if (std::find(temporaryProjects.begin(), temporaryProjects.end(), info.projectName) ==
+            temporaryProjects.end()) {
+            ClearTemporaryProject(info.projectName);
+            temporaryProjects.push_back(info.projectName);
+        }
+        return ProjectExplorerManager::Instance().SaveProjectExplorer(info, false);
+    }
+
+    static BaselineSettingRequest CreateBaselineRequest(
+        const std::string &baselineProject, const std::string &currentProject, const std::string &filePath) {
+        BaselineSettingRequest request;
+        request.projectName = currentProject;
+        request.params.projectName = baselineProject;
+        request.params.filePath = filePath;
+        request.params.currentClusterPath = COMPARE;
+        return request;
+    }
+
+    static void ExpectSingleDbBaseline(const BaselineSettingRequest &request) {
+        BaselineInfo baselineInfo;
+        baselineInfo.parsedFilePath = request.params.filePath;
+        EXPECT_TRUE(BaselineManagerService::InitBaselineData(request, baselineInfo));
+        EXPECT_TRUE(baselineInfo.errorMessage.empty()) << baselineInfo.errorMessage;
+        EXPECT_FALSE(baselineInfo.isCluster);
+        EXPECT_EQ(baselineInfo.fileId, request.params.filePath);
+        EXPECT_FALSE(baselineInfo.rankId.empty());
+        EXPECT_FALSE(baselineInfo.cardId.empty());
+        EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.cardId);
+        EXPECT_NE(
+            Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByFileId(baselineInfo.cardId), nullptr);
+    }
+
+    static void ExpectBaselineRejected(const BaselineSettingRequest &request) {
+        BaselineInfo baselineInfo;
+        baselineInfo.parsedFilePath = request.params.filePath;
+        EXPECT_TRUE(BaselineManagerService::InitBaselineData(request, baselineInfo));
+        EXPECT_FALSE(baselineInfo.errorMessage.empty());
+        EXPECT_TRUE(BaselineManager::Instance().GetBaselineId().empty());
+    }
+
     static ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
         const std::string &importType, Dic::ProjectTypeEnum projectType, const std::vector<std::string> parseFileList) {
         ProjectExplorerInfo info;
@@ -111,13 +175,8 @@ TEST_F(BaselineManagerTest, TestText) {
     request.params.filePath = filePathText;
     request.params.currentClusterPath = COMPARE;
     bool result = BaselineManagerService::InitBaselineData(request, baselineInfo);
-    std::string notFinishTask = "";
-    int index = 0;
-    while (index < retry && !Dic::Module::Timeline::ParserStatusManager::Instance().IsAllFinished(notFinishTask)) {
-        const int sleepTime = 2000;
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
-        index++;
-    }
+    Dic::Module::Timeline::ParserStatusManager::Instance().WaitAllFinished(
+        {BaselineManager::Instance().GetBaselineId()});
     EXPECT_TRUE(result);
     EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.rankId);
     Dic::Module::Timeline::DataBaseManager::Instance().Clear();
@@ -145,13 +204,8 @@ TEST_F(BaselineManagerTest, TestDb) {
     request.params.filePath = filePathDb;
     request.params.currentClusterPath = COMPARE;
     bool result = BaselineManagerService::InitBaselineData(request, baselineInfo);
-    std::string notFinishTask = "";
-    int index = 0;
-    while (index < retry && !Dic::Module::Timeline::ParserStatusManager::Instance().IsAllFinished(notFinishTask)) {
-        const int sleepTime = 2000;
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
-        index++;
-    }
+    Dic::Module::Timeline::ParserStatusManager::Instance().WaitAllFinished(
+        {BaselineManager::Instance().GetBaselineId()});
     EXPECT_TRUE(result);
     EXPECT_EQ(baselineInfo.rankId.find("Baseline_"), std::string::npos);
     EXPECT_EQ(baselineInfo.cardId.find("Baseline_"), 0);
@@ -184,7 +238,122 @@ TEST_F(BaselineManagerTest, TestFileNotExist) {
     request.params.currentClusterPath = COMPARE;
     bool result = BaselineManagerService::InitBaselineData(request, baselineInfo);
     EXPECT_TRUE(result);
-    EXPECT_EQ(baselineInfo.errorMessage, "");
+    EXPECT_FALSE(baselineInfo.errorMessage.empty());
+    EXPECT_TRUE(BaselineManager::Instance().GetBaselineId().empty());
+}
+
+TEST_F(BaselineManagerTest, AppendedDbCardUsesSelectedImport) {
+    const std::string projectName = "baselineAppendedDb";
+    const std::string filePath = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
+    const std::string firstPath = TestSuit::GetTestDataFile("full_db", "0_original_import");
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, firstPath, "import", Dic::ProjectTypeEnum::DB, {firstPath})));
+    ASSERT_TRUE(
+        SaveTemporaryProject(CreateProjectData(projectName, filePath, "import", Dic::ProjectTypeEnum::DB, {filePath})));
+    const auto projectInfos = ProjectExplorerManager::Instance().QueryProjectExplorer(projectName, {});
+    ASSERT_EQ(projectInfos.size(), 2);
+    ASSERT_NE(projectInfos.front().fileName, filePath);
+
+    ExpectSingleDbBaseline(CreateBaselineRequest(projectName, projectName, filePath));
+}
+
+TEST_F(BaselineManagerTest, AppendedDbCardInClusterProjectRemainsSingleCard) {
+    const std::string projectName = "baselineClusterWithAppendedDb";
+    const std::string filePath = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
+    const std::string firstPath = TestSuit::GetTestDataFile("full_db", "0_original_cluster");
+    ASSERT_TRUE(
+        SaveTemporaryProject(CreateMultiClusterProject(projectName, firstPath, Dic::ProjectTypeEnum::DB_CLUSTER, 1)));
+    ASSERT_TRUE(
+        SaveTemporaryProject(CreateProjectData(projectName, filePath, "import", Dic::ProjectTypeEnum::DB, {filePath})));
+    ASSERT_EQ(ProjectExplorerManager::Instance().QueryProjectExplorer(projectName, {}).size(), 2);
+
+    ExpectSingleDbBaseline(CreateBaselineRequest(projectName, projectName, filePath));
+}
+
+TEST_F(BaselineManagerTest, CurrentProjectWithMultipleDbImportsSupportsBaseline) {
+    const std::string currentProject = "baselineCurrentWithMultipleImports";
+    const std::string filePath = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(currentProject, "firstImport", "import", Dic::ProjectTypeEnum::DB, {"firstRank"})));
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(currentProject, "secondImport", "import", Dic::ProjectTypeEnum::DB, {"secondRank"})));
+    ASSERT_EQ(ProjectExplorerManager::Instance().QueryProjectExplorer(currentProject, {}).size(), 2);
+
+    ExpectSingleDbBaseline(CreateBaselineRequest("testProjectDb", currentProject, filePath));
+}
+
+TEST_F(BaselineManagerTest, AppendedTraceCardInTextClusterProjectRemainsSingleCard) {
+    const std::string projectName = "baselineTextClusterWithAppendedTrace";
+    const std::string filePath = TestSuit::GetTestDataFile("test_rank_0", "ASCEND_PROFILER_OUTPUT");
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateMultiClusterProject(projectName, "textClusterImport", Dic::ProjectTypeEnum::TEXT_CLUSTER, 1)));
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, filePath, "import", Dic::ProjectTypeEnum::TRACE, {filePath})));
+    ASSERT_EQ(ProjectExplorerManager::Instance().QueryProjectExplorer(projectName, {}).size(), 2);
+
+    const auto request = CreateBaselineRequest(projectName, projectName, filePath);
+    BaselineInfo baselineInfo;
+    baselineInfo.parsedFilePath = filePath;
+    EXPECT_TRUE(BaselineManagerService::InitBaselineData(request, baselineInfo));
+    EXPECT_TRUE(baselineInfo.errorMessage.empty()) << baselineInfo.errorMessage;
+    EXPECT_FALSE(baselineInfo.isCluster);
+    EXPECT_EQ(baselineInfo.fileId, Dic::FileUtil::GetDbPath(Dic::FileUtil::SplicePath(filePath, "trace_view.json")));
+    EXPECT_FALSE(baselineInfo.rankId.empty());
+    EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.rankId);
+}
+
+TEST_F(BaselineManagerTest, MultipleImportsStillRejectMixedTypes) {
+    const std::string projectName = "baselineMixedTypes";
+    const std::string filePath = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
+    ASSERT_TRUE(
+        SaveTemporaryProject(CreateProjectData(projectName, filePath, "import", Dic::ProjectTypeEnum::DB, {filePath})));
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, "traceImport", "import", Dic::ProjectTypeEnum::TRACE, {"traceRank"})));
+
+    ExpectBaselineRejected(CreateBaselineRequest(projectName, "testProjectDb", filePath));
+    ExpectBaselineRejected(CreateBaselineRequest("testProjectDb", projectName, filePath));
+}
+
+TEST_F(BaselineManagerTest, OverlappingImportsRejectAmbiguousBaselinePath) {
+    const std::string projectName = "baselineOverlappingImports";
+    const std::string filePath = "sharedRank";
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, "firstImport", "import", Dic::ProjectTypeEnum::DB, {filePath})));
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, "secondImport", "import", Dic::ProjectTypeEnum::DB, {filePath})));
+
+    ExpectBaselineRejected(CreateBaselineRequest(projectName, projectName, filePath));
+}
+
+TEST_F(BaselineManagerTest, MultipleImportsStillRejectMemScope) {
+    const std::string projectName = "baselineWithMemScope";
+    const std::string filePath = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
+    ASSERT_TRUE(
+        SaveTemporaryProject(CreateProjectData(projectName, filePath, "import", Dic::ProjectTypeEnum::DB, {filePath})));
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, "memScopeImport", "import", Dic::ProjectTypeEnum::DB, {"memscope_dump_1.db"})));
+
+    ExpectBaselineRejected(CreateBaselineRequest(projectName, "testProjectDb", filePath));
+    ExpectBaselineRejected(CreateBaselineRequest("testProjectDb", projectName, filePath));
+}
+
+TEST_F(BaselineManagerTest, AppendedMultiDeviceImportRemainsUnsupported) {
+    const std::string projectName = "baselineAppendedMultiDevice";
+    const std::string filePath = "multiDeviceRank";
+    ASSERT_TRUE(SaveTemporaryProject(
+        CreateProjectData(projectName, "firstImport", "import", Dic::ProjectTypeEnum::DB, {"firstRank"})));
+    auto multiDeviceInfo = CreateProjectData(projectName, "secondImport", "import", Dic::ProjectTypeEnum::DB, {});
+    for (const auto &deviceId : {"0", "1"}) {
+        auto deviceInfo = std::make_shared<ParseFileInfo>();
+        deviceInfo->parseFilePath = filePath;
+        deviceInfo->subId = filePath + deviceId;
+        deviceInfo->type = ParseFileType::RANK;
+        deviceInfo->deviceId = deviceId;
+        multiDeviceInfo.AddSubParseFileInfo(deviceInfo);
+    }
+    ASSERT_TRUE(SaveTemporaryProject(multiDeviceInfo));
+
+    ExpectBaselineRejected(CreateBaselineRequest(projectName, projectName, filePath));
 }
 
 TEST_F(BaselineManagerTest, SetGetBaselineClusterPath) {

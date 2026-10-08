@@ -28,6 +28,33 @@ using namespace Dic::Module::Summary;
 namespace Dic {
 namespace Module {
 namespace Global {
+namespace {
+int64_t GetCompareDataType(int64_t projectType) {
+    if (projectType == static_cast<int64_t>(ProjectTypeEnum::DB_CLUSTER)) {
+        return static_cast<int64_t>(ProjectTypeEnum::DB);
+    }
+    if (projectType == static_cast<int64_t>(ProjectTypeEnum::TEXT_CLUSTER)) {
+        return static_cast<int64_t>(ProjectTypeEnum::TRACE);
+    }
+    return projectType;
+}
+
+bool HasSingleCompareDataType(const std::vector<ProjectExplorerInfo> &projects) {
+    const auto projectType = GetCompareDataType(projects.front().projectType);
+    return std::all_of(projects.begin(), projects.end(),
+        [projectType](const auto &project) { return GetCompareDataType(project.projectType) == projectType; });
+}
+
+bool HasMemScopeData(const std::vector<ProjectExplorerInfo> &projects) {
+    return std::any_of(projects.begin(), projects.end(), [](const auto &project) {
+        return std::any_of(project.subParseFileInfo.begin(), project.subParseFileInfo.end(), [](const auto &fileInfo) {
+            return fileInfo &&
+                std::regex_match(FileUtil::GetFileName(fileInfo->parseFilePath), std::regex(memScopeDbReg));
+        });
+    });
+}
+}
+
 void BaselineManagerService::ResetBaseline(bool force) {
     // 没有解析进程时才可以reset
     auto baselineId = Dic::Module::Timeline::BaselineManager::Instance().GetBaselineId();
@@ -43,39 +70,32 @@ bool BaselineManagerService::CheckIsSupportCompare(const std::vector<ProjectExpl
         return false;
     }
 
-    if (baseline.size() > 1 || cur.size() > 1) {
+    // 同类型数据追加导入会产生多条记录，记录数不代表数据类型数。
+    if (!HasSingleCompareDataType(baseline) || !HasSingleCompareDataType(cur)) {
         errorMsg = "Multi data type sense not support compare yet.";
         return false;
     }
     // 多device场景不允许设置基线
-    bool isAllSamePath = std::all_of(baseline[0].subParseFileInfo.begin(), baseline[0].subParseFileInfo.end(),
-        [&filePath](const auto &fileInfo) { return fileInfo->parseFilePath == filePath; });
-    if (baseline[0].subParseFileInfo.size() > 1 && isAllSamePath) {
+    const auto deviceCount = std::count_if(baseline[0].subParseFileInfo.begin(), baseline[0].subParseFileInfo.end(),
+        [&filePath](const auto &fileInfo) { return fileInfo && fileInfo->parseFilePath == filePath; });
+    if (deviceCount > 1) {
         errorMsg = "Multi device scenario does not support setting comparison.";
         return false;
     }
     // MemScope不支持对比
-    bool isBaselineMemScope =
-        std::any_of(baseline[0].subParseFileInfo.begin(), baseline[0].subParseFileInfo.end(), [](const auto &fileInfo) {
-            return std::regex_match(FileUtil::GetFileName(fileInfo->parseFilePath), std::regex(memScopeDbReg));
-        });
-    auto isCurMemScope =
-        std::any_of(cur[0].subParseFileInfo.begin(), cur[0].subParseFileInfo.end(), [](const auto &fileInfo) {
-            return std::regex_match(FileUtil::GetFileName(fileInfo->parseFilePath), std::regex(memScopeDbReg));
-        });
-    if (isBaselineMemScope || isCurMemScope) {
+    if (HasMemScopeData(baseline) || HasMemScopeData(cur)) {
         errorMsg = "MemScope data does not support comparison function.";
         return false;
     }
 
     // 只有部分数据类型支持设置对比，如果非预期数据类型，则直接给前端返回错误提示
-    auto projectTypeEnum = ProjectExplorerManager::GetProjectType(baseline);
+    auto projectTypeEnum = static_cast<ProjectTypeEnum>(baseline[0].projectType);
     if (!IsSupportCompareType(projectTypeEnum)) {
         errorMsg = "Not supported to set the project type for baseline!";
         return false;
     }
 
-    auto curProjectTypeEnum = ProjectExplorerManager::GetProjectType(cur);
+    auto curProjectTypeEnum = static_cast<ProjectTypeEnum>(cur[0].projectType);
     if (!IsSupportCompareType(curProjectTypeEnum)) {
         errorMsg = "The current project type does not support comparison function.";
         return false;
@@ -90,11 +110,6 @@ bool BaselineManagerService::CheckIsSupportCompare(const std::vector<ProjectExpl
 bool BaselineManagerService::InitBaselineData(
     const Protocol::BaselineSettingRequest &request, BaselineInfo &baselineInfo) {
     ResetBaseline(true);
-    // 查询详细数据
-    std::vector<std::string> filePathList;
-    if (!request.params.filePath.empty()) {
-        filePathList.push_back(request.params.filePath);
-    }
     // 多集群场景下需要把所有的信息查出来
     std::vector<ProjectExplorerInfo> projectExplorerList =
         ProjectExplorerManager::Instance().QueryProjectExplorer(request.params.projectName, {});
@@ -105,10 +120,32 @@ bool BaselineManagerService::InitBaselineData(
         return false;
     }
 
+    const auto matchesBaselinePath = [&request](const ProjectExplorerInfo &project) {
+        const auto &filePath = request.params.filePath;
+        return !filePath.empty() &&
+            (project.fileName == filePath ||
+                std::any_of(project.fileInfoMap.begin(), project.fileInfoMap.end(), [&filePath](const auto &entry) {
+                    return entry.second && entry.second->parseFilePath == filePath;
+                }));
+    };
+    auto baselineProject = std::find_if(projectExplorerList.begin(), projectExplorerList.end(), matchesBaselinePath);
+    if (baselineProject == projectExplorerList.end()) {
+        baselineInfo.errorMessage = "The baseline path does not exist in the project.";
+        return true;
+    }
+    if (std::find_if(baselineProject + 1, projectExplorerList.end(), matchesBaselinePath) !=
+        projectExplorerList.end()) {
+        baselineInfo.errorMessage = "The baseline path belongs to multiple imported records.";
+        return true;
+    }
+    // 将选中卡所属记录用于基线校验，同时保留全部记录检查混合类型。
+    std::iter_swap(projectExplorerList.begin(), baselineProject);
     // 检查是否支持对比，返回true是因为目前如果返回false则错误信息前端获取不到，返回false但errorMessage不为空，前端能正确识别到错误并提示
     if (!CheckIsSupportCompare(projectExplorerList, curProject, baselineInfo.errorMessage, request.params.filePath)) {
         return true;
     }
+    // 仅解析选中的导入记录，保留其完整目录树以定位集群和通信数据。
+    projectExplorerList.resize(1);
     auto projectTypeEnum = ProjectExplorerManager::GetProjectType(projectExplorerList);
     // 根据二级目录判断是否为集群数据
     baselineInfo.isCluster = IsClusterBaseline(projectTypeEnum, projectExplorerList, request.params.filePath);
