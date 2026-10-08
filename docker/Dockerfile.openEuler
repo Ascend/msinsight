@@ -3,8 +3,8 @@
 # Base: openeuler/openeuler:24.03-lts
 # ============================================================
 
-ARG VERSION=26.1.0
-ARG TAG=26.1.0
+ARG VERSION=26.2.0
+ARG TAG=26.2.0
 
 # ============================================================
 # Stage 1: Download & extract (discarded after copy)
