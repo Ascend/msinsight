@@ -30,7 +30,7 @@ MindStudio Insight Streamer 脚本用于在本地 Docker 环境中快速运行 M
 示例镜像名：
 
 ```text
-msinsight:26.1.0-ubuntu22.04
+msinsight:26.2.0-ubuntu22.04-py3.10
 ```
 
 如果本地没有 `msinsight` 镜像，请先下载或构建镜像。推荐下载地址：
@@ -149,7 +149,7 @@ curl -k \
 
 ```bash
 python3 run_insight_streamer.py \
-  --image msinsight:26.1.0-ubuntu22.04 \
+  --image msinsight:26.2.0-ubuntu22.04-py3.10 \
   -v /path/to/profile_data
 ```
 
@@ -157,7 +157,7 @@ python3 run_insight_streamer.py \
 
 ```bash
 python3 run_insight_streamer.py \
-  --image msinsight:26.1.0-ubuntu22.04 \
+  --image msinsight:26.2.0-ubuntu22.04-py3.10 \
   --https-port 9880 \
   --cert-dir /path/to/certs \
   -v /path/to/profile_data
