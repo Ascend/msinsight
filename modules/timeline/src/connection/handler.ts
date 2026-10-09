@@ -345,8 +345,8 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
                 cardUnit.isParseLoading = !(result.isPending as boolean);
                 cardUnit.shouldParse = item.cardName !== 'Host';
                 cardUnit.phase = 'analyzing';
-                // DB 导入目前没有逐步的 parse/progress；用 50% 表示解析中的占位进度，而非实际完成比例。
-                cardUnit.progress = item.projectType === ProjectType.DB || item.projectType === ProjectType.DB_CLUSTER ? 50 : 0;
+                // DB 导入目前没有逐步的 parse/progress；用 20% 表示解析中的占位进度，而非实际完成比例。
+                cardUnit.progress = item.projectType === ProjectType.DB || item.projectType === ProjectType.DB_CLUSTER ? 20 : 0;
                 cardUnit.showProgress = true;
             } else {
                 cardUnit.phase = 'error';

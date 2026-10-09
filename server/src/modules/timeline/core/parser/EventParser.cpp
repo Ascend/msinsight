@@ -64,32 +64,39 @@ bool EventParser::Parse(int64_t startPosition, int64_t endPosition) {
         ServerLog::Error("Event parser failed to read buffer. fileId:", fileId);
         return false;
     }
-    // 通过静态线程级的内存池,预分配5M的大小,获得线程相关的线程性能提升，更大的内存池略微提高性能，但是会带来较大的内存占用
-    // 这里包含一个隐藏逻辑，当前json切片为50M，当前线程在解析过较大切片后，不用再重新申请内存池，后续优化下这块内存
-    auto allocator = Dic::Module::JsonParseMemPool::Instance().GetMemBuff(std::this_thread::get_id());
-    document_t doc(allocator.get());
-    doc.Parse<kParseNumbersAsStringsFlag>(buffer.data());
-    if (doc.HasParseError()) {
-        error = "File is not valid json. " + error;
-        ServerLog::Error("Event Parser. fileId:", fileId, ". ", error);
-        return false;
-    }
-    if (!doc.IsArray()) {
-        error = "json is not an array.";
-        ServerLog::Error("Event Parser. json is not an array. fileId:", fileId);
-        return false;
-    }
-
-    struct TimestampOffsetScope {
-        explicit TimestampOffsetScope(int64_t ns) { EventUtil::SetTimestampOffsetNs(ns); }
-        ~TimestampOffsetScope() { EventUtil::SetTimestampOffsetNs(0); }
-    };
-    TimestampOffsetScope timestampOffset(EventUtil::ReadBaseTimeNanosecondsFromFile(filePath));
-    for (auto &event : doc.GetArray()) {
-        if (ParserStatusManager::Instance().GetParserStatus(fileId) != ParserStatus::RUNNING) {
-            return false;
+    const auto threadId = std::this_thread::get_id();
+    auto allocator = Dic::Module::JsonParseMemPool::Instance().GetMemBuff(threadId);
+    bool parseResult = true;
+    {
+        // Document 必须早于线程 allocator 清理；分片结束后释放其全部扩展 chunk，避免跨分片累计内存。
+        document_t doc(allocator.get());
+        doc.Parse<kParseNumbersAsStringsFlag>(buffer.data());
+        if (doc.HasParseError()) {
+            error = "File is not valid json. " + error;
+            ServerLog::Error("Event Parser. fileId:", fileId, ". ", error);
+            parseResult = false;
+        } else if (!doc.IsArray()) {
+            error = "json is not an array.";
+            ServerLog::Error("Event Parser. json is not an array. fileId:", fileId);
+            parseResult = false;
+        } else {
+            struct TimestampOffsetScope {
+                explicit TimestampOffsetScope(int64_t ns) { EventUtil::SetTimestampOffsetNs(ns); }
+                ~TimestampOffsetScope() { EventUtil::SetTimestampOffsetNs(0); }
+            };
+            TimestampOffsetScope timestampOffset(EventUtil::ReadBaseTimeNanosecondsFromFile(filePath));
+            for (auto &event : doc.GetArray()) {
+                if (ParserStatusManager::Instance().GetParserStatus(fileId) != ParserStatus::RUNNING) {
+                    parseResult = false;
+                    break;
+                }
+                EventHandle(event);
+            }
         }
-        EventHandle(event);
+    }
+    JsonParseMemPool::Instance().ReleaseMemBuff(allocator);
+    if (!parseResult) {
+        return false;
     }
     ProcessLastFlagSlice();
     database->CommitData();
