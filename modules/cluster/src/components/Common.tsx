@@ -184,6 +184,7 @@ export const COLOR = {
     BAND_2: '#c7eef5',
     BAND_3: '#0177ff',
     BAND_4: '#48AA82',
+    BAND_5: '#9254de',
 };
 
 interface AnyFunction {
