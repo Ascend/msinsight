@@ -26,7 +26,7 @@ enum CompareRes {
     DIFFERENT = 1,
 }
 
-export const allTransporType = ['HCCS', 'PCIE', 'RDMA', 'LOCAL', 'SIO'];
+export const allTransporType = ['HCCS', 'PCIE', 'RDMA', 'LOCAL', 'SIO', 'UB'];
 export const getTransporTypeNumber = (item: HeatmapData, matrixType: MatrixTypeValues, isCompare: boolean): number => {
     if (isCompare) {
         const compareData = item[HeatmapDataIndex.DATA];
@@ -60,6 +60,7 @@ export const getTransportTypeVisualMap = (isCompare: boolean, t: TFunction): Pie
                 { value: 2, label: allTransporType[2], color: COLOR.BAND_2 },
                 { value: 3, label: allTransporType[3], color: COLOR.BAND_3 },
                 { value: 4, label: allTransporType[4], color: COLOR.BAND_4 },
+                { value: 5, label: allTransporType[5], color: COLOR.BAND_5 },
             ],
     };
 };

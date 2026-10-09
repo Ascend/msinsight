@@ -228,6 +228,7 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
         "(NULL, 0, 'hcom_mixed_candidates', 'group', 1, 1);"
         "INSERT INTO ClusterCommunicationBandwidth VALUES "
         "('step1', 0, 'hcom_valid', 'group', 'HCCS', 0, 0, 0), "
+        "('step1', 0, 'hcom_valid', 'group', 'UB', 3, 4, 5), "
         "('step1', 0, 'hcom_valid', 'group', 'RDMA', NULL, 0, 0), "
         "('step1', 0, 'hcom_valid', 'group', 'PCIE', 0, NULL, 0), "
         "('step1', 0, 'hcom_valid', 'group', 'SDMA', 0, 0, NULL), "
@@ -238,8 +239,9 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
     ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_valid", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
-    ASSERT_EQ(detail.bandwidthInfo.size(), 1);
+    ASSERT_EQ(detail.bandwidthInfo.size(), 2);
     EXPECT_EQ(detail.bandwidthInfo[0].transportType, "HCCS");
+    EXPECT_EQ(detail.bandwidthInfo[1].transportType, "UB");
 
     for (const auto &opName : {"hcom_null_step", "hcom_empty_step", "hcom_null_group", "hcom_empty_group",
              "hcom_null_transit", "hcom_null_wait", "hcom_mixed_candidates"}) {
@@ -264,16 +266,18 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailFromSingleRankAnalysisDb) {
                          "INSERT INTO CommAnalyzerBandwidth VALUES "
                          "('hcom_valid', 'group', 'HCCS', 5, 6, 7, 'step1'), "
                          "('hcom_valid', 'group', 'HCCS', 5, 6, 7, 'step1'), "
-                         "('hcom_valid', 'group', 'SDMA', 8, 9, 10, 'step1');"));
+                         "('hcom_valid', 'group', 'SDMA', 8, 9, 10, 'step1'), "
+                         "('hcom_valid', 'group', 'UB', 11, 12, 13, 'step1');"));
 
     CommunicationDetailDo detail;
     ASSERT_TRUE(database.QueryCommunicationDetail(
         "", "hcom_valid", detail, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 4.5);
-    ASSERT_EQ(detail.bandwidthInfo.size(), 2);
+    ASSERT_EQ(detail.bandwidthInfo.size(), 3);
     EXPECT_EQ(detail.bandwidthInfo[0].transportType, "HCCS");
     EXPECT_EQ(detail.bandwidthInfo[1].transportType, "SDMA");
+    EXPECT_EQ(detail.bandwidthInfo[2].transportType, "UB");
 
     ASSERT_FALSE(database.QueryCommunicationDetail(
         "", "hcom_duplicate", detail, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL));

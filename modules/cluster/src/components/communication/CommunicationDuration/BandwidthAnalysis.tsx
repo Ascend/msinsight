@@ -64,7 +64,7 @@ const ChartsContainer = styled.div`
   }
 `;
 
-const chartDomIds = ['HCCS', 'PCIE', 'RDMA', 'SIO'];
+const chartDomIds = ['HCCS', 'PCIE', 'RDMA', 'SIO', 'UB'];
 
 type BandwidthElementProps = Omit<WrapBandwidthDataParams, 'isDark' | 'domId'>;
 
@@ -92,7 +92,7 @@ const BandwidthTable: React.FC<BandwidthElementProps> = (props: BandwidthElement
     );
 };
 
-function wrapData(data: any): any {
+export function wrapData(data: any): any {
     data.forEach((item: any) => {
         if (item.largePacketRatio === null || item.largePacketRatio === undefined) {
             item.largePacketRatio = '/';
@@ -106,7 +106,18 @@ function wrapData(data: any): any {
         hp = data.filter((item: any) => item.transportType === 'HCCS' || item.transportType === 'PCIE' || item.transportType === 'SIO');
     }
     const rdma = data.find((item: any) => item.transportType === 'RDMA');
-    return rdma !== undefined ? [{ ...sdma, children: hp }, rdma] : [{ ...sdma, children: hp }];
+    const ub = data.find((item: any) => item.transportType === 'UB');
+    const result = [];
+    if (sdma !== undefined) {
+        result.push(hp.length > 0 ? { ...sdma, children: hp } : sdma);
+    }
+    if (rdma !== undefined) {
+        result.push(rdma);
+    }
+    if (ub !== undefined) {
+        result.push(ub);
+    }
+    return result;
 }
 
 const BandwidthChart: React.FC<BandwidthElementProps> = (props: BandwidthElementProps) => {
@@ -118,32 +129,16 @@ const BandwidthChart: React.FC<BandwidthElementProps> = (props: BandwidthElement
 
     useEffect(() => {
         const params = { iterationId, rankId, dbPath, operatorName, stage, isDark, locale, pgName, groupIdHash };
-        InitPacketAndBandwidthCharts({ ...params, domId: 'HCCS' });
-        InitPacketAndBandwidthCharts({ ...params, domId: 'PCIE' });
-        InitPacketAndBandwidthCharts({ ...params, domId: 'RDMA' });
-        InitPacketAndBandwidthCharts({ ...params, domId: 'SIO' });
+        chartDomIds.forEach(domId => InitPacketAndBandwidthCharts({ ...params, domId }));
     }, [t, theme]);
     return (
         <ChartsContainer>
-            <div className={'chart-item'}>
-                <div className={'chart-title'}>HCCS</div>
-                <div id={'HCCS'} className={'chart'} />
-            </div>
-
-            <div className={'chart-item'}>
-                <div className={'chart-title'}>PCIE</div>
-                <div id={'PCIE'} className={'chart'} />
-            </div>
-
-            <div className={'chart-item'}>
-                <div className={'chart-title'}>RDMA</div>
-                <div id={'RDMA'} className={'chart'} />
-            </div>
-
-            <div className={'chart-item'}>
-                <div className={'chart-title'}>SIO</div>
-                <div id={'SIO'} className={'chart'} />
-            </div>
+            {chartDomIds.map(transportType => (
+                <div className={'chart-item'} key={transportType}>
+                    <div className={'chart-title'}>{transportType}</div>
+                    <div id={transportType} className={'chart'} />
+                </div>
+            ))}
         </ChartsContainer>
     );
 };

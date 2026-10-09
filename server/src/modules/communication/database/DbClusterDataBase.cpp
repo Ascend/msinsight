@@ -235,7 +235,7 @@ bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, cons
                                          "MIN(transit_time) AS transitTime, MIN(bandwidth) AS bandwidth FROM " +
             singleRankBandwidthTable +
             " WHERE step = ? AND group_name = ? AND hccl_op_name = ? "
-            "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO') "
+            "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO', 'UB') "
             "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth IS NOT NULL "
             "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
             "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
@@ -258,7 +258,7 @@ bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, cons
                                      "MIN(transit_time) AS transitTime, MIN(bandwidth) AS bandwidth FROM " +
         TABLE_COMM_ANALYZER_BANDWIDTH +
         " WHERE step = ? AND rank_id = ? AND group_name = ? AND hccl_op_name = ? "
-        "AND band_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO') "
+        "AND band_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO', 'UB') "
         "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth IS NOT NULL "
         "GROUP BY band_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
