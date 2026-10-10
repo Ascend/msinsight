@@ -21,12 +21,146 @@
 #include "MemScopeProtocolRequest.h"
 #include "MemScopeProtocolResponse.h"
 #include "MemScopeProtocolEvent.h"
+#include "MemScopeProtocol.h"
+#include "MemScopeModule.h"
+
+class InspectableMemScopeModule : public Dic::Module::MemScopeModule {
+  public:
+    size_t HandlerCount() const { return requestHandlerMap.size(); }
+    bool HasHandler(const std::string &command) const { return requestHandlerMap.count(command) != 0; }
+};
 
 class MemScopeProtocolTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {}
     static void TearDownTestSuite() {}
 };
+
+TEST_F(MemScopeProtocolTest, RegistersBothScopeAndSnapshotRoutes) {
+    Dic::Protocol::MemScopeProtocolUtil protocol;
+    protocol.Register();
+    std::string error;
+    Dic::Protocol::MemScopeMemoryAllocationsResponse response;
+    EXPECT_TRUE(protocol.ToJson(response, error).has_value());
+    protocol.UnRegister();
+
+    InspectableMemScopeModule module;
+    module.RegisterRequestHandlers();
+    EXPECT_EQ(module.HandlerCount(), 12U);
+    EXPECT_TRUE(module.HasHandler(Dic::Protocol::REQ_RES_MEM_SCOPE_MEMORY_BLOCKS));
+    EXPECT_TRUE(module.HasHandler(Dic::Protocol::REQ_RES_MEM_SNAPSHOT_BLOCKS));
+    module.RegisterRequestHandlers();
+    EXPECT_EQ(module.HandlerCount(), 12U);
+}
+
+TEST_F(MemScopeProtocolTest, RequestsRejectMissingBaseAndRequiredParams) {
+    using namespace Dic::Protocol;
+    using Decoder = std::unique_ptr<Request> (*)(const json_t &, std::string &);
+    const std::vector<Decoder> decoders = {MemScopeMemoryBlockRequest::FromJson,
+        MemScopeMemoryAllocationRequest::FromJson, MemScopeMemoryDetailRequest::FromJson,
+        MemScopePythonTraceRequest::FromJson, MemScopeEventRequest::FromJson};
+    for (const auto decode : decoders) {
+        std::string error;
+        auto invalid = JsonUtil::TryParse("{}", error);
+        ASSERT_TRUE(invalid.has_value());
+        EXPECT_EQ(decode(*invalid, error), nullptr);
+        EXPECT_FALSE(error.empty());
+        error.clear();
+        auto missing = JsonUtil::TryParse(
+            R"({"id":1,"type":"request","moduleName":"leaks","command":"Memory/leaks/blocks","params":{}})", error);
+        ASSERT_TRUE(missing.has_value());
+        EXPECT_EQ(decode(*missing, error), nullptr);
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST_F(MemScopeProtocolTest, BlockAndAllocationValidationRejectsEachInvalidDimension) {
+    std::string error;
+    Dic::Protocol::MemScopeMemoryBlockParams block;
+    block.deviceId = "0";
+    block.eventType = "PTA";
+    block.currentPage = 1;
+    block.pageSize = 10;
+    EXPECT_TRUE(block.CommonCheck(error));
+    block.minSize = 2;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.minSize = 0;
+    block.maxSize = UINT64_MAX;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.maxSize = 10;
+    block.startTimestamp = 2;
+    block.endTimestamp = 1;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.endTimestamp = UINT64_MAX;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.endTimestamp = 2;
+    block.deviceId.clear();
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.deviceId = "0";
+    block.lazyUsedThreshold.perT = 101;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.lazyUsedThreshold.perT = 0;
+    block.delayedFreeThreshold.perT = 101;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.delayedFreeThreshold.perT = 0;
+    block.longIdleThreshold.perT = 101;
+    EXPECT_FALSE(block.CommonCheck(error));
+    block.longIdleThreshold.perT = 0;
+    block.eventType.clear();
+    EXPECT_FALSE(block.CommonCheck(error));
+
+    Dic::Protocol::MemScopeMemoryAllocationParams allocation;
+    allocation.deviceId = "0";
+    allocation.eventType = "PTA";
+    EXPECT_TRUE(allocation.CommonCheck(error));
+    allocation.startTimestamp = 2;
+    allocation.endTimestamp = 1;
+    EXPECT_FALSE(allocation.CommonCheck(error));
+    allocation.endTimestamp = UINT64_MAX;
+    EXPECT_FALSE(allocation.CommonCheck(error));
+    allocation.endTimestamp = 2;
+    allocation.deviceId.clear();
+    EXPECT_FALSE(allocation.CommonCheck(error));
+    allocation.deviceId = "0";
+    allocation.eventType.clear();
+    EXPECT_FALSE(allocation.CommonCheck(error));
+}
+
+TEST_F(MemScopeProtocolTest, DetailTraceAndEventValidationBoundaries) {
+    std::string error;
+    Dic::Protocol::MemScopeMemoryDetailParams detail;
+    EXPECT_FALSE(detail.CommonCheck(error));
+    detail.deviceId = "0";
+    detail.eventType = "PTA";
+    detail.timestamp = UINT64_MAX;
+    EXPECT_FALSE(detail.CommonCheck(error));
+    detail.timestamp = 1;
+    EXPECT_TRUE(detail.CommonCheck(error));
+
+    Dic::Protocol::MemScopeThreadPythonTraceParams trace;
+    trace.deviceId = "0";
+    trace.startTimestamp = 2;
+    trace.endTimestamp = 1;
+    EXPECT_FALSE(trace.CommonCheck(error));
+    trace.endTimestamp = UINT64_MAX;
+    EXPECT_FALSE(trace.CommonCheck(error));
+    trace.endTimestamp = 2;
+    trace.threadId = INT64_MAX;
+    EXPECT_FALSE(trace.CommonCheck(error));
+    trace.threadId = 1;
+    EXPECT_TRUE(trace.CommonCheck(error));
+
+    Dic::Protocol::MemScopeEventParams events;
+    events.deviceId = "0";
+    events.currentPage = 1;
+    events.pageSize = 10;
+    EXPECT_TRUE(events.CommonCheck(error));
+    events.startTimestamp = 2;
+    events.endTimestamp = 1;
+    EXPECT_FALSE(events.CommonCheck(error));
+    events.endTimestamp = UINT64_MAX;
+    EXPECT_FALSE(events.CommonCheck(error));
+}
 
 TEST_F(MemScopeProtocolTest, MemScopeParseSuccessEventDoesNotContainSnapshotState) {
     Dic::Protocol::MemScopeParseSuccessEvent event;
@@ -306,4 +440,56 @@ TEST_F(MemScopeProtocolTest, AllocationResponseIncludesUsageLines) {
     EXPECT_EQ((*json)["body"]["reservedLine"][0]["reservedSize"].GetUint64(), 200);
     EXPECT_EQ((*json)["body"]["processUsedLine"][0]["processUsed"].GetUint64(), 300);
     EXPECT_EQ((*json)["body"]["deviceUsedLine"][0]["deviceUsed"].GetUint64(), 400);
+}
+
+TEST_F(MemScopeProtocolTest, BlocksResponseSerializesActualBlockAndHeaders) {
+    Dic::Protocol::MemScopeMemoryBlocksResponse response;
+    response.minTimestamp = 10;
+    response.maxTimestamp = 20;
+    response.blocks.emplace_back("0x100", "0", 64, 10, 20, "PTA", "BLOCK", "{}", 1, 2);
+    const auto json = response.ToJson();
+    ASSERT_TRUE(json.has_value());
+    const auto &body = (*json)["body"];
+    ASSERT_EQ(body["blocks"].Size(), 1U);
+    EXPECT_STREQ(body["blocks"][0]["addr"].GetString(), "0x100");
+    EXPECT_EQ(body["blocks"][0]["size"].GetUint64(), 64U);
+    EXPECT_GT(body["headers"].Size(), 0U);
+}
+
+TEST_F(MemScopeProtocolTest, DetailsResponseSerializesNestedTreeAndEmptyState) {
+    Dic::Protocol::MemScopeMemoryDetailsResponse response;
+    auto empty = response.ToJson();
+    ASSERT_TRUE(empty.has_value());
+    EXPECT_TRUE((*empty)["body"].IsObject());
+    response.detail = std::make_unique<Dic::Module::MemScope::MemScopeMemoryDetailTreeNode>("PTA");
+    response.detail->size = 64;
+    response.detail->children.emplace_back(
+        std::make_unique<Dic::Module::MemScope::MemScopeMemoryDetailTreeNode>("PTA@ops"));
+    auto tree = response.ToJson();
+    ASSERT_TRUE(tree.has_value());
+    EXPECT_EQ((*tree)["body"]["size"].GetUint64(), 64U);
+    ASSERT_EQ((*tree)["body"]["subNodes"].Size(), 1U);
+}
+
+TEST_F(MemScopeProtocolTest, PythonTraceAndEventResponsesHonorOptionalFields) {
+    Dic::Protocol::MemScopePythonTracesResponse traces;
+    traces.trace.threadId = 8;
+    traces.trace.slices.emplace_back("forward", 10, 20, 1);
+    const auto traceJson = traces.ToJson();
+    ASSERT_TRUE(traceJson.has_value());
+    EXPECT_STREQ((*traceJson)["body"]["traces"][0]["func"].GetString(), "forward");
+
+    Dic::Protocol::MemScopeEventResponse events;
+    events.events.emplace_back();
+    events.events.back().callStackC = "c-stack";
+    events.events.back().callStackPython = "py-stack";
+    const auto withoutStacks = events.ToJson();
+    ASSERT_TRUE(withoutStacks.has_value());
+    EXPECT_FALSE((*withoutStacks)["body"]["events"][0].HasMember("callStackC"));
+    events.withCallStackC = true;
+    events.withCallStackPython = true;
+    const auto withStacks = events.ToJson();
+    ASSERT_TRUE(withStacks.has_value());
+    EXPECT_STREQ((*withStacks)["body"]["events"][0]["callStackC"].GetString(), "c-stack");
+    EXPECT_STREQ((*withStacks)["body"]["events"][0]["callStackPython"].GetString(), "py-stack");
 }

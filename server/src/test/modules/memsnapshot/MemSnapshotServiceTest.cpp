@@ -22,8 +22,16 @@
 #include "MemSnapshotDefs.h"
 #include "SegmentSummaryCalculator.h"
 #include "MemSnapshotStateCache.h"
+#include "MemSnapshotService.h"
 
 using namespace Dic::Module::MemSnapshot;
+
+TEST(MemSnapshotServiceQueryTest, RejectsMissingAndClosedDatabase) {
+    EXPECT_TRUE(MemSnapshotService::GetSegmentsByEventId(0, "0", nullptr).empty());
+    std::recursive_mutex mutex;
+    auto database = std::make_shared<Dic::Module::FullDb::MemSnapshotDatabase>(mutex);
+    EXPECT_TRUE(MemSnapshotService::GetSegmentsByEventId(0, "0", database).empty());
+}
 
 class TestableMemSnapshotSegmentService : public MemSnapshotSegmentService {
   public:
@@ -390,5 +398,33 @@ TEST_F(MemSnapshotSegmentServiceTest, StateCacheEvictsOldEntries) {
 
     EXPECT_FALSE(MemSnapshotStateCache::Get("dataA", "0", 0).has_value());
     EXPECT_TRUE(MemSnapshotStateCache::Get("dataA", "0", 32).has_value());
+    MemSnapshotStateCache::ClearAll();
+}
+
+TEST_F(MemSnapshotSegmentServiceTest, StateCacheOverwritesWithoutChangingEvictionOrder) {
+    MemSnapshotStateCache::ClearAll();
+    MemSnapshotStateCache::Put("cache-overwrite", "0", 0, {{1000, 100, 0}});
+    MemSnapshotStateCache::Put("cache-overwrite", "0", 0, {{2000, 200, 0}});
+    const auto updated = MemSnapshotStateCache::Get("cache-overwrite", "0", 0);
+    ASSERT_TRUE(updated.has_value());
+    ASSERT_EQ(updated->size(), 1);
+    EXPECT_EQ(updated->front().address, 2000);
+
+    for (uint64_t eventId = 1; eventId <= 32; ++eventId) {
+        MemSnapshotStateCache::Put("cache-overwrite", "0", eventId, {});
+    }
+    EXPECT_FALSE(MemSnapshotStateCache::Get("cache-overwrite", "0", 0).has_value());
+    EXPECT_TRUE(MemSnapshotStateCache::Get("cache-overwrite", "0", 1).has_value());
+    MemSnapshotStateCache::ClearAll();
+}
+
+TEST_F(MemSnapshotSegmentServiceTest, StateCacheClearDataDoesNotMatchPrefixOnly) {
+    MemSnapshotStateCache::ClearAll();
+    MemSnapshotStateCache::Put("cache-prefix", "0", 1, {});
+    MemSnapshotStateCache::Put("cache-prefix-extra", "0", 1, {});
+
+    MemSnapshotStateCache::ClearData("cache-prefix");
+    EXPECT_FALSE(MemSnapshotStateCache::Get("cache-prefix", "0", 1).has_value());
+    EXPECT_TRUE(MemSnapshotStateCache::Get("cache-prefix-extra", "0", 1).has_value());
     MemSnapshotStateCache::ClearAll();
 }

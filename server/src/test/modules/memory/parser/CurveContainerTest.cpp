@@ -267,3 +267,58 @@ TEST_F(CurveContainerTest, ComputeCurve_WhenDataPointsEqualBuckets_ReturnsAllPoi
     // 应该返回所有1000个点（因为m <= numBuckets）
     EXPECT_EQ(result.dataLines.size(), 1000);
 }
+
+TEST_F(CurveContainerTest, ComputeCurve_WhenRangeHasNoPoints_PreservesMetadata) {
+    CurveView curve;
+    curve.title = "Memory";
+    curve.legends = {"Time", "Size"};
+    curve.tempData = {1.0, 10.0, 2.0, 20.0};
+    container->PutCurve("device", curve);
+
+    const auto result = container->ComputeCurve(3.0, 4.0, "device");
+    EXPECT_EQ(result.title, "Memory");
+    EXPECT_EQ(result.legends, curve.legends);
+    EXPECT_TRUE(result.dataLines.empty());
+}
+
+TEST_F(CurveContainerTest, ComputeCurve_DownsamplingRetainsExtremaFromEachSeries) {
+    CurveView curve;
+    curve.legends = {"Time", "Allocated", "Reserved"};
+    for (int i = 0; i < 3000; ++i) {
+        curve.tempData.insert(curve.tempData.end(),
+            {static_cast<double>(i),
+                i == 1       ? -100.0
+                    : i == 2 ? 100.0
+                             : 0.0,
+                i == 0       ? 200.0
+                    : i == 2 ? -200.0
+                             : 0.0});
+    }
+    container->PutCurve("device", curve);
+
+    const auto result = container->ComputeCurve(0, 2999, "device");
+    ASSERT_FALSE(result.dataLines.empty());
+    EXPECT_LT(result.dataLines.size(), 3000);
+    const auto hasTimestamp = [&result](const std::string &timestamp) {
+        return std::any_of(result.dataLines.begin(), result.dataLines.end(),
+            [&timestamp](const auto &row) { return row.front() == timestamp; });
+    };
+    EXPECT_TRUE(hasTimestamp("0"));
+    EXPECT_TRUE(hasTimestamp("1"));
+    EXPECT_TRUE(hasTimestamp("2"));
+}
+
+TEST_F(CurveContainerTest, ComputeCurve_DownsamplingSkipsNaNOnlyBucket) {
+    CurveView curve;
+    curve.legends = {"Time", "Size"};
+    for (int i = 0; i < 2000; ++i) {
+        curve.tempData.insert(curve.tempData.end(),
+            {static_cast<double>(i), i < 2 ? std::numeric_limits<double>::quiet_NaN() : static_cast<double>(i)});
+    }
+    container->PutCurve("device", curve);
+
+    const auto result = container->ComputeCurve(0, 1999, "device");
+    EXPECT_FALSE(result.dataLines.empty());
+    EXPECT_LT(result.dataLines.size(), 2000);
+    EXPECT_EQ(result.dataLines.front().front(), "2");
+}

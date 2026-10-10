@@ -15,6 +15,8 @@
  * ------------------------------------------------------------------------- */
 
 #include <fstream>
+#include <chrono>
+#include <thread>
 #include <gtest/gtest.h>
 #include "FileUtil.h"
 #include "MemSnapshotParser.h"
@@ -24,6 +26,11 @@
 
 using namespace Dic::Module;
 using namespace Dic;
+
+namespace Dic::Module {
+int ReadProgressInLogFile(std::ifstream &file, std::string &err);
+bool DoubleCheckSuccessInLogFile(std::ifstream &file);
+}
 
 class MemSnapshotParserTest : public ::testing::Test {
   public:
@@ -57,6 +64,47 @@ std::string MemSnapshotParserTest::testLogPath;
 std::string MemSnapshotParserTest::testOutputDbPath;
 MemSnapshotParser *MemSnapshotParserTest::parser = nullptr;
 
+TEST_F(MemSnapshotParserTest, ReadsLatestProgressAndFailureFromLog) {
+    {
+        std::ofstream log(testLogPath, std::ios::trunc);
+        log << "10% of entries have been processed\n";
+        log << "47% of entries have been processed\n";
+    }
+    std::ifstream progress(testLogPath);
+    std::string error;
+    EXPECT_EQ(ReadProgressInLogFile(progress, error), 47);
+    EXPECT_TRUE(error.empty());
+    progress.close();
+
+    {
+        std::ofstream log(testLogPath, std::ios::trunc);
+        log << "Failed to dump the snapshot to database. invalid input\n";
+    }
+    progress.open(testLogPath);
+    EXPECT_EQ(ReadProgressInLogFile(progress, error), -1);
+    EXPECT_FALSE(error.empty());
+    progress.close();
+    FileUtil::RemoveFile(testLogPath);
+}
+
+TEST_F(MemSnapshotParserTest, ConfirmsSuccessKeywordInLog) {
+    {
+        std::ofstream log(testLogPath, std::ios::trunc);
+        log << "progress only\n";
+    }
+    std::ifstream log(testLogPath);
+    EXPECT_FALSE(DoubleCheckSuccessInLogFile(log));
+    log.close();
+    {
+        std::ofstream output(testLogPath, std::ios::trunc);
+        output << "Successfully dump the snapshot to database for devices 0\n";
+    }
+    log.open(testLogPath);
+    EXPECT_TRUE(DoubleCheckSuccessInLogFile(log));
+    log.close();
+    FileUtil::RemoveFile(testLogPath);
+}
+
 // 测试解析器重置功能
 TEST_F(MemSnapshotParserTest, Reset) {
     // 先设置一些状态
@@ -86,10 +134,17 @@ TEST_F(MemSnapshotParserTest, ParseContextManagement) {
     EXPECT_EQ(parser->GetParseContext().GetOutputDbPath(), testOutputDbPath);
     EXPECT_EQ(parser->GetParseContext().GetState(), ParserState::INIT);
     EXPECT_EQ(parser->GetParseContext().GetProgress(), 0);
+    EXPECT_FALSE(parser->GetParseContext().GetWorkDir().empty());
+    EXPECT_TRUE(parser->GetParseContext().IsReadyToParse());
+    EXPECT_FALSE(parser->GetParseContext().IsInitialSuccessSent());
 
     // 测试状态更新
     parser->GetParseContext().SetState(ParserState::Processing);
     EXPECT_EQ(parser->GetParseContext().GetState(), ParserState::Processing);
+    EXPECT_FALSE(parser->GetParseContext().IsReadyToParse());
+    parser->GetParseContext().MarkInitialSuccessSent(false);
+    EXPECT_TRUE(parser->GetParseContext().IsInitialSuccessSent());
+    EXPECT_TRUE(parser->GetParseContext().WasInitialSuccessSentWhileBuilding());
 
     // 测试进度更新
     parser->GetParseContext().SetProgress(75);
@@ -102,6 +157,14 @@ TEST_F(MemSnapshotParserTest, ParseContextManagement) {
     EXPECT_TRUE(parser->GetParseContext().IsFinished());
 
     parser->GetParseContext().SetState(ParserState::FINISH_FAILURE);
+    EXPECT_TRUE(parser->GetParseContext().IsFinished());
+    EXPECT_TRUE(parser->GetParseContext().IsReadyToParse());
+    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, "hash");
+    EXPECT_EQ(parser->GetParseContext().GetFileHash(), "hash");
+    EXPECT_FALSE(parser->GetParseContext().IsInitialSuccessSent());
+    parser->GetParseContext().MarkInitialSuccessSent(true);
+    EXPECT_FALSE(parser->GetParseContext().WasInitialSuccessSentWhileBuilding());
+    parser->GetParseContext().SetState(ParserState::UP_TO_DATE);
     EXPECT_TRUE(parser->GetParseContext().IsFinished());
 }
 
@@ -144,6 +207,16 @@ TEST_F(MemSnapshotParserTest, CheckIfParsingNeed) {
     manifest.close();
 
     EXPECT_FALSE(parser->CheckIfParsingNeed(parser->GetParseContext()));
+
+    // Exercise the asynchronous cache-hit path without launching a pickle subprocess.
+    parser->AsyncParseMemSnapshotPickle(testPicklePath);
+    for (int attempt = 0; attempt < 100 && parser->GetParseContext().GetState() != ParserState::UP_TO_DATE; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    EXPECT_EQ(parser->GetParseContext().GetState(), ParserState::UP_TO_DATE);
+    EXPECT_EQ(parser->GetParseContext().GetProgress(), 100);
+    parser->Reset();
+    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, fileHash);
 
     ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
     ASSERT_EQ(sqlite3_exec(sliceDb, "DROP TABLE memory_allocation_cache_v1_0", nullptr, nullptr, nullptr), SQLITE_OK);

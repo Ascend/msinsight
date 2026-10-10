@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include <chrono>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <WsSessionManager.h>
@@ -42,7 +43,9 @@ class MemScopeRequestHandlerTest : public ::testing::Test {
     static const uint64_t INT64MAX = INT64_MAX;
     static void SetUpTestSuite() {
         std::string srcPath = TestSuit::GetTestDataFile("memscope", "host_pinned", "memscope_dump_20260527062213.db");
-        const auto workDir = std::filesystem::temp_directory_path() / "memscope_host_pinned_handler_test";
+        const auto workDir = std::filesystem::temp_directory_path() /
+            ("memscope_host_pinned_handler_test_" +
+                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         std::filesystem::create_directories(workDir);
         const auto dest = workDir / "memscope_dump_20260527062213.db";
         std::filesystem::copy_file(srcPath, dest, std::filesystem::copy_options::overwrite_existing);
@@ -56,7 +59,7 @@ class MemScopeRequestHandlerTest : public ::testing::Test {
     static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
-        DataBaseManager::Instance().Clear();
+        DataBaseManager::Instance().Clear(DatabaseType::MEM_SCOPE);
     }
 };
 

@@ -22,6 +22,17 @@
 
 using namespace Dic::Module;
 
+namespace Dic::Module {
+uint64_t SafeCalculateAllocationSize(uint64_t currentSize, int64_t eventSize);
+}
+
+TEST(MemScopeAllocationArithmeticTest, SaturatesOverflowAndUnderflow) {
+    EXPECT_EQ(SafeCalculateAllocationSize(8, 3), 11U);
+    EXPECT_EQ(SafeCalculateAllocationSize(UINT64_MAX - 1, 2), UINT64_MAX);
+    EXPECT_EQ(SafeCalculateAllocationSize(8, -3), 5U);
+    EXPECT_EQ(SafeCalculateAllocationSize(3, -8), 0U);
+}
+
 class MemScopeParserTest : public ::testing::Test {
   public:
     const static uint64_t SECOND = 1000000000;
@@ -35,9 +46,64 @@ class MemScopeParserTest : public ::testing::Test {
     static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
-        DataBaseManager::Instance().Clear();
+        DataBaseManager::Instance().Clear(DatabaseType::MEM_SCOPE);
     }
 };
+
+TEST_F(MemScopeParserTest, RejectsInvalidAndDuplicateSingleDeviceEvents) {
+    ParseEventContext context;
+    context.deviceIds.insert("0");
+    EXPECT_TRUE(context.CheckDeviceIdValid("0"));
+    EXPECT_FALSE(context.CheckDeviceIdValid("1"));
+
+    MemScopeEvent event;
+    event.deviceId = "0";
+    event.eventType = "PTA";
+    event.ptr = "0x100";
+    event.event = "unrelated";
+    EXPECT_FALSE(MemScopeParser::SingleDeviceEventParse(event, context));
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    EXPECT_FALSE(MemScopeParser::SingleDeviceEventParse(event, context));
+    event.attr = R"({"size":"64","owner":"PTA"})";
+    EXPECT_TRUE(MemScopeParser::SingleDeviceEventParse(event, context));
+    EXPECT_FALSE(MemScopeParser::SingleDeviceEventParse(event, context));
+    MemScopeEvent missingFree = event;
+    missingFree.event = MEM_SCOPE_DUMP_EVENT::FREE;
+    missingFree.ptr = "0x200";
+    EXPECT_FALSE(MemScopeParser::SingleDeviceEventParse(missingFree, context));
+}
+
+TEST_F(MemScopeParserTest, RejectsTraceWithoutDatabase) {
+    ParseEventContext context;
+    MemScopePythonTrace trace;
+    trace.slices.emplace_back("forward", 1, 2, -1);
+    EXPECT_FALSE(MemScopeParser::ParseThreadPythonTrace(trace, context));
+}
+
+TEST_F(MemScopeParserTest, CompletedDatabaseTaskReusesDerivedTables) {
+    auto database = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_TRUE(database->DropMemoryAllocationAndBlockTable());
+    ASSERT_TRUE(MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces("0"));
+    ASSERT_TRUE(database->UpdateParseStatus(FINISH_STATUS));
+    database.reset();
+    MemScopeParser::ParseMemScopeDbTask("0");
+    EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus("0"), ParserStatus::FINISH_ALL);
+    ParserStatusManager::Instance().ClearAllParserStatus();
+}
+
+TEST_F(MemScopeParserTest, BuildsPythonTraceDepthForNestedAndSequentialSlices) {
+    ParseEventContext context;
+    context.db = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_NE(context.db, nullptr);
+    MemScopePythonTrace trace;
+    trace.slices.emplace_back("outer", 10, 100, -1);
+    trace.slices.emplace_back("inner", 20, 30, -1);
+    trace.slices.emplace_back("next", 101, 110, -1);
+    EXPECT_TRUE(MemScopeParser::ParseThreadPythonTrace(trace, context));
+    EXPECT_EQ(trace.slices[0].depth, 0);
+    EXPECT_EQ(trace.slices[1].depth, 1);
+    EXPECT_EQ(trace.slices[2].depth, 0);
+}
 
 TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedRewritesTypeAndAddsPinnedTrue) {
     MemScopeEvent event;

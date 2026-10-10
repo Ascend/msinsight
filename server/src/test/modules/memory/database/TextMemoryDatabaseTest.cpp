@@ -17,6 +17,17 @@
  */
 
 #include <gtest/gtest.h>
+#include <filesystem>
+#include "MemoryParse.h"
+#include "OperatorTable.h"
+#include "BaselineManager.h"
+#include "QueryMemoryComponentHandler.h"
+#include "QueryMemoryOperatorHandler.h"
+#include "QueryMemoryOperatorSizeHandler.h"
+#include "QueryMemoryViewHandler.h"
+#include "QueryMemoryStaticOperatorGraphHandler.h"
+#include "QueryMemoryStaticOperatorListHandler.h"
+#include "QueryMemoryStaticOperatorSizeHandler.h"
 #include "TestSuit.h"
 #include "MemoryProtocolRequest.h"
 #include "DataBaseManager.h"
@@ -26,7 +37,253 @@
 
 using namespace Dic::Module::Timeline;
 
-TEST_F(TestSuit, QueryMemoryComponentDataExpectSeveral) {
+class TextMemoryDatabaseTest : public ::testing::Test {
+  protected:
+    static void SetUpTestSuite() {
+        using namespace Dic::Module::Memory;
+        TraceTime::Instance().Reset();
+        TraceTime::Instance().UpdateTime(1695115378000000000ULL, 1695115379000000000ULL);
+        for (const std::string rank : {"0", "1"}) {
+            const auto source =
+                std::filesystem::path(TestSuit::GetTestDataFile("test_rank_" + rank, "ASCEND_PROFILER_OUTPUT"));
+            const auto dbPath = std::filesystem::path(::testing::TempDir()) / ("text_memory_coverage_" + rank + ".db");
+            std::filesystem::remove(dbPath);
+            DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath.string());
+            DataBaseManager::Instance().SetFileType(FileType::PYTORCH, dbPath.string());
+            auto database = DataBaseManager::Instance().CreateMemoryDataBase(rank, dbPath.string());
+            ASSERT_TRUE(database->OpenDb(dbPath.string(), false));
+            auto textDatabase = std::dynamic_pointer_cast<TextMemoryDataBase>(database);
+            ASSERT_NE(textDatabase, nullptr);
+            ASSERT_TRUE(textDatabase->CreateTable());
+            DataBaseManager::Instance().UpdateRankIdToDeviceId(dbPath.string(), rank, rank);
+            ParserStatusManager::Instance().SetParserStatus(MEMORY_PREFIX + rank, ParserStatus::RUNNING);
+            ASSERT_TRUE(MemoryParse::Instance().OperatorParse((source / "operator_memory.csv").string(), rank));
+            ASSERT_TRUE(MemoryParse::Instance().RecordToParse((source / "memory_record.csv").string(), rank));
+            if (std::filesystem::exists(source / "static_op_mem.csv")) {
+                ASSERT_TRUE(MemoryParse::Instance().StaticOpParse((source / "static_op_mem.csv").string(), rank));
+            }
+            if (std::filesystem::exists(source / "npu_module_mem.csv")) {
+                ASSERT_TRUE(MemoryParse::Instance().ComponentParse((source / "npu_module_mem.csv").string(), rank));
+            }
+        }
+    }
+
+    static void TearDownTestSuite() {
+        for (const std::string rank : {"0", "1"}) {
+            auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId(rank);
+            if (database != nullptr) {
+                database->CloseDb();
+            }
+        }
+        DataBaseManager::Instance().Clear(DatabaseType::MEMORY);
+        ParserStatusManager::Instance().ClearAllParserStatus();
+        for (const std::string rank : {"0", "1"}) {
+            std::error_code error;
+            std::filesystem::remove(
+                std::filesystem::path(::testing::TempDir()) / ("text_memory_coverage_" + rank + ".db"), error);
+        }
+    }
+};
+
+TEST_F(TextMemoryDatabaseTest, ComparisonHandlersQueryBothOpenDatabases) {
+    using namespace Dic::Module::Memory;
+    using namespace Dic::Protocol;
+    for (const std::string rank : {"0", "1"}) {
+        auto db =
+            std::dynamic_pointer_cast<TextMemoryDataBase>(DataBaseManager::Instance().GetMemoryDatabaseByRankId(rank));
+        ASSERT_NE(db, nullptr);
+        db->InsertStaticOpDetail({rank, "TOTAL", "model", "coverage_graph", 0, 10, 96});
+        db->InsertStaticOpDetail({rank, "SharedOp", "model", "coverage_graph", 1, 5, 64});
+        db->InsertStaticOpDetail({rank, "UniqueOp" + rank, "model", "coverage_graph", 6, 9, 32});
+        db->SaveStaticOpDetail();
+    }
+    Dic::Module::Global::BaselineInfo baseline;
+    baseline.rankId = "0";
+    ParserStatusManager::Instance().SetParserStatus("0", ParserStatus::FINISH);
+    ParserStatusManager::Instance().SetParserStatus(KERNEL_PREFIX + std::string("0"), ParserStatus::FINISH);
+    ParserStatusManager::Instance().SetParserStatus(MEMORY_PREFIX + std::string("0"), ParserStatus::FINISH);
+    Dic::Module::Global::BaselineManager::Instance().SetBaselineInfo(baseline);
+
+    auto component = std::make_unique<MemoryComponentRequest>();
+    component->params.rankId = "1";
+    component->params.isCompare = true;
+    component->params.currentPage = 1;
+    component->params.pageSize = 10;
+    EXPECT_TRUE(QueryMemoryComponentHandler().HandleRequest(std::move(component)));
+
+    auto operators = std::make_unique<MemoryOperatorRequest>();
+    operators->params.rankId = "1";
+    operators->params.type = MEMORY_OVERALL_GROUP;
+    operators->params.isCompare = true;
+    operators->params.currentPage = 1;
+    operators->params.pageSize = 10;
+    EXPECT_TRUE(QueryMemoryOperatorHandler().HandleRequest(std::move(operators)));
+
+    auto size = std::make_unique<MemoryOperatorSizeRequest>();
+    size->params.rankId = "1";
+    size->params.type = MEMORY_OVERALL_GROUP;
+    size->params.isCompare = true;
+    EXPECT_TRUE(QueryMemoryOperatorSizeHandler().HandleRequest(std::move(size)));
+
+    auto view = std::make_unique<MemoryViewRequest>();
+    view->params.rankId = "1";
+    view->params.type = MEMORY_OVERALL_GROUP;
+    view->params.isCompare = true;
+    EXPECT_TRUE(QueryMemoryViewHandler().HandleRequest(std::move(view)));
+
+    auto staticSize = std::make_unique<MemoryStaticOperatorSizeRequest>();
+    staticSize->params.rankId = "1";
+    staticSize->params.graphId = "coverage_graph";
+    staticSize->params.isCompare = true;
+    EXPECT_TRUE(QueryMemoryStaticOperatorSizeHandler().HandleRequest(std::move(staticSize)));
+
+    auto staticList = std::make_unique<MemoryStaticOperatorListRequest>();
+    staticList->params.rankId = "1";
+    staticList->params.graphId = "coverage_graph";
+    staticList->params.endNodeIndex = 10;
+    staticList->params.minSize = std::numeric_limits<int64_t>::min();
+    staticList->params.maxSize = std::numeric_limits<int64_t>::max();
+    staticList->params.isCompare = true;
+    staticList->params.currentPage = 1;
+    staticList->params.pageSize = 10;
+    EXPECT_TRUE(QueryMemoryStaticOperatorListHandler().HandleRequest(std::move(staticList)));
+    auto graph = std::make_unique<MemoryStaticOperatorGraphRequest>();
+    graph->params.rankId = "1";
+    graph->params.graphId = "coverage_graph";
+    graph->params.isCompare = true;
+    EXPECT_TRUE(QueryMemoryStaticOperatorGraphHandler().HandleRequest(std::move(graph)));
+    Dic::Module::Global::BaselineManager::Instance().Reset();
+    for (const std::string rank : {"0", "1"}) {
+        auto db = DataBaseManager::Instance().GetMemoryDatabaseByRankId(rank);
+        EXPECT_TRUE(db->ExecSql("DELETE FROM static_op WHERE graphId = 'coverage_graph'"));
+    }
+}
+
+TEST_F(TextMemoryDatabaseTest, TableQueriesBindAllSupportedTypesAndClearConditions) {
+    using namespace Dic::Module::Memory;
+    OperatorTable table;
+    table.Select(OpMemoryColumn::SIZE);
+    table.GreaterEq(OpMemoryColumn::SIZE, uint32_t{0});
+    table.GreaterEq(OpMemoryColumn::ALLOCATION_TIME, uint64_t{0});
+    table.NotEq(OpMemoryColumn::NAME, std::string("missing-name"));
+    const auto records = table.ExcuteQuery("0");
+    ASSERT_FALSE(records.empty());
+    for (const auto &record : records) {
+        EXPECT_GT(record.size, 0U);
+    }
+    table.GreaterEq(OpMemoryColumn::SIZE, uint32_t{0});
+    table.GreaterEq(OpMemoryColumn::ALLOCATION_TIME, uint64_t{0});
+    table.NotEq(OpMemoryColumn::NAME, std::string("missing-name"));
+    EXPECT_EQ(table.Count("0"), records.size());
+    EXPECT_EQ(table.Count("0"), records.size());
+    table.Select("missing_column");
+    EXPECT_TRUE(table.ExcuteQuery("0").empty());
+    table.Eq("missing_column", uint32_t{0});
+    EXPECT_EQ(table.Count("0"), 0U);
+    table.Select(OpMemoryColumn::SIZE);
+    EXPECT_TRUE(table.ExcuteQuery("missing-rank").empty());
+    EXPECT_EQ(table.Count("missing-rank"), 0U);
+}
+
+TEST_F(TextMemoryDatabaseTest, ComparisonHandlersRejectMissingBaseline) {
+    using namespace Dic::Module::Memory;
+    using namespace Dic::Protocol;
+    Dic::Module::Global::BaselineManager::Instance().Reset();
+    auto component = std::make_unique<MemoryComponentRequest>();
+    component->params.rankId = "1";
+    component->params.isCompare = true;
+    component->params.currentPage = 1;
+    component->params.pageSize = 10;
+    EXPECT_FALSE(QueryMemoryComponentHandler().HandleRequest(std::move(component)));
+    auto operators = std::make_unique<MemoryOperatorRequest>();
+    operators->params.rankId = "1";
+    operators->params.type = MEMORY_OVERALL_GROUP;
+    operators->params.isCompare = true;
+    operators->params.currentPage = 1;
+    operators->params.pageSize = 10;
+    EXPECT_FALSE(QueryMemoryOperatorHandler().HandleRequest(std::move(operators)));
+    auto size = std::make_unique<MemoryOperatorSizeRequest>();
+    size->params.rankId = "1";
+    size->params.type = MEMORY_OVERALL_GROUP;
+    size->params.isCompare = true;
+    EXPECT_FALSE(QueryMemoryOperatorSizeHandler().HandleRequest(std::move(size)));
+    auto view = std::make_unique<MemoryViewRequest>();
+    view->params.rankId = "1";
+    view->params.type = MEMORY_COMPONENT_GROUP;
+    view->params.isCompare = true;
+    EXPECT_FALSE(QueryMemoryViewHandler().HandleRequest(std::move(view)));
+    auto staticSize = std::make_unique<MemoryStaticOperatorSizeRequest>();
+    staticSize->params.rankId = "1";
+    staticSize->params.isCompare = true;
+    EXPECT_FALSE(QueryMemoryStaticOperatorSizeHandler().HandleRequest(std::move(staticSize)));
+    auto staticList = std::make_unique<MemoryStaticOperatorListRequest>();
+    staticList->params.rankId = "1";
+    staticList->params.isCompare = true;
+    staticList->params.currentPage = 1;
+    staticList->params.pageSize = 10;
+    EXPECT_FALSE(QueryMemoryStaticOperatorListHandler().HandleRequest(std::move(staticList)));
+    auto graph = std::make_unique<MemoryStaticOperatorGraphRequest>();
+    graph->params.rankId = "1";
+    graph->params.isCompare = true;
+    EXPECT_FALSE(QueryMemoryStaticOperatorGraphHandler().HandleRequest(std::move(graph)));
+}
+
+TEST_F(TextMemoryDatabaseTest, QueriesRejectMissingTablesWithoutAppendingRows) {
+    using namespace Dic::Module::Memory;
+    using namespace Dic::Protocol;
+    std::recursive_mutex mutex;
+    TextMemoryDataBase database(mutex);
+    const auto dbPath = std::filesystem::path(::testing::TempDir()) / "memory_missing_tables_coverage.db";
+    std::filesystem::remove(dbPath);
+    ASSERT_TRUE(database.OpenDb(dbPath.string(), false));
+    MemoryOperatorParams operatorParams;
+    operatorParams.rankId = "0";
+    operatorParams.deviceId = "0";
+    operatorParams.currentPage = 1;
+    operatorParams.pageSize = 10;
+    std::vector<MemoryOperator> operators;
+    EXPECT_EQ(database.QueryOperatorDetail(operatorParams, operators), -1);
+    EXPECT_FALSE(database.QueryEntireOperatorTable(operatorParams, operators, 0));
+    MemoryComponentParams componentParams;
+    componentParams.rankId = "0";
+    componentParams.deviceId = "0";
+    componentParams.currentPage = 1;
+    componentParams.pageSize = 10;
+    std::vector<MemoryTableColumnAttr> columns;
+    std::vector<MemoryComponent> components;
+    EXPECT_FALSE(database.QueryComponentDetail(componentParams, columns, components));
+    EXPECT_FALSE(database.QueryEntireComponentTable(componentParams, components, 0));
+    int64_t count = 0;
+    EXPECT_FALSE(database.QueryComponentsTotalNum(componentParams, count));
+    MemoryOperatorSizeParams sizeParams;
+    double minSize = 0;
+    double maxSize = 0;
+    EXPECT_FALSE(database.QueryOperatorSize(sizeParams, minSize, maxSize));
+    StaticOperatorSizeParams staticSizeParams;
+    EXPECT_FALSE(database.QueryStaticOperatorSize(staticSizeParams, minSize, maxSize));
+    StaticOperatorListParams listParams;
+    listParams.currentPage = 1;
+    listParams.pageSize = 10;
+    std::vector<StaticOperatorItem> staticOperators;
+    EXPECT_EQ(database.QueryStaticOperatorList(listParams, staticOperators), -1);
+    EXPECT_FALSE(database.QueryEntireStaticOperatorTable(listParams, staticOperators));
+    StaticOperatorGraphParams graphParams;
+    StaticOperatorGraphItem graph;
+    EXPECT_FALSE(database.QueryStaticOperatorGraph(graphParams, graph));
+    MemoryViewParams viewParams;
+    viewParams.type = MEMORY_OVERALL_GROUP;
+    MemoryViewData view;
+    EXPECT_FALSE(database.QueryMemoryView(viewParams, view, 0));
+    std::string resourceType;
+    EXPECT_FALSE(database.QueryMemoryResourceType(resourceType));
+    EXPECT_TRUE(operators.empty());
+    EXPECT_TRUE(components.empty());
+    EXPECT_TRUE(staticOperators.empty());
+    database.CloseDb();
+    std::filesystem::remove(dbPath);
+}
+
+TEST_F(TextMemoryDatabaseTest, QueryMemoryComponentDataExpectSeveral) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryComponentParams requestParams;
     requestParams.rankId = "0";
@@ -45,7 +302,7 @@ TEST_F(TestSuit, QueryMemoryComponentDataExpectSeveral) {
     EXPECT_EQ(columnAttr.size(), expectColumnSize);
 }
 
-TEST_F(TestSuit, QueryMemoryComponentDataExpectZero) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryComponentDataExpectZero) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryComponentParams requestParams;
     requestParams.rankId = "0";
@@ -63,9 +320,9 @@ TEST_F(TestSuit, QueryMemoryComponentDataExpectZero) {
     EXPECT_EQ(columnAttr.size(), expectColumnSize);
 }
 
-TEST_F(TestSuit, QueryMemoryEntireComponentTable) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryEntireComponentTable) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
-    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileId("0");
+    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("0");
     Dic::Protocol::MemoryComponentParams requestParams;
     requestParams.deviceId = "0";
     std::vector<Protocol::MemoryComponent> responseBody;
@@ -75,7 +332,7 @@ TEST_F(TestSuit, QueryMemoryEntireComponentTable) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorData) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorData) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -94,7 +351,7 @@ TEST_F(TestSuit, QueryMemoryOperatorData) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorWithTime) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorWithTime) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -113,9 +370,9 @@ TEST_F(TestSuit, QueryMemoryOperatorWithTime) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorWithLimitedTime) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorWithLimitedTime) {
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
-    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileId("0");
+    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("0");
     const uint64_t timeStamp = 1695115378729750000;
     const double secondToMillisecond = 1000.0;
     const int precision = 3;
@@ -139,9 +396,9 @@ TEST_F(TestSuit, QueryMemoryOperatorWithLimitedTime) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorWithLimitedTimeOnlyShowWithin) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorWithLimitedTimeOnlyShowWithin) {
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
-    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileId("0");
+    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("0");
     const uint64_t timeStamp = 1695115378729750000;
     const double secondToMillisecond = 1000.0;
     const int precision = 3;
@@ -166,8 +423,8 @@ TEST_F(TestSuit, QueryMemoryOperatorWithLimitedTimeOnlyShowWithin) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryEntireOperatorTable) {
-    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileId("0");
+TEST_F(TextMemoryDatabaseTest, QueryMemoryEntireOperatorTable) {
+    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("0");
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.deviceId = "0";
@@ -178,7 +435,7 @@ TEST_F(TestSuit, QueryMemoryEntireOperatorTable) {
     EXPECT_EQ(opDetails.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryTypeDynamic) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryTypeDynamic) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     std::string type = Module::Memory::MEMORY_TYPE_STATIC;
     std::vector<std::string> graphId;
@@ -189,7 +446,7 @@ TEST_F(TestSuit, QueryMemoryTypeDynamic) {
     EXPECT_EQ(graphId.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryTypeStatic) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryTypeStatic) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     std::string type = Module::Memory::MEMORY_TYPE_DYNAMIC;
     std::vector<std::string> graphId;
@@ -200,7 +457,7 @@ TEST_F(TestSuit, QueryMemoryTypeStatic) {
     EXPECT_EQ(graphId.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryResourceTypePytorch) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryResourceTypePytorch) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     std::string type = Module::Memory::MEMORY_RESOURCE_TYPE_MIND_SPORE;
     bool result = database->QueryMemoryResourceType(type);
@@ -208,7 +465,7 @@ TEST_F(TestSuit, QueryMemoryResourceTypePytorch) {
     EXPECT_EQ(type, Module::Memory::MEMORY_RESOURCE_TYPE_PYTORCH);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListParamsException) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListParamsException) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "0";
@@ -225,7 +482,7 @@ TEST_F(TestSuit, QueryStaticOperatorListParamsException) {
     EXPECT_EQ(opDetails.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListParams) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListParams) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -242,7 +499,7 @@ TEST_F(TestSuit, QueryStaticOperatorListParams) {
     EXPECT_EQ(responseBody.size(), 7);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListTotal) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListTotal) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -260,7 +517,7 @@ TEST_F(TestSuit, QueryStaticOperatorListTotal) {
     EXPECT_EQ(opDetails.size(), 7);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListParamsWithNodeIndex) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListParamsWithNodeIndex) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -279,7 +536,7 @@ TEST_F(TestSuit, QueryStaticOperatorListParamsWithNodeIndex) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListParamsWithSizeFileter) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListParamsWithSizeFileter) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -298,7 +555,7 @@ TEST_F(TestSuit, QueryStaticOperatorListParamsWithSizeFileter) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListParamsWithAllFilter) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListParamsWithAllFilter) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -321,7 +578,7 @@ TEST_F(TestSuit, QueryStaticOperatorListParamsWithAllFilter) {
     EXPECT_EQ(responseBody[0].opName, "reducemax_03");
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListTotalWithAllFilter) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListTotalWithAllFilter) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -340,7 +597,7 @@ TEST_F(TestSuit, QueryStaticOperatorListTotalWithAllFilter) {
     EXPECT_EQ(opDetails.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorListTotalWithNodeIndex) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorListTotalWithNodeIndex) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -358,7 +615,7 @@ TEST_F(TestSuit, QueryStaticOperatorListTotalWithNodeIndex) {
     EXPECT_EQ(opDetails.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryEntireStaticOperatorTable) {
+TEST_F(TextMemoryDatabaseTest, QueryEntireStaticOperatorTable) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorListParams requestParams;
     requestParams.rankId = "1";
@@ -375,7 +632,7 @@ TEST_F(TestSuit, QueryEntireStaticOperatorTable) {
     EXPECT_EQ(opDetails.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorSizeDataWithoutGraphId) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorSizeDataWithoutGraphId) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorSizeParams requestParams;
     requestParams.graphId = "";
@@ -389,7 +646,7 @@ TEST_F(TestSuit, QueryStaticOperatorSizeDataWithoutGraphId) {
     EXPECT_EQ(max, expectMax);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorSizeDataWithGraphId) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorSizeDataWithGraphId) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorSizeParams requestParams;
     requestParams.graphId = "0";
@@ -403,7 +660,7 @@ TEST_F(TestSuit, QueryStaticOperatorSizeDataWithGraphId) {
     EXPECT_EQ(max, expectMax);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorGraph) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorGraph) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorGraphParams requestParams;
     requestParams.rankId = "1";
@@ -420,7 +677,7 @@ TEST_F(TestSuit, QueryStaticOperatorGraph) {
     EXPECT_EQ(data.lines[pickedIndex][1], exceptPickedData);
 }
 
-TEST_F(TestSuit, QueryStaticOperatorGraphWithGraphId) {
+TEST_F(TextMemoryDatabaseTest, QueryStaticOperatorGraphWithGraphId) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::StaticOperatorGraphParams requestParams;
     requestParams.rankId = "1";
@@ -435,7 +692,7 @@ TEST_F(TestSuit, QueryStaticOperatorGraphWithGraphId) {
     EXPECT_EQ(data.lines[pickedIndex][1], exceptPickedData);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorWithSize) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorWithSize) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -454,7 +711,7 @@ TEST_F(TestSuit, QueryMemoryOperatorWithSize) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorByStreamExceptZero) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorByStreamExceptZero) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -473,7 +730,7 @@ TEST_F(TestSuit, QueryMemoryOperatorByStreamExceptZero) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryOperatorByStreamExceptSeveral) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryOperatorByStreamExceptSeveral) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "1";
@@ -492,7 +749,7 @@ TEST_F(TestSuit, QueryMemoryOperatorByStreamExceptSeveral) {
     EXPECT_EQ(responseBody.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryComponentsTotalNum) {
+TEST_F(TextMemoryDatabaseTest, QueryComponentsTotalNum) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryComponentParams requestParams;
     requestParams.rankId = "0";
@@ -508,7 +765,7 @@ TEST_F(TestSuit, QueryComponentsTotalNum) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorsTotalNum) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorsTotalNum) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -525,7 +782,7 @@ TEST_F(TestSuit, QueryOperatorsTotalNum) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorsTotalNumWithSize) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorsTotalNumWithSize) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -541,7 +798,7 @@ TEST_F(TestSuit, QueryOperatorsTotalNumWithSize) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorsTotalNumWithTime) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorsTotalNumWithTime) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -558,9 +815,9 @@ TEST_F(TestSuit, QueryOperatorsTotalNumWithTime) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorsTotalNumWithLimitedTime) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorsTotalNumWithLimitedTime) {
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
-    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileId("0");
+    uint64_t offsetTime = Dic::Module::Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp("0");
     const uint64_t timeStamp = 1695115378729750000;
     const double secondToMillisecond = 1000.0;
     const int precision = 3;
@@ -582,7 +839,7 @@ TEST_F(TestSuit, QueryOperatorsTotalNumWithLimitedTime) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorsTotalNumByStreamExpectZero) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorsTotalNumByStreamExpectZero) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "0";
@@ -598,7 +855,7 @@ TEST_F(TestSuit, QueryOperatorsTotalNumByStreamExpectZero) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorsTotalNumByStreamExpectSeveral) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorsTotalNumByStreamExpectSeveral) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::MemoryOperatorParams requestParams;
     requestParams.rankId = "1";
@@ -614,7 +871,7 @@ TEST_F(TestSuit, QueryOperatorsTotalNumByStreamExpectSeveral) {
     EXPECT_EQ(totalNum, expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryViewData) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryViewData) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryViewParams requestParams;
     requestParams.rankId = "0";
@@ -628,7 +885,7 @@ TEST_F(TestSuit, QueryMemoryViewData) {
     EXPECT_EQ(responseBody.tempData.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryViewDataByStreamExpectZero) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryViewDataByStreamExpectZero) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryViewParams requestParams;
     requestParams.rankId = "0";
@@ -642,7 +899,7 @@ TEST_F(TestSuit, QueryMemoryViewDataByStreamExpectZero) {
     EXPECT_EQ(responseBody.lines.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryViewDataByStreamExpectSeveral) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryViewDataByStreamExpectSeveral) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::MemoryViewParams requestParams;
     requestParams.rankId = "1";
@@ -656,7 +913,7 @@ TEST_F(TestSuit, QueryMemoryViewDataByStreamExpectSeveral) {
     EXPECT_EQ(responseBody.tempData.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryMemoryViewDataByComponentExpectSeveral) {
+TEST_F(TextMemoryDatabaseTest, QueryMemoryViewDataByComponentExpectSeveral) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("1");
     Dic::Protocol::MemoryViewParams requestParams;
     requestParams.rankId = "1";
@@ -670,7 +927,7 @@ TEST_F(TestSuit, QueryMemoryViewDataByComponentExpectSeveral) {
     EXPECT_EQ(responseBody.tempData.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryOperatorSizeData) {
+TEST_F(TextMemoryDatabaseTest, QueryOperatorSizeData) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorSizeParams requestParams;
     requestParams.deviceId = "0";
@@ -687,7 +944,7 @@ TEST_F(TestSuit, QueryOperatorSizeData) {
 /***
  * 组合筛选/排序/范围筛选测试
  */
-TEST_F(TestSuit, TextDbQueryOperatorWithFilterNameAndOrderBy) {
+TEST_F(TextMemoryDatabaseTest, TextDbQueryOperatorWithFilterNameAndOrderBy) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     MemoryOperatorParams params;
     params.deviceId = "0";
@@ -717,7 +974,7 @@ TEST_F(TestSuit, TextDbQueryOperatorWithFilterNameAndOrderBy) {
     EXPECT_TRUE(OperatorMemoryTestUtil::IsOperatorsNameAllContains(operators, expectFilterName));
 }
 
-TEST_F(TestSuit, TextDbQueryOperatorWithFilterNameAndOrderByAndRangeFilter) {
+TEST_F(TextMemoryDatabaseTest, TextDbQueryOperatorWithFilterNameAndOrderByAndRangeFilter) {
     auto database = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     MemoryOperatorParams params;
     params.deviceId = "0";
@@ -748,7 +1005,7 @@ TEST_F(TestSuit, TextDbQueryOperatorWithFilterNameAndOrderByAndRangeFilter) {
     EXPECT_TRUE(OperatorMemoryTestUtil::IsOperatorsNameAllContains(operators, expectFilterName));
 }
 
-TEST_F(TestSuit, TextDbQueryOperatorWithFullCondition) {
+TEST_F(TextMemoryDatabaseTest, TextDbQueryOperatorWithFullCondition) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams params;
     params.deviceId = "0";
@@ -784,7 +1041,7 @@ TEST_F(TestSuit, TextDbQueryOperatorWithFullCondition) {
     EXPECT_TRUE(OperatorMemoryTestUtil::IsOperatorsNameAllContains(operators, expectFilterName));
 }
 
-TEST_F(TestSuit, TextDbQueryOperatorWithFullConditionAndOnlyShowInterval) {
+TEST_F(TextMemoryDatabaseTest, TextDbQueryOperatorWithFullConditionAndOnlyShowInterval) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
     Dic::Protocol::MemoryOperatorParams params;
     params.deviceId = "0";

@@ -41,9 +41,27 @@ class MemScopeDatabaseTest : public ::testing::Test {
     static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
-        DataBaseManager::Instance().Clear();
+        DataBaseManager::Instance().Clear(DatabaseType::MEM_SCOPE);
     }
 };
+
+TEST(MemScopeDatabaseClosedTest, RejectsWritesAndQueriesWithoutConnection) {
+    std::recursive_mutex mutex;
+    MemScopeDatabase database(mutex);
+    EXPECT_FALSE(database.CreateMemoryAllocationAndBlockTable());
+    EXPECT_FALSE(database.CheckAllTableExist());
+    std::vector<MemScopeEvent> events;
+    EXPECT_FALSE(database.QueryEntireEventsTable(events));
+    EXPECT_TRUE(events.empty());
+    std::set<std::string> deviceIds;
+    database.QueryDeviceIds(deviceIds);
+    EXPECT_TRUE(deviceIds.empty());
+    std::vector<uint64_t> threadIds;
+    database.QueryThreadIds(threadIds);
+    EXPECT_TRUE(threadIds.empty());
+    EXPECT_EQ(database.GetInsertAllocationsStmt(0), nullptr);
+    EXPECT_EQ(database.GetInsertBlocksStmt(0), nullptr);
+}
 
 TEST_F(MemScopeDatabaseTest, QueryEntireEventsTable) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");

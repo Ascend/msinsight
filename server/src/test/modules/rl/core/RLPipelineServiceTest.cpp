@@ -72,7 +72,7 @@ TEST_F(RLPipelineServiceTest, GetPipelineInfoSuccess) {
     DataBaseManager::Instance().Clear();
     renderEngine->SetDataEngineInterface(dataEngineMock);
     DataBaseManager::Instance().SetDataType(DataType::DB, "dbPath");
-    DataBaseManager::Instance().CreateTraceConnectionPool("uboot14286042774212449010_0 0", "dbPath");
+    ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool("uboot14286042774212449010_0 0", "dbPath"));
     Protocol::RLPipelineResponse response;
     bool res = Dic::Module::RL::RLPipelineService::Instance().GetPipelineInfo(response);
     const uint64_t expectMinTime = 100;

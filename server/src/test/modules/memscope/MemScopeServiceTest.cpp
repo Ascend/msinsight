@@ -45,7 +45,7 @@ class MemScopeServiceTest : public ::testing::Test {
     static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
-        DataBaseManager::Instance().Clear();
+        DataBaseManager::Instance().Clear(DatabaseType::MEM_SCOPE);
     }
 
     static void ExpectTreeEQ(MemScopeMemoryDetailTreeNode *origin, MemScopeMemoryDetailTreeNode *target) {
