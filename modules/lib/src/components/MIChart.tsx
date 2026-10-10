@@ -16,10 +16,11 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import * as echarts from 'echarts';
 import { isArray, merge } from 'lodash';
 import { useTheme } from '@emotion/react';
+import ResizeObserver from 'resize-observer-polyfill';
 
 type EChartsOption = echarts.EChartsOption;
 type ECharts = echarts.ECharts;
@@ -239,64 +240,70 @@ export const MIChart = forwardRef<ChartsHandle, ChartProps>(
     ({ options, loading = false, width = '100%', height = '400px', onEvents = {} }, ref) => {
         const chartRef = useRef<HTMLDivElement>(null);
         const chartInstanceRef = useRef<ECharts | null>(null);
+        const [chartInstance, setChartInstance] = useState<ECharts | null>(null);
         const theme = useTheme();
 
-        const updateChart = (): void => {
-            if (chartInstanceRef.current) {
-                const themeOptions = theme.mode === 'dark' ? darkChartOptions : lightChartOptions;
-                const newOptions = getOptionsWithAxisConfig(theme.mode, options);
-                const mergedOptions = merge({}, themeOptions, newOptions);
-                chartInstanceRef.current.setOption(mergedOptions, true);
-            }
-        };
-
-        const bindEvents = (): void => {
-            if (chartInstanceRef.current) {
-                Object.keys(onEvents).forEach((eventName) => {
-                    chartInstanceRef.current?.off(eventName); // 先解绑，防止重复绑定
-                    chartInstanceRef.current?.on(eventName, onEvents[eventName]);
-                });
-            }
-        };
-
-        const resizeChart = (): void => {
-            chartInstanceRef.current?.resize();
-        };
-
         useEffect(() => {
-            if (chartRef.current) {
-                chartInstanceRef.current = echarts.init(chartRef.current);
-                window.addEventListener('resize', resizeChart);
-                bindEvents();
-                return (): void => {
-                    window.removeEventListener('resize', resizeChart);
-                    chartInstanceRef.current?.dispose();
-                    chartInstanceRef.current = null;
-                };
+            const chartDom = chartRef.current;
+            if (!chartDom) {
+                return undefined;
             }
-            return (): void => {};
+            const resizeChart = (): void => {
+                // Hidden tabs have no layout; initialize when their container becomes visible.
+                if (chartDom.clientWidth === 0 || chartDom.clientHeight === 0) {
+                    return;
+                }
+                if (chartInstanceRef.current) {
+                    chartInstanceRef.current.resize();
+                } else {
+                    chartInstanceRef.current = echarts.init(chartDom);
+                    setChartInstance(chartInstanceRef.current);
+                }
+            };
+            const resizeObserver = new ResizeObserver(resizeChart);
+            resizeObserver.observe(chartDom);
+            window.addEventListener('resize', resizeChart);
+            resizeChart();
+            return (): void => {
+                resizeObserver.disconnect();
+                window.removeEventListener('resize', resizeChart);
+                chartInstanceRef.current?.dispose();
+                chartInstanceRef.current = null;
+            };
         }, []);
 
         useEffect(() => {
-            updateChart();
-        }, [options, theme.mode]);
+            if (chartInstance) {
+                const themeOptions = theme.mode === 'dark' ? darkChartOptions : lightChartOptions;
+                const newOptions = getOptionsWithAxisConfig(theme.mode, options);
+                const mergedOptions = merge({}, themeOptions, newOptions);
+                chartInstance.setOption(mergedOptions, true);
+            }
+        }, [chartInstance, options, theme.mode]);
 
         useEffect(() => {
-            resizeChart();
-        }, [height, width]);
+            Object.keys(onEvents).forEach((eventName) => {
+                chartInstance?.on(eventName, onEvents[eventName]);
+            });
+            return (): void => {
+                Object.keys(onEvents).forEach((eventName) => {
+                    chartInstance?.off(eventName, onEvents[eventName]);
+                });
+            };
+        }, [chartInstance, onEvents]);
 
         useEffect(() => {
             if (loading) {
-                chartInstanceRef.current?.showLoading({
+                chartInstance?.showLoading({
                     text: '',
                     color: theme.primaryColor,
                     textColor: theme.textColorPrimary,
                     maskColor: theme.maskColor,
                 });
             } else {
-                chartInstanceRef.current?.hideLoading();
+                chartInstance?.hideLoading();
             }
-        }, [loading]);
+        }, [chartInstance, loading, theme.primaryColor, theme.textColorPrimary, theme.maskColor]);
 
         useImperativeHandle(ref, (): ChartsHandle => ({
             chartDom: chartRef.current,

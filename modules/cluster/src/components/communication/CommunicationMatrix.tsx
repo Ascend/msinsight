@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 import { observer } from 'mobx-react-lite';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import ResizeObserver from 'resize-observer-polyfill';
+import { getInstanceByDom } from 'echarts';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { COLOR, getDecimalCount, getCompareName, getBaselineName } from '../Common';
@@ -86,7 +88,7 @@ const matrixDataTypeUnits = {
 
 function InitChart(data: ChartData, t: TFunction): void {
     const chartDom = document.getElementById('matrixchart');
-    if (chartDom !== null) {
+    if (chartDom !== null && chartDom.clientWidth > 0 && chartDom.clientHeight > 0) {
         disposeAdaptiveEchart(chartDom);
         const myChart = getAdaptiveEchart(chartDom);
         myChart.setOption(wrapData(data, t), { replaceMerge: ['series', 'xAxis', 'yAxis'] });
@@ -415,6 +417,30 @@ const CommunicationMatrix = observer(({ isShow, conditions, session }: { isShow:
     const [switchCondition, setSwitchCondition] = useState<Condition>({ type: MatrixType.BANDWIDTH, showInner: false });
     const [range, setRange] = useState<Range>({ min: 0, max: 1 });
     const [dataSource, setDataSource] = useState<DataSource>({ data: [], rankIds: [] });
+    const chartRef = useRef<HTMLDivElement>(null);
+    const needsChartUpdate = useRef(true);
+    const [hasChartSize, setHasChartSize] = useState(false);
+
+    useEffect(() => {
+        const chartDom = chartRef.current;
+        if (!chartDom) {
+            return undefined;
+        }
+        const resizeChart = (): void => {
+            const hasSize = chartDom.clientWidth > 0 && chartDom.clientHeight > 0;
+            setHasChartSize(hasSize);
+            if (hasSize) {
+                getInstanceByDom(chartDom)?.resize();
+            }
+        };
+        const resizeObserver = new ResizeObserver(resizeChart);
+        resizeObserver.observe(chartDom);
+        resizeChart();
+        return (): void => {
+            resizeObserver.disconnect();
+            disposeAdaptiveEchart(chartDom);
+        };
+    }, []);
 
     const handleFilterChange = (filed: string, val: string | boolean): void => {
         setSwitchCondition({ ...switchCondition, [filed]: val });
@@ -434,12 +460,21 @@ const CommunicationMatrix = observer(({ isShow, conditions, session }: { isShow:
     }, [isShow, conditions, session.isCompare]);
 
     useEffect(() => {
-        updateChart({ shouldUpdateRange: true, setRange, switchCondition, dataSource, t, isCompare: session.isCompare });
+        needsChartUpdate.current = true;
     }, [dataSource, switchCondition, t, session.isCompare]);
+
+    useEffect(() => {
+        const chartDom = chartRef.current;
+        // Visibility changes only resize the chart; rebuild it when its data or filters change.
+        if (hasChartSize && isShow && needsChartUpdate.current && chartDom && chartDom.clientWidth > 0 && chartDom.clientHeight > 0) {
+            updateChart({ shouldUpdateRange: true, setRange, switchCondition, dataSource, t, isCompare: session.isCompare });
+            needsChartUpdate.current = false;
+        }
+    }, [dataSource, switchCondition, t, session.isCompare, hasChartSize, isShow]);
 
     return <CollapsiblePanel style={{ display: isShow ? 'block' : 'none' }} title={t('sessionTitle.MatrixModel')} padding={'16px 24px'}>
         <Filter condition={switchCondition} handleChange={handleFilterChange} range={range} onRangeChange={handleRangeChange}/>
-        <div id={'matrixchart'} style={{ width: 'calc(100vw - 80px)', height: '800px' }}></div>
+        <div ref={chartRef} id={'matrixchart'} style={{ width: 'calc(100vw - 80px)', height: '800px' }}></div>
     </CollapsiblePanel>;
 });
 

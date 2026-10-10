@@ -37,8 +37,8 @@ export interface ResizeTableRef {
 }
 
 const Support = React.forwardRef(
-    (props: ResizeTableProps<any>, _ref: React.ForwardedRef<unknown>) => {
-        return <Table {...props} />;
+    (props: ResizeTableProps<any>, ref: React.ForwardedRef<HTMLDivElement>) => {
+        return <Table {...props} ref={ref} />;
     },
 );
 Support.displayName = 'table';
@@ -433,7 +433,7 @@ const getFilteredValue = (col: ColumnType<any> | ColumnGroupType<any>, filtersSt
     const idx = col.dataIndex;
 
     if (typeof idx === 'string' || typeof idx === 'number') {
-        return filtersState[idx];
+        return filtersState[idx] ?? null;
     }
     return null;
 };

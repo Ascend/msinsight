@@ -16,7 +16,8 @@
  * -------------------------------------------------------------------------
  */
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import * as testingLibrary from '@testing-library/react';
+import ResizeObserver from 'resize-observer-polyfill';
 import { ThemeProvider } from '@emotion/react';
 import { I18nextProvider } from 'react-i18next';
 import i18n from 'i18next';
@@ -26,8 +27,11 @@ import { binarySearch, useResizeEventDependency } from '../../utils/memoryUtils'
 import * as CommonUtils from '../Common';
 import '@testing-library/jest-dom';
 
+const { act, render, screen, waitFor } = testingLibrary;
+
 // Mock 依赖模块
 jest.mock('echarts');
+jest.mock('resize-observer-polyfill', () => jest.fn());
 jest.mock('../../utils/memoryUtils');
 jest.mock('../Common');
 jest.mock('react-i18next', () => ({
@@ -51,7 +55,15 @@ const mockEChartsInstance = {
     dispose: jest.fn(),
     resize: jest.fn(),
 };
+let notifyResize: () => void;
+const disconnect = jest.fn();
 beforeEach(() => {
+    jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+    jest.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400);
+    (ResizeObserver as jest.Mock).mockImplementation((callback) => {
+        notifyResize = callback;
+        return { observe: jest.fn(), disconnect };
+    });
     // Mock echarts.init
     (echarts.init as jest.Mock).mockReturnValue(mockEChartsInstance);
     (echarts.getInstanceByDom as jest.Mock).mockReturnValue(mockEChartsInstance);
@@ -60,6 +72,7 @@ beforeEach(() => {
     (useResizeEventDependency as jest.Mock).mockReturnValue([0]);
     (CommonUtils.useChartCharacter as jest.Mock).mockReturnValue('testCharacter');
 });
+afterEach(() => jest.restoreAllMocks());
 
 // Mock 主题
 const mockTheme = {
@@ -440,7 +453,6 @@ describe('LineCharts', () => {
             </TestWrapper>,
         );
 
-        expect(echarts.getInstanceByDom).toHaveBeenCalled();
         expect(mockEChartsInstance.resize).toHaveBeenCalled();
     });
 
@@ -495,6 +507,39 @@ describe('LineCharts', () => {
         unmount();
 
         expect(mockEChartsInstance.dispose).toHaveBeenCalled();
+    });
+
+    it('waits for a visible container before initializing', () => {
+        jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(0);
+        const { unmount } = render(<TestWrapper><LineChart {...defaultProps} /></TestWrapper>);
+        expect(echarts.init).not.toHaveBeenCalled();
+        jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+        act(() => notifyResize());
+        expect(echarts.init).toHaveBeenCalledTimes(1);
+        act(() => notifyResize());
+        expect(echarts.init).toHaveBeenCalledTimes(1);
+        unmount();
+        expect(disconnect).toHaveBeenCalled();
+    });
+
+    it('cancels pending drawing before disposing on update and unmount', () => {
+        jest.useFakeTimers();
+        const oldChart = { ...mockEChartsInstance, setOption: jest.fn(), dispatchAction: jest.fn(), dispose: jest.fn() };
+        const nextChart = { ...mockEChartsInstance, setOption: jest.fn(), dispatchAction: jest.fn(), dispose: jest.fn() };
+        (echarts.init as jest.Mock).mockReturnValueOnce(oldChart).mockReturnValueOnce(nextChart);
+        const { rerender, unmount } = render(<TestWrapper><LineChart {...defaultProps} /></TestWrapper>);
+        oldChart.dispatchAction.mockClear();
+        rerender(<TestWrapper><LineChart {...defaultProps} graph={{ ...mockGraph, title: 'Updated' }} /></TestWrapper>);
+        expect(oldChart.dispose).toHaveBeenCalledTimes(1);
+        act(() => jest.runOnlyPendingTimers());
+        expect(oldChart.setOption).not.toHaveBeenCalled();
+        expect(oldChart.dispatchAction).not.toHaveBeenCalled();
+        expect(nextChart.setOption).toHaveBeenCalledTimes(1);
+        unmount();
+        nextChart.dispatchAction.mockClear();
+        act(() => jest.runOnlyPendingTimers());
+        expect(nextChart.dispatchAction).not.toHaveBeenCalled();
+        jest.useRealTimers();
     });
 
     it('should handle different languages', () => {

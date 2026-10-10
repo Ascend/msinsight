@@ -68,7 +68,7 @@ const Key = styled.kbd`
     border-radius: 3px;
 `;
 
-const Info = styled.p`
+const Info = styled.div`
     margin-bottom: 1px;
     font-size: 10pt;
     display: flex;

@@ -380,18 +380,6 @@ export class Session {
         );
     }
 
-    get endTimeAll(): TimeStamp | undefined {
-        return this._endTimeAll;
-    }
-
-    get name(): string | null {
-        return this._name;
-    }
-
-    get phase(): Phase {
-        return this._phase;
-    }
-
     get statusInfo(): string {
         if (this.phase === 'configuring') {
             return 'Idle';
@@ -402,29 +390,8 @@ export class Session {
         }
     }
 
-    get selectedUnitKeys(): (string[]) {
-        return this._selectedUnitKeys;
-    }
-
-    get domainRange(): DomainRange {
-        const { domainStart, domainEnd } = this._domain.domainRange;
-        return { domainStart, domainEnd };
-    }
-
-    get realTimeUpdate(): boolean {
-        return this._domain.realTimeUpdate && this.phase === 'recording';
-    }
-
     get domain(): Domain {
         return this._domain;
-    }
-
-    get interval(): number {
-        return this._interval;
-    }
-
-    get units(): InsightUnit[] {
-        return this._units;
     }
 
     get rankCardInfoMap(): Map<string, CardRankInfo> {
@@ -447,38 +414,14 @@ export class Session {
         this.kernelMfuProjectName = projectName;
     }
 
-    get availableUnits(): InsightUnit[] {
-        return this._availableUnits;
-    }
-
-    get selectedData(): SelectedDataType | undefined {
-        return this._selectedData;
-    }
-
-    get benchMarkData(): Record<string, unknown> | undefined {
-        return this._benchMarkData;
-    }
-
-    get alignSliceData(): SliceData[] {
-        return this._alignSliceData;
-    }
-
-    get selectedRangeData(): Array<Record<string, unknown>> | undefined {
-        return this._selectedRangeData;
-    }
-
-    get selectedUnits(): InsightUnit[] {
-        return this._selectedUnits;
-    }
-
-    get selectedRange(): [TimeStamp, TimeStamp] | undefined {
-        return this._selectedRange;
-    }
-
     get haveCreateFlagMarkPosition(): boolean {
         // 1. 有区间框选时，可以创建旗帜标记
         // 2. 没有区间框选，有鼠标悬浮线的坐标时，可以创建旗帜标记
         return this._selectedRange !== undefined || this.hoverMouseX !== null;
+    }
+
+    get endTimeAll(): TimeStamp | undefined {
+        return this._endTimeAll;
     }
 
     set endTimeAll(endTimeAll: TimeStamp | undefined) {
@@ -486,12 +429,24 @@ export class Session {
         this.updateEndTimeAll();
     }
 
+    get name(): string | null {
+        return this._name;
+    }
+
     set name(value: string | null) {
         this._name = value;
     }
 
+    get phase(): Phase {
+        return this._phase;
+    }
+
     set phase(value: Phase) {
         this._phase = value;
+    }
+
+    get selectedUnitKeys(): (string[]) {
+        return this._selectedUnitKeys;
     }
 
     set selectedUnitKeys(value: string[]) {
@@ -499,6 +454,11 @@ export class Session {
             return;
         }
         this._selectedUnitKeys = value;
+    }
+
+    get domainRange(): DomainRange {
+        const { domainStart, domainEnd } = this._domain.domainRange;
+        return { domainStart, domainEnd };
     }
 
     set domainRange(domainRange: DomainRange) {
@@ -514,12 +474,24 @@ export class Session {
         }
     }
 
+    get realTimeUpdate(): boolean {
+        return this._domain.realTimeUpdate && this.phase === 'recording';
+    }
+
     set realTimeUpdate(realTime: boolean) {
         this._domain.realTimeUpdate = realTime && this.phase === 'recording';
     }
 
+    get interval(): number {
+        return this._interval;
+    }
+
     set interval(value: number) {
         this._interval = value;
+    }
+
+    get units(): InsightUnit[] {
+        return this._units;
     }
 
     set units(units: InsightUnit[]) {
@@ -539,8 +511,16 @@ export class Session {
         this._units = units;
     }
 
+    get availableUnits(): InsightUnit[] {
+        return this._availableUnits;
+    }
+
     set availableUnits(availableUnits: InsightUnit[]) {
         this._availableUnits = availableUnits;
+    }
+
+    get selectedData(): SelectedDataType | undefined {
+        return this._selectedData;
     }
 
     set selectedData(data: SelectedDataType | undefined) {
@@ -553,16 +533,32 @@ export class Session {
         this.selectedDataUnit = undefined;
     }
 
+    get benchMarkData(): Record<string, unknown> | undefined {
+        return this._benchMarkData;
+    }
+
     set benchMarkData(data: Record<string, unknown> | undefined) {
         this._benchMarkData = data;
+    }
+
+    get alignSliceData(): SliceData[] {
+        return this._alignSliceData;
     }
 
     set alignSliceData(data: SliceData[]) {
         this._alignSliceData = data;
     }
 
+    get selectedRangeData(): Array<Record<string, unknown>> | undefined {
+        return this._selectedRangeData;
+    }
+
     set selectedRangeData(data: Array<Record<string, unknown>> | undefined) {
         this._selectedRangeData = data;
+    }
+
+    get selectedUnits(): InsightUnit[] {
+        return this._selectedUnits;
     }
 
     set selectedUnits(data: InsightUnit[]) {
@@ -571,6 +567,10 @@ export class Session {
         }
         this._selectedUnits = data;
         this._selectedUnitKeys = this._selectedUnits.map(getAutoKey);
+    }
+
+    get selectedRange(): [TimeStamp, TimeStamp] | undefined {
+        return this._selectedRange;
     }
 
     set selectedRange(data: [TimeStamp, TimeStamp] | undefined) {

@@ -19,7 +19,7 @@ import type { CompareFn, FilterConfirmProps, Key } from 'antd/es/table/interface
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input } from '@insight/lib/components';
-import { Space } from 'antd/lib/index';
+import { Space } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
 import { limitInput } from '@insight/lib/utils';

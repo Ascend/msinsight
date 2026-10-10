@@ -36,7 +36,12 @@ interface StyledButtonProps {
     transparent?: boolean;
 }
 
-export const StyledButton = styled(Button)<StyledButtonProps>`
+const StyledButtonBase = React.forwardRef(({ transparent, width, ...props }: StyledButtonProps & ButtonProps, ref: React.ForwardedRef<React.ComponentRef<typeof Button>>) => (
+    <Button {...props} ref={ref} />
+));
+StyledButtonBase.displayName = 'StyledButtonBase';
+
+export const StyledButton = styled(StyledButtonBase)<StyledButtonProps>`
     display: flex;
     align-items: center;
     width: ${(props): string => props.width !== undefined ? `${props.width}px` : '22px'};
@@ -58,6 +63,7 @@ export const StyledButton = styled(Button)<StyledButtonProps>`
         content: ${(props): string => props.transparent ? 'normal' : ''};
     }
 `;
+StyledButton.displayName = 'StyledButton';
 
 export const CustomButton = React.forwardRef(({ icon, isDisabled, isSuspend, tooltip, isEmphasize, ...props }: ButtonProps & CustomButtonProps,
     ref?: ForwardedRef<HTMLButtonElement>): JSX.Element => {

@@ -135,16 +135,6 @@ export const Index = observer(({ session, clusterPath }: { session: Session; clu
         const { performance, advice } = await invoke(params).finally(() => {
             setPerformanceLoading(false);
         });
-        if (performance.length !== 0) {
-            const curName = params.dimension === 'ep-dp-pp-cp-tp' ? 'Communication' : 'Avg Communication';
-            session.dynamicsIndicatorList = Object.keys(performance[0].commTimeIndicator.diff).map(item => {
-                return {
-                    key: item,
-                    name: curName,
-                    unit: 'μs',
-                } as IndicatorsItem;
-            });
-        }
         const performanceAfterDeal = performance.map(item => {
             return {
                 index: item.index,
@@ -156,6 +146,16 @@ export const Index = observer(({ session, clusterPath }: { session: Session; clu
         });
         setAdviceContent(advice ?? []);
         runInAction(() => {
+            if (performance.length !== 0) {
+                const curName = params.dimension === 'ep-dp-pp-cp-tp' ? 'Communication' : 'Avg Communication';
+                session.dynamicsIndicatorList = Object.keys(performance[0].commTimeIndicator.diff).map(item => {
+                    return {
+                        key: item,
+                        name: curName,
+                        unit: 'μs',
+                    } as IndicatorsItem;
+                });
+            }
             if (performanceAfterDeal !== undefined) {
                 session.performanceData = performanceAfterDeal;
 

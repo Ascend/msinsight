@@ -207,7 +207,7 @@ const MemoryHeader = observer(({ strategy, session, memorySession }:
         ];
         return fields
             .filter((field) => strategy.shouldDisplay(field.key))
-            .map((field) => field.element);
+            .map((field) => <React.Fragment key={field.key}>{field.element}</React.Fragment>);
     };
 
     return (

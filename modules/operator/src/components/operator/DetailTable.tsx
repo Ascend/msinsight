@@ -229,13 +229,12 @@ const queryOperatorDetailData = async ({ fullCondition, filterTypes, opType, opN
 const handleOrginData = (condition: FullConditionType, data: any[]): any[] => {
     const realData: any[] = [];
     data.forEach((item: any, index: number) => {
-        if (item.compare !== null && item.compare !== undefined) {
-            const { opType, opName, accCore, inputShape } = item.compare;
-            item.compare.rowKey = `${JSON.stringify({ ...condition, opType, opName, accCore, inputShape })}${index}`;
-            realData.push(item.compare);
-        } else {
-            realData.push(item);
-        };
+        const record = item.compare ?? item;
+        const { opType, opName, accCore, inputShape } = record;
+        realData.push({
+            ...record,
+            rowKey: record.rowKey ?? `${JSON.stringify({ ...condition, opType, opName, accCore, inputShape })}${index}`,
+        });
     });
     return realData;
 };
@@ -257,9 +256,10 @@ const handleCompareData = (data: any, t: TFunction): any[] => {
     if (data.length === 0) {
         return data;
     }
-    data[0].source = t('operator:Baseline');
-    data[1].source = t('operator:Comparison');
-    return [data[0], data[1]];
+    return [
+        { ...data[0], rowKey: 'baseline', source: t('operator:Baseline') },
+        { ...data[1], rowKey: 'comparison', source: t('operator:Comparison') },
+    ];
 };
 
 // eslint-disable-next-line max-lines-per-function
@@ -424,8 +424,7 @@ const BaseTable = ({ condition, filterType, opType, accCore, opName, inputShape,
         GdbPath = condition.dbPath;
         // 首次渲染不更新表格
         if (fullCondition.rankId === '') {
-            // 开发环境防止antd4 table组件报ResizeObserver loop错误，但会在没有数据时也显示有1条，生产环境不会报错也会正常显示
-            setTableData(process.env.NODE_ENV === 'development' ? [{}] : []);
+            setTableData([]);
             setPage(defaultPage);
             runInAction(() => {
                 session.total = 0;

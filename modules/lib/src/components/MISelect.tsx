@@ -58,32 +58,40 @@ interface MISelectProps<T extends DefaultOptionType = DefaultOptionType> extends
     optionRender?: (option: T) => JSX.Element;
 }
 
-const BaseMISelect = <T extends DefaultOptionType>(props: MISelectProps<T>): JSX.Element => {
+const BaseMISelect = React.forwardRef(<T extends DefaultOptionType>(
+    props: MISelectProps<T>,
+    ref: React.ForwardedRef<BaseSelectRef>,
+) => {
     const { t } = useTranslation('lib');
     const { size, dropdownMatchSelectWidth, options, optionRender, ...restProps } = props;
-    return <Select
-        suffixIcon={<StyledSuffixIcon />}
-        removeIcon={<StyledRemoveIcon />}
-        placeholder={t('Please select')}
-        dropdownMatchSelectWidth={dropdownMatchSelectWidth ?? false}
-        notFoundContent={<NoDataContent>{t('No data')}</NoDataContent>}
-        {...restProps}
-    >
-        {Array.isArray(options) && options.map(option =>
-            optionRender
-                ? (
-                    <Select.Option key={option.value} value={option.value} label={option.label} disabled={option.disabled}>
-                        {optionRender(option as T)}
-                    </Select.Option>
-                )
-                : (
-                    <Select.Option key={option.value} value={option.value} label={option.label} disabled={option.disabled}>
-                        {option.label}
-                    </Select.Option>
-                ),
-        )}
-    </Select>;
-};
+
+    return (
+        <Select
+            ref={ref}
+            suffixIcon={<StyledSuffixIcon />}
+            removeIcon={<StyledRemoveIcon />}
+            placeholder={t('Please select')}
+            dropdownMatchSelectWidth={dropdownMatchSelectWidth ?? false}
+            notFoundContent={<NoDataContent>{t('No data')}</NoDataContent>}
+            {...restProps}
+        >
+            {Array.isArray(options) && options.map(option =>
+                optionRender
+                    ? (
+                        <Select.Option key={option.value} value={option.value} label={option.label} disabled={option.disabled}>
+                            {optionRender(option as T)}
+                        </Select.Option>
+                    )
+                    : (
+                        <Select.Option key={option.value} value={option.value} label={option.label} disabled={option.disabled}>
+                            {option.label}
+                        </Select.Option>
+                    ),
+            )}
+        </Select>
+    );
+});
+BaseMISelect.displayName = 'BaseMISelect';
 
 const StyledMISelect = styled(BaseMISelect)`
     height: ${(props): string => props.height ? `${props.height}px` : 'auto'};

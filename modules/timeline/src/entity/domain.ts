@@ -109,14 +109,6 @@ export class Domain {
         return this._domainEnd - this._domainStart;
     }
 
-    get domainRange(): DomainRange {
-        return { domainStart: this._domainStart, domainEnd: this._domainEnd };
-    }
-
-    get realTimeUpdate(): boolean {
-        return this._realTimeUpdate;
-    }
-
     get isLowerBound(): boolean {
         return this.duration === this._LOWER_BOUND;
     }
@@ -174,6 +166,10 @@ export class Domain {
         this._debouncedSetZoomingHistory({ domainStart: this._domainStart, domainEnd: this._domainEnd });
     };
 
+    get domainRange(): DomainRange {
+        return { domainStart: this._domainStart, domainEnd: this._domainEnd };
+    }
+
     set domainRange({ domainStart, domainEnd }: DomainRange) {
         if (domainStart === this._domainStart && domainEnd === this._domainEnd) { return; }
         const positiveStart = Math.abs(domainStart);
@@ -192,6 +188,10 @@ export class Domain {
         } else {
             [this._domainStart, this._domainEnd] = [domainStart, domainEnd];
         }
+    }
+
+    get realTimeUpdate(): boolean {
+        return this._realTimeUpdate;
     }
 
     set realTimeUpdate(realTimeUpdate: boolean) {

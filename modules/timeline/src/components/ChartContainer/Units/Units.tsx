@@ -398,18 +398,20 @@ const FlattenUnits = observer(({ session, height, hasPinButton, laneInfoWidth, e
     // 记录鼠标移动后的Y值，用于鼠标移动方向判断
     const [movementChangeY, setMovementChangeY] = useState(0);
     const scrollElement = document.getElementById(UNIT_WRAPPER_SCROLLER_ID);
-
-    runInAction(() => {
-        updateSession(session, totalHeight, expandedCardIdSet);
-    });
     const ref = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         const element = ref.current;
         if (element) {
             return updateListener(element);
         }
-        return (): void => {};
     }, []);
+
+    useEffect(() => {
+        runInAction(() => {
+            updateSession(session, totalHeight, expandedCardIdSet);
+        });
+    }, [session, totalHeight, expandedCardIdSet]);
 
     useEffect(() => {
         const mainContainer = document.getElementById('main-container');

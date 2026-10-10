@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { Card } from 'antd/lib/index';
+import { Card } from 'antd';
 import type { CardProps } from 'antd/lib/card';
 import { isEmpty } from 'lodash';
 import { observer } from 'mobx-react';
