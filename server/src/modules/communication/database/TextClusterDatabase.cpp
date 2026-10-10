@@ -755,7 +755,7 @@ bool TextClusterDatabase::QueryCommunicationDetail(const std::string &rankId, co
                                      "MIN(transit_time) AS transitTime, MIN(bandwidth_size) AS bandwidth FROM " +
         TABLE_BANDWIDTH +
         " WHERE iteration_id = ? AND rank_id = ? AND op_suffix = ? AND op_name = ? "
-        "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO') "
+        "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO', 'UB') "
         "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth_size IS NOT NULL "
         "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth_size) = MAX(bandwidth_size) "
