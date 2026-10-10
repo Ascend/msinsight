@@ -26,6 +26,8 @@
 #include "TraceTime.h"
 #include "MemoryTestUtil.h"
 #include "OperatorMemoryService.h"
+#include "OpMemoryTable.h"
+#include "OperatorTable.h"
 #include "NumberUtil.h"
 
 using namespace Dic::Module::Timeline;
@@ -50,9 +52,58 @@ class DbMemoryDatabaseTest : public ::testing::Test {
     static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
         memoryDatabase->CloseDb();
+        memoryDatabase.reset();
         DataBaseManager::Instance().Clear();
     }
 };
+
+TEST_F(DbMemoryDatabaseTest, MemoryTableQueriesAndCountsFromOpenDatabase) {
+    OpMemoryTable table;
+    table.Select(OpMemoryColumn::ID, OpMemoryColumn::NAME);
+    std::vector<OpMemoryPO> rows;
+    table.ExcuteQuery("0", rows);
+    EXPECT_EQ(rows.size(), table.Count("0"));
+    EXPECT_TRUE(table.ExcuteQuery("missing-rank").empty());
+    EXPECT_EQ(table.Count("missing-rank"), 0U);
+}
+
+TEST_F(DbMemoryDatabaseTest, OperatorTableMapsEverySelectedColumnFromSqlite) {
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    const char *schema =
+        "CREATE TABLE operator (name TEXT, size REAL, allocationTime INTEGER, "
+        "releaseTime INTEGER, duration REAL, activeReleaseTime INTEGER, activeDuration REAL, "
+        "allocationTotalAllocated REAL, allocationTotalReserved REAL, allocationTotalActive REAL, "
+        "releaseTotalAllocated REAL, releaseTotalReserved REAL, releaseTotalActive REAL, streamPtr TEXT)";
+    ASSERT_EQ(sqlite3_exec(db, schema, nullptr, nullptr, nullptr), SQLITE_OK);
+    const char *row = "INSERT INTO operator VALUES ('MatMul', 2.5, 10, 20, 10.0, 19, 9.0, "
+                      "1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 'stream-0')";
+    ASSERT_EQ(sqlite3_exec(db, row, nullptr, nullptr, nullptr), SQLITE_OK);
+    OperatorTable table;
+    table.Select(OpMemoryColumn::ID, OpMemoryColumn::NAME, OpMemoryColumn::SIZE, OpMemoryColumn::ALLOCATION_TIME,
+        OpMemoryColumn::RELEASE_TIME, OpMemoryColumn::DURATION, OpMemoryColumn::ACTIVE_RELEASE_TIME,
+        OpMemoryColumn::ACTIVE_DURATION, OpMemoryColumn::ALLOCATION_ALLOCATED, OpMemoryColumn::ALLOCATION_RESERVE,
+        OpMemoryColumn::ALLOCATION_ACTIVE, OpMemoryColumn::RELEASE_ALLOCATED, OpMemoryColumn::RELEASE_RESERVE,
+        OpMemoryColumn::RELEASE_ACTIVE, OpMemoryColumn::STREAM);
+    std::vector<OperatorPO> rows;
+    table.ExcuteQuery(db, rows);
+    ASSERT_EQ(rows.size(), 1U);
+    EXPECT_EQ(rows.front().id, 1U);
+    EXPECT_EQ(rows.front().name, "MatMul");
+    EXPECT_DOUBLE_EQ(rows.front().size, 2.5);
+    EXPECT_EQ(rows.front().allocationTime, 10U);
+    EXPECT_EQ(rows.front().releaseTime, 20U);
+    EXPECT_EQ(rows.front().activeReleaseTime, 19U);
+    EXPECT_DOUBLE_EQ(rows.front().allocationReserve, 2.0);
+    EXPECT_DOUBLE_EQ(rows.front().releaseActive, 6.0);
+    EXPECT_EQ(rows.front().stream, "stream-0");
+    table.Select(OpMemoryColumn::NAME).Eq(OpMemoryColumn::NAME, std::string("MatMul"));
+    rows.clear();
+    table.ExcuteQuery(db, rows);
+    ASSERT_EQ(rows.size(), 1U);
+    EXPECT_EQ(rows.front().name, "MatMul");
+    EXPECT_EQ(sqlite3_close(db), SQLITE_OK);
+}
 
 TEST_F(DbMemoryDatabaseTest, FullDbQueryMemoryComponentData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");

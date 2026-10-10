@@ -23,12 +23,259 @@
 #include "MemSnapshotDefs.h"
 #include "MemSnapshotProtocolRequest.h"
 #include "MemSnapshotProtocolResponse.h"
+#include "MemSnapshotResponseDTO.h"
+
+TEST(MemSnapshotDtoSerializationTest, SerializesLifecycleAndTableItems) {
+    rapidjson::Document owner;
+    owner.SetObject();
+    auto &allocator = owner.GetAllocator();
+    Dic::Protocol::BlockViewItemDTO view;
+    view.id = 7;
+    view.address = 0x100;
+    view.allocEventId = 1;
+    view.freeEventId = 5;
+    view.originalAllocEventId = -1;
+    EXPECT_EQ(view.ToJson(allocator)["id"].GetInt64(), 7);
+
+    Dic::Protocol::AllocationRecord allocation(3, 20, 10);
+    EXPECT_EQ(allocation.reserved, 20U);
+    EXPECT_EQ(Dic::Protocol::AllocationRecordDTO(3, 20).ToJson(allocator)["totalSize"].GetUint64(), 20U);
+    EXPECT_EQ(Dic::Protocol::ReservedRecordDTO(3, 30).ToJson(allocator)["reservedSize"].GetUint64(), 30U);
+
+    Dic::Protocol::SegmentItemDTO segment;
+    segment.address = 0x100;
+    segment.blocks.emplace_back();
+    segment.blocks.back().id = 7;
+    const auto segmentJson = segment.ToJson(allocator);
+    ASSERT_EQ(segmentJson["blocks"].Size(), 1U);
+    EXPECT_EQ(segmentJson["blocks"][0]["id"].GetInt64(), 7);
+
+    Dic::Protocol::BlockTableItemDTO blockTable;
+    blockTable.id = 7;
+    EXPECT_EQ(blockTable.ToJson(allocator)["id"].GetInt64(), 7);
+    Dic::Protocol::TraceEntryTableItemDTO traceTable;
+    traceTable.id = 3;
+    EXPECT_EQ(traceTable.ToJson(allocator)["id"].GetInt64(), 3);
+}
+
+TEST(MemSnapshotDtoSerializationTest, SerializesOptionalDetailEvents) {
+    rapidjson::Document owner;
+    owner.SetObject();
+    auto &allocator = owner.GetAllocator();
+    Dic::Module::MemSnapshot::Block block;
+    block.id = 9;
+    Dic::Protocol::BlockDetailDTO detail(block);
+    EXPECT_TRUE(detail.ToJson(allocator)["Alloc Event"].ObjectEmpty());
+    Dic::Module::MemSnapshot::TraceEntry event;
+    event.id = 2;
+    event.action = "alloc";
+    detail.allocEvent.emplace(event);
+    detail.freeRequestedEvent.emplace(event);
+    detail.freeCompletedEvent.emplace(event);
+    auto json = detail.ToJson(allocator);
+    EXPECT_EQ(json["Alloc Event"]["ID"].GetInt64(), 2);
+    EXPECT_EQ(json["Free Requested Event"]["ID"].GetInt64(), 2);
+    EXPECT_EQ(json["Free Completed Event"]["ID"].GetInt64(), 2);
+
+    Dic::Module::MemSnapshot::Segment segment(0, 0);
+    Dic::Module::MemSnapshot::SegmentSummary summary;
+    Dic::Protocol::SegmentDetailDTO segmentDetail(segment, summary);
+    EXPECT_TRUE(segmentDetail.ToJson(allocator).HasMember("Event Message"));
+    segmentDetail.allocOrMapEvent.emplace(event);
+    EXPECT_EQ(segmentDetail.ToJson(allocator)["Alloc Or Map Event"]["ID"].GetInt64(), 2);
+}
 
 class MemSnapshotProtocolTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {}
     static void TearDownTestSuite() {}
 };
+
+TEST_F(MemSnapshotProtocolTest, RequestsRejectMissingBaseAndRequiredParams) {
+    using namespace Dic::Protocol;
+    using Decoder = std::unique_ptr<Request> (*)(const json_t &, std::string &);
+    const std::vector<Decoder> decoders = {MemSnapshotBlocksRequest::FromJson, MemSnapshotEventsRequest::FromJson,
+        MemSnapshotAllocationsRequest::FromJson, MemSnapshotAllocationLinesRequest::FromJson,
+        MemSnapshotLeakStatsRequest::FromJson};
+    for (const auto decode : decoders) {
+        std::string error;
+        auto invalid = JsonUtil::TryParse("{}", error);
+        ASSERT_TRUE(invalid.has_value());
+        EXPECT_EQ(decode(*invalid, error), nullptr);
+        EXPECT_FALSE(error.empty());
+        error.clear();
+        auto missing = JsonUtil::TryParse(
+            R"({"id":1,"type":"request","moduleName":"leaks","command":"Memory/snapshot/blocks","params":{}})", error);
+        ASSERT_TRUE(missing.has_value());
+        EXPECT_EQ(decode(*missing, error), nullptr);
+        EXPECT_FALSE(error.empty());
+    }
+}
+
+TEST_F(MemSnapshotProtocolTest, BlockAndAllocationPaginationBoundaries) {
+    std::string error;
+    Dic::Protocol::MemSnapshotBlockParams blocks;
+    blocks.deviceId = "0";
+    blocks.eventType = "BLOCK";
+    blocks.maxSize = 100;
+    EXPECT_TRUE(blocks.CommonCheckForView(error));
+    blocks.currentPage = 1;
+    blocks.pageSize = blocks.MAX_VIEW_PAGE_SIZE;
+    EXPECT_TRUE(blocks.CommonCheckForView(error));
+    blocks.pageSize++;
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+    blocks.pageSize = 10;
+    blocks.currentPage = INT64_MAX;
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+    blocks.currentPage = 0;
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+    blocks.currentPage = 1;
+    blocks.minSize = 101;
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+    blocks.minSize = 0;
+    blocks.startEventIdx = 2;
+    blocks.endEventIdx = 1;
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+    blocks.endEventIdx = UINT64_MAX;
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+    blocks.endEventIdx = 2;
+    blocks.deviceId.clear();
+    EXPECT_FALSE(blocks.CommonCheckForView(error));
+
+    Dic::Protocol::MemSnapshotAllocationParams allocations;
+    allocations.deviceId = "0";
+    allocations.eventType = "BLOCK";
+    EXPECT_TRUE(allocations.CommonCheck(error));
+    allocations.currentPage = 1;
+    allocations.pageSize = allocations.MAX_PAGE_SIZE;
+    EXPECT_TRUE(allocations.CommonCheck(error));
+    allocations.pageSize++;
+    EXPECT_FALSE(allocations.CommonCheck(error));
+    allocations.pageSize = 10;
+    allocations.currentPage = INT64_MAX;
+    EXPECT_FALSE(allocations.CommonCheck(error));
+    allocations.currentPage = 0;
+    EXPECT_FALSE(allocations.CommonCheck(error));
+    allocations.deviceId.clear();
+    EXPECT_FALSE(allocations.CommonCheck(error));
+    allocations.deviceId = "0";
+    allocations.eventType.clear();
+    EXPECT_FALSE(allocations.CommonCheck(error));
+}
+
+TEST_F(MemSnapshotProtocolTest, DetailStateAndEventValidationBoundaries) {
+    std::string error;
+    Dic::Protocol::MemSnapshotLeakStatsParams stats;
+    stats.deviceId = "0";
+    EXPECT_TRUE(stats.CommonCheck(error));
+    stats.startEventIdx = 2;
+    stats.endEventIdx = 1;
+    EXPECT_FALSE(stats.CommonCheck(error));
+    stats.endEventIdx = UINT64_MAX;
+    EXPECT_FALSE(stats.CommonCheck(error));
+
+    Dic::Protocol::MemSnapshotEventParams events;
+    events.deviceId = "0";
+    events.currentPage = 1;
+    events.pageSize = 10;
+    EXPECT_TRUE(events.CommonCheck(error));
+    events.startEventIdx = 2;
+    events.endEventIdx = 1;
+    EXPECT_FALSE(events.CommonCheck(error));
+    events.endEventIdx = UINT64_MAX;
+    EXPECT_FALSE(events.CommonCheck(error));
+
+    Dic::Protocol::MemSnapshotDetailParams detail;
+    detail.deviceId = "0";
+    detail.type = Dic::Module::MemSnapshot::DETAIL_TYPE_BLOCK;
+    EXPECT_TRUE(detail.CommonCheck(error));
+    detail.type = "unexpected";
+    EXPECT_FALSE(detail.CommonCheck(error));
+    detail.type = Dic::Module::MemSnapshot::DETAIL_TYPE_SEGMENT;
+    EXPECT_FALSE(detail.CommonCheck(error));
+    detail.hasEventId = detail.hasSegmentAddress = detail.hasStream = true;
+    detail.eventId = UINT64_MAX;
+    EXPECT_FALSE(detail.CommonCheck(error));
+    detail.eventId = 1;
+    EXPECT_FALSE(detail.CommonCheck(error));
+    detail.segmentAddress = "0x100";
+    EXPECT_TRUE(detail.CommonCheck(error));
+
+    Dic::Protocol::MemSnapshotStateParams state;
+    EXPECT_FALSE(state.CommonCheck(error));
+    state.deviceId = "0";
+    state.eventId = UINT64_MAX;
+    EXPECT_FALSE(state.CommonCheck(error));
+    state.eventId = 1;
+    EXPECT_TRUE(state.CommonCheck(error));
+}
+
+TEST_F(MemSnapshotProtocolTest, SerializesTableAndViewResponseVariants) {
+    Dic::Protocol::MemSnapshotBlocksResponse blocks;
+    blocks.minTimestamp = 10;
+    blocks.maxTimestamp = 20;
+    Dic::Protocol::BlockViewItemDTO view;
+    view.allocEventId = 5;
+    view.freeEventId = -1;
+    blocks.viewBlocks.push_back(view);
+    auto viewJson = blocks.ToJson();
+    ASSERT_TRUE(viewJson.has_value());
+    EXPECT_EQ((*viewJson)["body"]["blocks"][0]["_startTimestamp"].GetInt64(), 10);
+    EXPECT_EQ((*viewJson)["body"]["blocks"][0]["_endTimestamp"].GetInt64(), 20);
+    EXPECT_EQ((*viewJson)["body"]["blocks"][0]["allocEventId"].GetInt64(), 5);
+    blocks.isTable = true;
+    blocks.tableBlocks.emplace_back();
+    blocks.tableBlocks.back().id = 7;
+    const auto tableJson = blocks.ToJson();
+    ASSERT_TRUE(tableJson.has_value());
+    EXPECT_EQ((*tableJson)["body"]["blocks"][0]["id"].GetInt64(), 7);
+    EXPECT_TRUE((*tableJson)["body"].HasMember("headers"));
+
+    Dic::Protocol::MemSnapshotEventsResponse events;
+    events.listEntries.emplace_back();
+    events.listEntries.back().id = 3;
+    auto listJson = events.ToJson();
+    ASSERT_TRUE(listJson.has_value());
+    EXPECT_EQ((*listJson)["body"]["events"][0]["id"].GetInt64(), 3);
+    events.isTable = true;
+    events.tableEntries.emplace_back();
+    events.tableEntries.back().id = 4;
+    auto eventTableJson = events.ToJson();
+    ASSERT_TRUE(eventTableJson.has_value());
+    EXPECT_EQ((*eventTableJson)["body"]["events"][0]["id"].GetInt64(), 4);
+}
+
+TEST_F(MemSnapshotProtocolTest, SerializesPagedLinesAndOptionalDetails) {
+    Dic::Protocol::MemSnapshotLeakStatsResponse stats;
+    stats.totalSize = 12;
+    EXPECT_EQ(stats.ToJson()->operator[]("body")["totalSize"].GetDouble(), 12);
+
+    Dic::Protocol::MemSnapshotAllocationsResponse allocations;
+    allocations.paginated = true;
+    allocations.allocationsTotal = 2;
+    allocations.allocations.emplace_back(1, 10);
+    const auto allocationJson = allocations.ToJson();
+    ASSERT_TRUE(allocationJson.has_value());
+    EXPECT_EQ((*allocationJson)["body"]["total"]["allocations"].GetUint64(), 2U);
+    EXPECT_EQ((*allocationJson)["body"]["allocations"].Size(), 1U);
+
+    Dic::Protocol::MemSnapshotAllocationLinesResponse lines;
+    lines.paginated = true;
+    lines.reservedLineTotal = 3;
+    lines.reservedLine.emplace_back(1, 20);
+    const auto lineJson = lines.ToJson();
+    ASSERT_TRUE(lineJson.has_value());
+    EXPECT_EQ((*lineJson)["body"]["total"]["reservedLine"].GetUint64(), 3U);
+
+    Dic::Protocol::MemSnapshotDetailResponse detail;
+    EXPECT_FALSE(detail.ToJson()->HasMember("body"));
+    detail.detail.emplace(std::make_unique<Dic::Protocol::TraceEntryDetailDTO>(Dic::Module::MemSnapshot::TraceEntry{}));
+    EXPECT_TRUE(detail.ToJson()->HasMember("body"));
+
+    Dic::Protocol::MemSnapshotStateResponse state;
+    state.segments.emplace_back();
+    EXPECT_EQ(state.ToJson()->operator[]("body")["segments"].Size(), 1U);
+}
 
 TEST_F(MemSnapshotProtocolTest, BuildBlocksTableRequestFromJson) {
     std::string jsonStr = "{"

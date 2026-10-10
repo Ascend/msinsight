@@ -108,6 +108,151 @@ TEST_F(MemSnapshotDatabaseTest, OpenAndCloseDb) {
 // 测试表存在性检查
 TEST_F(MemSnapshotDatabaseTest, CheckAllTableExist) { EXPECT_TRUE(snapshotDb->CheckAllTableExist()); }
 
+TEST_F(MemSnapshotDatabaseTest, MissingDeviceQueriesReportFailureWithoutAppendingData) {
+    const std::string device = "999";
+    std::vector<Block> blocks;
+    EXPECT_FALSE(snapshotDb->QueryAllBlocks(blocks, device));
+    PaginationParam page;
+    page.currentPage = 1;
+    page.pageSize = 10;
+    EXPECT_EQ(snapshotDb->QueryBlocksByPage(page, device, blocks), -1);
+    EXPECT_FALSE(snapshotDb->QueryBlockById(0, device).has_value());
+    EXPECT_FALSE(snapshotDb->QueryActiveBlocksByEventId(0, device, blocks));
+    std::vector<TraceEntry> events;
+    EXPECT_FALSE(snapshotDb->QuerySegmentEventsUntil(0, device, events));
+    EXPECT_FALSE(snapshotDb->QueryTraceEntryById(0, device).has_value());
+    Block block;
+    EXPECT_FALSE(snapshotDb->QueryFreeRequestedTraceEntryByBlock(block, device).has_value());
+    std::vector<AllocationRecord> records;
+    snapshotDb->QueryMemoryAllocations(device, records);
+    EXPECT_TRUE(records.empty());
+    std::vector<AllocationRecordDTO> overview;
+    std::vector<ReservedRecordDTO> lines;
+    EXPECT_FALSE(snapshotDb->QueryMemoryAllocationCache(device, overview, lines));
+    EXPECT_FALSE(snapshotDb->QueryMemoryAllocationOverviewCache(device, overview));
+    EXPECT_FALSE(snapshotDb->QueryMemoryAllocationLineCache(device, lines));
+    uint64_t maxSize = 123;
+    EXPECT_FALSE(snapshotDb->QueryMemoryAllocationCacheMaxSize(device, maxSize));
+    EXPECT_EQ(maxSize, 123U);
+    MemSnapshotBlockParams blockParams;
+    blockParams.deviceId = device;
+    std::vector<BlockTableItemDTO> blockTable;
+    EXPECT_EQ(snapshotDb->QueryBlocksTable(blockParams, blockTable), -1);
+    MemSnapshotEventParams eventParams;
+    eventParams.deviceId = device;
+    std::vector<TraceEntryTableItemDTO> eventTable;
+    EXPECT_EQ(snapshotDb->QueryTraceEntriesTable(eventParams, eventTable), -1);
+    std::vector<TraceEntryListItemDTO> eventList;
+    EXPECT_EQ(snapshotDb->QueryTraceEntriesList(page, device, eventList), -1);
+    EXPECT_TRUE(blocks.empty());
+    EXPECT_TRUE(events.empty());
+    EXPECT_TRUE(overview.empty());
+    EXPECT_TRUE(lines.empty());
+    EXPECT_EQ(snapshotDb->GetDeviceMaxEntryId(device), -1);
+    int64_t minId = 123;
+    int64_t maxId = 456;
+    snapshotDb->QueryBlockIdRangeByDeviceIdLazy(device, minId, maxId);
+    EXPECT_EQ(minId, 123);
+    EXPECT_EQ(maxId, 456);
+    EXPECT_EQ(snapshotDb->GetKeyInTableDictionaryMap("missing", "action", "alloc"), -1);
+    EXPECT_EQ(snapshotDb->GetKeyInTableDictionaryMap("trace_entry_", "action", "missing-action"), -1);
+    EXPECT_EQ(snapshotDb->GetRealValueInTableDictionaryMap("missing", "action", 123), "123");
+    MemSnapshotAllocationParams allocationParams;
+    allocationParams.deviceId = device;
+    std::vector<MemoryRecord> memoryRecords;
+    snapshotDb->QueryMemoryRecords(allocationParams, memoryRecords);
+    EXPECT_TRUE(memoryRecords.empty());
+    MemSnapshotLeakStatsParams leakParams;
+    leakParams.deviceId = device;
+    MemSnapshotLeakStatsDTO leakStats;
+    EXPECT_FALSE(snapshotDb->QueryPotentialLeakStats(leakParams, leakStats));
+}
+
+TEST_F(MemSnapshotDatabaseTest, DetailedQueriesReportReadDeniedAfterSuccessfulCount) {
+    std::recursive_mutex mutex;
+    FaultInjectableMemSnapshotDatabase database(mutex);
+    ASSERT_TRUE(database.OpenDbReadOnly(testDbPath));
+    const auto denyAddressRead = [](void *, int action, const char *, const char *column, const char *, const char *) {
+        return action == SQLITE_READ && column != nullptr && std::strcmp(column, "address") == 0 ? SQLITE_DENY
+                                                                                                 : SQLITE_OK;
+    };
+    ASSERT_EQ(sqlite3_set_authorizer(database.GetRawDb(), denyAddressRead, nullptr), SQLITE_OK);
+    MemSnapshotBlockParams blockParams;
+    blockParams.deviceId = "0";
+    blockParams.currentPage = 1;
+    blockParams.pageSize = 10;
+    std::vector<BlockTableItemDTO> blocks;
+    EXPECT_EQ(database.QueryBlocksTable(blockParams, blocks), -1);
+    EXPECT_TRUE(blocks.empty());
+    MemSnapshotEventParams eventParams;
+    eventParams.deviceId = "0";
+    eventParams.currentPage = 1;
+    eventParams.pageSize = 10;
+    std::vector<TraceEntryTableItemDTO> events;
+    EXPECT_EQ(database.QueryTraceEntriesTable(eventParams, events), -1);
+    EXPECT_TRUE(events.empty());
+    EXPECT_EQ(sqlite3_set_authorizer(database.GetRawDb(), nullptr, nullptr), SQLITE_OK);
+    database.CloseDb();
+}
+
+TEST_F(MemSnapshotDatabaseTest, AllocationCacheRejectsInvalidPathAndMissingSourceRecords) {
+    EXPECT_FALSE(MemSnapshotDatabase::BuildMemoryAllocationCache("", "0"));
+    EXPECT_FALSE(MemSnapshotDatabase::HasMemoryAllocationCache("", "0"));
+    const auto emptyDbPath = FileUtil::SplicePath(::testing::TempDir(), "snapshot_empty_cache_coverage.db");
+    FileUtil::RemoveFile(emptyDbPath);
+    EXPECT_FALSE(MemSnapshotDatabase::BuildMemoryAllocationCache(emptyDbPath, "0"));
+    EXPECT_FALSE(MemSnapshotDatabase::HasMemoryAllocationCache(emptyDbPath, "0"));
+    FileUtil::RemoveFile(emptyDbPath);
+}
+
+TEST_F(MemSnapshotDatabaseTest, RejectsMalformedTraceSchemaAndUnpairedDeviceTables) {
+    const auto dbPath = FileUtil::SplicePath(::testing::TempDir(), "snapshot_invalid_schema_coverage.db");
+    FileUtil::RemoveFile(dbPath);
+    sqlite3 *raw = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &raw), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(raw,
+                  "CREATE TABLE dictionary (`table` TEXT, `column` TEXT, `key` TEXT, `value` TEXT);"
+                  "CREATE TABLE block_0 (id INTEGER);"
+                  "CREATE TABLE trace_entry_0 (invalid_column INTEGER);",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_close(raw), SQLITE_OK);
+    std::recursive_mutex mutex;
+    MemSnapshotDatabase database(mutex);
+    EXPECT_FALSE(database.OpenDbReadOnly(dbPath));
+    EXPECT_FALSE(database.IsOpen());
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &raw), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(raw, "DROP TABLE trace_entry_0", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_close(raw), SQLITE_OK);
+    EXPECT_FALSE(database.OpenDbReadOnly(dbPath));
+    EXPECT_FALSE(database.IsOpen());
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &raw), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(raw, "CREATE TABLE trace_entry_0 (id INTEGER);CREATE TABLE block_1 (id INTEGER);", nullptr,
+                  nullptr, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_close(raw), SQLITE_OK);
+    EXPECT_FALSE(database.OpenDbReadOnly(dbPath));
+    EXPECT_FALSE(database.IsOpen());
+    FileUtil::RemoveFile(dbPath);
+}
+
+TEST_F(MemSnapshotDatabaseTest, LazyBlockRangeMatchesRowsAndIsStableOnReuse) {
+    std::vector<Block> blocks;
+    ASSERT_TRUE(snapshotDb->QueryAllBlocks(blocks, "0"));
+    ASSERT_FALSE(blocks.empty());
+    const auto range = std::minmax_element(
+        blocks.begin(), blocks.end(), [](const Block &left, const Block &right) { return left.id < right.id; });
+    int64_t minId = 0;
+    int64_t maxId = 0;
+    snapshotDb->QueryBlockIdRangeByDeviceIdLazy("0", minId, maxId);
+    EXPECT_EQ(minId, range.first->id);
+    EXPECT_EQ(maxId, range.second->id);
+    minId = maxId = 0;
+    snapshotDb->QueryBlockIdRangeByDeviceIdLazy("0", minId, maxId);
+    EXPECT_EQ(minId, range.first->id);
+    EXPECT_EQ(maxId, range.second->id);
+}
+
 TEST_F(MemSnapshotDatabaseTest, CloseDbWhenRequiredTablesAreMissing) {
     const std::string invalidDbPath = testDbPath + ".invalid_tables.db";
     sqlite3 *invalidDb = nullptr;

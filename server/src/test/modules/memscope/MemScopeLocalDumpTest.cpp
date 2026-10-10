@@ -17,6 +17,7 @@
  */
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include "DataBaseManager.h"
@@ -39,7 +40,8 @@ std::string FixtureDumpPath(const std::string &fileName) {
 }
 
 std::string CopyDumpForParse(const std::string &srcPath, const std::string &name) {
-    const auto workDir = std::filesystem::temp_directory_path() / "memscope_attr_usage_test";
+    const auto workDir = std::filesystem::temp_directory_path() /
+        ("memscope_attr_usage_test_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(workDir);
     const auto dest = workDir / name;
     std::filesystem::copy_file(srcPath, dest, std::filesystem::copy_options::overwrite_existing);

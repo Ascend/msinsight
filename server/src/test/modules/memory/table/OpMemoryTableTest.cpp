@@ -22,6 +22,32 @@
 using namespace Dic::Module::Memory;
 class OpMemoryTableTest : public ::testing::Test {};
 
+TEST_F(OpMemoryTableTest, RawDatabaseQueryBindsTypesAndResetsAfterInvalidSql) {
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+                  "CREATE TABLE OP_MEMORY (size INTEGER, allocationTime INTEGER, name TEXT);"
+                  "INSERT INTO OP_MEMORY VALUES (64, 100, 'operator');",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    OpMemoryTable table;
+    table.Select(OpMemoryColumn::SIZE);
+    table.Eq(OpMemoryColumn::SIZE, uint32_t{64});
+    table.Eq(OpMemoryColumn::ALLOCATION_TIME, uint64_t{100});
+    table.Eq(OpMemoryColumn::NAME, std::string("operator"));
+    std::vector<OpMemoryPO> records;
+    table.ExcuteQuery(db, records);
+    ASSERT_EQ(records.size(), 1U);
+    EXPECT_EQ(records[0].size, 64U);
+    table.Select("missing_column");
+    table.ExcuteQuery(db, records);
+    EXPECT_EQ(records.size(), 1U);
+    table.Select(OpMemoryColumn::SIZE);
+    table.ExcuteQuery(db, records);
+    EXPECT_EQ(records.size(), 2U);
+    EXPECT_EQ(sqlite3_close(db), SQLITE_OK);
+}
+
 TEST_F(OpMemoryTableTest, TestOpMemoryTableColumnMaping) {
     sqlite3 *db = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(db);

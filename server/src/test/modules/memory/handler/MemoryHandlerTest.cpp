@@ -16,11 +16,13 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <cmath>
 #include "OperatorMemoryService.h"
 #include "RenderEngine.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
 #include "ServerLog.h"
 #include "FindSliceByAllocationTimeHandler.h"
+#include "QueryMemoryViewHandler.h"
 
 using namespace Dic::Module::Memory;
 class MemoryHandlerTest : public ::testing::Test {
@@ -63,6 +65,54 @@ TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenTimelineNotExi
         std::make_unique<Dic::Protocol::MemoryFindSliceRequest>();
     bool res = handler.HandleRequest(std::move(request));
     EXPECT_EQ(res, false);
+}
+
+TEST_F(MemoryHandlerTest, CompareMemoryCurvesMergesEarlierEqualAndLaterTimestamps) {
+    QueryMemoryViewHandler handler;
+    Dic::Protocol::MemoryViewData compare;
+    compare.legends = {"Time", "Allocated"};
+    compare.tempData = {1, 10, 3, 30, 5, 50};
+    Dic::Protocol::MemoryViewData baseline;
+    baseline.legends = {"Time", "Reserved"};
+    baseline.tempData = {2, 20, 3, 33, 4, 40};
+    Dic::Protocol::MemoryViewResponse response;
+    handler.ExecuteComparisonAlgorithm(compare, baseline, response);
+    EXPECT_EQ(
+        response.data.legends, (std::vector<std::string>{"Time", "Allocated of Compare", "Reserved of Baseline"}));
+    ASSERT_EQ(response.data.tempData.size(), 15U);
+    EXPECT_DOUBLE_EQ(response.data.tempData[0], 1);
+    EXPECT_TRUE(std::isnan(response.data.tempData[2]));
+    EXPECT_DOUBLE_EQ(response.data.tempData[3], 2);
+    EXPECT_TRUE(std::isnan(response.data.tempData[4]));
+    EXPECT_DOUBLE_EQ(response.data.tempData[8], 33);
+    EXPECT_DOUBLE_EQ(response.data.tempData[13], 50);
+}
+
+TEST_F(MemoryHandlerTest, CompareMemoryCurvesHandlesEmptySides) {
+    QueryMemoryViewHandler handler;
+    Dic::Protocol::MemoryViewData empty;
+    Dic::Protocol::MemoryViewData baseline;
+    baseline.legends = {"Time", "Reserved"};
+    baseline.tempData = {2, 20};
+    Dic::Protocol::MemoryViewResponse response;
+    handler.ExecuteComparisonAlgorithm(empty, baseline, response);
+    EXPECT_EQ(response.data.legends, (std::vector<std::string>{"Reserved of Baseline"}));
+    EXPECT_EQ(response.data.tempData, (std::vector<double>{2, 20}));
+    Dic::Protocol::MemoryViewResponse reverse;
+    handler.ExecuteComparisonAlgorithm(baseline, empty, reverse);
+    ASSERT_EQ(reverse.data.tempData.size(), 2U);
+    EXPECT_DOUBLE_EQ(reverse.data.tempData[1], 20);
+}
+
+TEST_F(MemoryHandlerTest, MemoryViewRejectsBadParametersAndUnavailableRank) {
+    QueryMemoryViewHandler handler;
+    auto invalid = std::make_unique<Dic::Protocol::MemoryViewRequest>();
+    EXPECT_FALSE(handler.HandleRequest(std::move(invalid)));
+
+    auto missing = std::make_unique<Dic::Protocol::MemoryViewRequest>();
+    missing->params.rankId = "unopened-rank";
+    missing->params.type = Dic::Protocol::MEMORY_OVERALL_GROUP;
+    EXPECT_FALSE(handler.HandleRequest(std::move(missing)));
 }
 
 TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenMemoryDataNotExist) {

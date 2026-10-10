@@ -71,3 +71,20 @@ TEST(MemScopeAllocationDataProcessorTest, CompressUsageLineHandlesEmptyAndSingle
     EXPECT_EQ(single.front().timestamp, 7);
     EXPECT_EQ(single.front().value, 42);
 }
+
+TEST(MemScopeAllocationDataProcessorTest, CompressUsageLineChecksEachMetricIndependently) {
+    const std::vector<MemoryAllocation> allocations = {
+        MakeAlloc(1, 0, 0, 0), MakeAlloc(2, 0, 7, 0), MakeAlloc(3, 0, 7, 9)};
+
+    EXPECT_TRUE(MemScopeAllocationDataProcessor::CompressReservedLine(allocations).empty());
+    const auto process = MemScopeAllocationDataProcessor::CompressProcessUsedLine(allocations);
+    const auto device = MemScopeAllocationDataProcessor::CompressDeviceUsedLine(allocations);
+    ASSERT_EQ(process.size(), 3);
+    EXPECT_EQ(process[0].value, 0);
+    EXPECT_EQ(process[1].value, 7);
+    EXPECT_EQ(process[2].value, 7);
+    ASSERT_EQ(device.size(), 3);
+    EXPECT_EQ(device[0].value, 0);
+    EXPECT_EQ(device[1].value, 0);
+    EXPECT_EQ(device[2].value, 9);
+}

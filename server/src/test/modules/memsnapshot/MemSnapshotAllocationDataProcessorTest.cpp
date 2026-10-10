@@ -84,6 +84,27 @@ TEST(MemSnapshotAllocationDataProcessorTest, ExtractAllocationTurningPointsLimit
     }
 }
 
+TEST(MemSnapshotAllocationDataProcessorTest, ExtractAllocationTurningPointsKeepsBothEndsOfFlatExtrema) {
+    const std::vector<Dic::Protocol::AllocationRecord> records = {
+        {0, 10, 10}, {1, 20, 20}, {2, 20, 20}, {3, 10, 10}, {4, 5, 10}, {5, 5, 10}, {6, 15, 15}};
+
+    const auto result = MemSnapshotAllocationDataProcessor::ExtractAllocationTurningPoints(records);
+    const std::vector<int64_t> expected = {0, 1, 2, 3, 4, 5, 6};
+    ASSERT_EQ(result.size(), expected.size());
+    for (size_t i = 0; i < expected.size(); ++i) {
+        EXPECT_EQ(result[i].timestamp, expected[i]);
+    }
+}
+
+TEST(MemSnapshotAllocationDataProcessorTest, ExtractAllocationTurningPointsPreservesConstantEndpoints) {
+    const std::vector<Dic::Protocol::AllocationRecord> records = {{0, 10, 10}, {1, 10, 10}, {2, 10, 10}};
+    const auto result = MemSnapshotAllocationDataProcessor::ExtractAllocationTurningPoints(records);
+
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result.front().timestamp, 0);
+    EXPECT_EQ(result.back().timestamp, 2);
+}
+
 TEST(MemSnapshotAllocationDataProcessorTest, CompressReservedLineDropsOnlyMiddleDuplicatePoints) {
     const std::vector<Dic::Protocol::AllocationRecord> records = {
         {0, 5, 10}, {1, 6, 10}, {2, 7, 10}, {3, 20, 15}, {4, 19, 20}, {5, 30, 25}};
@@ -101,6 +122,18 @@ TEST(MemSnapshotAllocationDataProcessorTest, CompressReservedLineDropsOnlyMiddle
     EXPECT_EQ(compressed[3].reservedSize, 20);
     EXPECT_EQ(compressed[4].timestamp, 5);
     EXPECT_EQ(compressed[4].reservedSize, 30);
+}
+
+TEST(MemSnapshotAllocationDataProcessorTest, CompressReservedLineHandlesEmptyConstantAndSingletonRuns) {
+    EXPECT_TRUE(MemSnapshotAllocationDataProcessor::CompressReservedLine({}).empty());
+    const std::vector<Dic::Protocol::AllocationRecord> records = {{0, 1, 10}, {1, 2, 10}, {2, 3, 10}, {3, 4, 20}};
+    const auto result = MemSnapshotAllocationDataProcessor::CompressReservedLine(records);
+
+    ASSERT_EQ(result.size(), 3);
+    EXPECT_EQ(result[0].timestamp, 0);
+    EXPECT_EQ(result[1].timestamp, 2);
+    EXPECT_EQ(result[2].timestamp, 3);
+    EXPECT_EQ(result[2].reservedSize, 20);
 }
 
 TEST(MemSnapshotAllocationDataProcessorTest, ResponsesSeparateOverviewAndAllocationLines) {

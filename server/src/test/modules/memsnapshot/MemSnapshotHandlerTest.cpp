@@ -25,6 +25,8 @@
 #include "QueryMemSnapshotAllocationHandler.h"
 #include "QueryMemSnapshotAllocationLinesHandler.h"
 #include "QueryMemSnapshotDetailHandler.h"
+#include "QueryMemSnapshotStateHandler.h"
+#include "MemSnapshotService.h"
 #include "QueryMemSnapshotLeakStatsHandler.h"
 #include "DataBaseManager.h"
 #include "TestSuit.h"
@@ -356,6 +358,67 @@ TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithValidParams) {
     requestPtr->params.deviceId = "0";
     bool result = handler.HandleRequest(std::move(requestPtr));
     EXPECT_TRUE(result);
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryStateValidAndInvalidRequests) {
+    QueryMemSnapshotStateHandler handler;
+    auto valid = std::make_unique<MemSnapshotStateRequest>();
+    valid->moduleName = MODULE_MEM_SCOPE;
+    valid->projectName = testDbPath;
+    valid->params.deviceId = "0";
+    valid->params.eventId = 1;
+    EXPECT_TRUE(handler.HandleRequest(std::move(valid)));
+
+    auto invalid = std::make_unique<MemSnapshotStateRequest>();
+    invalid->moduleName = MODULE_MEM_SCOPE;
+    invalid->projectName = testDbPath;
+    invalid->params.deviceId = "";
+    EXPECT_FALSE(handler.HandleRequest(std::move(invalid)));
+
+    auto missing = std::make_unique<MemSnapshotStateRequest>();
+    missing->moduleName = MODULE_MEM_SCOPE;
+    missing->projectName = testDbPath + ".missing";
+    missing->params.deviceId = "0";
+    EXPECT_FALSE(handler.HandleRequest(std::move(missing)));
+}
+
+TEST_F(MemSnapshotHandlerTest, QuerySegmentDetailRejectsMalformedAndMissingAddress) {
+    QueryMemSnapshotDetailHandler handler;
+    for (const std::string &address : {"invalid", "0xffffffffffffffff"}) {
+        auto request = std::make_unique<MemSnapshotDetailRequest>();
+        request->moduleName = MODULE_MEM_SCOPE;
+        request->projectName = testDbPath;
+        request->params.deviceId = "0";
+        request->params.type = "segment";
+        request->params.eventId = 1;
+        request->params.segmentAddress = address;
+        request->params.hasEventId = true;
+        request->params.hasSegmentAddress = true;
+        request->params.hasStream = true;
+        EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+    }
+}
+
+TEST_F(MemSnapshotHandlerTest, QuerySegmentDetailUsesComputedAndCachedState) {
+    auto database = DataBaseManager::Instance().GetMemSnapshotDatabase(testDbPath);
+    ASSERT_NE(database, nullptr);
+    const auto segments = MemSnapshotService::GetSegmentsByEventId(1, "0", database);
+    ASSERT_FALSE(segments.empty());
+    QueryMemSnapshotDetailHandler handler;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        auto request = std::make_unique<MemSnapshotDetailRequest>();
+        request->moduleName = MODULE_MEM_SCOPE;
+        request->projectName = testDbPath;
+        request->params.deviceId = "0";
+        request->params.type = "segment";
+        request->params.eventId = 1;
+        request->params.segmentAddress = std::to_string(segments.front().address);
+        request->params.stream = segments.front().stream;
+        request->params.hasEventId = true;
+        request->params.hasSegmentAddress = true;
+        request->params.hasStream = true;
+        EXPECT_TRUE(handler.HandleRequest(std::move(request)));
+    }
 }
 
 TEST_F(MemSnapshotHandlerTest, QueryDetailWithInvalidType) {

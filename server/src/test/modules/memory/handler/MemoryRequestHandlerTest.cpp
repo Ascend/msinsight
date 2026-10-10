@@ -56,6 +56,7 @@ class MemoryRequestHandlerTest : public ::testing::Test {
     static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
         memoryDatabase->CloseDb();
+        memoryDatabase.reset();
         DataBaseManager::Instance().Clear();
     }
 };
