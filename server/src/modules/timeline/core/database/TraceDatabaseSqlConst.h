@@ -203,10 +203,14 @@ const std::string QUERY_COMMUNICATION_GROUP_MAP_DB_1_0_SQL =
     ") grp ON op.groupName = grp.groupName "
     "GROUP BY op.groupName";
 const std::string QUERY_COMMUNICATION_GROUP_MAP_DB_SQL =
+    // TASK表和COMMUNICATION_TASK_INFO表globalTaskId都不一定唯一，直接通过globalTaskId连接可能会产生大量中间结果导致性能劣化
+    // TASK表仅用于deviceId过滤，先生成globalTaskId集合，避免重复globalTaskId多次连接
     "    SELECT groupName, planeId, 'Plane ' || planeId as threadName FROM COMMUNICATION_TASK_INFO cti "
-    "JOIN " +
+    "    WHERE cti.globalTaskId IN ( "
+    "        SELECT globalTaskId FROM " +
     TABLE_TASK +
-    " task ON cti.globalTaskId = task.globalTaskId WHERE task.deviceId = ? "
+    " task WHERE task.deviceId = ? "
+    "    ) "
     "    GROUP BY groupName || planeId  "
     "    UNION "
     "    SELECT op.groupName, -1 as planeId, 'Group ' || strGroup.value || ' Communication' as threadName "
@@ -260,7 +264,11 @@ const std::string QUERY_COMMUNICATION_SUMMARY_DB_SQL =
     "  FROM ("
     "      SELECT str1.value as name, task.startNs as start_time, task.endNs - task.startNs as duration, "
     "      task.endNs as end_time, groupName, planeId, 'Plane ' || planeId as thread_name, 0 as type "
-    "      FROM COMMUNICATION_TASK_INFO info "
+    // TASK表和COMMUNICATION_TASK_INFO表globalTaskId都不一定唯一，直接通过globalTaskId连接可能会产生大量中间结果导致性能劣化
+    // 因为UNION会对结果去重，在COMMUNICATION_TASK_INFO表内部先进行一次去重，以减少连接的中间结果
+    "      FROM ( "
+    "          SELECT DISTINCT globalTaskId, taskType, groupName, planeId FROM COMMUNICATION_TASK_INFO "
+    "      ) info "
     "      JOIN STRING_IDS str1 ON info.taskType = str1.id "
     "      JOIN TASK task ON info.globalTaskId = task.globalTaskId "
     "      WHERE task.deviceId = ? "
