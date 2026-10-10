@@ -131,10 +131,11 @@ export const getUnitFilterName = (unit: InsightUnit): string => {
 };
 
 const expandUnit = (unit: InsightUnit): void => {
-    if (!unit.children?.length) {
+    if (!unit.children?.length && (!unit.collapsible || unit.collapseAction === undefined)) {
         return;
     }
     if (unit.collapsible && !unit.isExpanded) {
+        delete unit.onceExpand;
         unit.collapseAction?.(unit);
     }
     unit.isExpanded = true;
