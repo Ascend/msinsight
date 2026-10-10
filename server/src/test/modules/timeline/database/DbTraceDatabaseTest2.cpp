@@ -19,9 +19,11 @@
 #include "DbTraceDataBase.h"
 #include "CollectionTimeService.h"
 #include "TraceDatabaseHelper.h"
+#include "TraceDatabaseSqlConst.h"
 #include "NpuInfoRepoMock.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
 using namespace Dic::Global::PROFILER::MockUtil;
+using Dic::Module::Timeline::QUERY_COMMUNICATION_GROUP_MAP_DB_SQL;
 class DbTraceDatabaseTest2 : public ::testing::Test {
   protected:
     const std::string pytorchDataSql =
@@ -2418,4 +2420,140 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenUBReturnsRxAndTx) {
     ASSERT_TRUE(result->Next());
     EXPECT_EQ(result->GetString("args"), "{\"Rx Bandwidth(Byte/s)\":11,\"Tx Bandwidth(Byte/s)\":22}");
     EXPECT_FALSE(result->Next());
+}
+
+TEST_F(DbTraceDatabaseTest2, QueryCommunicationGroupMapWithRepeatedTasksAndDeviceFilter) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db,
+        {TableName::DB_TASK, TableName::DB_COMMUNICATION_TASK_INFO, TableName::DB_COMMUNICATION_OP,
+            TableName::DB_STRING_IDS});
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO TASK (globalTaskId,deviceId) VALUES (10,0),(10,0),(11,0),(20,0),(30,1);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO COMMUNICATION_TASK_INFO (globalTaskId,groupName,planeId) VALUES "
+        "(10,100,0),(10,100,0),(11,100,1),(20,200,2),(30,300,3),(99,100,9),(NULL,100,8);");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO COMMUNICATION_OP (opId,groupName) VALUES (1,100),(2,100),(3,200),(4,300);");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO STRING_IDS (id,value) VALUES (100,'alpha'),(200,'beta'),(300,'gamma');");
+    database.SetDbPtr(db);
+
+    int deviceId = 0;
+    std::map<std::string, std::string> groupMap;
+    ASSERT_TRUE(database.QueryCommunicationGroupMap(QUERY_COMMUNICATION_GROUP_MAP_DB_SQL, deviceId, groupMap));
+    const std::map<std::string, std::string> expectedForDevice0 = {{"100@-1", "Group alpha Communication"},
+        {"100@0", "Group alpha Communication"}, {"100@1", "Group alpha Communication"},
+        {"200@-1", "Group beta Communication"}, {"200@2", "Group beta Communication"},
+        {"300@-1", "Group gamma Communication"}};
+    EXPECT_EQ(groupMap, expectedForDevice0);
+
+    deviceId = 1;
+    groupMap.clear();
+    ASSERT_TRUE(database.QueryCommunicationGroupMap(QUERY_COMMUNICATION_GROUP_MAP_DB_SQL, deviceId, groupMap));
+    const std::map<std::string, std::string> expectedForDevice1 = {{"100@-1", "Group alpha Communication"},
+        {"200@-1", "Group beta Communication"}, {"300@-1", "Group gamma Communication"},
+        {"300@3", "Group gamma Communication"}};
+    EXPECT_EQ(groupMap, expectedForDevice1);
+}
+
+TEST_F(DbTraceDatabaseTest2, QueryCommunicationGroupMapPreservesConcatenatedGroupingAndNullPlanes) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db,
+        {TableName::DB_TASK, TableName::DB_COMMUNICATION_TASK_INFO, TableName::DB_COMMUNICATION_OP,
+            TableName::DB_STRING_IDS});
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO TASK (globalTaskId,deviceId) VALUES (10,0),(11,0),(12,0);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO COMMUNICATION_TASK_INFO (globalTaskId,groupName,planeId) VALUES "
+        "(10,1,23),(11,12,3),(12,1,NULL);");
+    database.SetDbPtr(db);
+
+    auto stmt = database.CreatPreparedStatement(QUERY_COMMUNICATION_GROUP_MAP_DB_SQL);
+    ASSERT_NE(stmt, nullptr);
+    auto resultSet = stmt->ExecuteQuery(0);
+    ASSERT_NE(resultSet, nullptr);
+    size_t planeRows = 0;
+    size_t nullPlaneRows = 0;
+    while (resultSet->Next()) {
+        const auto groupName = resultSet->GetInt64("groupName");
+        const auto planeId = resultSet->GetInt64("planeId");
+        if (resultSet->GetString("threadName").empty()) {
+            ++nullPlaneRows;
+            EXPECT_EQ(groupName, 1);
+        } else {
+            ++planeRows;
+            EXPECT_TRUE((groupName == 1 && planeId == 23) || (groupName == 12 && planeId == 3));
+        }
+    }
+    EXPECT_EQ(planeRows, 1);
+    EXPECT_EQ(nullPlaneRows, 1);
+}
+
+TEST_F(DbTraceDatabaseTest2, QueryCommunicationGroupMapReturnsFalseForEmptyData) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db,
+        {TableName::DB_TASK, TableName::DB_COMMUNICATION_TASK_INFO, TableName::DB_COMMUNICATION_OP,
+            TableName::DB_STRING_IDS});
+    database.SetDbPtr(db);
+
+    int deviceId = 0;
+    std::map<std::string, std::string> groupMap;
+    EXPECT_FALSE(database.QueryCommunicationGroupMap(QUERY_COMMUNICATION_GROUP_MAP_DB_SQL, deviceId, groupMap));
+    EXPECT_TRUE(groupMap.empty());
+}
+
+TEST_F(DbTraceDatabaseTest2, QueryCommunicationGroupMapReturnsFalseWhenTaskTableMissing) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTablesFromList(
+        db, {TableName::DB_COMMUNICATION_TASK_INFO, TableName::DB_COMMUNICATION_OP, TableName::DB_STRING_IDS});
+    database.SetDbPtr(db);
+
+    int deviceId = 0;
+    std::map<std::string, std::string> groupMap;
+    EXPECT_FALSE(database.QueryCommunicationGroupMap(QUERY_COMMUNICATION_GROUP_MAP_DB_SQL, deviceId, groupMap));
+    EXPECT_TRUE(groupMap.empty());
+}
+
+TEST_F(DbTraceDatabaseTest2, QueryCommunicationGroupMapAvoidsRepeatedTaskJoinExpansion) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db,
+        {TableName::DB_TASK, TableName::DB_COMMUNICATION_TASK_INFO, TableName::DB_COMMUNICATION_OP,
+            TableName::DB_STRING_IDS});
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000) "
+        "INSERT INTO TASK (globalTaskId,deviceId) SELECT 10,0 FROM n;");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<100) "
+        "INSERT INTO COMMUNICATION_TASK_INFO (globalTaskId,groupName,planeId) SELECT 10,100,0 FROM n;");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO COMMUNICATION_OP (opId,groupName) VALUES (1,100);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO STRING_IDS (id,value) VALUES (100,'alpha');");
+    database.SetDbPtr(db);
+
+    sqlite3_stmt *rawStmt = nullptr;
+    ASSERT_EQ(sqlite3_prepare_v2(db, QUERY_COMMUNICATION_GROUP_MAP_DB_SQL.c_str(), -1, &rawStmt, nullptr), SQLITE_OK);
+    const std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> stmt(rawStmt, sqlite3_finalize);
+    ASSERT_EQ(sqlite3_bind_int(rawStmt, 1, 0), SQLITE_OK);
+    size_t rows = 0;
+    int result;
+    while ((result = sqlite3_step(rawStmt)) == SQLITE_ROW) {
+        ++rows;
+    }
+    EXPECT_EQ(result, SQLITE_DONE);
+    EXPECT_EQ(rows, 2);
+    // 使用指令数而非墙钟时间，防止重复连接产生十万条分组输入，同时避免计时用例不稳定。
+    EXPECT_LT(sqlite3_stmt_status(rawStmt, SQLITE_STMTSTATUS_VM_STEP, 0), 100000);
 }
