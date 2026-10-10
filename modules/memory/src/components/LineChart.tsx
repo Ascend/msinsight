@@ -26,6 +26,7 @@ import styled from '@emotion/styled';
 import { chartColors, getDefaultChartOptions, getLegendStyle, safeStr } from '@insight/lib/utils';
 import { type Theme, useTheme } from '@emotion/react';
 import type { RangeFlagList } from '../entity/memorySession';
+import ResizeObserver from 'resize-observer-polyfill';
 
 // 最大不分页的折线图图例数量，超过该数量图例分页展示
 const MAX_PLAIN_LEGENDS_COUNT = 9;
@@ -248,7 +249,7 @@ const _handleOption = (option: echarts.EChartsOption, graph: Graph, chartWidth: 
 };
 
 const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefObject<number[]>,
-    props: IProps, theme: Theme, chartWidth: number, locale: string): void => {
+    props: IProps, theme: Theme, chartWidth: number, locale: string): number => {
     const { graph, onSelectionChanged, onZoomBack, rangeFlagData } = props;
 
     let option = _getOriginOption(props, theme, locale);
@@ -269,7 +270,7 @@ const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefOb
     }
 
     // 数据量大时，切换主题时setOption会阻塞整体界面主题切换，使用 requestAnimationFrame 优化
-    requestAnimationFrame(() => {
+    const animationFrame = requestAnimationFrame(() => {
         myChart.setOption(option, { notMerge: true, lazyUpdate: true });
         myChart.dispatchAction({
             type: 'takeGlobalCursor',
@@ -317,6 +318,7 @@ const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefOb
             dataZoomSelectActive: true,
         });
     });
+    return animationFrame;
 };
 
 const _handleEvents = (chartObj: echarts.ECharts | undefined, props: IProps,
@@ -379,7 +381,9 @@ export const LineChart: React.FC<IProps> = (props) => {
     const { graph, record, isDark, rangeFlagData } = props;
     const graphRef = React.useRef<HTMLDivElement>(null);
     const [resizeEventDependency] = useResizeEventDependency();
-    const [chartObj, setChartObj] = React.useState<echarts.ECharts | undefined>();
+    const chartRef = React.useRef<echarts.ECharts>();
+    const propsRef = React.useRef(props);
+    propsRef.current = props;
     const selectedPoints = React.useRef<number[]>([]);
     const chartCharacter = useChartCharacter();
     const title = useTitle(graph.title ?? '');
@@ -393,26 +397,44 @@ export const LineChart: React.FC<IProps> = (props) => {
             return () => {};
         }
         element.oncontextmenu = (): boolean => { return false; };
-        const chartWidth = graphRef.current.clientWidth - 200;
-        const myChart = echarts.init(element, isDark ? 'dark' : 'customed', { locale });
-        _showGraph(myChart, selectedPoints, props, theme, chartWidth, locale);
-
-        setChartObj(myChart);
-        return () => {
-            myChart.dispose();
+        let animationFrame: number | undefined;
+        const resizeChart = (): void => {
+            if (element.clientWidth === 0 || element.clientHeight === 0) {
+                return;
+            }
+            if (chartRef.current) {
+                chartRef.current.resize();
+                return;
+            }
+            const myChart = echarts.init(element, isDark ? 'dark' : 'customed', { locale });
+            chartRef.current = myChart;
+            animationFrame = _showGraph(myChart, selectedPoints, propsRef.current, theme, element.clientWidth - 200, locale);
+            _handleEvents(myChart, propsRef.current, selectedPoints, graph, t);
         };
-    }, [graph, isDark, i18n, rangeFlagData]);
+        const resizeObserver = new ResizeObserver(resizeChart);
+        resizeObserver.observe(element);
+        resizeChart();
+        return () => {
+            resizeObserver.disconnect();
+            if (animationFrame !== undefined) {
+                cancelAnimationFrame(animationFrame);
+            }
+            chartRef.current?.dispose();
+            chartRef.current = undefined;
+            element.oncontextmenu = null;
+        };
+    }, [graph, isDark, locale, rangeFlagData]);
 
     React.useEffect(() => {
-        if (!graphRef.current) {
+        if (!graphRef.current?.clientWidth || !graphRef.current.clientHeight) {
             return;
         }
-        echarts.getInstanceByDom(graphRef.current)?.resize();
+        chartRef.current?.resize();
     }, [resizeEventDependency]);
 
     React.useEffect(() => {
-        _handleEvents(chartObj, props, selectedPoints, graph, t);
-    }, [graph, record, chartObj]);
+        _handleEvents(chartRef.current, props, selectedPoints, graph, t);
+    }, [graph, record]);
 
     return (
         <div>

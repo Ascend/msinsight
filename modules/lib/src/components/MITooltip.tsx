@@ -22,7 +22,7 @@ import type { TooltipProps } from 'antd/lib/tooltip';
 import { useTheme } from '@emotion/react';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 
-export const MITooltip: React.FC<TooltipProps> = ({ children, overlayInnerStyle, ...props }: TooltipProps) => {
+export const MITooltip = React.forwardRef(({ children, overlayInnerStyle, ...props }: TooltipProps, ref: React.ForwardedRef<React.ComponentRef<typeof Tooltip>>) => {
     const theme = useTheme();
     return <Tooltip
         color={theme.bgColorCommon}
@@ -41,15 +41,20 @@ export const MITooltip: React.FC<TooltipProps> = ({ children, overlayInnerStyle,
         }
         mouseEnterDelay={0.3}
         {...props}
+        ref={ref}
     >
         {children}
     </Tooltip>;
-};
+});
 
-export const MITooltipHelp: React.FC<TooltipProps> = ({ ...props }: TooltipProps) => {
+MITooltip.displayName = 'MITooltip';
+
+export const MITooltipHelp = React.forwardRef((props: TooltipProps, ref: React.ForwardedRef<React.ComponentRef<typeof Tooltip>>) => {
     const theme = useTheme();
 
-    return <MITooltip {...props}>
+    return <MITooltip {...props} ref={ref}>
         <QuestionCircleOutlined style={{ color: theme.icon }} />
     </MITooltip>;
-};
+});
+
+MITooltipHelp.displayName = 'MITooltipHelp';

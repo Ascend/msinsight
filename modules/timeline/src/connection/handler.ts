@@ -17,7 +17,7 @@
  */
 import { store } from '../store';
 import type { CardMetaData, ThreadMetaData, ThreadTrace } from '../entity/data';
-import { runInAction } from 'mobx';
+import { action, runInAction } from 'mobx';
 import { updateDataSourceAndParentMetaDataMap, recursiveExpandUnit, clearParentMap } from '../insight/units/unitFunc';
 import { setUnitPhaseByCardId, setUnitProgressByFileId } from '../entity/insight';
 import { ProjectType, type InsightUnit } from '../entity/insight';
@@ -432,7 +432,7 @@ export const savePageSettingRemoteHandler: NotificationHandler = async (): Promi
     }
 };
 
-export const parseUnitCompletedHandler: NotificationHandler = async (data): Promise<void> => {
+export const parseUnitCompletedHandler: NotificationHandler = action((data: Record<string, unknown>): void => {
     const session = store.sessionStore.activeSession as Session;
     const dbId = data.dbId as string;
     if (dbId && !session.asyncDataLoadingList[dbId]) {
@@ -486,7 +486,7 @@ export const parseUnitCompletedHandler: NotificationHandler = async (data): Prom
             });
             break;
     }
-};
+});
 
 export const importRemoteHandler: NotificationHandler = async (data): Promise<void> => {
     try {
@@ -922,7 +922,9 @@ export const clusterCompletedHandler: NotificationHandler = (data): void => {
     const isShowCluster = data?.isShowCluster as boolean;
     const session = store.sessionStore.activeSession as Session;
     // 更新会话中的集群显示状态
-    session.isCluster = isShowCluster;
+    runInAction(() => {
+        session.isCluster = isShowCluster;
+    });
     // 判断集群是否完成
     const clusterCompleted = isShowCluster && clusterRes;
     connector.send({ // 发送集群完成事件

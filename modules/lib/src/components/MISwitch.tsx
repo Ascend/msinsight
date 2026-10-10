@@ -19,11 +19,12 @@ import React from 'react';
 import { Switch, type SwitchProps } from 'antd';
 import styled from '@emotion/styled';
 
-export const MISwitch = styled((props: SwitchProps) => {
-    return (
-        <Switch {...props} />
-    );
-})`
+const SwitchBase = React.forwardRef((props: SwitchProps, ref: React.ForwardedRef<React.ComponentRef<typeof Switch>>) => {
+    return <Switch {...props} ref={ref} />;
+});
+SwitchBase.displayName = 'MISwitchBase';
+
+export const MISwitch = styled(SwitchBase)`
     &.ant-switch-checked {
         background: ${(props): string => props.theme.borderColorLighter};
     }
@@ -31,3 +32,4 @@ export const MISwitch = styled((props: SwitchProps) => {
         box-shadow: none;
     }
 `;
+MISwitch.displayName = 'MISwitch';

@@ -332,7 +332,7 @@ const FormDom = (
     const isMoETPSizeVisible = algorithm === 'mindie-llm(tp-dp-ep-pp-moetp)';
 
     return <Form
-        data-testId="form-generate-parallelism"
+        data-testid="form-generate-parallelism"
         form={form}
         layout="inline"
         initialValues={{
@@ -342,7 +342,7 @@ const FormDom = (
         onFinish={onClickGenerate}
     >
         <Form.Item name={'algorithm'} label={t('Algorithm')} tooltip={t('AlgorithmTooltip')}>
-            <Select defaultValue="megatron-lm(tp-cp-ep-dp-pp)" style={{ width: 220 }} options={selectOptions}/>
+            <Select style={{ width: 220 }} options={selectOptions}/>
         </Form.Item>
         <Form.Item name={'ppSize'} label={t('PPSize')}>
             <InputNumber {...PARALLEL_STRATEGY_INPUT_PROPS}/>

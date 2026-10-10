@@ -72,6 +72,7 @@ export const MIInput = styled(Support)`
         }
     }
 `;
+MIInput.displayName = 'MIInput';
 
 export const MIInputSplit = styled(MIInput)`
     width: 30px !important;
@@ -84,28 +85,32 @@ export const MIInputSplit = styled(MIInput)`
         border-color: ${(props): string => props.theme.borderColorLighter};
     }
 `;
+MIInputSplit.displayName = 'MIInputSplit';
 
 export const MIInputGroup = React.forwardRef((props: GroupProps, _ref: React.ForwardedRef<unknown>) => (
     <Input.Group {...props} />
 ));
+MIInputGroup.displayName = 'MIInputGroup';
 
 type ValueType = string | number;
-export const MIInputNumber = styled((props: InputNumberProps<ValueType> & {
+const MIInputNumberInner = React.forwardRef((props: InputNumberProps<ValueType> & {
     children?: React.ReactNode;
     center?: boolean;
-} & {
-    ref?: React.Ref<HTMLInputElement>;
-}) => {
-    const { size, ...restProps } = props;
+}, ref: React.ForwardedRef<HTMLInputElement>) => {
+    const { size, center, ...restProps } = props;
     return (
         <InputNumber
             min={DEFAULT_MIN_INPUT_NUMBER}
             max={DEFAULT_MAX_INPUT_NUMBER}
             maxLength={DEFAULT_MAX_LENGTH}
             {...restProps}
+            ref={ref}
         />
     );
-})`
+});
+MIInputNumberInner.displayName = 'MIInputNumberInner';
+
+export const MIInputNumber = styled(MIInputNumberInner)`
     width: ${(props): number => (props.size && sizeOption[props.size]) ?? sizeOption.middle}px;
     height: ${(props): number | string => (props.height ?? 32)}px;
     background-color: ${(props): string => props.theme.bgColor};
@@ -140,3 +145,4 @@ export const MIInputNumber = styled((props: InputNumberProps<ValueType> & {
         text-align: ${(props): string => props.center ? 'center' : 'left'};
     }
 `;
+MIInputNumber.displayName = 'MIInputNumber';

@@ -85,7 +85,7 @@ const StyledAdvice = styled.div`
     margin-bottom: 5px;
     display: flex;
     flex-direction: row;
-    & > div:first-child {
+    & > div:first-of-type {
         flex: 0 0 auto;
         vertical-align: top;
         & > span,div {
@@ -93,7 +93,7 @@ const StyledAdvice = styled.div`
             font-weight: bold;
         }
     }
-    & > div:nth-child(2) {
+    & > div:nth-of-type(2) {
         flex: auto;
         word-break: break-all;
     }
@@ -113,10 +113,10 @@ export function Hit(props: IHitProps): JSX.Element {
             return str;
         }
         const list = str.split(BREAK_LINE_REGEXP).filter(v => v !== '');
-        return list.map((item) =>
-            <>
+        return list.map((item, index) =>
+            <React.Fragment key={index}>
                 { item } <br/>
-            </>);
+            </React.Fragment>);
     };
     return <StyledAdvice style={style} {...restProps}>
         <div>

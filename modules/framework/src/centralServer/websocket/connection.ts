@@ -259,6 +259,10 @@ export class Connection {
         }
 
         if (callback === undefined) {
+            // Periodic heartbeats do not register a business response callback.
+            if (msg.command === 'heartCheck' && msg.result) {
+                return;
+            }
             console.warn(`handler for msg #${reqId} not found`);
             return;
         }

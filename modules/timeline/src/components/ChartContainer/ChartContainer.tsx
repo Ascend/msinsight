@@ -181,7 +181,9 @@ export const ChartContainer = observer((props: Props) => {
         (e: React.KeyboardEvent<HTMLDivElement>) => actionManager.handleKeyDown(e, interactorMouseState, chartInteractorRef.current?.xScale), 16, 50),
     [session]);
     const setPanModifierState = (pressed: boolean): void => {
-        session.panModePressed = pressed;
+        runInAction(() => {
+            session.panModePressed = pressed;
+        });
     };
     const handleKeyDownEvent = (e: KeyboardEvent): void => {
         if (isPanModifierPressed(e)) {

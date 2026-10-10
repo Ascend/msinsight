@@ -32,7 +32,12 @@ const sizeOption = {
     },
 };
 
-export const MIButton = styled((props: ButtonProps) => <Button {...props} />)`
+const ButtonWithRef = React.forwardRef<React.ComponentRef<typeof Button>, ButtonProps>(
+    (props, ref) => <Button {...props} ref={ref} />,
+);
+ButtonWithRef.displayName = 'MIButton';
+
+export const MIButton = styled(ButtonWithRef)`
     height: ${(props): number => props.size === 'large' ? sizeOption.large.height : sizeOption.small.height}px;
     min-width: ${(props): number => props.size === 'large' ? sizeOption.large.width : sizeOption.small.width}px;
     padding: ${(props): string => props.size === 'large' ? '0 16px' : '0 8px'};
