@@ -133,6 +133,52 @@ export function waitForResponse(ws: WebSocket, matchCondition: (payload: any) =>
     });
 }
 
+export interface WebSocketResponse<T> {
+    requestId: number;
+    command: string;
+    result: boolean;
+    body: T;
+}
+
+// 通过请求 id 配对，避免同一命令的其他卡或上一次请求让断言误通过。
+export function observeWebSocketRequests<P, T>(ws: WebSocket, command: string) {
+    let sequence = 0;
+    const requests = new Map<number, { params: P; sequence: number }>();
+    const completed: Array<{ params: P; response: WebSocketResponse<T>; sequence: number }> = [];
+    const onSent = ({ payload }: { payload: string | Buffer }): void => {
+        const request = JSON.parse(payload.toString());
+        if (request.command === command) {
+            requests.set(request.id, { params: request.params, sequence: ++sequence });
+        }
+    };
+    const onReceived = ({ payload }: { payload: string | Buffer }): void => {
+        const response = JSON.parse(payload.toString()) as WebSocketResponse<T>;
+        const request = requests.get(response.requestId);
+        if (response.command === command && request !== undefined) {
+            completed.push({ ...request, response });
+            requests.delete(response.requestId);
+        }
+    };
+    ws.on('framesent', onSent);
+    ws.on('framereceived', onReceived);
+    return {
+        async waitFor(match: (params: P) => boolean, after = 0) {
+            const matches = (item: typeof completed[number]): boolean => item.sequence > after && match(item.params);
+            await expect.poll(() => completed.some(matches), { message: `Waiting for ${command} response` }).toBe(true);
+            const result = completed.find(matches);
+            if (result === undefined) {
+                throw new Error(`No matching ${command} response`);
+            }
+            return result;
+        },
+        get cursor() { return sequence; },
+        dispose() {
+            ws.off('framesent', onSent);
+            ws.off('framereceived', onReceived);
+        },
+    };
+}
+
 export async function setCompare(
     page: Page,
     frame: FrameLocator,

@@ -18,7 +18,7 @@
 
 import { test as baseTest, expect, WebSocket } from '@playwright/test';
 import { TimelinePage, SystemView, CommunicationPage } from '@/page-object';
-import { clearAllData, dragSelect, importData, setupWebSocketListener, waitForWebSocketEvent } from '@/utils';
+import { clearAllData, dragSelect, importData, observeWebSocketRequests, setupWebSocketListener, waitForWebSocketEvent } from '@/utils';
 import { InputHelpers, SelectHelpers } from '@/components';
 
 interface TestFixtures {
@@ -730,6 +730,79 @@ test.describe('Timeline', () => {
         await npuMemLayerUnit.click({ force:true });
         await page.mouse.wheel(0, 250);
         await expect(mainContainer).toHaveScreenshot('test-npu-mem.png', { maxDiffPixels:100 });
+    });
+
+    // 图形化窗格 - 锁定区域后，全量连线仅保留与搜索区域内算子关联的连线
+    test('test_lock_selected_area_filters_all_flow_lines', async ({ timelinePage, page, ws }) => {
+        await allPagesSuccessRes;
+        const { timelineFrame, flowBtn } = timelinePage;
+        type Endpoint = { pid: string; tid: string; timestamp: number };
+        type Flow = { category: string; from: Endpoint; to: Endpoint };
+        type FlowParams = {
+            rankId: string;
+            category: string;
+            metadataList: Array<{ pid: string; tid: string }>;
+            lockStartTime: number;
+            lockEndTime: number;
+        };
+        const flows = observeWebSocketRequests<FlowParams, { flowDetailList: Flow[] }>(await ws, 'flow/categoryEvents');
+        try {
+            await timelineFrame.getByText('Communication (3513236960)', { exact: true }).click();
+            const chart = timelineFrame.locator('.ant-spin-container > .drawCanvas').first();
+            await expect(chart).toBeVisible();
+            await flowBtn.click();
+            const category = timelineFrame.getByLabel('HostToDevice', { exact: true });
+            await category.check();
+            await expect(category).toBeChecked();
+            await flowBtn.click();
+            const unlocked = await flows.waitFor(params => params.category === 'HostToDevice' &&
+                params.rankId === '0' && params.metadataList.length === 0);
+            expect(unlocked.response.result).toBe(true);
+            const allLines = unlocked.response.body.flowDetailList;
+            expect(allLines.length).toBeGreaterThan(1);
+
+            const box = await chart.boundingBox();
+            expect(box, '通信泳道必须存在，不能跳过过滤断言').not.toBeNull();
+            if (box === null) { throw new Error('Communication chart is missing'); }
+            // 默认 TEXT 数据首条通信泳道在全图约 7% 处有一条 HostToDevice 连线。
+            await dragSelect(page, { x: box.x + box.width * 0.05, y: box.y + 5 },
+                { x: box.x + box.width * 0.10, y: box.y + 15 });
+            await chart.click({ button: 'right', position: { x: box.width * 0.075, y: 10 } });
+            const beforeLock = flows.cursor;
+            await timelineFrame.getByText('Lock selection area', { exact: true }).click();
+            const locked = await flows.waitFor(params => params.category === 'HostToDevice' &&
+                params.rankId === unlocked.params.rankId && params.metadataList.length > 0, beforeLock);
+            const { lockStartTime, lockEndTime, metadataList } = locked.params;
+            expect(lockEndTime).toBeGreaterThan(lockStartTime);
+            expect(metadataList).toEqual(expect.arrayContaining([expect.objectContaining({ pid: '3513236960', tid: '0' })]));
+            expect(locked.response.result).toBe(true);
+            const lockedLines = locked.response.body.flowDetailList;
+            const endpointInRange = (endpoint: Endpoint): boolean => endpoint.timestamp >= lockStartTime &&
+                endpoint.timestamp <= lockEndTime && metadataList.some(meta => meta.pid === endpoint.pid && meta.tid === endpoint.tid);
+            const expectedLines = allLines.filter(line => endpointInRange(line.from) || endpointInRange(line.to));
+            expect(expectedLines.length).toBeGreaterThan(0);
+            expect(expectedLines.length).toBeLessThan(allLines.length);
+            expect(lockedLines).toHaveLength(expectedLines.length);
+            expect(lockedLines).toEqual(expect.arrayContaining(expectedLines));
+            await page.mouse.move(0, 0);
+            await expect(timelinePage.mainContainer).toHaveScreenshot('test-locked-area-flow-lines.png', { maxDiffPixels: 100 });
+
+            await chart.click({ button: 'right', position: { x: box.width * 0.075, y: 10 } });
+            await expect(timelineFrame.getByText('Lock selection area', { exact: true })).toBeHidden();
+            const beforeUnlock = flows.cursor;
+            await timelineFrame.getByText('Unlock selection area', { exact: true }).click();
+            const restored = await flows.waitFor(params => params.category === 'HostToDevice' &&
+                params.rankId === unlocked.params.rankId && params.metadataList.length === 0, beforeUnlock);
+            expect(restored.params.lockStartTime).toBe(0);
+            expect(restored.params.lockEndTime).toBe(0);
+            expect(restored.response.result).toBe(true);
+            expect(restored.response.body.flowDetailList).toHaveLength(allLines.length);
+            expect(restored.response.body.flowDetailList).toEqual(expect.arrayContaining(allLines));
+            await page.mouse.move(0, 0);
+            await expect(timelinePage.mainContainer).toHaveScreenshot('test-unlocked-area-flow-lines.png', { maxDiffPixels: 100 });
+        } finally {
+            flows.dispose();
+        }
     });
 
     // 图形化窗格 - 锁定选中区间后，点击算子跳转显示选中详情
