@@ -82,12 +82,19 @@ test.describe('Timeline', () => {
 
     // 树状图 - 偏移量设置
     test('test_offsetConfig', async ({ page, timelinePage }) => {
-        const { timelineFrame } = timelinePage;
-        const secondUnitInfo = timelineFrame.locator('.unit-info').nth(1);
-        await secondUnitInfo.click();
-        // 这里需要优化，改为当图表渲染完成后再继续执行
-        await page.waitForTimeout(1500);
-        const offsetBtn = timelineFrame.getByTestId('offset-btn').first();
+        await allPagesSuccessRes;
+        const { timelineFrame, unitWrapperScroller } = timelinePage;
+        const pythonUnitInfo = unitWrapperScroller.locator('.unit-info').filter({
+            has: timelineFrame.getByText('Python (3430895)', { exact: true }),
+        });
+        await pythonUnitInfo.click();
+        // Host/Device 偏移入口已移到 Card 层，悬停后才显示配置按钮。
+        const cardUnitInfo = unitWrapperScroller.locator('.unit-info').filter({
+            has: timelineFrame.getByText('0', { exact: true }),
+        });
+        await page.mouse.move(0, 0);
+        await cardUnitInfo.hover();
+        const offsetBtn = cardUnitInfo.getByTestId('offset-btn');
         await offsetBtn.click();
         const tooltip = timelineFrame.getByRole('tooltip');
         const hostInput = tooltip.getByRole('textbox', { name: 'Host Offset' });
@@ -97,10 +104,15 @@ test.describe('Timeline', () => {
         const deviceOffset = await deviceInput.inputValue();
         await hostInput.fill('300000000');
         await hostInput.press('Enter');
+        await expect(hostInput).toHaveValue('300000000');
         await expect(deviceInput).toHaveValue(deviceOffset);
         await offsetBtn.click();
+        await expect(hostInput).toBeHidden();
+        // 点击 Offset 会选中 Card；取消选中后验证非悬停状态的偏移指示点。
+        await cardUnitInfo.getByRole('checkbox').uncheck();
         await page.mouse.move(0, 0);
-        await expect(secondUnitInfo.getByTestId('offset-btn')).toHaveCount(0);
+        await expect(pythonUnitInfo.getByTestId('offset-btn')).toHaveCount(0);
+        await expect(cardUnitInfo.getByTitle('Offset set')).toBeVisible();
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('unit-offset.png', { maxDiffPixels: 100 });
     });
 
@@ -331,19 +343,10 @@ test.describe('Timeline', () => {
     test('test_markerListData_when_insertTwoFlags', async ({ page, timelinePage }) => {
         const { markerBtn, timelineFrame } = timelinePage;
         const mainContainer = timelineFrame.locator('#main-container');
-
-        await timelineFrame.locator('canvas').nth(4).click({
-            position: {
-                x: 233,
-                y: 4,
-            },
-        });
-        await timelineFrame.locator('canvas').nth(4).click({
-            position: {
-                x: 449,
-                y: 8,
-            },
-        });
+        // 标记轴紧邻的光标画布位于上层，接收插旗点击；不依赖页面 canvas 序号。
+        const flagCanvas = timelineFrame.locator('#timelineFlagCnvas + canvas');
+        await flagCanvas.click({ position: { x: 233, y: 4 } });
+        await flagCanvas.click({ position: { x: 449, y: 8 } });
 
         await markerBtn.click();
         await timelineFrame.getByText('default-0').click();
@@ -630,11 +633,12 @@ test.describe('Timeline', () => {
         await page.waitForTimeout(1000);
         const chart = timelineFrame.locator('.ant-spin-container > .drawCanvas').first();
         const chartInfo = await chart.boundingBox();
+        if (chartInfo === null) { throw new Error('Timeline canvas is missing'); }
         const { x: startX, y: startY } = chartInfo;
 
         await page.mouse.move(startX + 50, startY + 50);
         await page.mouse.down();
-        await page.mouse.move(startX + 200, startX - 200);
+        await page.mouse.move(startX + 200, startY + 50);
         await page.mouse.up();
         await page.keyboard.press('Shift+z');
         await page.mouse.move(0,0);
@@ -650,9 +654,7 @@ test.describe('Timeline', () => {
         await page.waitForTimeout(500);
         const chart = timelineFrame.locator('.ant-spin-container > .drawCanvas').first();
         const chartInfo = await chart.boundingBox();
-        if (!chartInfo) {
-            return;
-        }
+        if (chartInfo === null) { throw new Error('Timeline canvas is missing'); }
         const { x: startX, y: startY } = chartInfo;
 
         type TestKeyboardEventOptions = {
@@ -690,7 +692,7 @@ test.describe('Timeline', () => {
         await page.keyboard.down('Alt');
         await page.mouse.move(startX + 50, startY + 50);
         await page.mouse.down();
-        await page.mouse.move(startX + 200, startX - 200);
+        await page.mouse.move(startX + 200, startY + 50);
         await page.mouse.up();
         await page.keyboard.up('Alt');
 
@@ -699,7 +701,7 @@ test.describe('Timeline', () => {
         await page.keyboard.down('Alt');
         await page.mouse.move(startX + 50, startY + 50);
         await page.mouse.down();
-        await page.mouse.move(startX + 200, startX - 200);
+        await page.mouse.move(startX + 200, startY + 50);
         await page.mouse.up();
         await page.keyboard.up('Alt');
 
@@ -709,11 +711,7 @@ test.describe('Timeline', () => {
 
         await pressTimelineKeyOnce('Backspace', 'Backspace');
         await page.waitForTimeout(200);
-        try {
-            await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
-        } catch (e) {
-            await expect(mainContainer).toHaveScreenshot('test-zoom-Ctrl_0_reset.png', { maxDiffPixels: 100 });
-        }
+        await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
 
         await page.keyboard.press('Control+0');
         await page.waitForTimeout(200);
