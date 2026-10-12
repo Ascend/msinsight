@@ -35,6 +35,15 @@ import i18n from '@insight/lib/i18n';
 import { runInAction } from 'mobx';
 import { isVscodePluginEnvironment, pluginModeInit, isVscodeEnv } from '@/vscode-adapter';
 
+// Only the JupyterLab wrapper supplies profilerServerId. Other hosts are unchanged.
+const notifyJupyterStartup = (status: 'ready' | 'error'): void => {
+    const profilerServerId = new URLSearchParams(window.location.search).get('profilerServerId');
+    if (!profilerServerId || window.parent === window || isVscodeEnv()) {
+        return;
+    }
+    window.parent.postMessage({ type: 'mindstudio:startup', status, profilerServerId }, window.location.origin);
+};
+
 const init = async (session: Session): Promise<void> => {
     // 注册文件拖拽
     registerDragAndDropFile();
@@ -50,12 +59,13 @@ const init = async (session: Session): Promise<void> => {
     }
 
     // ws连接
-    console.log('[App] ========== connectRemote ==========', { ...GLOBAL_HOST, jupyterlabProxy: JUPYTERLABPROXY });
     const isSuccess = await connectRemote({ ...GLOBAL_HOST, jupyterlabProxy: JUPYTERLABPROXY });
     if (isSuccess) {
         runInAction(() => {
             session.defaultConnected = true;
         });
+    } else {
+        notifyJupyterStartup('error');
     }
 };
 
@@ -74,8 +84,18 @@ const App = observer(() => {
 
     useEffect(() => {
         // 启动
-        init(session);
+        init(session).catch(error => {
+            console.error('MindStudio Insight initialization failed.', error);
+            notifyJupyterStartup('error');
+        });
     }, []);
+
+    // Effects run after the connected framework UI has been committed to the DOM.
+    useEffect(() => {
+        if (session.defaultConnected) {
+            notifyJupyterStartup('ready');
+        }
+    }, [session.defaultConnected]);
 
     const isVscode = isVscodeEnv() && isVscodePluginEnvironment();
 

@@ -23,22 +23,18 @@ from .handlers import setup_handlers
 
 
 def _jupyter_labextension_paths():
-    return [{
-        "src": "labextension",
-        "dest": "mindstudio_insight_jupyterlab"
-    }]
+    return [{"src": "labextension", "dest": "mindstudio_insight_jupyterlab"}]
 
 
 def _jupyter_server_extension_points():
-    return [{
-        "module": "mindstudio_insight_jupyterlab"
-    }]
+    return [{"module": "mindstudio_insight_jupyterlab"}]
 
 
 def _load_jupyter_server_extension(server_app):
-    setup_handlers(server_app.web_app)
+    setup_handlers(server_app.web_app, server_app)
     name = "mindstudio_insight_jupyterlab"
     server_app.log.info(f"Registered {name} server extension")
+
 
 # For backward compatibility with notebook server - useful for Binder/JupyterHub
 load_jupyter_server_extension = _load_jupyter_server_extension
