@@ -21,6 +21,7 @@
 #include "QueryTritonMemoryBlocksHandler.h"
 #include "QueryTritonBasicInfoHandler.h"
 #include "QueryTritonMemoryUsageHandler.h"
+#include "TritonModule.h"
 #include "TritonProtocolRequest.h"
 #include "TritonProtocolResponse.h"
 #include "TritonService.h"
@@ -103,4 +104,24 @@ TEST_F(TritonHandlerTest, QueryTritonMemoryUsageHandlerTest) {
     QueryTritonMemoryUsageHandler handler;
     bool result = handler.HandleRequest(std::move(req));
     EXPECT_TRUE(result);
+}
+
+class TestableTritonModule : public TritonModule {
+  public:
+    const std::string &Name() const { return moduleName; }
+    const auto &Handlers() const { return requestHandlerMap; }
+};
+
+TEST(TritonModuleTest, RegistersAllRequestHandlers) {
+    TestableTritonModule module;
+    EXPECT_EQ(module.Name(), MODULE_TRITON);
+
+    module.RegisterRequestHandlers();
+    EXPECT_EQ(module.Handlers().size(), 3);
+    EXPECT_NE(module.Handlers().find(REQ_RES_TRITON_MEMORY_BLOCKS), module.Handlers().end());
+    EXPECT_NE(module.Handlers().find(REQ_RES_TRITON_MEMORY_BASIC_INFO), module.Handlers().end());
+    EXPECT_NE(module.Handlers().find(REQ_RES_TRITON_MEMORY_USAGE), module.Handlers().end());
+
+    module.RegisterRequestHandlers();
+    EXPECT_EQ(module.Handlers().size(), 3);
 }

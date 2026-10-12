@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <vector>
 #include "JsonUtil.h"
 #include "TritonParser.h"
 #include "TritonService.h"
@@ -28,6 +29,7 @@ using namespace Dic::Module::Triton;
 class TestTritonParser : public TritonParser {
   public:
     Dic::Module::Triton::ParseResult TestParseOneTriton(const std::string &memFile) { return ParseOneTriton(memFile); }
+    bool TestCheckDataValid(Dic::document_t &json) { return CheckDataValid(json); }
 };
 
 class TritonParserTest : public ::testing::Test {
@@ -145,4 +147,46 @@ TEST_F(TritonParserTest, IsParsedTest) {
     EXPECT_FALSE(parser.IsParsed("some/path/memory_info.json"));
     EXPECT_FALSE(parser.IsParsed("some/path/other_file.json"));
     EXPECT_FALSE(parser.IsParsed(""));
+}
+
+TEST_F(TritonParserTest, RejectsInvalidJsonShapesAndFieldTypes) {
+    TestTritonParser parser;
+    const std::string prefix = R"({"Header":{"KernelName":"kernel"},"Record":[)";
+    const std::string suffix = "]}";
+    const std::string validMemoryInfo = R"({"alloc_time_in_ir":10,"buffer":"buf","extent":8,)"
+                                        R"("is_tmpbuf":false,"life_time_in_ir":[10,20],"offset":[0],)"
+                                        R"("source_location":"kernel.py:1"})";
+    const std::vector<std::string> invalid = {
+        "null",
+        "[]",
+        "{}",
+        R"({"Header":{},"Record":[]})",
+        R"({"Header":{"KernelName":42},"Record":[]})",
+        R"({"Header":{"KernelName":"kernel"},"Record":{}})",
+        prefix + "null" + suffix,
+        prefix + R"({"scope":42,"status":"ok","memory_info_array":[]})" + suffix,
+        prefix + R"({"scope":"cc","status":"ok","memory_info_array":[{}]})" + suffix,
+        prefix + R"({"scope":"cc","status":"ok","memory_info_array":[)" +
+            R"({"alloc_time_in_ir":10,"buffer":"buf","extent":"8","is_tmpbuf":false,)"
+            R"("life_time_in_ir":[10,20],"offset":[0],"source_location":"kernel.py:1"}]})" +
+            suffix,
+        prefix + R"({"scope":"cc","status":"ok","memory_info_array":[)" +
+            R"({"alloc_time_in_ir":10,"buffer":"buf","extent":8,"is_tmpbuf":false,)"
+            R"("life_time_in_ir":10,"offset":[0],"source_location":"kernel.py:1"}]})" +
+            suffix,
+    };
+    for (const auto &text : invalid) {
+        SCOPED_TRACE(text);
+        Dic::document_t json;
+        json.Parse(text.c_str());
+        ASSERT_FALSE(json.HasParseError());
+        EXPECT_FALSE(parser.TestCheckDataValid(json));
+    }
+
+    Dic::document_t valid;
+    const std::string validRecord =
+        prefix + R"({"scope":"cc","status":"ok","memory_info_array":[)" + validMemoryInfo + "]}" + suffix;
+    valid.Parse(validRecord.c_str());
+    ASSERT_FALSE(valid.HasParseError());
+    EXPECT_TRUE(parser.TestCheckDataValid(valid));
 }
