@@ -37,6 +37,7 @@ export class MindStudioReactWidget extends ReactWidget {
   currentMindStudioModel: MindStudio.IModel | null = null;
   createdModelName?: string;
   profilerServerId: string | null;
+  private _iframeStartPromise: Promise<string> | null = null;
 
   constructor(options: MindStudioInvokeOptions) {
     super();
@@ -51,9 +52,17 @@ export class MindStudioReactWidget extends ReactWidget {
   }
 
   dispose(): void {
-    this.mindstudioManager.terminateIframe(this.profilerServerId ?? '').then(() => {})
-      .catch(() => {});
+    if (this.isDisposed) {
+      return;
+    }
+    const serverId = this.profilerServerId;
+    this.profilerServerId = null;
     super.dispose();
+    if (serverId) {
+      void this.mindstudioManager
+        .terminateIframe(serverId)
+        .catch(() => undefined);
+    }
   }
 
   closeCurrent = (): void => {
@@ -61,11 +70,39 @@ export class MindStudioReactWidget extends ReactWidget {
     this.close();
   };
 
-  startIframeUrl = async (): Promise<string> => {
-    const url = await this.mindstudioManager.startIframeUrl();
-    const match = url.match(/profilerServerId=(?<profilerServerId>[^&;]+)/);
-    this.profilerServerId = match ? match[1] : null;
-    return url;
+  startIframeUrl = (): Promise<string> => {
+    if (this.isDisposed) {
+      return Promise.reject(
+        new Error('MindStudio Insight tab has been closed.')
+      );
+    }
+    // One request per widget, including repeated React effect executions.
+    if (!this._iframeStartPromise) {
+      this._iframeStartPromise = this.mindstudioManager
+        .startIframeUrl()
+        .then(async url => {
+          const serverId = new URL(
+            url,
+            window.location.href
+          ).searchParams.get('profilerServerId');
+          if (!serverId) {
+            throw new Error(
+              'Invalid MindStudio Insight startup configuration.'
+            );
+          }
+          if (this.isDisposed) {
+            await this.mindstudioManager
+              .terminateIframe(serverId)
+              .catch(() => undefined);
+            throw new Error(
+              'MindStudio Insight tab has been closed.'
+            );
+          }
+          this.profilerServerId = serverId;
+          return url;
+        });
+    }
+    return this._iframeStartPromise;
   };
 
   startNew = (

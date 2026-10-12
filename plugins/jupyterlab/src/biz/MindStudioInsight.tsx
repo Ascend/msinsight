@@ -31,12 +31,20 @@ interface MindStudioInsightProps {
     startIFrame: () => Promise<string>;
 }
 
+type LoadingPhase = 'starting' | 'loading' | 'ready' | 'error';
+const STARTUP_TIMEOUT_MS = 45000;
+const PAGE_TIMEOUT_MS = 45000;
+
 export const MindStudioInsightTab = (props: MindStudioInsightProps): JSX.Element => {
     const [currentMindStudio, setCurrentMindStudio] = useState<MindStudio.IModel | null>(null);
     const currentMindStudioRef = useRef(currentMindStudio);
     // currently inactive
     const [notActiveError, setNotActiveError] = useState(false);
     const [srcVal, setSrcVal] = useState('');
+    const [phase, setPhase] = useState<LoadingPhase>('starting');
+    const [errorMessage, setErrorMessage] = useState('');
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const isLoading = phase === 'starting' || phase === 'loading';
 
     const updateCurrentMindStudio = (model: MindStudio.IModel | null): void => {
         props.updateCurrentModel(model);
@@ -44,8 +52,11 @@ export const MindStudioInsightTab = (props: MindStudioInsightProps): JSX.Element
         currentMindStudioRef.current = model;
     };
 
-    const refreshRunning = async (): Promise<void> => {
+    const refreshRunning = async (isActive: () => boolean): Promise<void> => {
         await props.mindstudioManager.refreshRunning();
+        if (!isActive()) {
+            return;
+        }
         const runningMindStudios = [...props.mindstudioManager.running()];
 
         // hint: Using runningMindStudios directly may cause setState to fail to respond
@@ -71,26 +82,163 @@ export const MindStudioInsightTab = (props: MindStudioInsightProps): JSX.Element
         }
     };
 
-    const getUrl = async (): Promise<void> => {
-        const val = await props.startIFrame();
-        setSrcVal(val);
-    };
-
     useEffect(() => {
-        refreshRunning();
-        getUrl();
+        let active = true;
+        let settled = false;
+        let expectedOrigin = '';
+        let expectedServerId = '';
+        let timer: number;
+
+        const fail = (message: string): void => {
+            if (!active || settled) {
+                return;
+            }
+            settled = true;
+            window.clearTimeout(timer);
+            setErrorMessage(message);
+            setPhase('error');
+        };
+
+        const onMessage = (event: MessageEvent): void => {
+            if (
+                !active ||
+                settled ||
+                !expectedServerId ||
+                event.source !== iframeRef.current?.contentWindow ||
+                event.origin !== expectedOrigin
+            ) {
+                return;
+            }
+            const data = event.data;
+            if (
+                data === null ||
+                typeof data !== 'object' ||
+                data.type !== 'mindstudio:startup' ||
+                data.profilerServerId !== expectedServerId
+            ) {
+                return;
+            }
+            if (data.status === 'ready') {
+                settled = true;
+                window.clearTimeout(timer);
+                setPhase('ready');
+            } else if (data.status === 'error') {
+                fail(
+                    'Could not connect to the analysis service. Close this tab and try again.'
+                );
+            }
+        };
+
+        // Register before mounting the iframe so an early ready message cannot be lost.
+        window.addEventListener('message', onMessage);
+        timer = window.setTimeout(() => {
+            fail(
+                'Starting the analysis service timed out. Close this tab and try again.'
+            );
+        }, STARTUP_TIMEOUT_MS);
+
+        const openIframe = async (): Promise<void> => {
+            try {
+                const url = await props.startIFrame();
+                if (!active || settled) {
+                    return;
+                }
+                const parsed = new URL(url, window.location.href);
+                const serverId = parsed.searchParams.get('profilerServerId');
+                if (parsed.origin !== window.location.origin || !serverId) {
+                    throw new Error(
+                        'Invalid MindStudio Insight startup configuration.'
+                    );
+                }
+                expectedOrigin = parsed.origin;
+                expectedServerId = serverId;
+                window.clearTimeout(timer);
+                timer = window.setTimeout(() => {
+                    fail(
+                        'The interface did not become ready in time. Close this tab and try again.'
+                    );
+                }, PAGE_TIMEOUT_MS);
+                setPhase('loading');
+                setSrcVal(url);
+            } catch (error) {
+                const detail =
+                    error instanceof Error
+                        ? error.message
+                        : 'Please close this tab and try again.';
+                fail(`Unable to start MindStudio Insight. ${detail}`);
+            }
+        };
+
+        void openIframe();
+        void refreshRunning(() => active).catch(error => {
+            if (active) {
+                console.warn(
+                    'Unable to refresh MindStudio Insight sessions.',
+                    error
+                );
+            }
+        });
+        return () => {
+            active = false;
+            window.clearTimeout(timer);
+            window.removeEventListener('message', onMessage);
+        };
     }, []);
 
     return (
-        <div style={{ width: '100%', height: '100%' }}>
+        <div
+            className="mindstudio-insight-tab"
+            aria-busy={!currentMindStudio && isLoading}
+        >
             <div style={{ width: '100%', height: '100%' }}>
-                { !currentMindStudio && (
+                { !currentMindStudio && srcVal && (
                 <iframe
-                    style={{ width: '100%', height: '100%' }}
+                    ref={iframeRef}
+                    title="MindStudio Insight"
+                    tabIndex={phase === 'ready' ? 0 : -1}
+                    aria-hidden={phase !== 'ready'}
+                    style={{ width: '100%', height: '100%', border: 0 }}
                     sandbox="allow-scripts allow-forms allow-same-origin"
                     referrerPolicy="no-referrer"
                     src={srcVal}
                 />
+                ) }
+                { !currentMindStudio && isLoading && (
+                <div
+                    className="mindstudio-insight-overlay"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <span
+                        className="mindstudio-insight-spinner"
+                        aria-hidden="true"
+                    />
+                    <span className="mindstudio-insight-title">
+                        MindStudio Insight
+                    </span>
+                    <span className="mindstudio-insight-message">
+                        {phase === 'starting'
+                            ? 'Starting the analysis service…'
+                            : 'Loading the interface and connecting…'}
+                    </span>
+                </div>
+                ) }
+                { !currentMindStudio && phase === 'error' && (
+                <div className="mindstudio-insight-overlay" role="alert">
+                    <span className="mindstudio-insight-title">
+                        Unable to open MindStudio Insight
+                    </span>
+                    <p className="mindstudio-insight-message">
+                        {errorMessage}
+                    </p>
+                    <button
+                        className="mindstudio-insight-close"
+                        type="button"
+                        onClick={props.closeWidget}
+                    >
+                        Close tab
+                    </button>
+                </div>
                 ) }
                 { currentMindStudio && (
                 <div>
