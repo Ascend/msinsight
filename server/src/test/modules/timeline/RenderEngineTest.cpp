@@ -26,10 +26,18 @@
 #include "DominQuery.h"
 #include "BaselineManager.h"
 #include "TestSuit.h"
+#include "TextTraceDatabase.h"
 
 using namespace Dic::Module::Timeline;
 class RenderEngineTest : public ::testing::Test {
   protected:
+    bool CreateEmptyTextTraceDatabase(const std::string &path) {
+        // Slice details are supplied by the test mock; only the trace source and sibling communication data are needed.
+        std::recursive_mutex mutex;
+        TextTraceDatabase database(mutex);
+        return database.OpenDb(path, false) && database.CreateTable();
+    }
+
     void SetUp() override {
         Dic::Module::Global::BaselineManager::Instance().Reset();
         DataBaseManager::Instance().Clear();
@@ -662,17 +670,20 @@ TEST_P(SingleRankCommunicationRenderEngineTest, QueryThreadDetailSupportsSingleC
     const std::string timelineRankId = "0";
     const std::string dbSourceDir = FileUtil::SplicePath(
         TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level2", "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT");
-    const std::string traceSourcePath = GetParam() == DataType::DB
-        ? FileUtil::SplicePath(dbSourceDir, "ascend_pytorch_profiler_0.db")
-        : TestSuit::GetTestDataFile("test_rank_0", "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db");
+    const std::string traceDbName =
+        GetParam() == DataType::DB ? "ascend_pytorch_profiler_0.db" : "mindstudio_insight_data.db";
     const auto uniqueId = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     const std::string tempDir = FileUtil::SplicePath(::testing::TempDir(),
         "RenderEngineTest_single_rank_analysis_" + std::to_string(static_cast<int>(GetParam())) + "_" + uniqueId);
     tempDirs.emplace_back(tempDir);
     ASSERT_TRUE(fs::create_directories(tempDir));
-    const std::string traceDbPath = FileUtil::SplicePath(tempDir, FileUtil::GetFileName(traceSourcePath));
+    const std::string traceDbPath = FileUtil::SplicePath(tempDir, traceDbName);
     const std::string analysisDbPath = FileUtil::SplicePath(tempDir, "analysis.db");
-    ASSERT_TRUE(FileUtil::CopyFileByPath(traceSourcePath, traceDbPath));
+    if (GetParam() == DataType::DB) {
+        ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(dbSourceDir, traceDbName), traceDbPath));
+    } else {
+        ASSERT_TRUE(CreateEmptyTextTraceDatabase(traceDbPath));
+    }
     ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(dbSourceDir, "analysis.db"), analysisDbPath));
     ASSERT_TRUE(FileUtil::IsRegularFile(traceDbPath));
     ASSERT_TRUE(FileUtil::IsRegularFile(analysisDbPath));
@@ -765,7 +776,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailSupportsSingleCardTextCommunicationJso
 
     const std::string traceDbPath = FileUtil::SplicePath(tempDir, "mindstudio_insight_data.db");
     const std::string communicationJsonPath = FileUtil::SplicePath(tempDir, "communication.json");
-    ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(sourceDir, "mindstudio_insight_data.db"), traceDbPath));
+    ASSERT_TRUE(CreateEmptyTextTraceDatabase(traceDbPath));
     ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(sourceDir, "communication.json"), communicationJsonPath));
     ASSERT_FALSE(FileUtil::IsRegularFile(FileUtil::SplicePath(tempDir, "analysis.db")));
 

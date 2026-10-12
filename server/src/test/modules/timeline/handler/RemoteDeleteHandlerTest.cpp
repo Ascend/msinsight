@@ -21,8 +21,16 @@
 
 class RemoteDeleteHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, RemoteDeleteHandlerTestNormal) {
+TEST_F(HandlerTest, RemoteDeleteHandlerAcceptsEmptyRankList) {
+    ResponseCapture capture;
     Dic::Module::Timeline::RemoteDeleteHandler handler;
-    std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::RemoteDeleteRequest>();
-    handler.HandleRequest(std::move(requestPtr));
+    auto requestPtr = std::make_unique<Dic::Protocol::RemoteDeleteRequest>();
+    requestPtr->id = 73;
+    const auto command = requestPtr->command;
+    EXPECT_TRUE(handler.HandleRequest(std::move(requestPtr)));
+    ASSERT_EQ(capture.session->responses.size(), 1u);
+    const auto &response = *capture.session->responses.front();
+    EXPECT_EQ(response.requestId, 73u);
+    EXPECT_EQ(response.command, command);
+    EXPECT_TRUE(response.result);
 }

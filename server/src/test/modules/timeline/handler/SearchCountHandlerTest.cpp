@@ -21,8 +21,23 @@
 
 class SearchCountHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, SearchCountHandlerTestNormal) {
+TEST_F(HandlerTest, SearchCountHandlerReturnsZeroForMissingDatabase) {
+    ResponseCapture capture;
     Dic::Module::Timeline::SearchCountHandler handler;
-    std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::SearchCountRequest>();
-    handler.HandleRequest(std::move(requestPtr));
+    auto requestPtr = std::make_unique<Dic::Protocol::SearchCountRequest>();
+    requestPtr->params.rankId = "timeline-ut-missing-database";
+    requestPtr->id = 73;
+    const auto command = requestPtr->command;
+    EXPECT_TRUE(handler.HandleRequest(std::move(requestPtr)));
+    ASSERT_EQ(capture.session->responses.size(), 1u);
+    const auto &response = *capture.session->responses.front();
+    EXPECT_EQ(response.requestId, 73u);
+    EXPECT_EQ(response.command, command);
+    EXPECT_TRUE(response.result);
+    const auto *count = dynamic_cast<const Dic::Protocol::SearchCountResponse *>(&response);
+    ASSERT_NE(count, nullptr);
+    EXPECT_EQ(count->body.totalCount, 0u);
+    ASSERT_EQ(count->body.countList.size(), 1u);
+    EXPECT_EQ(count->body.countList.front().rankId, "timeline-ut-missing-database");
+    EXPECT_EQ(count->body.countList.front().count, 0u);
 }

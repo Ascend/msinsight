@@ -21,6 +21,7 @@
 #include "NpuInfoRepo.h"
 #include "TrackInfoManager.h"
 #include "DeviceFlowRepo.h"
+#include "DtFramework.h"
 #include "CommucationOpTable.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
 using namespace Dic::Global::PROFILER::MockUtil;
@@ -103,14 +104,15 @@ TEST_F(DeviceFlowRepoTest, test_AddDeviceFlowPoint) {
 }
 
 TEST_F(DeviceFlowRepoTest, AddHardWareMstxFlowPointExecuteSQLTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "DeviceFlowRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "DeviceFlowRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     database->ExecSql(taskCreate);
     database->ExecSql(mstxCreate);
     database->ExecSql(taskInsert);

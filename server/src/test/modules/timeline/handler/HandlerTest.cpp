@@ -16,9 +16,18 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
+#include "WsSession.h"
+#define private public
+#include "WsSessionManager.h"
+#undef private
 #include "TextTraceDatabase.h"
 #include "WsSessionImpl.h"
-#include "WsSessionManager.h"
+#include "RequestContext.h"
+#include <vector>
 class HandlerTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {}
@@ -29,6 +38,51 @@ class HandlerTest : public ::testing::Test {
     }
 
   protected:
+    class ResponseSession : public Dic::Server::WsSession {
+      public:
+        void Start() override { status = Status::STARTED; }
+        Status GetStatus() const override { return status; }
+        void OnResponse(std::unique_ptr<Dic::Protocol::Response> response) override {
+            responses.emplace_back(std::move(response));
+        }
+        void SendBaseResponse(std::unique_ptr<Dic::Protocol::Response> response) override {
+            OnResponse(std::move(response));
+        }
+        void OnEvent(std::unique_ptr<Dic::Protocol::Event>) override {}
+        void SetStatus(Status value) override { status = value; }
+        void WaitForExit(int = 10000) override {}
+        std::vector<std::unique_ptr<Dic::Protocol::Response>> responses;
+        Status status = Status::INIT;
+    };
+
+    // Opt-in capture: existing suites retain their own session setup and teardown.
+    class ResponseCapture {
+      public:
+        ResponseCapture() : session(std::make_shared<ResponseSession>()) {
+            previousError = Dic::Server::RequestContext::GetInstance().GetError();
+            Dic::Server::RequestContext::GetInstance().ResetError();
+            session->Start();
+            auto &manager = Dic::Server::WsSessionManager::Instance();
+            std::unique_lock<std::mutex> lock(manager.sessionMutex);
+            previous = std::exchange(manager.session, session);
+        }
+        ~ResponseCapture() {
+            auto &manager = Dic::Server::WsSessionManager::Instance();
+            {
+                std::unique_lock<std::mutex> lock(manager.sessionMutex);
+                // AddSession would call Start again and spawn workers on an existing real session.
+                manager.session = std::move(previous);
+            }
+            Dic::Server::RequestContext::GetInstance().SetError(previousError);
+        }
+        ResponseCapture(const ResponseCapture &) = delete;
+        ResponseCapture &operator=(const ResponseCapture &) = delete;
+        std::shared_ptr<ResponseSession> session;
+
+      private:
+        std::shared_ptr<Dic::Server::WsSession> previous;
+        Dic::Protocol::ErrorMessage previousError;
+    };
     class MockDatabase : public Dic::Module::Timeline::TextTraceDatabase {
       public:
         explicit MockDatabase(std::recursive_mutex &sqlMutex) : TextTraceDatabase(sqlMutex) {}

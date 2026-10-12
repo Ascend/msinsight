@@ -37,11 +37,12 @@ TEST_F(PythonGCRepoTest, TestQuerySliceDetailInfoNormal) {
         void SetMock(PythonGcDependency &dependency) { table = std::move(dependency.tableMock); }
     };
     sqlite3 *db = nullptr;
-    DatabaseTestCaseMockUtil::OpenDB(db);
-    DatabaseTestCaseMockUtil::CreateTable(db, gcSql);
-    std::string pythonGcInsert = "INSERT INTO (\"startNs\", \"endNs\", \"globalTid\") VALUES "
-                                 "(1718180918997410110, 1718180918997410110, 65535);";
-    DatabaseTestCaseMockUtil::InsertData(db, pythonGcInsert);
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    const std::unique_ptr<sqlite3, decltype(&sqlite3_close)> database(db, sqlite3_close);
+    ASSERT_EQ(sqlite3_exec(db, gcSql.c_str(), nullptr, nullptr, nullptr), SQLITE_OK);
+    std::string pythonGcInsert = "INSERT INTO GC_RECORD (\"startNs\", \"endNs\", \"globalTid\") VALUES "
+                                 "(1000, 1250, 65535);";
+    ASSERT_EQ(sqlite3_exec(db, pythonGcInsert.c_str(), nullptr, nullptr, nullptr), SQLITE_OK);
 
     PythonGcDependency dependency;
     dependency.tableMock = std::make_unique<PythonGCTableMock>();
@@ -53,7 +54,16 @@ TEST_F(PythonGCRepoTest, TestQuerySliceDetailInfoNormal) {
     query.rankId = "hhh";
     CompeteSliceDomain slice;
     bool result = pythonGCRepoMock.QuerySliceDetailInfo(query, slice);
-    EXPECT_EQ(result, false);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(slice.id, 1u);
+    EXPECT_EQ(slice.timestamp, 1000u);
+    EXPECT_EQ(slice.endTime, 1250u);
+    EXPECT_EQ(slice.name, "PythonGC");
+
+    ASSERT_EQ(sqlite3_exec(db, "DELETE FROM GC_RECORD", nullptr, nullptr, nullptr), SQLITE_OK);
+    CompeteSliceDomain missing;
+    EXPECT_FALSE(pythonGCRepoMock.QuerySliceDetailInfo(query, missing));
+    EXPECT_TRUE(missing.name.empty());
 }
 
 /**

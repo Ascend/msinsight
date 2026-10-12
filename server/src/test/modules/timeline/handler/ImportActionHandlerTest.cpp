@@ -17,106 +17,148 @@
  */
 #include <gtest/gtest.h>
 #include <fstream>
+#include <chrono>
+#include <filesystem>
+#include "ProjectExplorerManager.h"
+#include "ClusterParseThreadPoolExecutor.h"
+#include "DataBaseManager.h"
 #include "ImportActionHandler.h"
 #include "HandlerTest.cpp"
 
 class ImportActionHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, ImportActionHandlerTestPathIsEmpty) {
+TEST_F(HandlerTest, ImportActionHandlerRejectsMissingProject) {
+    ResponseCapture capture;
     Dic::Module::Timeline::ImportActionHandler importActionHandler;
-    std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::ImportActionRequest>();
-    importActionHandler.HandleRequest(std::move(requestPtr));
+    auto requestPtr = std::make_unique<Dic::Protocol::ImportActionRequest>();
+    requestPtr->id = 73;
+    const auto command = requestPtr->command;
+    EXPECT_FALSE(importActionHandler.HandleRequest(std::move(requestPtr)));
+    ASSERT_EQ(capture.session->responses.size(), 1u);
+    const auto &response = *capture.session->responses.front();
+    EXPECT_EQ(response.requestId, 73u);
+    EXPECT_EQ(response.command, command);
+    EXPECT_FALSE(response.result);
+    ASSERT_TRUE(response.error.has_value());
+    EXPECT_EQ(response.error->code, static_cast<int>(Dic::Module::Timeline::ErrorCode::PARAMS_ERROR));
+    EXPECT_FALSE(response.error->message.empty());
 }
 
-TEST_F(HandlerTest, ImportActionHandlerTestPathIsNotEmpty) {
+TEST_F(HandlerTest, ImportActionHandlerRejectsUnknownProjectAction) {
+    ResponseCapture capture;
     Dic::Module::Timeline::ImportActionHandler importActionHandler;
-    std::unique_ptr<Dic::Protocol::ImportActionRequest> requestPtr =
-        std::make_unique<Dic::Protocol::ImportActionRequest>();
+    auto requestPtr = std::make_unique<Dic::Protocol::ImportActionRequest>();
     requestPtr.get()->params.path.emplace_back("jjjj");
-    importActionHandler.HandleRequest(std::move(requestPtr));
+    requestPtr->params.projectName = "timeline-ut-project";
+    requestPtr->id = 73;
+    const auto command = requestPtr->command;
+    EXPECT_FALSE(importActionHandler.HandleRequest(std::move(requestPtr)));
+    ASSERT_EQ(capture.session->responses.size(), 1u);
+    const auto &response = *capture.session->responses.front();
+    EXPECT_EQ(response.requestId, 73u);
+    EXPECT_EQ(response.command, command);
+    EXPECT_FALSE(response.result);
+    ASSERT_TRUE(response.error.has_value());
+    EXPECT_EQ(response.error->code, static_cast<int>(Dic::Module::Timeline::ErrorCode::PARAMS_ERROR));
+    EXPECT_FALSE(response.error->message.empty());
 }
 
-// 该用例测试导入cluster_analysis_output的上一级目录，这样导入是允许的
+namespace {
+class ImportClusterDirectory {
+  public:
+    void Create() {
+        std::error_code error;
+        const auto temporaryDirectory = std::filesystem::temp_directory_path(error);
+        ASSERT_FALSE(error) << error.message();
+        projectName =
+            "timeline-import-ut-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+        directory = temporaryDirectory / projectName;
+        directoryCreated = std::filesystem::create_directory(directory, error);
+        ASSERT_FALSE(error) << error.message();
+        ASSERT_TRUE(directoryCreated);
+        clusterDirectory = directory / "cluster_analysis_output";
+        ASSERT_TRUE(std::filesystem::create_directory(clusterDirectory, error));
+        ASSERT_FALSE(error) << error.message();
+        for (const auto *name : {"cluster_communication.json", "cluster_communication_matrix.json",
+                 "cluster_step_trace_time.csv", "communication_group.json"}) {
+            std::ofstream file(clusterDirectory / name, std::ios::out | std::ios::trunc);
+            ASSERT_TRUE(file.is_open()) << name;
+            file.close();
+            ASSERT_TRUE(file.good()) << name;
+        }
+        EXPECT_TRUE(
+            Dic::Module::Global::ProjectExplorerManager::Instance().QueryProjectExplorer(projectName, {}).empty());
+    }
+    ~ImportClusterDirectory() {
+        if (!directoryCreated) {
+            return;
+        }
+        WaitForImport();
+        Dic::Module::ParserFactory::Reset();
+        auto &manager = Dic::Module::Timeline::DataBaseManager::Instance();
+        for (const auto &path : {directory, clusterDirectory}) {
+            if (!manager.HasClusterDatabase(path.string())) {
+                continue;
+            }
+            auto database = manager.GetClusterDatabase(path.string());
+            if (database) {
+                const auto databasePath = database->GetDbPath();
+                database.reset();
+                manager.EraseClusterDb(databasePath);
+            }
+        }
+        EXPECT_TRUE(Dic::Module::Global::ProjectExplorerManager::Instance().DeleteProjectAndFilePath(projectName, {}));
+        std::error_code error;
+        std::filesystem::remove_all(directory, error);
+        EXPECT_FALSE(error) << error.message();
+    }
+    std::unique_ptr<Dic::Protocol::ImportActionRequest> Request(Dic::Protocol::ProjectActionEnum action) const {
+        auto request = std::make_unique<Dic::Protocol::ImportActionRequest>();
+        request->params.projectName = projectName;
+        request->params.projectAction = action;
+        request->params.path.emplace_back(directory.string());
+        return request;
+    }
+    static void WaitForImport() {
+        Dic::Module::Timeline::ClusterParseThreadPoolExecutor::Instance().GetThreadPool()->WaitForAllTasks();
+    }
+    std::string projectName;
+
+  private:
+    std::filesystem::path directory;
+    std::filesystem::path clusterDirectory;
+    bool directoryCreated = false;
+};
+} // namespace
+
+// The parent of cluster_analysis_output is a supported import directory.
 TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutput) {
-#ifdef _WIN32
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "..\\..\\..\\..\\test\\data\\test\\";
-    const std::string folderPath = deleteFolderPath + "cluster_analysis_output\\";
-#else
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "../../../../test/data/test/";
-    const std::string folderPath = deleteFolderPath + "cluster_analysis_output/";
-#endif
-    const std::string filePath1 = folderPath + "cluster_communication.json";
-    const std::string filePath2 = folderPath + "cluster_communication_matrix.json";
-    const std::string filePath3 = folderPath + "cluster_step_trace_time.csv";
-    const std::string filePath4 = folderPath + "communication_group.json";
-    const std::string mkdirCommand = "mkdir -p " + folderPath;
-    system(mkdirCommand.c_str());
-    std::ofstream outfile;
-    outfile.open(filePath1, std::ios::out | std::ios::trunc);
-    outfile.close();
-    outfile.open(filePath2, std::ios::out | std::ios::trunc);
-    outfile.close();
-    outfile.open(filePath3, std::ios::out | std::ios::trunc);
-    outfile.close();
-    outfile.open(filePath4, std::ios::out | std::ios::trunc);
-    outfile.close();
-
-    Dic::Module::Timeline::ImportActionHandler importActionHandler;
-    std::unique_ptr<Dic::Protocol::ImportActionRequest> requestPtr =
-        std::make_unique<Dic::Protocol::ImportActionRequest>();
-    requestPtr.get()->params.projectName = "test";
-    requestPtr.get()->params.projectAction = Dic::Protocol::ProjectActionEnum::ADD_FILE;
-    requestPtr.get()->params.path.emplace_back(deleteFolderPath);
-    bool result = importActionHandler.HandleRequest(std::move(requestPtr));
-    EXPECT_TRUE(result);
-
-    Dic::Module::ParserFactory::Reset();
-#ifdef _WIN32
-    const std::string rmCommand = "rd /s /q " + deleteFolderPath;
-#else
-    const std::string rmCommand = "rm -r " + deleteFolderPath;
-#endif
-    system(rmCommand.c_str());
+    ResponseCapture capture;
+    ImportClusterDirectory files;
+    ASSERT_NO_FATAL_FAILURE(files.Create());
+    Dic::Module::Timeline::ImportActionHandler handler;
+    EXPECT_TRUE(handler.HandleRequest(files.Request(Dic::Protocol::ProjectActionEnum::ADD_FILE)));
+    files.WaitForImport();
+    const auto projects =
+        Dic::Module::Global::ProjectExplorerManager::Instance().QueryProjectExplorer(files.projectName, {});
+    ASSERT_EQ(projects.size(), 1U);
+    EXPECT_EQ(projects[0].projectName, files.projectName);
+    EXPECT_FALSE(projects[0].subParseFileInfo.empty());
 }
 
 TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutputTransferProject) {
-#ifdef _WIN32
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "..\\..\\..\\..\\test\\data\\test\\";
-    const std::string folderPath = deleteFolderPath + "cluster_analysis_output\\";
-#else
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "../../../../test/data/test/";
-    const std::string folderPath = deleteFolderPath + "cluster_analysis_output/";
-#endif
-    const std::string filePath1 = folderPath + "cluster_communication.json";
-    const std::string filePath2 = folderPath + "cluster_communication_matrix.json";
-    const std::string filePath3 = folderPath + "cluster_step_trace_time.csv";
-    const std::string filePath4 = folderPath + "communication_group.json";
-    const std::string mkdirCommand = "mkdir -p " + folderPath;
-    system(mkdirCommand.c_str());
-    std::ofstream outfile;
-    outfile.open(filePath1, std::ios::out | std::ios::trunc);
-    outfile.close();
-    outfile.open(filePath2, std::ios::out | std::ios::trunc);
-    outfile.close();
-    outfile.open(filePath3, std::ios::out | std::ios::trunc);
-    outfile.close();
-    outfile.open(filePath4, std::ios::out | std::ios::trunc);
-    outfile.close();
-
-    Dic::Module::Timeline::ImportActionHandler importActionHandler;
-    std::unique_ptr<Dic::Protocol::ImportActionRequest> requestPtr =
-        std::make_unique<Dic::Protocol::ImportActionRequest>();
-    requestPtr.get()->params.projectName = "test";
-    requestPtr.get()->params.projectAction = Dic::Protocol::ProjectActionEnum::TRANSFER_PROJECT;
-    requestPtr.get()->params.path.emplace_back(deleteFolderPath);
-    bool result = importActionHandler.HandleRequest(std::move(requestPtr));
-    EXPECT_TRUE(result);
-
-    Dic::Module::ParserFactory::Reset();
-#ifdef _WIN32
-    const std::string rmCommand = "rd /s /q " + deleteFolderPath;
-#else
-    const std::string rmCommand = "rm -r " + deleteFolderPath;
-#endif
-    system(rmCommand.c_str());
+    ResponseCapture capture;
+    ImportClusterDirectory files;
+    ASSERT_NO_FATAL_FAILURE(files.Create());
+    Dic::Module::Timeline::ImportActionHandler handler;
+    ASSERT_TRUE(handler.HandleRequest(files.Request(Dic::Protocol::ProjectActionEnum::ADD_FILE)));
+    files.WaitForImport();
+    const auto projects =
+        Dic::Module::Global::ProjectExplorerManager::Instance().QueryProjectExplorer(files.projectName, {});
+    ASSERT_EQ(projects.size(), 1U);
+    ASSERT_FALSE(projects[0].subParseFileInfo.empty());
+    EXPECT_TRUE(handler.HandleRequest(files.Request(Dic::Protocol::ProjectActionEnum::TRANSFER_PROJECT)));
+    files.WaitForImport();
+    EXPECT_EQ(
+        Dic::Module::Global::ProjectExplorerManager::Instance().QueryProjectExplorer(files.projectName, {}).size(), 1U);
 }

@@ -115,12 +115,10 @@ class SystemViewOverallTextRepoTest : public ::testing::Test {
 
 TEST_F(SystemViewOverallTextRepoTest, QueryOverlapAnalysisDataForOverallMetricTest) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    ASSERT_NE(database, nullptr);
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
-    if (repoPtr == nullptr) {
-        // GetSystemViewOverallRepo中已有日志报错
-        return;
-    }
+    ASSERT_NE(repoPtr, nullptr);
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     requestParams.rankId = "0";
     requestParams.deviceId = "0";
@@ -140,12 +138,10 @@ TEST_F(SystemViewOverallTextRepoTest, QueryOverlapAnalysisDataForOverallMetricTe
 // System View Overall: 查询Computing拆解所需数据（有PMU数据，能正常查询）
 TEST_F(SystemViewOverallTextRepoTest, QueryDataForComputingOverallMetricTestWithPmu) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    ASSERT_NE(database, nullptr);
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
-    if (repoPtr == nullptr) {
-        // GetSystemViewOverallRepo中已有日志报错
-        return;
-    }
+    ASSERT_NE(repoPtr, nullptr);
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     std::vector<SystemViewOverallRes> details;
     Protocol::SystemViewOverallRes tmpRes = {.totalTime = 8873.76,
@@ -313,12 +309,10 @@ TEST_F(SystemViewOverallTextRepoTest, QueryDataForComputingOverallMetricTestFilt
 //  System View Overall: 查询Computing拆解所需数据（无PMU数据，无法进行Computing拆解）
 TEST_F(SystemViewOverallTextRepoTest, QueryDataForComputingOverallMetricTestWithoutPmu) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("1");
+    ASSERT_NE(database, nullptr);
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
-    if (repoPtr == nullptr) {
-        // GetSystemViewOverallRepo中已有日志报错
-        return;
-    }
+    ASSERT_NE(repoPtr, nullptr);
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     requestParams.rankId = "1";
     requestParams.deviceId = "1";
@@ -332,12 +326,10 @@ TEST_F(SystemViewOverallTextRepoTest, QueryDataForComputingOverallMetricTestWith
 
 TEST_F(SystemViewOverallTextRepoTest, QueryCommunicationOverlapOverallInfosTestWhenSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    ASSERT_NE(database, nullptr);
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
-    if (repoPtr == nullptr) {
-        // GetSystemViewOverallRepo中已有日志报错
-        return;
-    }
+    ASSERT_NE(repoPtr, nullptr);
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     requestParams.rankId = "0";
     requestParams.deviceId = "0";
@@ -357,12 +349,10 @@ TEST_F(SystemViewOverallTextRepoTest, QueryCommunicationOverlapOverallInfosTestW
 
 TEST_F(SystemViewOverallTextRepoTest, QueryCommunicationOpsTimeDataByGroupNameTestWhenSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    ASSERT_NE(database, nullptr);
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
-    if (repoPtr == nullptr) {
-        // GetSystemViewOverallRepo中已有日志报错
-        return;
-    }
+    ASSERT_NE(repoPtr, nullptr);
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     requestParams.rankId = "0";
     SystemViewOverallHelper computeHelper;

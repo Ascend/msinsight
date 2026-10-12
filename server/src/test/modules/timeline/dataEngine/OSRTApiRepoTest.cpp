@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 #include "OSRTApiRepo.h"
 #include "DbTraceDataBase.h"
+#include "DtFramework.h"
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::FullDb;
 class OSRTApiRepoTest : public OSRTApiRepo, public ::testing::Test {
@@ -42,14 +43,15 @@ class OSRTApiRepoTest : public OSRTApiRepo, public ::testing::Test {
 };
 
 TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLNormalTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "OSPTApiRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "OSPTApiRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     database->ExecSql(OSRTApiCreate);
     database->ExecSql(stringIdsCreate);
     database->ExecSql(OSRTApiInsert);
@@ -79,14 +81,15 @@ TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLNormalTest
 }
 
 TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLFailedTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "OSPTApiRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "OSPTApiRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     std::string processId{"885733925791211"};
     std::vector<SliceDomain> sliceVec;
     SliceQuery sliceQuery;
@@ -98,14 +101,15 @@ TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLFailedTest
 }
 
 TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLNormalTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "OSPTApiRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "OSPTApiRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     database->ExecSql(OSRTApiCreate);
     database->ExecSql(stringIdsCreate);
     database->ExecSql(OSRTApiInsert);
@@ -135,14 +139,15 @@ TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLNormalTest) {
 }
 
 TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLFailedTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "OSPTApiRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "OSPTApiRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     std::vector<uint64_t> sliceIds{1, 3, 7};
     std::vector<CompeteSliceDomain> competeSliceVec;
     QueryCompeteSliceByIdsExecuteSQL(database, sliceIds, competeSliceVec);
@@ -152,14 +157,15 @@ TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLFailedTest) {
 }
 
 TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLNormalTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "OSPTApiRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "OSPTApiRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     database->ExecSql(OSRTApiCreate);
     database->ExecSql(stringIdsCreate);
     database->ExecSql(OSRTApiInsert);
@@ -180,14 +186,15 @@ TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLNormalTest) {
 }
 
 TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLFailedTest) {
-    std::string currPath = Dic::FileUtil::GetCurrPath();
-    int index = currPath.find("server");
-    currPath = currPath.substr(0, index);
-    std::string dbPath = R"(test/data/msprof/)";
-    std::string completePath = currPath + dbPath + "OSPTApiRepoTest.db";
+    const std::string dbDirectory = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST), "data",
+        "msprof");
+    ASSERT_TRUE(Dic::FileUtil::IsFolder(dbDirectory)) << dbDirectory;
+    const std::string completePath = Dic::FileUtil::SplicePath(dbDirectory, "OSPTApiRepoTest.db");
     std::recursive_mutex mutex;
     std::shared_ptr<VirtualTraceDatabase> database = std::make_shared<DbTraceDataBase>(mutex);
-    database->OpenDb(completePath, false);
+    ASSERT_TRUE(database->OpenDb(completePath, false)) << completePath;
+    ASSERT_TRUE(Dic::FileUtil::IsRegularFile(completePath)) << completePath;
     std::string sliceId{"1"};
     CompeteSliceDomain competeSliceDomain;
     bool result = QuerySliceDetailInfoExecuteSQL(database, sliceId, competeSliceDomain);
