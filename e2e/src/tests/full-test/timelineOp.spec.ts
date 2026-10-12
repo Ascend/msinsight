@@ -129,7 +129,16 @@ test.describe('Timeline(Operator)', () => {
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('ST_XD_XN');
         await input.press('Enter');
-        await openInWindows.waitFor({ state: 'attached' });
+        await expect(openInWindows).toBeVisible();
+        await expect(timelineFrame.locator('.searchResult').getByText(/^\/\s*4396$/)).toBeVisible();
+        // 分页输入框共用占位符，按搜索词限定等待恢复启用的输入框。
+        await expect(timelineFrame.locator('.insight-category-search-overlay input[value="ST_XD_XN"]')).toBeEnabled();
+        const selectedLane = timelinePage.unitWrapperScroller.locator('.unit').filter({
+            has: timelineFrame.locator('.chart-selected'),
+        });
+        await expect(selectedLane.locator('.insight-lane-info-name')).toHaveText('SCALAR');
+        await expect(selectedLane.getByTestId('expand-btn')).toHaveClass(/insight-unit-expanded/);
+        await expect(selectedLane.locator('canvas.drawCanvas').first()).toBeVisible();
         await page.mouse.move(0, 0);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('search-instr.png', { maxDiffPixels: 100 });
     });

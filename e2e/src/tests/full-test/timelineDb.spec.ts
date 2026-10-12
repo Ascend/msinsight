@@ -311,9 +311,8 @@ test.describe('Timeline(DB)', () => {
     // 工具栏 - 算子连线
     test('test_operatorLinkLine', async ({ page, timelinePage }) => {
         const { flowBtn, timelineFrame } = timelinePage;
-        await timelineFrame.locator('div:nth-child(4) > .unit-info > .css-rdzxz6 > div > div > .insight-unit-fold').click();
-        await page.waitForTimeout(100);
-        await timelineFrame.locator('div:nth-child(15) > .unit-info > .css-rdzxz6 > div > div > .insight-unit-fold').click();
+        await timelinePage.expandUnit(getUnitInfo(timelinePage, 'Process 3430895'));
+        await timelinePage.expandUnit(getUnitInfo(timelinePage, 'Communication').first());
         const LinkLineType = [
             'HostToDevice',
             'async_npu',
