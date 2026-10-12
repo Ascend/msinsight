@@ -91,7 +91,7 @@ The following tools are recommended for local Linux development:
 | Software Name | Version Requirement | Purpose |
 | --- | --- | --- |
 | git | No special requirement | Code retrieval and submission |
-| Node.js | v18.20.8+ | Frontend development and build |
+| Node.js | v22.14.0+ | Frontend development, build, and ACP agent runtime |
 | pnpm | Use a version compatible with the lockfile | Frontend package management |
 | Python | 3.11+ | Utility scripts, pre-commit, third-party dependency preprocessing |
 | CMake | 3.16–3.20 | Backend project build and compilation |
@@ -111,7 +111,7 @@ openEuler/CentOS/RHEL:
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-It is recommended to install Node.js through the official installation package, system package manager, or version management tool, and ensure that the version v18.20.8+ is used.
+It is recommended to install Node.js through the official installation package, system package manager, or version management tool, and ensure that the version v22.14.0+ is used (the minimum required by the Native Agent runtime).
 
 After installation, run the following commands for verification:
 

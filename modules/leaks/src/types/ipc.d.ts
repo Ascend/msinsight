@@ -145,6 +145,21 @@ interface SelectBlockByIdPayload {
     selectionVersion?: number;
 };
 
+interface QueryBlocksPayload {
+    type: 'queryBlocks';
+    requestId: string;
+    query: BlockQuery;
+};
+
+interface BlockWorkerResponsePayload {
+    type?: string;
+    generation?: number;
+    error?: string;
+    hit?: boolean;
+    requestId?: string;
+    result?: BlockQueryResult;
+}
+
 interface SelectStateItemPayload {
     type: 'selectStateItem';
     item: StateDataHoverResult | null;
@@ -172,6 +187,7 @@ type Payload =
     | ClickItemPayload
     | SelectBlockItemPayload
     | SelectBlockByIdPayload
+    | QueryBlocksPayload
     | SelectStateItemPayload
     | SetMemoryStateDataPayload
     | DestroyPayload;

@@ -27,9 +27,10 @@ import { isHostMemoryEventType } from '../utils/utils';
 import BlocksTable from './BlocksTable';
 import EventsTable from './EventsTable';
 import ThresholdModal from './ThresholdModal';
+import { selectSystemTableView, type SystemTableView } from '@/agent/interactionController';
 const SYSTEM_TABLE_TOOLBAR_HEIGHT = 42;
 
-const MemoryTable = observer(({ session, height }: { session: Session; height?: number }): React.ReactElement => {
+const MemoryTable = observer(({ session, height, visible }: { session: Session; height?: number; visible: boolean }): React.ReactElement => {
     const { t } = useTranslation('leaks');
     const { tableType, module, eventType, autoFilterPotentialLeaks } = session;
     const [open, setOpen] = useState(false);
@@ -48,35 +49,7 @@ const MemoryTable = observer(({ session, height }: { session: Session; height?: 
         closeAutoFilter();
     };
     const radioChange = (e: RadioChangeEvent): void => {
-        runInAction(() => {
-            const type = e.target.value;
-            session.tableType = type;
-            if (type === 'blocks') {
-                session.blocksTableData = [];
-                session.blocksTableHeader = [];
-                session.blocksCurrentPage = 1;
-                session.blocksPageSize = 10;
-                session.blocksTotal = 0;
-                session.blocksOrder = '';
-                session.blocksOrderBy = '';
-                session.blocksFilters = {};
-                session.blocksRangeFilters = {};
-            } else {
-                session.eventsTableData = [];
-                session.eventsTableHeader = [];
-                session.eventsCurrentPage = 1;
-                session.eventsPageSize = 10;
-                session.eventsTotal = 0;
-                session.eventsOrder = '';
-                session.eventsOrderBy = '';
-                session.eventsFilters = {};
-                session.eventsRangeFilters = {};
-                session.lazyUsedThreshold = { perT: null, valueT: null };
-                session.delayedFreeThreshold = { perT: null, valueT: null };
-                session.longIdleThreshold = { perT: null, valueT: null };
-                session.onlyInefficient = false;
-            }
-        });
+        selectSystemTableView(session, e.target.value as SystemTableView);
     };
     return (
         <>
@@ -96,8 +69,8 @@ const MemoryTable = observer(({ session, height }: { session: Session; height?: 
                     : <></>}
             </div>
             {tableType === 'blocks'
-                ? <><BlocksTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} /><ThresholdModal session={session} open={open} setOpen={setOpen} /></>
-                : <EventsTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} />}
+                ? <><BlocksTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} visible={visible} /><ThresholdModal session={session} open={open} setOpen={setOpen} /></>
+                : <EventsTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} visible={visible} />}
         </>
     );
 });

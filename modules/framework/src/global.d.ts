@@ -17,6 +17,20 @@
  */
 
 declare global {
+    namespace NodeJS {
+        interface ProcessEnv {
+            readonly NODE_ENV?: 'development' | 'production' | 'test';
+            readonly REACT_APP_ENV?: string;
+            readonly REACT_APP_IS_VSCODE?: string;
+        }
+
+        interface Process {
+            readonly env: ProcessEnv;
+        }
+    }
+
+    var process: NodeJS.Process;
+
     interface Window {
         ipc: {
             postMessage: (payload: string) => void;

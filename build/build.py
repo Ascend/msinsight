@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details.
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import multiprocessing
@@ -30,8 +31,8 @@ import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
-from typing import List
 from pathlib import Path
+from typing import List
 from sign_windows import (
     signing_enabled,
     sign_many,
@@ -39,6 +40,17 @@ from sign_windows import (
     print_sha256,
 )
 
+
+from rag_development import (
+    DevelopmentVersion,
+    VersionFileTransaction,
+    capture_source_snapshot,
+    preflight_rag_inputs,
+    select_exact_installer,
+    validate_rag_arguments,
+    write_installer_evidence,
+    write_internal_metadata,
+)
 
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -53,6 +65,7 @@ class Const:
     FRAMEWORK_DIR = 'framework'
     MODULES_DIR = 'modules'
     SERVER_DIR = 'server'
+    insight_web_agent_DIR = 'insight_web_agent'
     SCRIPT_DIR = 'scripts'
     BUILD_DIR = 'build'
     SRC_DIR = 'src'
@@ -82,32 +95,56 @@ class Const:
     GRADLE = 'gradle.bat' if platform.system() == WINDOWS_OS else 'gradle'
     GRADLEW = 'gradlew.bat' if platform.system() == WINDOWS_OS else 'gradlew'
     JUPYTER = 'jupyter'
+    NODE = 'node.exe' if platform.system() == WINDOWS_OS else 'node'
     PIP = 'pip' if platform.system() == WINDOWS_OS else 'pip3'
     PLUGINS_VERSION_PLACEHOLDER = '{plugins_version}'
+    PLUGINS_NUMERIC_VERSION_PLACEHOLDER = '{plugins_numeric_version}'
+    RAG_PACKAGE_ENV = 'MSINSIGHT_RAG_PACKAGE'
+    RAG_PACKAGE_SHA256_ENV = 'MSINSIGHT_RAG_PACKAGE_SHA256'
+    RAG_MODEL_DIR_ENV = 'MSINSIGHT_RAG_MODEL_DIR'
+    RAG_MODE_ENV = 'MSINSIGHT_RAG_MODE'
+    RAG_BUILD_MODE_ENV = 'MSINSIGHT_RAG_BUILD_MODE'
+    RAG_TARGET_PLATFORM_ENV = 'MSINSIGHT_RAG_TARGET_PLATFORM'
+    RAG_TARGET_ARCH_ENV = 'MSINSIGHT_RAG_TARGET_ARCH'
+    RAG_TARGET_LIBC_ENV = 'MSINSIGHT_RAG_TARGET_LIBC'
     # 证书设置为“-”代表缺省临时签名，需要使用签名证书时通过环境变量INSIGHT_APP_SIGN指定签名证书名或证书id
     MAC_SIGNATURE_CERTIFICATE_ID = "-"
 
 
 class BuildContext:
-    def __init__(self, build_version: str, whl_version: str, os_tag: str):
+    def __init__(self, build_version: str, whl_version: str, os_tag: str, rag=None, rag_build_online=False):
         self.build_version = build_version
         self.whl_version = whl_version
         self.os_tag = os_tag
+        self.rag = rag
+        self.rag_build_online = rag_build_online
+        self.rag_facts = None
+        self.source_snapshot = None
+
+    @property
+    def offline(self):
+        return self.rag is not None and not self.rag_build_online
 
 
 def init():
     clean()
-    os.makedirs(os.path.join(PROJECT_PATH, Const.OUT_DIR))
-    os.makedirs(os.path.join(PROJECT_PATH, Const.PRODUCT_DIR))
+    os.makedirs(os.path.join(PROJECT_PATH, Const.OUT_DIR), exist_ok=True)
+    os.makedirs(os.path.join(PROJECT_PATH, Const.PRODUCT_DIR), exist_ok=True)
 
 
 def clean():
     out = os.path.join(PROJECT_PATH, Const.OUT_DIR)
     if os.path.exists(out):
-        shutil.rmtree(out)
-    script_memsnap_dump_test_dir = os.path.join(PROJECT_PATH, Const.SCRIPT_DIR, 'MemSnapDump', 'test')
-    if os.path.exists(script_memsnap_dump_test_dir):
-        shutil.rmtree(script_memsnap_dump_test_dir)
+        preserve = os.path.join(out, 'rag', 'dev-integration')
+        for entry in os.listdir(out):
+            target = os.path.join(out, entry)
+            if entry == 'rag' and os.path.isdir(preserve):
+                for rag_entry in os.listdir(target):
+                    rag_target = os.path.join(target, rag_entry)
+                    if rag_entry != 'dev-integration':
+                        shutil.rmtree(rag_target) if os.path.isdir(rag_target) else os.remove(rag_target)
+                continue
+            shutil.rmtree(target) if os.path.isdir(target) else os.remove(target)
     ascend_insight = os.path.join(PROJECT_PATH, Const.PRODUCT_DIR)
     if os.path.exists(ascend_insight):
         shutil.rmtree(ascend_insight)
@@ -126,6 +163,7 @@ def clean():
         'leaks',
         'reinforcement-learning',
         'memory-on-chip',
+        'insight_web_agent',
     ]
     for module in modules:
         build_dir = os.path.join(PROJECT_PATH, Const.MODULES_DIR, module, Const.BUILD_DIR)
@@ -160,7 +198,7 @@ def traverse_folder_and_chmod(path, dir_mode, file_mode):
         os.chmod(root, dir_mode)
 
 
-def build_server():
+def build_server(offline=False):
     output_path = os.path.join(PROJECT_PATH, Const.SERVER_DIR, 'output')
     if os.path.exists(output_path):
         shutil.rmtree(output_path)
@@ -168,11 +206,17 @@ def build_server():
 
     build_path = os.path.join(PROJECT_PATH, Const.SERVER_DIR, Const.BUILD_DIR)
     # 开源软件预处理，只要是生成sqlite的源码
-    result = exec_command([Const.PYTHON, 'preprocess_third_party.py'], build_path, Const.SERVER_DIR)
+    preprocess_command = [Const.PYTHON, 'preprocess_third_party.py']
+    if offline:
+        preprocess_command.append('--offline')
+    result = exec_command(preprocess_command, build_path, Const.SERVER_DIR)
     if result != 0:
         return 1
     # 编译代码
-    result = exec_command([Const.PYTHON, 'build.py', 'build'], build_path, Const.SERVER_DIR)
+    server_command = [Const.PYTHON, 'build.py', 'build']
+    if offline:
+        server_command.extend(['--jobs', '2'])
+    result = exec_command(server_command, build_path, Const.SERVER_DIR)
     if result != 0:
         return 1
     # 归一化构建产物目录，方便后续其他组件拷贝
@@ -190,26 +234,58 @@ def build_server():
     return 0
 
 
-def build_frontend():
-    os.putenv('npm_config_strict_ssl', 'false')
-    os.putenv('npm_config_registry', 'https://registry.npmmirror.com/')
+def build_frontend(allow_dependency_install=True):
+    if allow_dependency_install:
+        os.putenv('npm_config_strict_ssl', 'false')
+        os.putenv('npm_config_registry', 'https://registry.npmmirror.com/')
     os.putenv('DISABLE_ESLINT_PLUGIN', 'true')
 
     module_name = 'frontend'
     module_build_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.BUILD_DIR)
-    result = exec_command([Const.PYTHON, 'build.py'], module_build_path, module_name)
+    module_command = [Const.PYTHON, 'build.py']
+    if not allow_dependency_install:
+        module_command.append('--no-install')
+    result = exec_command(module_command, module_build_path, module_name)
     if result != 0:
         return 1
 
     framework_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR)
-    result = exec_command([Const.PNPM, 'install'], framework_path, module_name)
-    if result != 0:
-        return 1
+    if allow_dependency_install:
+        result = exec_command([Const.PNPM, 'install'], framework_path, module_name)
+        if result != 0:
+            return 1
 
     result = exec_command([Const.PNPM, 'build'], framework_path, module_name)
     if result != 0:
         return 1
 
+    return 0
+
+
+def build_server_offline():
+    return build_server(offline=True)
+
+
+def build_frontend_offline():
+    return build_frontend(allow_dependency_install=False)
+
+
+def build_acp_node_service(context=None):
+    module_name = 'acp_node_service'
+    acp_module_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR)
+    command = [Const.PNPM, 'server:build']
+    result = exec_command(command, acp_module_path, module_name, env=rag_subprocess_environment(context))
+    if result != 0:
+        return 1
+
+    source_path = os.path.join(acp_module_path, 'dist-server')
+    target_path = os.path.join(
+        PROJECT_PATH, Const.SERVER_DIR, 'output', Const.BUILD_DIR, Const.SERVER_DIR, Const.insight_web_agent_DIR
+    )
+    if os.path.exists(target_path):
+        shutil.rmtree(target_path)
+    shutil.copytree(source_path, target_path)
+    logging.info('[%s]Copied ACP node service to %s', module_name, target_path)
     return 0
 
 
@@ -261,32 +337,13 @@ def get_package_name(version: str, os_tag: str):
     return f"{Const.ASCEND_INSIGHT_PREFIX}_{version}_{os_tag}{Const.PACKAGE_SUFFIX}"
 
 
-def build_jupyterlab(jupyterlab_version, os_name):
+def build_jupyterlab(jupyterlab_version, os_name, allow_dependency_install=True):
     # 设置环境变量暂时不构建jupyterlab
     if os.getenv('BUILD_JUPYTERLAB', '').lower() != 'true':
         logging.info('The JupyterLab extension is not compiled because BUILD_JUPYTERLAB is not set.')
         return 0
-
     plugin_path = os.path.join(PROJECT_PATH, Const.JUPYTERLAB_PLUGINS_DIR)
-    requirements_path = os.path.join(plugin_path, 'requirements.txt')
-
-    # 下载构建依赖
-    result = exec_command(
-        [
-            Const.PIP,
-            'install',
-            '--retries',
-            '5',
-            '--timeout',
-            '120',
-            '-i',
-            os.environ.get('PIP_INDEX_URL', 'https://pypi.org/simple'),
-            '-r',
-            requirements_path,
-        ],
-        plugin_path,
-        'jupyterlab_plugin',
-    )
+    result = prepare_jupyterlab_build_dependencies(plugin_path, allow_dependency_install)
     if result != 0:
         return 1
 
@@ -336,6 +393,33 @@ def build_jupyterlab(jupyterlab_version, os_name):
     return 0
 
 
+def prepare_jupyterlab_build_dependencies(plugin_path, allow_dependency_install):
+    if not allow_dependency_install:
+        logging.info('JupyterLab offline build uses the pre-provisioned Python environment.')
+        return exec_command(
+            [Const.PYTHON, '-c', 'import jupyter_packaging, jupyterlab, setuptools, wheel'],
+            plugin_path,
+            'jupyterlab_plugin',
+        )
+    requirements_path = os.path.join(plugin_path, 'requirements.txt')
+    return exec_command(
+        [
+            Const.PIP,
+            'install',
+            '--retries',
+            '5',
+            '--timeout',
+            '120',
+            '-i',
+            os.environ.get('PIP_INDEX_URL', 'https://pypi.org/simple'),
+            '-r',
+            requirements_path,
+        ],
+        plugin_path,
+        'jupyterlab_plugin',
+    )
+
+
 def assemble_profiler_runtime(profiler_path):
     shutil.copytree(
         os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR, 'build'),
@@ -363,7 +447,26 @@ def copy_resource_in_jupyterlab(plugin_path):
     assemble_profiler_runtime(profiler_path)
 
 
-def build_package(version, os_name):
+def seed_default_workspace_skills(preview_dir: str) -> int:
+    """Pre-seed the default agent workspace with the merged product skills.
+
+    The shipped install tree carries exactly one copy per skill name (Bundle
+    records win); first-start sync replays the same bytes idempotently.
+    """
+    source = os.path.join(preview_dir, 'resources', 'profiler', 'server', 'insight_web_agent', 'skills')
+    target = os.path.join(preview_dir, '.mindstudio_insight', 'agent-workspace', '.agents', 'skills')
+    if not os.path.isdir(source):
+        logging.error('Product skills source is absent: %s', source)
+        return 1
+    if os.path.exists(target):
+        shutil.rmtree(target)
+    shutil.copytree(source, target)
+    names = sorted(entry for entry in os.listdir(target) if os.path.isdir(os.path.join(target, entry)))
+    logging.info('Seeded default workspace skills: count=%d', len(names))
+    return 0
+
+
+def build_package(version, os_name, offline=False):
     os.putenv('CARGO_REGISTRY', 'https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index')
     if os.getenv('BEPHOME') is not None:  # 规避目前cargo不能跑bep问题
         os.putenv('LD_PRELOAD', '')
@@ -385,6 +488,8 @@ def build_package(version, os_name):
     profiler_path = os.path.join(preview_dir, resource_dir, 'profiler')
     os.mkdir(profiler_path, 0o750)
     assemble_profiler_runtime(profiler_path)
+    if seed_default_workspace_skills(preview_dir) != 0:
+        return 1
     # 在macos下使用cargo bundle --release直接构建为app
     if platform.system() == Const.MAC_OS:
         cmd_list = [Const.CARGO, 'bundle', '--release']
@@ -399,6 +504,9 @@ def build_package(version, os_name):
         ]
     else:
         cmd_list = [Const.CARGO, 'build', '--release']
+    if offline:
+        # --offline is a Cargo option, not a cargo-bundle subcommand option.
+        cmd_list.insert(1, '--offline')
     package_name = Const.ASCEND_INSIGHT_PREFIX + '_' + version + '_' + os_name + Const.PACKAGE_SUFFIX
 
     result = exec_command(cmd_list, Const.PLATFORM_DIR, 'bin_package')
@@ -431,14 +539,16 @@ def package_win(dst_file: str, preview_dir: str) -> bool:
     if result != 0:
         return False
 
-    # 将产物拷贝到目标文件
-    for tmp in os.listdir(preview_dir):
-        if not tmp.startswith(Const.ASCEND_INSIGHT_PREFIX + '_'):
-            continue
-        shutil.copyfile(os.path.join(preview_dir, tmp), dst_file)
-        return True
-    # 如果没找到insight.exe产物则返回false
-    return False
+    try:
+        source = select_exact_installer(
+            Path(preview_dir),
+            os.path.basename(dst_file)[len(Const.ASCEND_INSIGHT_PREFIX) + 1 : -len('_win.exe')],
+            'win',
+        )
+    except (FileNotFoundError, ValueError):
+        return False
+    shutil.copyfile(source, dst_file)
+    return True
 
 
 def collect_inner_exes(preview_dir: str) -> List[Path]:
@@ -487,11 +597,20 @@ def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: 
     bin_file = file_names.get((system, 'bin'), 'MindStudioInsight')
     app_dir = os.path.join(target_dir, 'release', 'bundle', 'osx', Const.MAC_OS_APPNAME)
     app_bin_file_dir = os.path.join(app_dir, 'Contents', 'MacOS')
+    app_resources_dir = os.path.join(app_dir, 'Contents', 'Resources')
     preview_app = os.path.join(preview_dir, Const.MAC_OS_APPNAME)
     os.chmod(os.path.join(app_bin_file_dir, bin_file), 0o550)  # 4、app内二进制文件 ascend_insight 550
-    shutil.copytree(os.path.join(preview_dir, 'resources'), os.path.join(app_bin_file_dir, 'resources'))
-    python_src_dir = os.path.join(app_bin_file_dir, 'resources', 'profiler', 'server', 'python')
-    python_dst_dir = os.path.join(app_dir, 'Contents', 'Resources', 'python')
+    shutil.copytree(os.path.join(preview_dir, 'resources'), app_resources_dir, dirs_exist_ok=True)
+    runtime_resources_link = os.path.join(app_bin_file_dir, 'resources')
+    if os.path.lexists(runtime_resources_link):
+        if os.path.islink(runtime_resources_link) or os.path.isfile(runtime_resources_link):
+            os.unlink(runtime_resources_link)
+        else:
+            shutil.rmtree(runtime_resources_link)
+    # Keep the existing executable-relative resource lookup while storing data in the standard bundle location.
+    os.symlink('../Resources', runtime_resources_link, target_is_directory=True)
+    python_src_dir = os.path.join(app_resources_dir, 'profiler', 'server', 'python')
+    python_dst_dir = os.path.join(app_resources_dir, 'python')
     if os.path.exists(python_dst_dir):
         shutil.rmtree(python_dst_dir)
     shutil.move(python_src_dir, python_dst_dir)
@@ -500,6 +619,8 @@ def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: 
     if "aarch64" in package_name and not resign_mac_app(preview_app):
         return False
     if not chmod_mac_app(preview_app, 'aarch64' if 'aarch64' in package_name else 'x86_64'):
+        return False
+    if not verify_mac_packaged_rag(preview_app):
         return False
     # 通过dmgbuild打包
     if not build_dmg_for_mac_app(dst_file):
@@ -559,7 +680,7 @@ def zip_package(profiler_path, package_name, preview_dir: str, target_dir: str):
 
 
 def resign_mac_app(preview_app: str):
-    resources_dir = os.path.join(preview_app, "Contents/MacOS/resources")
+    resources_dir = os.path.join(preview_app, "Contents/Resources")
     server_dir = os.path.join(resources_dir, "profiler/server")
     msprof_analyze_dir = os.path.join(server_dir, "msprof_analyze")
     # 签名前设置resources权限, 否则无法签名通过
@@ -623,12 +744,119 @@ def sign_mac_app(app_path: str, certificate_id: str = Const.MAC_SIGNATURE_CERTIF
     if not os.path.exists(app_path):
         return False
     logging.info('[%s] Start to sign/resign MacOS application, using certificate %s', 'bin_package', certificate_id)
-    sign_cmd_list = ["codesign", "--force", "-s", certificate_id, "--deep", "--timestamp=none", app_path]
+    for native_path in mac_native_sign_targets(app_path):
+        native_command = ["codesign", "--force", "-s", certificate_id, "--timestamp=none", native_path]
+        if exec_command(native_command, os.path.dirname(native_path), 'bin_package') != 0:
+            logging.error('[%s] Failed to sign nested native runtime: %s', 'bin_package', native_path)
+            return False
+    if not refresh_mac_native_runtime_manifest(app_path):
+        return False
+    sign_cmd_list = ["codesign", "--force", "-s", certificate_id, "--timestamp=none", app_path]
     result = exec_command(sign_cmd_list, os.path.dirname(app_path), 'bin_package')
     if result != 0:
         logging.error('[%s] %s', 'bin_package', 'MacOS application signed failed.')
         return False
-    return True
+    verify_command = ["codesign", "--verify", "--deep", "--strict", app_path]
+    return exec_command(verify_command, os.path.dirname(app_path), 'bin_package') == 0
+
+
+def mac_native_sign_targets(app_path: str) -> list:
+    native_files = []
+    for root, _, files in os.walk(app_path):
+        for name in files:
+            path = os.path.join(root, name)
+            if is_macho_file(path):
+                native_files.append(path)
+    return sorted(native_files, key=lambda path: (mac_native_sign_priority(path), path))
+
+
+MACHO_MAGICS = {
+    b'\xce\xfa\xed\xfe',
+    b'\xcf\xfa\xed\xfe',
+    b'\xfe\xed\xfa\xce',
+    b'\xfe\xed\xfa\xcf',
+    b'\xca\xfe\xba\xbe',
+    b'\xbe\xba\xfe\xca',
+    b'\xca\xfe\xba\xbf',
+    b'\xbf\xba\xfe\xca',
+}
+
+
+def is_macho_file(path: str) -> bool:
+    candidate = Path(path)
+    if candidate.is_symlink() or not candidate.is_file():
+        return False
+    try:
+        with candidate.open('rb') as stream:
+            return stream.read(4) in MACHO_MAGICS
+    except OSError:
+        return False
+
+
+def mac_native_sign_priority(path: str) -> int:
+    if path.endswith(('.dylib', '.so')):
+        return 0
+    if path.endswith('.node'):
+        return 1
+    return 2
+
+
+def find_mac_rag_bundle_root(app_path: str) -> Path | None:
+    # Only the standard bundle location is supported; legacy layouts are not refreshed.
+    bundle_root = Path(app_path) / 'Contents' / 'Resources' / 'profiler' / 'server' / 'insight_web_agent'
+    manifest = bundle_root / 'rag-runtime' / 'native-runtime-manifest.json'
+    if manifest.is_file() and not manifest.is_symlink():
+        return bundle_root
+    return None
+
+
+def refresh_mac_native_runtime_manifest(app_path: str) -> bool:
+    bundle_root = find_mac_rag_bundle_root(app_path)
+    if bundle_root is None:
+        return True
+    manifest_path = bundle_root / 'rag-runtime' / 'native-runtime-manifest.json'
+    temporary = manifest_path.with_name(f'.{manifest_path.name}.tmp')
+    try:
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise ValueError('native runtime manifest is not a regular file')
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        files = manifest.get('files')
+        if not isinstance(files, list) or not files:
+            raise ValueError('native runtime manifest file closure is invalid')
+        resolved_root = bundle_root.resolve()
+        for file in files:
+            relative_path = file.get('path') if isinstance(file, dict) else None
+            if not isinstance(relative_path, str) or not relative_path or '\\' in relative_path:
+                raise ValueError('native runtime manifest path is invalid')
+            target = (bundle_root / Path(*relative_path.split('/'))).resolve()
+            if not target.is_relative_to(resolved_root) or target.is_symlink() or not target.is_file():
+                raise ValueError('native runtime manifest path escapes the bundle')
+            content = target.read_bytes()
+            file['sizeBytes'] = len(content)
+            file['sha256'] = hashlib.sha256(content).hexdigest()
+        content = (json.dumps(manifest, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+        with temporary.open('xb') as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, manifest_path)
+        return True
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        temporary.unlink(missing_ok=True)
+        logging.error('[%s] Failed to refresh RAG native runtime manifest: %s', 'bin_package', error)
+        return False
+
+
+def verify_mac_packaged_rag(app_path: str) -> bool:
+    bundle_root = find_mac_rag_bundle_root(app_path)
+    if bundle_root is None:
+        return True
+    smoke_entry = bundle_root / 'rag-required-smoke.mjs'
+    if smoke_entry.is_symlink() or not smoke_entry.is_file():
+        logging.error('[%s] Packaged RAG smoke entry is absent.', 'bin_package')
+        return False
+    command = [Const.NODE, str(smoke_entry)]
+    return exec_command(command, str(bundle_root), 'bin_package') == 0
 
 
 def build_dmg_for_mac_app(dst_file) -> bool:
@@ -639,9 +867,9 @@ def build_dmg_for_mac_app(dst_file) -> bool:
     return True
 
 
-def exec_command(command, path, module_name):
+def exec_command(command, path, module_name, env=None):
     logging.basicConfig(level=logging.INFO)
-    with subprocess.Popen(command, cwd=path, stdout=subprocess.PIPE) as process:
+    with subprocess.Popen(command, cwd=path, stdout=subprocess.PIPE, env=env) as process:
         for line in iter(process.stdout.readline, b''):
             logging.info('[%s]%s', module_name, line.decode('utf-8').strip())
         process.communicate(timeout=600)
@@ -669,6 +897,10 @@ def update_frontend_version(version, build_time):
 
 
 def extract_numeric_part(version: str) -> List:
+    try:
+        return DevelopmentVersion.parse(version).pe_numeric.split('.')
+    except ValueError:
+        pass
     parts = version.split('.')
     numeric_part_list = []
     for p in parts:
@@ -736,10 +968,13 @@ def update_winexe_version_info(version: str) -> None:
         logging.error('Failed to write main.rc because %s', e)
 
 
-def build_product_parallel(build_version, whl_version, os_name):
+def build_product_parallel(build_version, whl_version, os_name, offline=False):
     logging.info('Start to build products')
     funcs = [build_package, build_jupyterlab]
-    args_list = [(build_version, os_name), (whl_version, os_name)]
+    args_list = [
+        (build_version, os_name, offline),
+        (whl_version, os_name, not offline),
+    ]
 
     with multiprocessing.Pool(processes=min(multiprocessing.cpu_count(), len(funcs))) as pool:
         results = []
@@ -770,17 +1005,93 @@ def replace_placeholders_in_file(file_path, placeholder, replacement):
         file.truncate()  # 清除文件指针当前位置后面的内容
 
 
+_CARGO_PACKAGE_VERSION_PATTERN = re.compile(
+    r'(?ms)(^\[package\]\s*.*?^version\s*=\s*")[^"]+(")',
+)
+_CARGO_SEMVER_PATTERN = re.compile(
+    r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$',
+)
+
+
+def cargo_manifest_version(version):
+    candidate = str(version or '').strip()
+    if _CARGO_SEMVER_PATTERN.fullmatch(candidate):
+        return candidate
+    logging.warning(
+        'Cargo package version %r is invalid; filling default %s',
+        version,
+        Const.DEFAULT_BUILD_VERSION,
+    )
+    return Const.DEFAULT_BUILD_VERSION
+
+
+def fill_cargo_package_version(content: str, version: str) -> str:
+    lines = content.splitlines(keepends=True)
+    in_package = False
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            in_package = stripped == '[package]'
+            continue
+        if not in_package:
+            continue
+        replaced, matched = re.subn(
+            r'^(\s*version\s*=\s*")[^"]+(")',
+            rf'\g<1>{version}\g<2>',
+            line,
+            count=1,
+        )
+        if matched:
+            lines[index] = replaced
+            return ''.join(lines)
+    result = []
+    inserted = False
+    for line in lines:
+        result.append(line)
+        if not inserted and line.strip() == '[package]':
+            newline = '\r\n' if line.endswith('\r\n') else '\n'
+            result.append(f'version = "{version}"{newline}')
+            inserted = True
+    return ''.join(result)
+
+
+def update_cargo_package_version(file_path, version):
+    package_version = cargo_manifest_version(version)
+    with open(file_path, 'r', encoding='utf-8') as file:
+        content = file.read()
+    updated, count = _CARGO_PACKAGE_VERSION_PATTERN.subn(
+        rf'\g<1>{package_version}\g<2>',
+        content,
+        count=1,
+    )
+    if count != 1:
+        logging.warning(
+            'Unable to uniquely match [package] version in %s; filling default %s',
+            file_path,
+            Const.DEFAULT_BUILD_VERSION,
+        )
+        updated = fill_cargo_package_version(content, Const.DEFAULT_BUILD_VERSION)
+    with open(file_path, 'w', encoding='utf-8') as file:
+        file.write(updated)
+
+
 def update_app_version(build_version):
     # 替换main.rc信息
     update_winexe_version_info(build_version)
     # 替换installer.nsi中的版本信息
     installer_nsi_path = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, 'bundle', 'installer.nsi')
     replace_placeholders_in_file(installer_nsi_path, Const.PLUGINS_VERSION_PLACEHOLDER, build_version)
+    numeric_version = '.'.join(extract_numeric_part(build_version)[:4])
+    replace_placeholders_in_file(
+        installer_nsi_path,
+        Const.PLUGINS_NUMERIC_VERSION_PLACEHOLDER,
+        numeric_version,
+    )
     # 替换Cargo.toml中的版本信息
     cargo_toml_path = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, "Cargo.toml")
-    replace_placeholders_in_file(cargo_toml_path, Const.PLUGINS_VERSION_PLACEHOLDER, build_version)
+    update_cargo_package_version(cargo_toml_path, build_version)
     linux_cargo_toml_path = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, 'linux', 'Cargo.toml')
-    replace_placeholders_in_file(linux_cargo_toml_path, Const.PLUGINS_VERSION_PLACEHOLDER, build_version)
+    update_cargo_package_version(linux_cargo_toml_path, build_version)
 
 
 def set_mac_app_signature_certificate_id():
@@ -809,20 +1120,101 @@ def parse_args():
     parser.add_argument('-b', '--build_version', type=str, default=None, help='Specify the build version')
     parser.add_argument('-w', '--whl_version', type=str, default=None, help='Specify the whl version')
     parser.add_argument('type', nargs='?', default=None, help='Optional type, e.g. clean')
-    return parser.parse_known_args()
+    return parser.parse_args()
 
 
 def is_clean_command(args) -> bool:
     return bool(args.type and args.type.lower() == 'clean')
 
 
-def build_context_from_args(args) -> BuildContext:
+def rag_environment_present(env) -> bool:
+    return any(name in env for name in rag_environment_names())
+
+
+def rag_environment_names():
+    return (Const.RAG_MODE_ENV, Const.RAG_PACKAGE_ENV, Const.RAG_PACKAGE_SHA256_ENV, Const.RAG_MODEL_DIR_ENV)
+
+
+def environment_path(env, name):
+    value = env.get(name)
+    normalized = str(value).strip() if value is not None else ''
+    return Path(normalized) if normalized else None
+
+
+def resolve_rag_options(build_version, env):
+    # RAG is configured exclusively through MSINSIGHT_RAG_* environment variables.
+    if not rag_environment_present(env):
+        return None
+    return validate_rag_arguments(
+        build_version=build_version,
+        mode=str(env.get(Const.RAG_MODE_ENV) or 'development').strip(),
+        pack=environment_path(env, Const.RAG_PACKAGE_ENV),
+        sidecar=environment_path(env, Const.RAG_PACKAGE_SHA256_ENV),
+        model_dir=environment_path(env, Const.RAG_MODEL_DIR_ENV),
+    )
+
+
+def rag_subprocess_environment(context, base_environment=None):
+    environment = dict(os.environ if base_environment is None else base_environment)
+    for name in (
+        *rag_environment_names(),
+        Const.RAG_BUILD_MODE_ENV,
+        Const.RAG_TARGET_PLATFORM_ENV,
+        Const.RAG_TARGET_ARCH_ENV,
+        Const.RAG_TARGET_LIBC_ENV,
+    ):
+        environment.pop(name, None)
+    if context is not None:
+        target = rag_target_environment(context.os_tag)
+        environment.update(target)
+    if context is not None and context.rag is not None:
+        environment.update(
+            {
+                Const.RAG_PACKAGE_ENV: str(context.rag.pack),
+                Const.RAG_PACKAGE_SHA256_ENV: str(context.rag.sidecar),
+                Const.RAG_MODEL_DIR_ENV: str(context.rag.model_dir),
+                Const.RAG_MODE_ENV: context.rag.mode,
+            }
+        )
+    return environment
+
+
+def rag_target_environment(os_tag):
+    targets = {
+        'win': ('win32', 'x64', None),
+        'linux_x86_64': ('linux', 'x64', 'glibc'),
+        'linux_aarch64': ('linux', 'arm64', 'glibc'),
+        'macos_x86_64': ('darwin', 'x64', None),
+        'macos_aarch64': ('darwin', 'arm64', None),
+    }
+    if os_tag not in targets:
+        raise ValueError(f'Unsupported RAG product target: {os_tag}')
+    target_platform, target_arch, target_libc = targets[os_tag]
+    result = {
+        Const.RAG_TARGET_PLATFORM_ENV: target_platform,
+        Const.RAG_TARGET_ARCH_ENV: target_arch,
+    }
+    if target_libc:
+        result[Const.RAG_TARGET_LIBC_ENV] = target_libc
+    return result
+
+
+def build_context_from_args(args, env=None) -> BuildContext:
+    environment = os.environ if env is None else env
     build_version = args.build_version or Const.DEFAULT_BUILD_VERSION
     whl_version = args.whl_version or Const.DEFAULT_BUILD_VERSION
+    rag = resolve_rag_options(build_version, environment)
+    rag_build_mode = str(environment.get(Const.RAG_BUILD_MODE_ENV) or '').strip()
+    if rag_build_mode not in ('', '0', '1'):
+        raise ValueError(f'{Const.RAG_BUILD_MODE_ENV} must be 0 or 1')
+    if rag_build_mode == '1' and rag is None:
+        raise ValueError(f'{Const.RAG_BUILD_MODE_ENV}=1 requires complete bundled RAG inputs')
     return BuildContext(
         build_version=build_version,
         whl_version=whl_version,
         os_tag=get_os_tag(),
+        rag=rag,
+        rag_build_online=rag_build_mode == '1',
     )
 
 
@@ -850,12 +1242,26 @@ def run_parallel_functions(named_functions):
 
 
 def build_core_artifacts(context: BuildContext):
-    return run_parallel_functions(
+    frontend_builder = build_frontend_offline if context.offline else build_frontend
+    server_builder = build_server_offline if context.offline else build_server
+    if context.rag is not None:
+        # Native MinGW compilation is memory-bound; development builds avoid competing frontends.
+        for name, builder in [('server', server_builder), ('frontend', frontend_builder)]:
+            if builder() != 0:
+                logging.error('Failed to build %s.', name)
+                return 1
+        return build_acp_node_service(context)
+    result = run_parallel_functions(
         [
-            ('server', build_server),
-            ('frontend', build_frontend),
+            ('server', server_builder),
+            ('frontend', frontend_builder),
         ]
     )
+
+    if result != 0:
+        return result
+
+    return build_acp_node_service(context)
 
 
 def build_optional_artifacts(context: BuildContext):
@@ -863,29 +1269,182 @@ def build_optional_artifacts(context: BuildContext):
 
 
 def package_products(context: BuildContext):
-    return build_product_parallel(context.build_version, context.whl_version, context.os_tag)
+    return build_product_parallel(
+        context.build_version,
+        context.whl_version,
+        context.os_tag,
+        offline=context.offline,
+    )
+
+
+def versioned_source_paths():
+    return (
+        Path(PROJECT_PATH) / Const.MODULES_DIR / Const.FRAMEWORK_DIR / Const.SRC_DIR / 'version_info.json',
+        Path(PROJECT_PATH) / Const.PLATFORM_DIR / 'bundle' / 'main.rc',
+        Path(PROJECT_PATH) / Const.PLATFORM_DIR / 'bundle' / 'installer.nsi',
+        Path(PROJECT_PATH) / Const.PLATFORM_DIR / 'Cargo.toml',
+        Path(PROJECT_PATH) / Const.PLATFORM_DIR / 'linux' / 'Cargo.toml',
+    )
+
+
+def write_development_bundle_metadata(context: BuildContext):
+    if context.rag is None:
+        return 0
+    bundle = Path(PROJECT_PATH) / Const.MODULES_DIR / Const.insight_web_agent_DIR / 'dist-server'
+    install_path = bundle / 'rag-data' / context.rag_facts.kb_version / 'install.json'
+    try:
+        install = json.loads(install_path.read_bytes())
+    except (OSError, json.JSONDecodeError) as error:
+        logging.error('Unable to read preactivated RAG install identity: %s', error)
+        return 1
+    release_eligible = context.rag.mode == 'product-bundled'
+    metadata = {
+        'schemaVersion': '1.0',
+        'mode': context.rag.mode,
+        'productVersion': context.rag.version.product,
+        'peNumericVersion': context.rag.version.pe_numeric,
+        'consumerAcceptanceEvaluated': False,
+        'promotionEvaluated': False,
+        'releaseEligible': release_eligible,
+        'releaseStatus': 'release-eligible' if release_eligible else 'development-integration-only',
+        'package': {
+            'kbVersion': context.rag_facts.kb_version,
+            'sha256': context.rag_facts.package_sha256,
+            'sizeBytes': context.rag_facts.package_size,
+            'sourceSetId': context.rag_facts.source_set_id,
+            'sourceSetSha256': context.rag_facts.source_set_sha256,
+        },
+        'runtimeContractSha256': install['runtimeContractSha256'],
+        'softwareSource': context.source_snapshot.metadata(),
+    }
+    try:
+        write_internal_metadata(bundle / 'rag-build-mode.json', metadata)
+    except (OSError, ValueError, FileExistsError) as error:
+        logging.error('Unable to write final RAG build metadata: %s', error)
+        return 1
+    result = exec_command(
+        [Const.NODE, 'dist-server/rag-cli.mjs', 'verify'],
+        os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR),
+        'rag_verify',
+    )
+    if result != 0:
+        return result
+    module_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR)
+    for label, command in (
+        ('rag_packaged_tests', [Const.PNPM, 'server:build:test']),
+        ('rag_required_smoke', [Const.PNPM, 'rag:smoke:required']),
+        ('rag_preview_scan', [Const.PNPM, 'rag:preview:scan']),
+    ):
+        result = exec_command(command, module_path, label)
+        if result != 0:
+            return result
+    return 0
+
+
+def propagate_final_bundle_metadata(context: BuildContext):
+    if context.rag is None:
+        return 0
+    source = (
+        Path(PROJECT_PATH) / Const.MODULES_DIR / Const.insight_web_agent_DIR / 'dist-server' / 'rag-build-mode.json'
+    )
+    destination = (
+        Path(PROJECT_PATH)
+        / Const.SERVER_DIR
+        / 'output'
+        / Const.BUILD_DIR
+        / Const.SERVER_DIR
+        / 'insight_web_agent'
+        / 'rag-build-mode.json'
+    )
+    try:
+        if source.is_symlink() or not source.is_file():
+            raise FileNotFoundError('final RAG metadata source is absent')
+        if destination.exists() or destination.is_symlink():
+            raise FileExistsError('packaging tree already contains RAG metadata')
+        shutil.copyfile(source, destination)
+        if destination.read_bytes() != source.read_bytes():
+            raise OSError('packaging tree RAG metadata differs from final writer bytes')
+        rag_data = destination.parent / 'rag-data'
+        sentinel = rag_data / '.lifecycle'
+        if sentinel.exists() or sentinel.is_symlink():
+            if sentinel.is_symlink() or not sentinel.is_file():
+                raise OSError('packaging tree lifecycle sentinel is not a regular file')
+            sentinel.unlink()
+        staging = rag_data / '.staging'
+        if staging.exists() or staging.is_symlink():
+            if staging.is_symlink() or not staging.is_dir() or any(staging.iterdir()):
+                raise OSError('packaging tree lifecycle staging directory is not empty and regular')
+            staging.rmdir()
+    except OSError as error:
+        logging.error('Unable to propagate final RAG metadata into packaging tree: %s', error)
+        return 1
+    return 0
+
+
+def finalize_installer_evidence(context: BuildContext):
+    if context.rag is None or platform.system() != Const.WINDOWS_OS:
+        return 0
+    installer = Path(PROJECT_PATH) / Const.OUT_DIR / get_package_name(context.build_version, context.os_tag)
+    if installer.is_symlink() or not installer.is_file():
+        logging.error('Final installer is absent; external RAG metadata was not generated.')
+        return 1
+    release_eligible = context.rag.mode == 'product-bundled'
+    metadata = {
+        'schemaVersion': '1.0',
+        'mode': context.rag.mode,
+        'productVersion': context.rag.version.product,
+        'peNumericVersion': context.rag.version.pe_numeric,
+        'consumerAcceptanceEvaluated': False,
+        'promotionEvaluated': False,
+        'releaseEligible': release_eligible,
+        'releaseStatus': 'release-eligible' if release_eligible else 'development-integration-only',
+        'package': {
+            'kbVersion': context.rag_facts.kb_version,
+            'sha256': context.rag_facts.package_sha256,
+            'sizeBytes': context.rag_facts.package_size,
+        },
+        'softwareSource': context.source_snapshot.metadata(),
+    }
+    write_installer_evidence(installer, metadata)
+    return 0
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    args, unknown = parse_args()
-    if unknown:
-        logging.warning('[%s] Ignoring unrecognized argument(s): %s', 'main', ' '.join(unknown))
+    args = parse_args()
     if is_clean_command(args):
+        if rag_environment_present(os.environ) or os.environ.get(Const.RAG_BUILD_MODE_ENV, '').strip():
+            raise ValueError('clean command does not accept bundled RAG options')
         return clean_build_cache()
 
     context = build_context_from_args(args)
-    prepare(context)
-
-    result = build_core_artifacts(context)
-    if result != 0:
-        return result
-
-    result = build_optional_artifacts(context)
-    if result != 0:
-        return result
-
-    return package_products(context)
+    if context.rag is not None:
+        logging.info('RAG dependency build mode: %s; knowledge package and model use configured local inputs.',
+                     'offline' if context.offline else 'online')
+        context.source_snapshot = capture_source_snapshot(Path(PROJECT_PATH))
+        context.rag_facts = preflight_rag_inputs(
+            context.rag.pack,
+            context.rag.sidecar,
+            context.rag.model_dir,
+        )
+    with VersionFileTransaction(versioned_source_paths()):
+        prepare(context)
+        result = build_core_artifacts(context)
+        if result != 0:
+            return result
+        result = write_development_bundle_metadata(context)
+        if result != 0:
+            return result
+        result = propagate_final_bundle_metadata(context)
+        if result != 0:
+            return result
+        result = build_optional_artifacts(context)
+        if result != 0:
+            return result
+        result = package_products(context)
+        if result != 0:
+            return result
+        return finalize_installer_evidence(context)
 
 
 if __name__ == "__main__":

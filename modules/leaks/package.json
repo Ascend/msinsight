@@ -14,6 +14,21 @@
     "lint": "eslint src --fix",
     "dt": "set BROWSER=none&&set REACT_APP_TEST=1&&react-scripts start"
   },
+  "jest": {
+    "clearMocks": true,
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1",
+      "@insight/lib/i18n": "<rootDir>/../lib/src/i18n/index.ts",
+      "@insight/lib/resize": "<rootDir>/../lib/src/resize/index.ts",
+      "@insight/lib/utils": "<rootDir>/../lib/src/utils/index.ts",
+      "@insight/lib/connection": "<rootDir>/../lib/src/connection/index.ts",
+      "@insight/lib/theme": "<rootDir>/../lib/src/theme/index.ts",
+      "@insight/lib/components": "<rootDir>/../lib/src/components/index.ts",
+      "@insight/lib/AgentTable": "<rootDir>/../lib/src/AgentTable/index.ts",
+      "@insight/lib/FrontendAgentCommand": "<rootDir>/../lib/src/FrontendAgentCommand/index.ts",
+      "@insight/lib/ModuleAgentCommandClient": "<rootDir>/../lib/src/ModuleAgentCommandClient/index.ts"
+    }
+  },
   "browserslist": {
     "production": [
       ">0.2%",

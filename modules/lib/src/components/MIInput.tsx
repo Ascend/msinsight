@@ -21,6 +21,7 @@ import { type InputProps, type InputRef, type InputNumberProps, Input, InputNumb
 import { useTranslation } from 'react-i18next';
 import styled from '@emotion/styled';
 import type { GroupProps } from 'antd/es/input';
+import type { PasswordProps } from 'antd/es/input/Password';
 
 // 默认最大输入200个字符
 const DEFAULT_MAX_LENGTH = 200;
@@ -67,6 +68,49 @@ export const MIInput = styled(Support)`
 
     .ant-input-clear-icon {
         color: ${(props): string => props.theme.textColorTertiary};
+        &:hover {
+            color: ${(props): string => props.theme.textColorPrimary};
+        }
+    }
+`;
+
+const PasswordSupport = React.forwardRef((props: PasswordProps, ref: React.ForwardedRef<InputRef>) => {
+    const { t } = useTranslation('lib');
+    const { size, ...restProps } = props;
+    return <Input.Password
+        maxLength={DEFAULT_MAX_LENGTH}
+        placeholder={t('Please enter')}
+        {...restProps}
+        ref={ref}
+    />;
+});
+PasswordSupport.displayName = 'PasswordSupport';
+
+export const MIPasswordInput = styled(PasswordSupport)`
+    width: ${(props): number => (props.size && sizeOption[props.size]) ?? sizeOption.middle}px;
+    height: ${(props): number | string => (props.height ?? 32)}px;
+    background-color: ${(props): string => props.theme.bgColor};
+    border-color: ${(props): string => props.theme.borderColorLighter};
+    color: ${(props): string => props.theme.textColorPrimary};
+    font-size: 12px;
+
+    &:hover,
+    &.ant-input-affix-wrapper-focused {
+        border-color: ${(props): string => props.theme.primaryColor};
+    }
+
+    .ant-input {
+        background-color: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
+
+        &::placeholder {
+            color: ${(props): string => props.theme.textColorTertiary};
+        }
+    }
+
+    .ant-input-password-icon {
+        color: ${(props): string => props.theme.textColorTertiary};
+
         &:hover {
             color: ${(props): string => props.theme.textColorPrimary};
         }

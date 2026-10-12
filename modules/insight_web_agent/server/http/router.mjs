@@ -1,0 +1,148 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import { CAPABILITY_MCP_PATH } from "../capability-center/definitions.mjs";
+import { json, readJson } from "./response.mjs";
+import { errorBody } from "./errors.mjs";
+
+export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController, capabilityController, httpMcpAdapter }) => {
+    return async (req, res) => {
+        const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+
+        if (req.method === "GET" && url.pathname === "/api/state") {
+            return chatController.getState(req, res);
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/agent-config") {
+            return agentConfigController.get(req, res);
+        }
+
+        if (req.method === "PUT" && url.pathname === "/api/agent-config/servers") {
+            return agentConfigController.saveAgentServers(req, res, await readJson(req));
+        }
+
+        if (req.method === "PUT" && url.pathname === "/api/agent-config/builtin") {
+            return agentConfigController.saveBuiltinAgent(req, res, await readJson(req));
+        }
+
+        if (req.method === "PUT" && url.pathname === "/api/agent-config/session") {
+            return agentConfigController.saveSessionConfig(req, res, await readJson(req));
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/sessions") {
+            return sessionController.list(req, res);
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/sessions/new") {
+            return sessionController.create(req, res);
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/events") {
+            return eventController.connect(req, res);
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/agents") {
+            return agentController.list(req, res);
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/agents/switch") {
+            return agentController.switch(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/agents/refresh") {
+            return agentController.refresh(req, res);
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/prompt") {
+            return chatController.prompt(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/context") {
+            return contextController.update(req, res, await readJson(req));
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/page/observation") {
+            return pageController.getObservation(req, res);
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/page/observation") {
+            return pageController.updateObservation(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/permissions/respond") {
+            return permissionController.respond(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/sessions/load") {
+            return sessionController.load(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/sessions/export") {
+            return sessionController.export(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/sessions/delete") {
+            return sessionController.delete(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/session-config/option") {
+            return sessionController.setConfigOption(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/session-config/model") {
+            return sessionController.setModel(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/session-config/mode") {
+            return sessionController.setMode(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/cancel") {
+            return chatController.cancel(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/request") {
+            return frontendCommandController.request(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/claim") {
+            return frontendCommandController.claim(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/respond") {
+            return frontendCommandController.respond(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/cancel") {
+            return frontendCommandController.cancel(req, res, await readJson(req));
+        }
+
+        if (capabilityController && req.method === "POST" && url.pathname === "/api/capabilities/invoke") {
+            return capabilityController.invoke(req, res, await readJson(req));
+        }
+
+        if (httpMcpAdapter && url.pathname === CAPABILITY_MCP_PATH && ["GET", "POST", "DELETE"].includes(req.method)) {
+            return httpMcpAdapter.handle(req, res);
+        }
+
+        return json(res, errorBody({
+            code: "route_not_found",
+            message: "API route not found",
+            details: { method: req.method, path: url.pathname },
+        }), 404);
+    };
+};

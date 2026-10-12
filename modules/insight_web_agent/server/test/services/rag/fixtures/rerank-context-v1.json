@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "1.0",
+  "candidateGeneration": {
+    "vectorTopK": 30,
+    "bm25TopK": 30,
+    "rrfK": 60,
+    "finalTopK": 5
+  },
+  "fixtures": {
+    "explicitProject": {
+      "query": "Project Alpha Analyze usage",
+      "expectedProjectIds": ["project-alpha-analyze"]
+    },
+    "rrfStableTie": {
+      "rankings": [[3, 1], [1, 3]],
+      "expectedIndexes": [1, 3]
+    },
+    "genericRerank": {
+      "query": "Project Alpha setup guide",
+      "candidates": [
+        {
+          "index": 0,
+          "score": 0.04,
+          "projectId": "project-beta",
+          "sourceLabel": "Project Beta / Guide",
+          "documentCategory": "guide",
+          "title": "Reference",
+          "sectionPath": ["Overview"],
+          "docName": "reference.md",
+          "knowledgeText": "General reference.",
+          "inVector": true,
+          "inBm25": true
+        },
+        {
+          "index": 1,
+          "score": 0.02,
+          "projectId": "project-alpha",
+          "sourceLabel": "Project Alpha / Guide",
+          "documentCategory": "guide",
+          "title": "Migration Guide",
+          "sectionPath": ["Migration"],
+          "docName": "migration.md",
+          "knowledgeText": "Migration reference.",
+          "inVector": true,
+          "inBm25": false
+        },
+        {
+          "index": 2,
+          "score": 0.01,
+          "projectId": "project-alpha",
+          "sourceLabel": "Project Alpha / Guide",
+          "documentCategory": "guide",
+          "title": "Setup Guide",
+          "sectionPath": ["Setup Guide"],
+          "docName": "setup-guide.md",
+          "knowledgeText": "Setup reference.",
+          "inVector": true,
+          "inBm25": false
+        }
+      ],
+      "expectedIndexes": [2, 1, 0]
+    }
+  }
+}

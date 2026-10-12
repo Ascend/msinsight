@@ -24,6 +24,9 @@ import { themeInstance } from './theme/theme';
 import { registerEventHandlers, getInitStatus } from './index';
 import { GlobalStyles } from '@insight/lib/theme';
 import { SharedConfigProvider } from '@insight/lib';
+import { startMemScopeAgentRuntime, stopMemScopeAgentRuntime } from './agent/runtime';
+import { setMemScopeAgentSession } from './agent/graphController';
+import { setMemScopeInteractionSession } from './agent/interactionController';
 import './index.css';
 const App = observer(() => {
     const { sessionStore } = useRootStore();
@@ -33,12 +36,22 @@ const App = observer(() => {
         session = sessionStore.activeSession;
         registerEventHandlers();
         getInitStatus();
+        startMemScopeAgentRuntime();
+        return stopMemScopeAgentRuntime;
     }, []);
     useEffect(() => {
         if (session) {
             setLocale(session.language);
         }
     }, [session?.language]);
+    useEffect(() => {
+        setMemScopeAgentSession(session);
+        setMemScopeInteractionSession(session);
+        return () => {
+            setMemScopeAgentSession(undefined);
+            setMemScopeInteractionSession(undefined);
+        };
+    }, [session]);
     return <ThemeProvider theme={themeInstance.getThemeType()}>
         <GlobalStyles />
         <SharedConfigProvider locale={locale}>

@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details.
 #
 # sqlite编译和三方依赖整理
 
+import argparse
 import os
 import platform
 import shutil
@@ -128,7 +129,7 @@ def is_mingw_available():
         return False, f"Error checking g++: {e}"
 
 
-def prepare_sqlite_src() -> bool:
+def prepare_sqlite_src(*, offline: bool = False) -> bool:
     log('start to prepare sqlite src')
     if platform.system() == "Windows":
         check_mingw_result, msg = is_mingw_available()
@@ -140,6 +141,9 @@ def prepare_sqlite_src() -> bool:
             )
             return False
         if not os.path.exists(os.path.join(THIRD_PARTY_DIR, SQLITE3_AUTOCONF_DIR)):
+            if offline:
+                LOG.error('Offline build requires the pre-existing SQLite source tree.')
+                return False
             tar_path = os.path.join(THIRD_PARTY_DIR, SQLITE_SRC_TAR)
             urllib.request.urlretrieve(SQLITE3_SOURCE_URL, tar_path)
             with tarfile.open(tar_path) as tar:
@@ -183,7 +187,10 @@ def reorganize_3rd_party():
 
 if __name__ == '__main__':
     LOG = init_log('root')
-    if not prepare_sqlite_src():
+    parser = argparse.ArgumentParser(description='Prepare server third-party source trees.')
+    parser.add_argument('--offline', action='store_true')
+    args = parser.parse_args()
+    if not prepare_sqlite_src(offline=args.offline):
         LOG.error('Failed to prepare sqlite src.')
         sys.exit(-1)
     reorganize_3rd_party()

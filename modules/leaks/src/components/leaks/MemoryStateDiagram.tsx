@@ -59,6 +59,9 @@ import {
     resolveLifecycleKeyboardAction,
 } from './lifecycleNavigation';
 import { LifecycleZoomModeIcon, LifecycleZoomModeTooltip } from './LifecycleGraphToolbar';
+import { clearMemoryPoolSummary, updateMemoryPoolSummary } from '@/agent/graphController';
+import { createMemoryBlockContextKey } from '../blockLoadState';
+import { isMemSnapshotSliceReadyForQuery } from '@/utils/memSnapshotSlices';
 
 export const MemoryStateDiagram = ({ session }: { session: Session }): JSX.Element => {
     return <div data-testid="stateDiagramSection" style={{ display: 'flex', height: 800 }}>
@@ -117,6 +120,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     const eventTypeButtonRef = useRef<HTMLButtonElement>(null);
     const addFilterAnchorRef = useRef<HTMLInputElement>(null);
     const dataSourceRef = useRef<EvenItem[]>([]);
+    const stateRequestSequenceRef = useRef(0);
     const currentSelectRowRef = useRef(currentSelectRow);
     const deviceIdRef = useRef(session.deviceId);
     const deviceIdsSignature = JSON.stringify(session.deviceIds);
@@ -363,11 +367,14 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         });
     };
 
-    const setMemoryStateData = (): void => {
-        if (session.module !== 'memsnapshot' || session.deviceId === '') return;
+    const setMemoryStateData = async (): Promise<void> => {
+        const requestSequence = ++stateRequestSequenceRef.current;
+        if (session.module !== 'memsnapshot' || session.deviceId === '' ||
+            !isMemSnapshotSliceReadyForQuery(session) || !isMemoryBlockLoadReady(session)) return;
         const currentRow = dataSource[currentSelectRow];
         if (currentRow === undefined) {
             workerSetMemoryStateData({ data: [] });
+            clearMemoryPoolSummary();
             runInAction(() => {
                 session.stateWorkerInfo.eventId = -1;
             });
@@ -376,27 +383,49 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         const requestRowIndex = currentSelectRow;
         const requestEventId = currentRow.id;
         const requestDeviceId = session.deviceId;
-        getMemoryStateData({
-            eventId: requestEventId,
-            deviceId: requestDeviceId,
-            sliceIndex: session.selectedSliceIndex,
-        }).then(data => {
-            if (deviceIdRef.current !== requestDeviceId || currentSelectRowRef.current !== requestRowIndex ||
-                dataSourceRef.current[requestRowIndex]?.id !== requestEventId) {
-                return;
-            }
+        const requestSliceIndex = session.selectedSliceIndex;
+        const requestDeviceIds = session.deviceIds;
+        const requestDbPath = session.dbPath;
+        const requestContextKey = createMemoryBlockContextKey(session);
+        const requestListId = currentRequestId;
+        const isCurrentRequest = (): boolean => requestSequence === stateRequestSequenceRef.current &&
+            requestListId === currentRequestId && session.module === 'memsnapshot' &&
+            session.dbPath === requestDbPath && session.deviceIds === requestDeviceIds &&
+            createMemoryBlockContextKey(session) === requestContextKey &&
+            isMemSnapshotSliceReadyForQuery(session) && isMemoryBlockLoadReady(session) &&
+            deviceIdRef.current === requestDeviceId && currentSelectRowRef.current === requestRowIndex &&
+            dataSourceRef.current[requestRowIndex]?.id === requestEventId;
+        clearMemoryPoolSummary();
+        try {
+            const data = await getMemoryStateData({
+                eventId: requestEventId,
+                deviceId: requestDeviceId,
+                sliceIndex: requestSliceIndex,
+            });
+            if (!isCurrentRequest()) return;
+            if (!Array.isArray(data.segments)) throw new Error('Invalid memory state segments');
             workerSetMemoryStateData({ data: data.segments });
+            updateMemoryPoolSummary(requestEventId, data.segments);
             runInAction(() => {
                 session.stateWorkerInfo.eventId = requestEventId;
                 session.loadingState = false; // 实际只有第一次获取数据时才需要显示loading
             });
-        });
+        } catch (_error) {
+            if (!isCurrentRequest()) return;
+            clearMemoryPoolSummary();
+            runInAction(() => {
+                session.stateWorkerInfo.eventId = -1;
+                session.loadingState = false;
+            });
+        }
     };
 
     const blockLoadReady = isMemoryBlockLoadReady(session);
+    const sliceReady = isMemSnapshotSliceReadyForQuery(session);
 
     useEffect(() => {
-        if (session.deviceId === '') return;
+        currentRequestId++;
+        stateRequestSequenceRef.current++;
         setDataSource([]);
         resetSearchState();
         setCurrentSelectRow(0);
@@ -404,13 +433,20 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         // table使用了不自动恢复滚动条模式，需要手动恢复到0
         tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 0 });
         workerSetMemoryStateData({ data: [] });
-        if (!blockLoadReady) return;
-        getAllEventListData(session);
+        clearMemoryPoolSummary();
+        runInAction(() => {
+            session.stateWorkerInfo.eventId = -1;
+            session.clickEventItem = null;
+        });
+        if (session.module === 'memsnapshot' && session.deviceId !== '' && blockLoadReady && sliceReady) {
+            void getAllEventListData(session);
+        }
         return () => {
             currentRequestId++;
+            stateRequestSequenceRef.current++;
         };
-    }, [session.fileHash, session.module, session.deviceIds, session.deviceId,
-        session.selectedSliceIndex, deviceIdsSignature, blockLoadReady]);
+    }, [session.fileHash, session.dbPath, session.module, session.deviceIds, session.deviceId,
+        session.selectedSliceIndex, deviceIdsSignature, blockLoadReady, sliceReady]);
 
     useEffect(() => {
         const result = getMatchedIndexes();
@@ -497,13 +533,13 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
 
     useEffect(() => {
         if (session.deviceId === '') return;
-        setMemoryStateData();
+        void setMemoryStateData();
     }, [currentSelectRow]);
 
     useEffect(() => {
         if (dataSource.length < 1001 && dataSource.length > 0) {
             // 事件列表第一次变化时，设置内存状态数据
-            setMemoryStateData();
+            void setMemoryStateData();
         }
     }, [dataSource]);
 

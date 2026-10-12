@@ -28,8 +28,6 @@ import { Label } from './Common';
 import {
     getFuncNewData,
     getBarNewData,
-    getBlockTableData,
-    getEventTableData,
     getPotentialLeakStats,
     preloadSnapshotSliceOverviews,
 } from './dataHandler';
@@ -47,6 +45,13 @@ import { MemoryStateDiagram } from './leaks/MemoryStateDiagram';
 import PotentialLeakStats from './PotentialLeakStats';
 import { debounce, type DebouncedFunc } from 'lodash';
 import MemSnapshotSliceOverview from './MemSnapshotSliceOverview';
+import {
+    notifyMemScopeInteractionsChanged,
+    selectMemScopeDevice,
+    selectMemScopeEventType,
+    selectMemScopeThread,
+    setMemScopeFunctionFilter,
+} from '@/agent/interactionController';
 
 type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 const isValidRange = (range: [number, number]): boolean => Number.isFinite(range[0]) && Number.isFinite(range[1]) && range[0] < range[1];
@@ -80,6 +85,10 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     const deviceSlices = session.snapshotSlices[session.deviceId];
     const readySlicesSignature = JSON.stringify(deviceSlices?.readySlices ?? []);
 
+    useEffect(() => {
+        notifyMemScopeInteractionsChanged();
+    }, [session.deviceIdOpts.length, session.typeOpts.length, session.threadOps.length, session.funcOptions.length]);
+
     const commitSessionRange = (range: [number, number]): void => {
         runInAction(() => {
             session.minTime = range[0];
@@ -89,12 +98,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
 
     const commitRangeSideEffects = (range: [number, number]): void => {
         commitSessionRange(range);
-        if (session.module === 'memsnapshot') {
-            if (session.autoFilterPotentialLeaks) {
-                getBlockTableData(session);
-                getEventTableData(session);
-            }
-        }
     };
 
     const getCurrentFuncRange = (): [number, number] => {
@@ -349,11 +352,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                     value={session.threadId}
                     size="middle"
                     onChange={(value): void => {
-                        runInAction(() => {
-                            session.threadId = value;
-                            session.threadFlag = false;
-                            session.searchFunc = [];
-                        });
+                        selectMemScopeThread(session, Number(value));
                     }}
                     options={session.threadOps}
                 />
@@ -364,7 +363,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                     value={session.searchFunc}
                     style={{ width: 550, marginRight: 20 }}
                     onChange={(val: string[]): void => {
-                        runInAction(() => { session.searchFunc = val; });
+                        setMemScopeFunctionFilter(session, val);
                     }}
                     options={session.funcOptions}
                     showSearch={true}
@@ -391,12 +390,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                         value={session.deviceId}
                         size="middle"
                         onChange={(value): void => {
-                            runInAction(() => {
-                                session.threadFlag = false;
-                                session.typeOpts = session.deviceIds[value].map((type: string) => ({ label: type, value: type }));
-                                session.deviceId = value;
-                                session.eventType = session.deviceIds[value][0];
-                            });
+                            selectMemScopeDevice(session, String(value));
                         }}
                         options={session.deviceIdOpts}
                     />
@@ -406,10 +400,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                         value={session.eventType}
                         size="middle"
                         onChange={(value): void => {
-                            runInAction(() => {
-                                session.threadFlag = false;
-                                session.eventType = value;
-                            });
+                            selectMemScopeEventType(session, String(value));
                         }}
                         options={session.typeOpts.map((option: { label: string | number; value: string | number }) => ({
                             ...option,

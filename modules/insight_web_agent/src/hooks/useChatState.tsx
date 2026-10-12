@@ -1,0 +1,1410 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+    type RefObject,
+} from 'react';
+import { message } from 'antd';
+import { t } from 'i18next';
+import { toCommandError } from '@insight/lib/FrontendAgentCommand';
+import { cancelPrompt, claimFrontendCommand, deleteSession, exportSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { downloadSessionExport } from '../sessionExportDownload';
+import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
+import { subscribeEvents } from '../eventStream';
+import { shouldPersistSessionExport } from '../env';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+
+interface ChatStateValue {
+    configOptions: ConfigOption[];
+    configOptionsLoading: boolean;
+    agentServers: AgentServerItem[];
+    activeAgentName?: string;
+    agentInfo?: AgentInfo;
+    agentError?: string;
+    agentCapabilities?: AgentCapabilities;
+    draftMode?: string;
+    availableCommands: AvailableCommand[];
+    availableSkills: AvailableSkill[];
+    availableCapabilities: AvailableCapability[];
+    switchingAgent: boolean;
+    agentDiscoveryLoading: boolean;
+    currentSessionId?: string;
+    input: string;
+    images: ImageAttachment[];
+    isDraftSession?: boolean;
+    messages: ChatMessage[];
+    notices: ConversationNotice[];
+    messagesRef: RefObject<HTMLDivElement>;
+    scrollToLatestRequest: number;
+    welcomeAnimationRequest: number;
+    pendingPrompt: boolean;
+    queuedCount: number;
+    queuedPrompts: QueuedPrompt[];
+    sessions: SessionItem[];
+    createSession: () => Promise<void>;
+    deleteSession: (session: SessionItem) => Promise<void>;
+    exportSession: (session: SessionItem) => Promise<void>;
+    sendMessage: () => Promise<void>;
+    cancelMessage: () => Promise<void>;
+    selectSession: (session: SessionItem) => Promise<void>;
+    setInput: (value: string) => void;
+    selectWelcomePrompt: (text: string, promptPreset?: QueuedPrompt['promptPreset']) => void;
+    composerRef: RefObject<HTMLTextAreaElement>;
+    addImages: (images: ImageAttachment[]) => void;
+    removeImage: (id: string) => void;
+    clearQueuedPrompts: () => void;
+    removeQueuedPrompt: (index: number) => void;
+    setModel: (model: string) => Promise<void>;
+    setMode: (mode: string, sessionId?: string) => Promise<void>;
+    setAgent: (name: string) => Promise<void>;
+    refreshAgents: () => Promise<void>;
+    applyAgentConfigSnapshot: (snapshot: AgentConfigSnapshot) => Promise<void>;
+    respondToPermission: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
+}
+
+interface ChatState {
+    initialized?: boolean;
+    activeSessionId?: string;
+    isDraftSession: boolean;
+    draftMessages: ChatMessage[];
+    draftPendingPrompt: boolean;
+    configOptions: ConfigOption[];
+    agentServers: AgentServerItem[];
+    activeAgentName?: string;
+    agentInfo?: AgentInfo;
+    agentError?: string;
+    agentCapabilities?: AgentCapabilities;
+    draftMode?: string;
+    availableCommands: AvailableCommand[];
+    availableSkills: AvailableSkill[];
+    availableCapabilities: AvailableCapability[];
+    switchingAgent: boolean;
+    agentDiscoveryLoading: boolean;
+    sessions: SessionItem[];
+    sessionRecords: Record<string, SessionRecord>;
+    draftQueuedPrompts: QueuedPrompt[];
+    draftNotices: ConversationNotice[];
+}
+
+export const resolveAppliedAgentChange = (
+    currentAgentName: string | undefined,
+    snapshotAgentName: string,
+    fetchedAgentName: string | undefined,
+): { effectiveAgentName: string; changed: boolean } => {
+    const effectiveAgentName = fetchedAgentName ?? snapshotAgentName;
+    return {
+        effectiveAgentName,
+        changed: Boolean(currentAgentName) && effectiveAgentName !== currentAgentName,
+    };
+};
+
+const initialState: ChatState = {
+    isDraftSession: false,
+    draftMessages: [],
+    draftPendingPrompt: false,
+    switchingAgent: false,
+    agentDiscoveryLoading: true,
+    sessions: [],
+    configOptions: [],
+    agentServers: [],
+    availableCommands: [],
+    availableSkills: [],
+    availableCapabilities: [],
+    sessionRecords: {},
+    draftQueuedPrompts: [],
+    draftNotices: [],
+};
+
+const ChatStateContext = createContext<ChatStateValue | null>(null);
+
+const showError = (error: unknown): void => {
+    if (isBackendUnavailableError(error)) {
+        return;
+    }
+    message.error(error instanceof Error ? error.message : String(error));
+};
+
+export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.Element => {
+    const [state, setState] = useState<ChatState>(initialState);
+    const [draft, setDraft] = useState<{ text: string; promptPreset?: QueuedPrompt['promptPreset'] }>({ text: '' });
+    const input = draft.text;
+    const setInput = (text: string): void => {
+        setDraft((current) => ({ text, promptPreset: text.trim() ? current.promptPreset : undefined }));
+    };
+    const composerRef = useRef<HTMLTextAreaElement>(null);
+    const [inputFocusRequest, setInputFocusRequest] = useState(0);
+    const selectWelcomePrompt = (text: string, promptPreset?: QueuedPrompt['promptPreset']): void => {
+        setDraft({ text, promptPreset });
+        setInputFocusRequest((current) => current + 1);
+    };
+    useEffect(() => {
+        const textarea = composerRef.current;
+        if (!inputFocusRequest || !textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }, [inputFocusRequest]);
+    const [images, setImages] = useState<ImageAttachment[]>([]);
+    const messagesRef = useRef<HTMLDivElement>(null);
+    const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0);
+    const [welcomeAnimationRequest, setWelcomeAnimationRequest] = useState(0);
+    const stateRef = useRef(state);
+    const pendingSessionSequenceRef = useRef(0);
+    const queuedPromptsInFlightRef = useRef(new Set<string>());
+    const pendingCreationsRef = useRef(new Map<string, ReturnType<typeof sendPrompt>>());
+    const frontendCommandsRef = useRef(new Set<string>());
+    const cancelledFrontendCommandsRef = useRef(new Set<string>());
+    const initialSessionInitializedRef = useRef(false);
+    const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
+
+    useEffect(() => {
+        stateRef.current = state;
+    }, [state]);
+
+    const refreshSessions = async (): Promise<void> => {
+        const sessions = await fetchSessions();
+        setState((current) => ({ ...current, sessions: mergeSessionStatuses(sessions, current.sessionRecords) }));
+    };
+
+    const refreshInitialState = async (): Promise<Partial<AppState>> => {
+        const nextState = await fetchState();
+        setState((current) => ({
+            ...current,
+            initialized: nextState.initialized,
+            configOptions: nextState.configOptions ?? current.configOptions,
+            activeAgentName: nextState.activeAgentName ?? current.activeAgentName,
+            agentInfo: nextState.agentInfo ?? current.agentInfo,
+            agentError: nextState.agentError,
+            agentCapabilities: nextState.agentCapabilities ?? current.agentCapabilities,
+            availableCommands: nextState.availableCommands ?? current.availableCommands,
+            availableSkills: nextState.availableSkills ?? current.availableSkills,
+            availableCapabilities: nextState.availableCapabilities ?? current.availableCapabilities,
+        }));
+        return nextState;
+    };
+
+    const refreshAgentList = async (): Promise<{ activeAgentName?: string; discoveryLoading?: boolean }> => {
+        const agents = await fetchAgents();
+        setState((current) => ({
+            ...current,
+            agentServers: agents.agentServers ?? [],
+            activeAgentName: agents.activeAgentName ?? current.activeAgentName,
+            agentDiscoveryLoading: agents.discoveryLoading ?? current.agentDiscoveryLoading,
+        }));
+        return agents;
+    };
+
+    const handleAgentDiscoveryCompleted = async (event: Extract<ServerEvent, { type: 'agent_discovery_completed' }>): Promise<void> => {
+        if (discoverySyncPromiseRef.current) {
+            await discoverySyncPromiseRef.current;
+            return;
+        }
+        const synchronize = async (): Promise<void> => {
+            const agents = await fetchAgents();
+            const previousActiveAgentName = stateRef.current.activeAgentName;
+            const activeAgentName = agents.activeAgentName ?? previousActiveAgentName;
+            const activeAgentChanged = Boolean(previousActiveAgentName)
+                && Boolean(activeAgentName)
+                && activeAgentName !== previousActiveAgentName;
+            const runtimeChanged = Boolean(event.runtimeChanged || activeAgentChanged);
+            if (runtimeChanged) initialSessionInitializedRef.current = true;
+            setState((current) => {
+                const refreshed = {
+                    ...current,
+                    agentDiscoveryLoading: agents.discoveryLoading ?? false,
+                    agentServers: agents.agentServers ?? [],
+                    activeAgentName,
+                };
+                if (!runtimeChanged) return refreshed;
+                return {
+                    ...refreshed,
+                    activeSessionId: undefined,
+                    isDraftSession: false,
+                    draftMode: undefined,
+                    draftMessages: [],
+                    draftPendingPrompt: false,
+                    draftQueuedPrompts: [],
+                    draftNotices: [],
+                    sessions: [],
+                    sessionRecords: {},
+                };
+            });
+            if (runtimeChanged) {
+                await initializeActiveSession();
+            }
+        };
+        const syncPromise = synchronize();
+        discoverySyncPromiseRef.current = syncPromise;
+        try {
+            await syncPromise;
+        } catch (error) {
+            setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+            showError(error);
+        } finally {
+            if (discoverySyncPromiseRef.current === syncPromise) {
+                discoverySyncPromiseRef.current = null;
+            }
+        }
+    };
+
+    const applyEvent = (event: ServerEvent): void => {
+        if (event.type === 'frontend_command_request') {
+            handleFrontendCommand(event);
+            return;
+        }
+        if (event.type === 'frontend_command_cancel') {
+            if (!frontendCommandsRef.current.has(event.requestId)) {
+                return;
+            }
+            cancelledFrontendCommandsRef.current.add(event.requestId);
+            cancelFrontendCommand(event.requestId);
+            return;
+        }
+
+        if (event.type === 'agent_discovery_started') {
+            setState((current) => ({ ...current, agentDiscoveryLoading: true }));
+            return;
+        }
+
+        if (event.type === 'agent_discovery_completed') {
+            handleAgentDiscoveryCompleted(event);
+            return;
+        }
+
+        if (event.type === 'state') {
+            setState((current) => {
+                const activeAgentChanged = Boolean(current.activeAgentName)
+                    && Boolean(event.state.activeAgentName)
+                    && event.state.activeAgentName !== current.activeAgentName;
+                const nextState = {
+                    ...current,
+                    initialized: event.state.initialized ?? current.initialized,
+                    configOptions: event.state.configOptions ?? current.configOptions,
+                    activeAgentName: event.state.activeAgentName ?? current.activeAgentName,
+                    agentInfo: event.state.agentInfo ?? current.agentInfo,
+                    agentError: event.state.agentError,
+                    agentCapabilities: event.state.agentCapabilities ?? current.agentCapabilities,
+                    availableCommands: event.state.availableCommands ?? current.availableCommands,
+                    availableSkills: event.state.availableSkills ?? current.availableSkills,
+                    availableCapabilities: event.state.availableCapabilities ?? current.availableCapabilities,
+                };
+                if (!activeAgentChanged) return nextState;
+
+                return {
+                    ...nextState,
+                    activeSessionId: undefined,
+                    isDraftSession: true,
+                    draftMode: undefined,
+                    draftMessages: activeMessages(current),
+                    draftPendingPrompt: false,
+                    draftQueuedPrompts: [],
+                    draftNotices: [],
+                    sessions: [],
+                    sessionRecords: {},
+                };
+            });
+            return;
+        }
+
+        if (event.type === 'message_added' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: [...record.messages, finishThinkingOnAnswer(event.message)],
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_content_added' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? finishThinkingOnAnswer({ ...message, content: appendContentBlock(message.content, event.block) })
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_content_delta' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? finishThinkingOnAnswer({ ...message, content: appendContentDelta(message.content, event) })
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_tool_call' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? { ...message, content: updateToolContent(message.content, event.toolCall) }
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_activity' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? { ...message, activity: event.activity }
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_removed' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.filter((message) => message.id !== event.id),
+            }));
+            return;
+        }
+
+        if (event.type === 'prompt_status' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: event.pendingPrompt ? markLastAssistantStarted(record.messages) : markLastAssistantComplete(record.messages, event.completionStatus, event.completedAt),
+                pendingPrompt: event.pendingPrompt,
+                status: event.pendingPrompt ? 'working' : event.completionStatus === 'failed' ? 'error' : 'completed',
+            }));
+            return;
+        }
+
+        if (event.type === 'config_options') {
+            if (!event.sessionId) {
+                setState((current) => ({ ...current, configOptions: event.configOptions }));
+                return;
+            }
+            updateSessionRecord(event.sessionId, (record) => ({ ...record, configOptions: event.configOptions }));
+            return;
+        }
+
+        if (event.type === 'permission_request') {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: [...record.messages, {
+                    id: `permission:${event.requestId}`,
+                    role: 'assistant',
+                    content: [],
+                    permission: {
+                        sessionId: event.sessionId,
+                        requestId: event.requestId,
+                        kind: event.kind,
+                        title: event.title,
+                        target: event.target ?? event.path ?? '',
+                        path: event.path,
+                        details: event.details,
+                        actions: event.actions,
+                        state: 'pending',
+                    },
+                }],
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'permission_resolved') {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.permission?.requestId === event.requestId
+                    ? { ...message, permission: { ...message.permission, state: event.state, loadingDecision: undefined, error: undefined } }
+                    : message),
+                loaded: true,
+            }));
+        }
+    };
+
+    const handleFrontendCommand = async (event: Extract<ServerEvent, { type: 'frontend_command_request' }>): Promise<void> => {
+        if (frontendCommandsRef.current.has(event.requestId)) return;
+        if (Date.now() >= event.deadline) return;
+        frontendCommandsRef.current.add(event.requestId);
+        let claimToken: string | undefined;
+        try {
+            let claim: Awaited<ReturnType<typeof claimFrontendCommand>> | undefined;
+            try {
+                claim = await claimFrontendCommand(event.requestId);
+            } catch (_error) {
+                return;
+            }
+            claimToken = claim?.claimToken;
+            if (!claim?.claimed || !claimToken || cancelledFrontendCommandsRef.current.has(event.requestId)) {
+                return;
+            }
+            const result = await executeFrontendCommand(event.command, event.args, event.requestId, event.deadline);
+            await respondFrontendCommand({ requestId: event.requestId, claimToken, status: 'completed', result });
+        } catch (error) {
+            if (!claimToken) {
+                return;
+            }
+            try {
+                await respondFrontendCommand({
+                    requestId: event.requestId,
+                    claimToken,
+                    status: 'failed',
+                    error: toCommandError(error),
+                });
+            } catch (_error) {
+                // The backend may already be unavailable; the connection dialog handles that case.
+            }
+        } finally {
+            frontendCommandsRef.current.delete(event.requestId);
+            cancelledFrontendCommandsRef.current.delete(event.requestId);
+        }
+    };
+
+    const updateSessionRecord = (sessionId: string, updater: (record: SessionRecord) => SessionRecord): void => {
+        setState((current) => {
+            const record = updater(getSessionRecord(current, sessionId));
+            const sessionRecords = { ...current.sessionRecords, [sessionId]: record };
+            return {
+                ...current,
+                sessionRecords,
+                sessions: mergeSessionStatuses(current.sessions, sessionRecords),
+            };
+        });
+    };
+
+    useEffect(() => {
+        const loadInitialData = async (): Promise<void> => {
+            try {
+                await Promise.all([refreshInitialState(), refreshAgentList()]);
+            } catch (error) {
+                initialSessionInitializedRef.current = true;
+                setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+                showError(error);
+            }
+        };
+        loadInitialData();
+
+        const events = subscribeEvents((data) => applyEvent(JSON.parse(data) as ServerEvent));
+        return () => {
+            events.close();
+            frontendCommandsRef.current.forEach(cancelFrontendCommand);
+            frontendCommandsRef.current.clear();
+            cancelledFrontendCommandsRef.current.clear();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (state.agentDiscoveryLoading || !state.initialized) return;
+        if (initialSessionInitializedRef.current) return;
+        initialSessionInitializedRef.current = true;
+        const initialize = async (): Promise<void> => {
+            try {
+                await initializeActiveSession();
+            } catch (error) {
+                initialSessionInitializedRef.current = false;
+                showError(error);
+            }
+        };
+        initialize();
+    }, [state.agentDiscoveryLoading, state.initialized]);
+
+    useEffect(() => {
+        const nextPrompt = getNextQueuedPrompt(state, queuedPromptsInFlightRef.current);
+        if (!nextPrompt) return;
+        const key = nextPrompt.sessionId ?? 'draft';
+        queuedPromptsInFlightRef.current.add(key);
+        setState((current) => dequeuePrompt(current, nextPrompt));
+        const runQueuedPrompt = async (): Promise<void> => {
+            try {
+                await sendPromptNow(nextPrompt.prompt, nextPrompt.isDraftSession, nextPrompt.sessionId);
+            } finally {
+                queuedPromptsInFlightRef.current.delete(key);
+                // Recheck queues if SSE completed before the HTTP request settled.
+                setState((current) => ({ ...current }));
+            }
+        };
+        runQueuedPrompt();
+    }, [state]);
+
+    const initializeActiveSession = async (): Promise<void> => {
+        const nextState = await refreshInitialState();
+        const next = await fetchSessions();
+        setState((current) => ({ ...current, sessions: mergeSessionStatuses(next, current.sessionRecords) }));
+
+        if (nextState.agentError || nextState.initialized === false) return;
+        const firstSession = next.find((session) => !session.isPending);
+        if (firstSession) {
+            await selectSessionById(firstSession.sessionId);
+            return;
+        }
+        await createDraftSession();
+    };
+
+    const createDraftSession = async (): Promise<void> => {
+        setWelcomeAnimationRequest((current) => current + 1);
+        setInput('');
+        setImages([]);
+        setState((current) => ({
+            ...current,
+            activeSessionId: undefined,
+            isDraftSession: true,
+            draftMode: undefined,
+            draftMessages: [],
+            draftPendingPrompt: false,
+            draftQueuedPrompts: [],
+            draftNotices: [],
+        }));
+    };
+
+    const handleSelectSession = async (session: SessionItem): Promise<void> => {
+        if (session.sessionId === state.activeSessionId || session.isPending) return;
+        await selectSessionById(session.sessionId);
+    };
+
+    const selectSessionById = async (sessionId: string): Promise<void> => {
+        if (sessionId === stateRef.current.activeSessionId) return;
+        setDraft((current) => ({ text: current.text }));
+
+        const existingRecord = stateRef.current.sessionRecords[sessionId];
+        setState((current) => ({
+            ...current,
+            activeSessionId: sessionId,
+            isDraftSession: false,
+            sessionRecords: existingRecord?.loaded
+                ? current.sessionRecords
+                : {
+                    ...current.sessionRecords,
+                    [sessionId]: {
+                        ...getSessionRecord(current, sessionId),
+                        status: 'loading',
+                    },
+                },
+        }));
+
+        try {
+            if (existingRecord?.loaded) return;
+
+            const response = await loadSession(sessionId);
+            setState((current) => cacheLoadedSession(current, sessionId, response));
+        } catch (error) {
+            updateSessionRecord(sessionId, (record) => ({ ...record, status: 'error' }));
+            showError(error);
+        }
+    };
+
+    const handleExportSession = async (session: SessionItem): Promise<void> => {
+        if (!session.sessionId || session.isPending) return;
+        try {
+            const document = await exportSession(session.sessionId, shouldPersistSessionExport());
+            downloadSessionExport(document);
+            if (document.savedPath) {
+                message.success(t('exportSaved', { ns: 'insightWebAgent', path: document.savedPath }));
+                return;
+            }
+            message.success(t('exportDownloaded', { ns: 'insightWebAgent', filename: document.filename }));
+        } catch (error) {
+            showError(error);
+        }
+    };
+
+    const handleDeleteSession = async (session: SessionItem): Promise<void> => {
+        if (session.pendingPrompt || session.isPending) return;
+        const previousState = state;
+        const nextSession = state.sessions.filter((item) => item.sessionId !== session.sessionId)[0];
+        const shouldLoadNextSession = state.activeSessionId === session.sessionId
+            && nextSession
+            && !state.sessionRecords[nextSession.sessionId]?.loaded;
+        setState((current) => getOptimisticDeleteState(current, session));
+
+        try {
+            await deleteSession(session.sessionId);
+            if (shouldLoadNextSession) {
+                await loadSessionIntoCache(nextSession.sessionId);
+            }
+        } catch (error) {
+            setState(previousState);
+            showError(error);
+        }
+    };
+
+    const loadSessionIntoCache = async (sessionId: string): Promise<void> => {
+        const response = await loadSession(sessionId);
+        setState((current) => cacheLoadedSession(current, sessionId, response));
+    };
+
+    const sendMessage = async (): Promise<void> => {
+        const text = input.trim();
+        const promptImages = images;
+        if (!text && !promptImages.length) return;
+        setScrollToLatestRequest((current) => current + 1);
+        if (activePendingPrompt(state)) {
+            queuePrompt({ text, images: promptImages, promptPreset: draft.promptPreset });
+            setInput('');
+            setImages([]);
+            return;
+        }
+
+        setInput('');
+        setImages([]);
+        await sendPromptNow({ text, images: promptImages, mode: state.isDraftSession ? state.draftMode : undefined, promptPreset: draft.promptPreset }, state.isDraftSession, state.activeSessionId);
+    };
+
+    const queuePrompt = (prompt: QueuedPrompt): void => {
+        setState((current) => {
+            if (current.isDraftSession || !current.activeSessionId) {
+                return { ...current, draftQueuedPrompts: [...current.draftQueuedPrompts, prompt] };
+            }
+            const record = getSessionRecord(current, current.activeSessionId);
+            const sessionRecords = {
+                ...current.sessionRecords,
+                [current.activeSessionId]: {
+                    ...record,
+                    queuedPrompts: [...record.queuedPrompts, prompt],
+                },
+            };
+            return {
+                ...current,
+                sessionRecords,
+                sessions: mergeSessionStatuses(current.sessions, sessionRecords),
+            };
+        });
+    };
+
+    const sendPromptNow = async (prompt: QueuedPrompt, isDraftSession: boolean, sessionId?: string): Promise<void> => {
+        const pendingSession = stateRef.current.sessions.find((session) => session.sessionId === sessionId && session.isPending);
+        const optimisticSession = isDraftSession || !sessionId
+            ? createOptimisticSession(prompt, `__pending_session__:${++pendingSessionSequenceRef.current}`)
+            : pendingSession;
+        setState((current) => markPromptStarted(current, sessionId, optimisticSession));
+
+        let request: ReturnType<typeof sendPrompt> | undefined;
+        try {
+            // A queued prompt may need to create the session again after its initial request failed.
+            request = sendPrompt(prompt.text, Boolean(optimisticSession), optimisticSession ? undefined : sessionId, prompt.images, prompt.mode, undefined, prompt.promptPreset);
+            if (optimisticSession) pendingCreationsRef.current.set(optimisticSession.sessionId, request);
+            const body = await request;
+            setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
+        } catch (error) {
+            setState((current) => markPromptFailed(current, optimisticSession, sessionId));
+            showError(error);
+            await refreshInitialState();
+        } finally {
+            if (optimisticSession && pendingCreationsRef.current.get(optimisticSession.sessionId) === request) {
+                pendingCreationsRef.current.delete(optimisticSession.sessionId);
+            }
+        }
+    };
+
+    const addImages = (nextImages: ImageAttachment[]): void => {
+        setImages((current) => [...current, ...nextImages]);
+    };
+
+    const removeImage = (id: string): void => {
+        setImages((current) => current.filter((image) => image.id !== id));
+    };
+
+    const clearQueuedPrompts = (): void => {
+        setState(clearActiveQueuedPrompts);
+    };
+
+    const removeQueuedPrompt = (index: number): void => {
+        setState((current) => removeActiveQueuedPrompt(current, index));
+    };
+
+    const cancelMessage = async (): Promise<void> => {
+        let sessionId = state.activeSessionId;
+        try {
+            const creation = sessionId ? pendingCreationsRef.current.get(sessionId) : undefined;
+            if (creation) {
+                setState(clearActiveQueuedPrompts);
+                // The backend can only cancel after assigning the real session ID.
+                const result = await creation;
+                sessionId = result.sessionId;
+                if (!sessionId) return;
+            }
+            setState((current) => markPromptCancelled(current, sessionId));
+            if (!sessionId) return;
+            await cancelPrompt(sessionId);
+        } catch (error) {
+            showError(error);
+            await refreshInitialState();
+        }
+    };
+
+    const updateModel = async (model: string): Promise<void> => {
+        if (!model || activePendingPrompt(state)) return;
+        const currentModel = getModelConfig(getActiveConfigOptions(state))?.currentValue;
+        if (model === currentModel) return;
+        const modelLabel = resolveModelLabel(getActiveConfigOptions(state), model);
+        try {
+            const response = await setSessionModel(model, state.activeSessionId);
+            setState((current) => {
+                const notice = createModelSwitchNotice(modelLabel, activeMessages(current));
+                if (!current.activeSessionId || current.isDraftSession) {
+                    return {
+                        ...current,
+                        configOptions: response.configOptions ?? current.configOptions,
+                        draftNotices: [...current.draftNotices, notice],
+                    };
+                }
+                const record = {
+                    ...getSessionRecord(current, current.activeSessionId),
+                    configOptions: response.configOptions ?? getActiveConfigOptions(current),
+                    notices: [...(getSessionRecord(current, current.activeSessionId).notices ?? []), notice],
+                };
+                return {
+                    ...current,
+                    sessionRecords: { ...current.sessionRecords, [current.activeSessionId]: record },
+                };
+            });
+        } catch (error) {
+            showError(error);
+            await refreshInitialState();
+        }
+    };
+
+    const updateMode = async (mode: string, sessionId?: string): Promise<void> => {
+        const targetSessionId = sessionId ?? state.activeSessionId;
+        if (!mode || activePendingPrompt(state)) return;
+        if (!targetSessionId) {
+            setState((current) => ({
+                ...current,
+                draftMode: mode,
+            }));
+            return;
+        }
+        try {
+            const response = await setSessionMode(mode, targetSessionId);
+            setState((current) => {
+                const record = {
+                    ...getSessionRecord(current, targetSessionId),
+                    configOptions: response.configOptions ?? getActiveConfigOptions(current),
+                };
+                return {
+                    ...current,
+                    sessionRecords: { ...current.sessionRecords, [targetSessionId]: record },
+                };
+            });
+        } catch (error) {
+            showError(error);
+            await refreshInitialState();
+        }
+    };
+
+    const updateAgent = async (name: string): Promise<void> => {
+        if (!name || name === state.activeAgentName) return;
+        if (activePendingPrompt(state)) {
+            message.error(t('agentSwitchBusy', { ns: 'insightWebAgent' }));
+            return;
+        }
+        setState((current) => ({ ...current, switchingAgent: true }));
+        try {
+            const response = await switchAgent(name);
+            setState((current) => ({
+                ...current,
+                activeSessionId: undefined,
+                isDraftSession: false,
+                draftMode: undefined,
+                draftMessages: [],
+                draftPendingPrompt: false,
+                draftQueuedPrompts: [],
+                draftNotices: [],
+                sessions: [],
+                sessionRecords: {},
+                configOptions: response.configOptions ?? [],
+                agentServers: response.agentServers ?? current.agentServers,
+                activeAgentName: response.activeAgentName ?? name,
+                agentInfo: undefined,
+                agentError: undefined,
+            }));
+            await initializeActiveSession();
+            setState((current) => ({ ...current, switchingAgent: false }));
+        } catch (error) {
+            setState((current) => ({ ...current, switchingAgent: false }));
+            showError(error);
+        }
+    };
+
+    const refreshAgents = async (): Promise<void> => {
+        if (activePendingPrompt(stateRef.current) || stateRef.current.agentDiscoveryLoading) return;
+        setState((current) => ({ ...current, agentDiscoveryLoading: true }));
+        try {
+            const result = await requestAgentRefresh();
+            if (stateRef.current.agentDiscoveryLoading) {
+                await handleAgentDiscoveryCompleted({ type: 'agent_discovery_completed', runtimeChanged: result.runtimeChanged });
+            }
+        } catch (error) {
+            setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+            showError(error);
+        }
+    };
+
+    const respondToPermission = async (sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> => {
+        updateSessionRecord(sessionId, (record) => ({
+            ...record,
+            messages: record.messages.map((item) => item.permission?.requestId === requestId
+                ? { ...item, permission: { ...item.permission, loadingDecision: decision, error: undefined } }
+                : item),
+        }));
+        try {
+            await respondPermission(sessionId, requestId, decision);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            updateSessionRecord(sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((item) => item.permission?.requestId === requestId
+                    ? { ...item, permission: { ...item.permission, loadingDecision: undefined, error: errorMessage } }
+                    : item),
+            }));
+        }
+    };
+
+    const applyAgentConfigSnapshot = async (snapshot: AgentConfigSnapshot): Promise<void> => {
+        const agents = await fetchAgents();
+        setState((current) => {
+            const { effectiveAgentName, changed: activeAgentChanged } = resolveAppliedAgentChange(
+                current.activeAgentName,
+                snapshot.activeAgentName,
+                agents.activeAgentName,
+            );
+            const nextState = {
+                ...current,
+                activeAgentName: effectiveAgentName,
+                agentServers: agents.agentServers ?? current.agentServers,
+                agentDiscoveryLoading: agents.discoveryLoading ?? current.agentDiscoveryLoading,
+            };
+            if (!activeAgentChanged) return nextState;
+
+            return {
+                ...nextState,
+                activeSessionId: undefined,
+                isDraftSession: true,
+                draftMode: undefined,
+                draftMessages: activeMessages(current),
+                draftPendingPrompt: false,
+                draftQueuedPrompts: [],
+                draftNotices: [],
+                sessions: [],
+                sessionRecords: {},
+            };
+        });
+    };
+
+    const value = useMemo<ChatStateValue>(() => ({
+        configOptions: getActiveConfigOptions(state),
+        configOptionsLoading: !state.agentError && (state.switchingAgent || state.agentDiscoveryLoading || state.initialized !== true),
+        agentServers: state.agentServers,
+        activeAgentName: state.activeAgentName,
+        agentInfo: state.agentInfo,
+        agentError: state.agentError,
+        agentCapabilities: state.agentCapabilities,
+        availableCommands: state.availableCommands,
+        availableSkills: state.availableSkills,
+        availableCapabilities: state.availableCapabilities,
+        switchingAgent: state.switchingAgent,
+        agentDiscoveryLoading: state.agentDiscoveryLoading,
+        currentSessionId: state.activeSessionId,
+        input,
+        images,
+        isDraftSession: state.isDraftSession,
+        messages: activeMessages(state),
+        notices: activeNotices(state),
+        messagesRef,
+        scrollToLatestRequest,
+        welcomeAnimationRequest,
+        pendingPrompt: activePendingPrompt(state),
+        queuedCount: activeQueuedCount(state),
+        queuedPrompts: activeQueuedPrompts(state),
+        sessions: state.sessions,
+        createSession: createDraftSession,
+        deleteSession: handleDeleteSession,
+        exportSession: handleExportSession,
+        sendMessage,
+        cancelMessage,
+        selectSession: handleSelectSession,
+        setInput,
+        selectWelcomePrompt,
+        composerRef,
+        addImages,
+        removeImage,
+        clearQueuedPrompts,
+        removeQueuedPrompt,
+        setModel: updateModel,
+        setMode: updateMode,
+        setAgent: updateAgent,
+        refreshAgents,
+        applyAgentConfigSnapshot,
+        respondToPermission,
+    }), [images, draft, state, scrollToLatestRequest, welcomeAnimationRequest]);
+
+    return <ChatStateContext.Provider value={value}>{children}</ChatStateContext.Provider>;
+};
+
+export const useChatState = (): ChatStateValue => {
+    const context = useContext(ChatStateContext);
+    if (!context) {
+        throw new Error('useChatState must be used within ChatStateProvider');
+    }
+    return context;
+};
+
+const getSessionRecord = (state: ChatState, sessionId: string): SessionRecord => {
+    return state.sessionRecords[sessionId] ?? {
+        sessionId,
+        messages: [],
+        configOptions: state.configOptions,
+        loaded: false,
+        pendingPrompt: false,
+        queuedPrompts: [],
+        notices: [],
+        status: 'idle',
+    };
+};
+
+const activeMessages = (state: ChatState): ChatMessage[] => {
+    if (state.isDraftSession || !state.activeSessionId) return state.draftMessages;
+    return getSessionRecord(state, state.activeSessionId).messages;
+};
+
+const activeNotices = (state: ChatState): ConversationNotice[] => {
+    if (state.isDraftSession || !state.activeSessionId) return state.draftNotices;
+    return getSessionRecord(state, state.activeSessionId).notices ?? [];
+};
+
+export const createModelSwitchNotice = (model: string, messages: ChatMessage[]): ConversationNotice => ({
+    id: crypto.randomUUID(),
+    type: 'model_switch',
+    model,
+    afterMessageId: messages.at(-1)?.id,
+});
+
+export const resolveModelLabel = (configOptions: ConfigOption[], model: string): string => {
+    const option = flattenConfigValues(getModelConfig(configOptions)?.options ?? []).find((item) => item.value === model);
+    return option?.name || model;
+};
+
+const getModelConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {
+    return configOptions.find((option) => option.category === 'model')
+        ?? configOptions.find((option) => option.id.toLowerCase().includes('model'));
+};
+
+const flattenConfigValues = (options: ConfigOptionValue[]): ConfigOptionValue[] => {
+    return options.flatMap((option) => {
+        if (Array.isArray(option.options)) return flattenConfigValues(option.options);
+        return option.value ? [option] : [];
+    });
+};
+
+const activePendingPrompt = (state: ChatState): boolean => {
+    if (state.isDraftSession || !state.activeSessionId) return state.draftPendingPrompt;
+    return getSessionRecord(state, state.activeSessionId).pendingPrompt;
+};
+
+const getActiveConfigOptions = (state: ChatState): ConfigOption[] => {
+    if (state.isDraftSession || !state.activeSessionId) {
+        return state.draftMode
+            ? updateConfigCurrentValue(state.configOptions, getModeConfig(state.configOptions)?.id, state.draftMode)
+            : state.configOptions;
+    }
+    return getSessionRecord(state, state.activeSessionId).configOptions ?? state.configOptions;
+};
+
+const getModeConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {
+    return configOptions.find((option) => option.category === 'mode')
+        ?? configOptions.find((option) => option.id.toLowerCase().includes('mode'));
+};
+
+const updateConfigCurrentValue = (configOptions: ConfigOption[], configId: string | undefined, value: string): ConfigOption[] => {
+    if (!configId) return configOptions;
+    return configOptions.map((option) => option.id === configId ? { ...option, currentValue: value } : option);
+};
+
+const cacheLoadedSession = (
+    state: ChatState,
+    sessionId: string,
+    response: { messages?: ChatMessage[]; configOptions?: ConfigOption[]; pendingPrompt?: boolean },
+): ChatState => {
+    const record: SessionRecord = {
+        ...getSessionRecord(state, sessionId),
+        messages: response.messages ?? [],
+        configOptions: response.configOptions ?? state.configOptions,
+        pendingPrompt: Boolean(response.pendingPrompt),
+        queuedPrompts: getSessionRecord(state, sessionId).queuedPrompts,
+        loaded: true,
+        status: response.pendingPrompt ? 'working' : 'idle',
+    };
+    const sessionRecords = { ...state.sessionRecords, [sessionId]: record };
+    return {
+        ...state,
+        sessionRecords,
+        sessions: mergeSessionStatuses(state.sessions, sessionRecords),
+    };
+};
+
+const activeQueuedCount = (state: ChatState): number => {
+    if (state.isDraftSession || !state.activeSessionId) return state.draftQueuedPrompts.length;
+    return getSessionRecord(state, state.activeSessionId).queuedPrompts.length;
+};
+
+const activeQueuedPrompts = (state: ChatState): QueuedPrompt[] => {
+    if (state.isDraftSession || !state.activeSessionId) return state.draftQueuedPrompts;
+    return getSessionRecord(state, state.activeSessionId).queuedPrompts;
+};
+
+const clearActiveQueuedPrompts = (state: ChatState): ChatState => {
+    if (state.isDraftSession || !state.activeSessionId) return { ...state, draftQueuedPrompts: [] };
+    const record = getSessionRecord(state, state.activeSessionId);
+    const sessionRecords = {
+        ...state.sessionRecords,
+        [state.activeSessionId]: { ...record, queuedPrompts: [] },
+    };
+    return { ...state, sessionRecords, sessions: mergeSessionStatuses(state.sessions, sessionRecords) };
+};
+
+const removeActiveQueuedPrompt = (state: ChatState, index: number): ChatState => {
+    if (state.isDraftSession || !state.activeSessionId) {
+        return { ...state, draftQueuedPrompts: state.draftQueuedPrompts.filter((_, promptIndex) => promptIndex !== index) };
+    }
+    const record = getSessionRecord(state, state.activeSessionId);
+    const sessionRecords = {
+        ...state.sessionRecords,
+        [state.activeSessionId]: {
+            ...record,
+            queuedPrompts: record.queuedPrompts.filter((_, promptIndex) => promptIndex !== index),
+        },
+    };
+    return { ...state, sessionRecords, sessions: mergeSessionStatuses(state.sessions, sessionRecords) };
+};
+
+const getNextQueuedPrompt = (state: ChatState, inFlight: Set<string>): { prompt: QueuedPrompt; isDraftSession: boolean; sessionId?: string } | undefined => {
+    if (!inFlight.has('draft') && !state.draftPendingPrompt && state.draftQueuedPrompts.length) {
+        return { prompt: state.draftQueuedPrompts[0], isDraftSession: true };
+    }
+
+    for (const record of Object.values(state.sessionRecords)) {
+        if (!inFlight.has(record.sessionId) && !record.pendingPrompt && record.queuedPrompts.length) {
+            return { prompt: record.queuedPrompts[0], isDraftSession: false, sessionId: record.sessionId };
+        }
+    }
+    return undefined;
+};
+
+const dequeuePrompt = (
+    state: ChatState,
+    prompt: { isDraftSession: boolean; sessionId?: string },
+): ChatState => {
+    if (prompt.isDraftSession) {
+        return { ...state, draftQueuedPrompts: state.draftQueuedPrompts.slice(1) };
+    }
+    if (!prompt.sessionId) return state;
+    const record = getSessionRecord(state, prompt.sessionId);
+    const sessionRecords = {
+        ...state.sessionRecords,
+        [prompt.sessionId]: { ...record, queuedPrompts: record.queuedPrompts.slice(1) },
+    };
+    return {
+        ...state,
+        sessionRecords,
+        sessions: mergeSessionStatuses(state.sessions, sessionRecords),
+    };
+};
+
+
+const appendContentBlock = (content: MessageContentBlock[], block: MessageContentBlock): MessageContentBlock[] => (
+    content.some((item) => item.id === block.id) ? content : [...content, block]
+);
+
+const appendContentDelta = (
+    content: MessageContentBlock[],
+    event: Extract<ServerEvent, { type: 'message_content_delta' }>,
+): MessageContentBlock[] => content.map((block) => block.id === event.blockId && (block.type === 'text' || block.type === 'thinking')
+    ? { ...block, text: `${block.text}${event.delta}` }
+    : block);
+
+const updateToolContent = (content: MessageContentBlock[], toolCall: Extract<MessageContentBlock, { type: 'tool' }>['toolCall']): MessageContentBlock[] => {
+    const index = content.findIndex((block) => block.type === 'tool' && block.toolCall.toolCallId === toolCall.toolCallId);
+    if (index < 0) return [...content, { id: toolCall.toolCallId, type: 'tool', toolCall }];
+    return content.map((block, blockIndex) => blockIndex === index && block.type === 'tool'
+        ? { ...block, toolCall: { ...block.toolCall, ...toolCall } }
+        : block);
+};
+
+const finishThinkingOnAnswer = (message: ChatMessage): ChatMessage => {
+    if (message.role !== 'assistant') return message;
+    const now = Date.now();
+    const content = message.content.map((block) => block.type === 'text' && block.text.trim() && block.startedAt === undefined
+        ? { ...block, startedAt: now } : block);
+    if (message.startedAt === undefined || message.durationMs !== undefined || !content.some((block) => block.type === 'text' && block.text.trim())) {
+        return { ...message, content };
+    }
+    // Preserve first-output latency without treating it as completion of the agent turn.
+    return { ...message, content, durationMs: Math.max(0, now - message.startedAt) };
+};
+
+const markLastAssistantStarted = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => finishThinkingOnAnswer(
+    message.startedAt === undefined ? { ...message, startedAt: Date.now() } : message
+));
+
+const markLastAssistantComplete = (messages: ChatMessage[], completionStatus?: ChatMessage['completionStatus'], completedAt = Date.now()): ChatMessage[] => updateLastAssistant(messages, (message) => ({
+    ...message,
+    pending: false,
+    activity: undefined,
+    completionStatus: completionStatus ?? message.completionStatus ?? 'completed',
+    completedAt: message.completedAt ?? completedAt,
+    durationMs: message.durationMs ?? (message.startedAt === undefined ? undefined : Date.now() - message.startedAt),
+}));
+
+const updateLastAssistant = (messages: ChatMessage[], update: (message: ChatMessage) => ChatMessage): ChatMessage[] => {
+    const index = messages.reduce((last, message, current) => message.role === 'assistant' && !message.permission ? current : last, -1);
+    return index < 0 ? messages : messages.map((message, messageIndex) => messageIndex === index ? update(message) : message);
+};
+
+const mergeSessionStatuses = (sessions: SessionItem[], records: Record<string, SessionRecord>): SessionItem[] => {
+    return sessions.map((session) => {
+        const record = records[session.sessionId];
+        if (!record) return session;
+        return {
+            ...session,
+            pendingPrompt: record.pendingPrompt,
+            status: record.status,
+        };
+    });
+};
+
+const createOptimisticSession = (prompt: QueuedPrompt, sessionId: string): SessionItem => {
+    return {
+        sessionId,
+        title: getPromptTitle(prompt),
+        updatedAt: 'Creating...',
+        isPending: true,
+        pendingPrompt: true,
+        status: 'working',
+    };
+};
+
+const applyPromptSessionResult = (
+    state: ChatState,
+    prompt: QueuedPrompt,
+    optimisticSession: SessionItem | undefined,
+    sessionId: string | undefined,
+): ChatState => {
+    if (!sessionId) return state;
+
+    const provisionalRecord = optimisticSession ? state.sessionRecords[optimisticSession.sessionId] : undefined;
+    if (optimisticSession && !provisionalRecord) return state;
+
+    const existingRecord = getSessionRecord(state, sessionId);
+    // A fast reply can finish through SSE before the HTTP acknowledgement arrives.
+    const alreadyFinished = existingRecord.status === 'completed' || existingRecord.status === 'error';
+    const { [optimisticSession?.sessionId ?? '']: _provisionalRecord, ...retainedRecords } = state.sessionRecords;
+    const sessionRecords = {
+        ...retainedRecords,
+        [sessionId]: {
+            ...existingRecord,
+            loaded: true,
+            pendingPrompt: !alreadyFinished,
+            status: alreadyFinished ? existingRecord.status : 'working' as SessionStatus,
+            configOptions: state.sessionRecords[sessionId]?.configOptions ?? provisionalRecord?.configOptions ?? existingRecord.configOptions,
+            queuedPrompts: [...(provisionalRecord?.queuedPrompts ?? []), ...existingRecord.queuedPrompts],
+            notices: [...(provisionalRecord?.notices ?? []), ...(existingRecord.notices ?? [])],
+        },
+    };
+
+    const sessions = ensureCreatedSession(state.sessions, optimisticSession, sessionId, getPromptTitle(prompt));
+    return {
+        ...state,
+        activeSessionId: optimisticSession && state.activeSessionId === optimisticSession.sessionId ? sessionId : state.activeSessionId,
+        sessionRecords,
+        sessions: mergeSessionStatuses(sessions, sessionRecords),
+    };
+};
+
+const markPromptStarted = (
+    state: ChatState,
+    sessionId: string | undefined,
+    optimisticSession: SessionItem | undefined,
+): ChatState => {
+    if (optimisticSession && optimisticSession.sessionId !== sessionId) {
+        const provisionalId = optimisticSession.sessionId;
+        // Give each initial request its own state before the HTTP acknowledgement arrives.
+        return {
+            ...state,
+            activeSessionId: provisionalId,
+            isDraftSession: false,
+            draftMessages: [],
+            draftPendingPrompt: false,
+            draftQueuedPrompts: [],
+            draftNotices: [],
+            sessionRecords: {
+                ...state.sessionRecords,
+                [provisionalId]: {
+                    ...getSessionRecord(state, provisionalId),
+                    messages: state.draftMessages,
+                    configOptions: getActiveConfigOptions(state),
+                    notices: state.draftNotices,
+                    queuedPrompts: state.draftQueuedPrompts,
+                    loaded: true,
+                    pendingPrompt: true,
+                    status: 'working',
+                },
+            },
+            sessions: [optimisticSession, ...state.sessions],
+        };
+    }
+    if (!sessionId) return state;
+
+    const record = getSessionRecord(state, sessionId);
+    const sessionRecords = {
+        ...state.sessionRecords,
+        [sessionId]: {
+            ...record,
+            pendingPrompt: true,
+            loaded: true,
+            status: 'working' as SessionStatus,
+        },
+    };
+    return {
+        ...state,
+        sessionRecords,
+        sessions: mergeSessionStatuses(state.sessions, sessionRecords),
+    };
+};
+
+const markPromptFailed = (
+    state: ChatState,
+    optimisticSession: SessionItem | undefined,
+    sessionId: string | undefined,
+): ChatState => {
+    if (optimisticSession) {
+        const provisionalId = optimisticSession.sessionId;
+        const record = state.sessionRecords[provisionalId];
+        // Keep the provisional conversation so its remaining queue can retry independently.
+        if (record?.queuedPrompts.length) return markPromptFailed(state, undefined, provisionalId);
+        const { [provisionalId]: _removed, ...sessionRecords } = state.sessionRecords;
+        const isActive = state.activeSessionId === provisionalId;
+        return {
+            ...state,
+            ...(isActive
+                ? {
+                    activeSessionId: undefined,
+                    isDraftSession: true,
+                    draftPendingPrompt: false,
+                    draftMessages: record?.messages ?? [],
+                    draftNotices: record?.notices ?? [],
+                }
+                : {}),
+            sessionRecords,
+            sessions: state.sessions.filter((session) => session.sessionId !== provisionalId),
+        };
+    }
+    if (!sessionId) return state;
+
+    const record = getSessionRecord(state, sessionId);
+    const sessionRecords = {
+        ...state.sessionRecords,
+        [sessionId]: {
+            ...record,
+            messages: markLastAssistantComplete(record.messages, 'failed'),
+            pendingPrompt: false,
+            status: 'error' as SessionStatus,
+        },
+    };
+    return {
+        ...state,
+        sessionRecords,
+        sessions: mergeSessionStatuses(state.sessions, sessionRecords),
+    };
+};
+
+const markPromptCancelled = (state: ChatState, sessionId: string | undefined): ChatState => {
+    if (!sessionId) {
+        return {
+            ...state,
+            draftPendingPrompt: false,
+            draftQueuedPrompts: [],
+        };
+    }
+
+    const record = getSessionRecord(state, sessionId);
+    const sessionRecords = {
+        ...state.sessionRecords,
+        [sessionId]: {
+            ...record,
+            messages: markLastAssistantComplete(record.messages, 'cancelled'),
+            pendingPrompt: false,
+            queuedPrompts: [],
+            status: 'idle' as SessionStatus,
+        },
+    };
+    return {
+        ...state,
+        sessionRecords,
+        sessions: mergeSessionStatuses(state.sessions, sessionRecords),
+    };
+};
+
+const ensureCreatedSession = (
+    sessions: SessionItem[],
+    optimisticSession: SessionItem | undefined,
+    sessionId: string,
+    title: string,
+): SessionItem[] => {
+    const withoutPendingSession = optimisticSession
+        ? sessions.filter((session) => session.sessionId !== optimisticSession.sessionId)
+        : sessions;
+    if (withoutPendingSession.some((session) => session.sessionId === sessionId)) return withoutPendingSession;
+    return [{ sessionId, title: title.slice(0, 80), updatedAt: 'Just now', pendingPrompt: true, status: 'working' }, ...withoutPendingSession];
+};
+
+const getPromptTitle = (prompt: QueuedPrompt): string => {
+    const text = prompt.text.trim();
+    if (text) return text.slice(0, 80);
+    return prompt.images.length === 1 ? 'Image' : `${prompt.images.length} images`;
+};
+
+const getOptimisticDeleteState = (state: ChatState, deletedSession: SessionItem): ChatState => {
+    const sessions = state.sessions.filter((session) => session.sessionId !== deletedSession.sessionId);
+    const { [deletedSession.sessionId]: _deletedRecord, ...sessionRecords } = state.sessionRecords;
+    if (state.activeSessionId !== deletedSession.sessionId) return { ...state, sessions, sessionRecords };
+
+    const nextSession = sessions[0];
+    if (!nextSession) {
+        return {
+            ...state,
+            activeSessionId: undefined,
+            isDraftSession: true,
+            draftMessages: [],
+            draftPendingPrompt: false,
+            draftNotices: [],
+            sessions,
+            sessionRecords,
+        };
+    }
+
+    return {
+        ...state,
+        activeSessionId: nextSession.sessionId,
+        isDraftSession: false,
+        sessions,
+        sessionRecords,
+    };
+};

@@ -35,7 +35,7 @@ describe('memSnapshotSlices', () => {
 
     it('prefers the current device slices and falls back to the first map entry', () => {
         const otherSlices = { ...deviceSlices, eventCount: 1 };
-        const snapshotSlices = { 0: deviceSlices, 1: otherSlices };
+        const snapshotSlices: Record<string, MemSnapshotDeviceSliceInfo> = { 0: deviceSlices, 1: otherSlices };
         expect(getPreferredMemSnapshotDeviceSlices(snapshotSlices, '0')).toBe(deviceSlices);
         expect(getPreferredMemSnapshotDeviceSlices(snapshotSlices, '1')).toBe(otherSlices);
         expect(getPreferredMemSnapshotDeviceSlices({}, '0')).toBeUndefined();

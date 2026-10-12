@@ -34,6 +34,8 @@ import {
     getSnapshotAllocations,
     getSnapshotAllocationLines,
     getSnapshotLeakStats,
+    type BlocksTableData,
+    type EventsTableData,
 } from '../utils/RequestUtils';
 import { message } from 'antd';
 import { runInAction } from 'mobx';
@@ -141,11 +143,11 @@ export const getFuncNewData = async (
     endTimestamp?: number,
     shouldApply: () => boolean = () => true,
 ): Promise<void> => {
+    const requestSeq = (funcDataRequestSeqMap.get(session) ?? 0) + 1;
+    funcDataRequestSeqMap.set(session, requestSeq);
     if (!isMemSnapshotSliceReadyForQuery(session)) {
         return;
     }
-    const requestSeq = (funcDataRequestSeqMap.get(session) ?? 0) + 1;
-    funcDataRequestSeqMap.set(session, requestSeq);
     if (session.deviceId === '' || session.module !== 'leaks') return;
     const isCurrentContext = captureRequestContext(session);
     const { threadId } = session;
@@ -672,18 +674,17 @@ const handleThreshold = (blockParam: any, session: any): void => {
         }
     });
 };
-export const getBlockTableData = async (session: any): Promise<void> => {
-    if (session.deviceId === '') return;
-    if (!isMemSnapshotSliceReadyForQuery(session)) {
-        return;
-    }
+// Undefined means unavailable or superseded, not a successful empty table.
+// The table transition owns page correction and session updates.
+export const getBlockTableData = async (session: any): Promise<BlocksTableData | undefined> => {
     const requestSeq = (blockTableRequestSeqMap.get(session) ?? 0) + 1;
     blockTableRequestSeqMap.set(session, requestSeq);
-    const isLatestRequest = (): boolean => blockTableRequestSeqMap.get(session) === requestSeq;
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => blockTableRequestSeqMap.get(session) === requestSeq &&
+        isCurrentContext() && isMemSnapshotSliceReadyForQuery(session);
+    if (session.deviceId === '' || !isMemSnapshotSliceReadyForQuery(session)) return undefined;
     const request = session.module === 'leaks' ? getBlockDetails : getSnapshotBlockTable;
     try {
-        const currentPage = session.blocksCurrentPage;
-        const pageSize = session.blocksPageSize;
         const blockParam: BlockParam = {
             deviceId: session.deviceId,
             relativeTime: true,
@@ -691,8 +692,8 @@ export const getBlockTableData = async (session: any): Promise<void> => {
             isTable: true,
             startTimestamp: session.minTime,
             endTimestamp: session.maxTime,
-            currentPage,
-            pageSize,
+            currentPage: session.blocksCurrentPage,
+            pageSize: session.blocksPageSize,
             sliceIndex: session.module === 'memsnapshot' ? session.selectedSliceIndex : undefined,
         };
         if (session.blocksOrder !== '') {
@@ -713,21 +714,12 @@ export const getBlockTableData = async (session: any): Promise<void> => {
         }
         handleThreshold(blockParam, session);
         const blockTableData = await request(blockParam);
-        if (!isLatestRequest()) return;
-        const maxPage = Math.max(Math.ceil(blockTableData.total / pageSize), 1);
-        if (currentPage > maxPage) {
-            runInAction(() => {
-                session.blocksCurrentPage = maxPage;
-            });
-            return;
-        }
-        runInAction(() => {
-            session.blocksTableData = blockTableData.blocks;
-            session.blocksTableHeader = blockTableData.headers;
-            session.blocksTotal = blockTableData.total;
-        });
+        if (!isLatestRequest()) return undefined;
+        return blockTableData;
     } catch (error: any) {
-        if (isLatestRequest()) message.error(error.message);
+        if (!isLatestRequest()) return undefined;
+        message.error(error.message);
+        throw error;
     }
 };
 export const getPotentialLeakStats = async (session: any, range?: [number, number]): Promise<void> => {
@@ -773,29 +765,24 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
         message.error(error.message);
     }
 };
-export const getEventTableData = async (session: any): Promise<void> => {
-    if (session.deviceId === '') return;
-    if (!isMemoryBlockLoadReady(session)) {
-        runInAction(() => {
-            session.eventsTableData = [];
-            session.eventsTotal = 0;
-        });
-        return;
-    }
+export const getEventTableData = async (session: any): Promise<EventsTableData | undefined> => {
     const requestSeq = (eventTableRequestSeqMap.get(session) ?? 0) + 1;
     eventTableRequestSeqMap.set(session, requestSeq);
-    const isLatestRequest = (): boolean => eventTableRequestSeqMap.get(session) === requestSeq;
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => eventTableRequestSeqMap.get(session) === requestSeq &&
+        isCurrentContext() && isMemSnapshotSliceReadyForQuery(session) && isMemoryBlockLoadReady(session);
+    if (session.deviceId === '' || !isMemSnapshotSliceReadyForQuery(session) || !isMemoryBlockLoadReady(session)) {
+        return undefined;
+    }
     const request = session.module === 'leaks' ? getEventDetails : getSnapshotEvent;
     try {
-        const currentPage = session.eventsCurrentPage;
-        const pageSize = session.eventsPageSize;
         const eventParam: EventParam = {
             deviceId: session.deviceId,
             relativeTime: true,
             startTimestamp: session.minTime,
             endTimestamp: session.maxTime,
-            currentPage,
-            pageSize,
+            currentPage: session.eventsCurrentPage,
+            pageSize: session.eventsPageSize,
             isTable: true,
             sliceIndex: session.module === 'memsnapshot' ? session.selectedSliceIndex : undefined,
         };
@@ -810,20 +797,11 @@ export const getEventTableData = async (session: any): Promise<void> => {
             eventParam.rangeFilters = session.eventsRangeFilters;
         }
         const eventTableData = await request(eventParam);
-        if (!isLatestRequest()) return;
-        const maxPage = Math.max(Math.ceil(eventTableData.total / pageSize), 1);
-        if (currentPage > maxPage) {
-            runInAction(() => {
-                session.eventsCurrentPage = maxPage;
-            });
-            return;
-        }
-        runInAction(() => {
-            session.eventsTableData = eventTableData.events;
-            session.eventsTableHeader = eventTableData.headers;
-            session.eventsTotal = eventTableData.total;
-        });
+        if (!isLatestRequest()) return undefined;
+        return eventTableData;
     } catch (error: any) {
-        if (isLatestRequest()) message.error(error.message);
+        if (!isLatestRequest()) return undefined;
+        message.error(error.message);
+        throw error;
     }
 };

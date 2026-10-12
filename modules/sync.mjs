@@ -6,12 +6,14 @@ const SYNC_CONFIG = [
     { folder: 'reinforcement-learning', targetName: 'RL' },
     { folder: 'cluster', targetName: 'Cluster' },
     { folder: 'compute', targetName: 'Compute' },
+    { folder: 'insight_web_agent', targetName: 'InsightWebAgent' },
     { folder: 'leaks', targetName: 'Leaks' },
     { folder: 'memory', targetName: 'Memory' },
     { folder: 'operator', targetName: 'Operator' },
     { folder: 'statistic', targetName: 'Statistic' },
     { folder: 'timeline', targetName: 'Timeline' },
     { folder: 'numa', targetName: 'NUMA' },
+    { folder: 'insight_web_agent', targetName: 'InsightWebAgent' },
 ];
 
 const __dirname = path.resolve();

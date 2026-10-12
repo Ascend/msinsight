@@ -21,7 +21,9 @@ import { customConsole as console } from '@insight/lib/utils';
 import '@testing-library/jest-dom';
 
 declare global {
-    const session: Session;
+    // Assigned before each test; var also declares the globalThis property.
+    // eslint-disable-next-line no-var
+    var session: Session;
 }
 
 beforeEach(() => {

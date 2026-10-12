@@ -33,14 +33,29 @@ const getParamMap = (): Map<string, string> => {
         const useProxy = paramMap.get('proxy') === 'true';
         paramMap.set('port', useProxy ? (window.location.port || (window.location.protocol === 'https:' ? '443' : '80')) : '9000');
     }
+    const requestedAcpStatus = paramMap.get('acpStatus') ?? '';
+    if (!paramMap.has('acpPort') && (requestedAcpStatus === '' || requestedAcpStatus === 'ready')) {
+        paramMap.set('acpPort', '9090');
+    }
     return paramMap;
 };
 const PARAM_MAP = getParamMap();
 const port: number = Number.parseInt(<string>PARAM_MAP.get('port'));
+const acpPortRaw = PARAM_MAP.get('acpPort');
+const acpPort: number = acpPortRaw ? Number.parseInt(acpPortRaw) : 0;
+const acpCapabilityToken: string = decodeURIComponent(PARAM_MAP.get('acpCapabilityToken') ?? '');
+const acpStatusRaw = PARAM_MAP.get('acpStatus') ?? 'ready';
+const acpStatus: string = acpStatusRaw === '' ? 'ready' : acpStatusRaw;
+const acpNodeVersion: string = decodeURIComponent(PARAM_MAP.get('acpNodeVersion') ?? '');
+
 const jupyterlabProxy: boolean = PARAM_MAP.get('jupyterlabProxy') === 'true';
 
 export const LOCAL_HOST = 'localhost';
 export const PORT: number = port;
+export const ACP_PORT: number = acpPort;
+export const ACP_CAPABILITY_TOKEN: string = acpCapabilityToken;
+export const ACP_STATUS: string = acpStatus;
+export const ACP_NODE_VERSION: string = acpNodeVersion;
 export const JUPYTERLABPROXY: boolean = jupyterlabProxy;
 export const GLOBAL_HOST = { remote: LOCAL_HOST, port: PORT };
 

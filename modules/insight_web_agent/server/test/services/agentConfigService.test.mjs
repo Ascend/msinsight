@@ -1,0 +1,561 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { strict as assert } from "node:assert";
+import test from "node:test";
+import { createRuntimeState, getSessionContext } from "../../state/runtimeState.mjs";
+import { presentCatalogAgents } from "../../services/agentDiscoveryService.mjs";
+import { createAgentConfigService } from "../../services/agentConfigService.mjs";
+import { createSecretCrypto, isAtRestEnvelope } from "../../security/secretCrypto.mjs";
+import { SECRET_PLACEHOLDER } from "../../security/secretProjection.mjs";
+
+const createFixture = async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-agent-config-"));
+    await writeJson(join(rootDir, "agent-servers.json"), {
+        activeAgent: "OpenCode",
+        agentServers: [
+            { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
+            { name: "Claude", command: "claude", args: [], env: {} },
+        ],
+    });
+    await writeJson(join(rootDir, "acp-session-conf.json"), {
+        requestTimeoutMs: 1000,
+        promptRequestTimeoutMs: 2000,
+        permissionRequestTimeoutMs: 3000,
+        defaultAllowlist: {
+            includeDocsRoot: true,
+            includeAgentWorkspaceRoot: false,
+            includeProjectRoot: true,
+            extraPaths: ["missing/path"],
+        },
+    });
+    await writeJson(join(rootDir, "msinsight-native.json"), {
+        schemaVersion: 1,
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "http://127.0.0.1:19099/v1",
+        apiKey: "",
+    });
+    const state = createRuntimeState();
+    state.activeAgentName = "OpenCode";
+    const secretCrypto = createSecretCrypto({ keyPath: join(rootDir, "secrets.key"), protectKey: false });
+    const reloads = [];
+    const service = createAgentConfigService({
+        rootDir,
+        state,
+        secretCrypto,
+        reloadRuntime: async (snapshot) => {
+            reloads.push(snapshot);
+            return { snapshot };
+        },
+    });
+    return { rootDir, state, reloads, service, secretCrypto, crypto: secretCrypto };
+};
+
+const sealForSave = (snapshot, crypto) => {
+    const next = structuredClone(snapshot);
+    if (next.builtinAgent?.apiKey && next.builtinAgent.apiKey !== SECRET_PLACEHOLDER) {
+        next.builtinAgent.apiKey = crypto.sealTransit(next.builtinAgent.apiKey);
+    }
+    for (const server of next.agentServers ?? []) {
+        for (const [key, value] of Object.entries(server.env ?? {})) {
+            if (/(?:API_KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)/i.test(key) && value && value !== SECRET_PLACEHOLDER) {
+                server.env[key] = crypto.sealTransit(value);
+            }
+        }
+    }
+    return next;
+};
+
+const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
+const readText = (path) => readFile(path, "utf8");
+
+const validSnapshot = () => ({
+    activeAgentName: "OpenCode",
+    agentServers: [
+        { name: "OpenCode", command: "opencode", args: ["acp", "--debug"], env: { ACP_DEBUG: "" } },
+        { name: "Claude", command: "claude", args: [], env: {} },
+        { name: "NewAgent", command: "new-agent", args: ["serve"], env: { TOKEN: "abc" } },
+    ],
+    builtinAgent: {
+        schemaVersion: 1,
+        name: "msinsight-native",
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "http://127.0.0.1:19099/v1",
+        apiKey: "secret",
+    },
+    sessionConfig: {
+        requestTimeoutMs: 5000,
+        promptRequestTimeoutMs: 6000,
+        permissionRequestTimeoutMs: 7000,
+        defaultAllowlist: {
+            includeDocsRoot: false,
+            includeAgentWorkspaceRoot: true,
+            includeProjectRoot: false,
+            extraPaths: ["does/not/exist", ""],
+        },
+    },
+});
+
+const agentConfigFrom = (snapshot) => ({
+    activeAgentName: snapshot.activeAgentName,
+    agentServers: snapshot.agentServers,
+});
+
+test("reads a normalized agent and session config snapshot", async () => {
+    const fixture = await createFixture();
+
+    const snapshot = await fixture.service.readSnapshot();
+    const { crypto, ...publicSnapshot } = snapshot;
+
+    assert.equal(crypto.alg, "rsa-oaep-aes-gcm-v1");
+    assert.equal(typeof crypto.publicKey, "string");
+    assert.deepEqual(publicSnapshot, {
+        activeAgentName: "OpenCode",
+        agentServers: [
+            { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
+            { name: "Claude", command: "claude", args: [], env: {} },
+        ],
+        builtinAgent: {
+            schemaVersion: 1,
+            name: "msinsight-native",
+            provider: "openai",
+            model: "cx/gpt-5.5",
+            baseUrl: "http://127.0.0.1:19099/v1",
+            apiKey: "",
+        },
+        catalogAgents: presentCatalogAgents(),
+        sessionConfig: {
+            requestTimeoutMs: 1000,
+            promptRequestTimeoutMs: 2000,
+            permissionRequestTimeoutMs: 3000,
+            defaultAllowlist: {
+                includeDocsRoot: true,
+                includeAgentWorkspaceRoot: false,
+                includeProjectRoot: true,
+                extraPaths: ["missing/path"],
+            },
+        },
+    });
+});
+
+test("normalizes an omitted docs allowlist flag to false", async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.rootDir, "acp-session-conf.json"), {
+        requestTimeoutMs: 1000,
+        promptRequestTimeoutMs: 2000,
+        permissionRequestTimeoutMs: 3000,
+        defaultAllowlist: {
+            includeAgentWorkspaceRoot: true,
+            includeProjectRoot: true,
+            extraPaths: [],
+        },
+    });
+
+    const snapshot = await fixture.service.readSnapshot();
+
+    assert.equal(snapshot.sessionConfig.defaultAllowlist.includeDocsRoot, false);
+});
+
+test("saves each configuration section independently", async () => {
+    const fixture = await createFixture();
+    const snapshot = validSnapshot();
+
+    const builtinResult = await fixture.service.saveBuiltinAgent(sealForSave(snapshot, fixture.crypto).builtinAgent);
+    const sessionResult = await fixture.service.saveSessionConfig(snapshot.sessionConfig);
+    const agentResult = await fixture.service.saveAgentServers(agentConfigFrom(sealForSave(snapshot, fixture.crypto)));
+
+    assert.equal(builtinResult.ok, true);
+    assert.equal(sessionResult.ok, true);
+    assert.equal(agentResult.ok, true);
+    assert.equal(fixture.reloads.length, 3);
+    const persistedAgents = await readJson(join(fixture.rootDir, "agent-servers.json"));
+    assert.equal(persistedAgents.activeAgent, "OpenCode");
+    assert.equal(persistedAgents.agentServers[2].name, "NewAgent");
+    assert.equal(isAtRestEnvelope(persistedAgents.agentServers[2].env.TOKEN), true);
+    assert.equal(agentResult.snapshot.agentServers[2].env.TOKEN, SECRET_PLACEHOLDER);
+    assert.deepEqual(await readJson(join(fixture.rootDir, "acp-session-conf.json")), {
+        requestTimeoutMs: 5000,
+        promptRequestTimeoutMs: 6000,
+        permissionRequestTimeoutMs: 7000,
+        defaultAllowlist: {
+            includeDocsRoot: false,
+            includeAgentWorkspaceRoot: true,
+            includeProjectRoot: false,
+            extraPaths: ["does/not/exist"],
+        },
+    });
+    const persistedNative = await readJson(join(fixture.rootDir, "msinsight-native.json"));
+    assert.equal(persistedNative.provider, "openai");
+    assert.equal(persistedNative.model, "cx/gpt-5.5");
+    assert.equal(isAtRestEnvelope(persistedNative.apiKey), true);
+    assert.equal(builtinResult.snapshot.builtinAgent.apiKey, SECRET_PLACEHOLDER);
+});
+
+test("rejects plaintext api keys and keeps the placeholder as unchanged", async () => {
+    const fixture = await createFixture();
+    const rejected = await fixture.service.saveBuiltinAgent({
+        ...validSnapshot().builtinAgent,
+        apiKey: "plain-secret",
+    });
+    assert.equal(rejected.error, "plaintext_secret_rejected");
+    assert.equal((await readJson(join(fixture.rootDir, "msinsight-native.json"))).apiKey, "");
+
+    const saved = await fixture.service.saveBuiltinAgent(sealForSave(validSnapshot(), fixture.crypto).builtinAgent);
+    assert.equal(saved.ok, true);
+    const firstCipher = (await readJson(join(fixture.rootDir, "msinsight-native.json"))).apiKey;
+    const kept = await fixture.service.saveBuiltinAgent({
+        ...validSnapshot().builtinAgent,
+        apiKey: SECRET_PLACEHOLDER,
+        provider: "anthropic",
+        model: "claude",
+        baseUrl: "https://api.anthropic.com",
+    });
+    assert.equal(kept.ok, true);
+    assert.equal((await readJson(join(fixture.rootDir, "msinsight-native.json"))).apiKey, firstCipher);
+    assert.equal(kept.snapshot.builtinAgent.apiKey, SECRET_PLACEHOLDER);
+});
+
+test("rejects a secret placeholder for a new agent environment variable", async () => {
+    const fixture = await createFixture();
+    const snapshot = validSnapshot();
+    snapshot.agentServers.at(-1).env.TOKEN = SECRET_PLACEHOLDER;
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "secret_placeholder_invalid");
+    const persisted = await readJson(join(fixture.rootDir, "agent-servers.json"));
+    assert.equal(persisted.agentServers.some(({ name }) => name === "NewAgent"), false);
+});
+
+test("marks a catalog agent available when a configured agent uses the same launch", async () => {
+    const fixture = await createFixture();
+    const service = createAgentConfigService({
+        rootDir: fixture.rootDir,
+        state: fixture.state,
+        secretCrypto: fixture.crypto,
+        getConfiguredAgents: () => [
+            { name: "OpenCode", command: "opencode", args: ["acp"], env: {} },
+        ],
+        reloadRuntime: async () => ({}),
+    });
+
+    const snapshot = await service.readSnapshot();
+
+    assert.equal(snapshot.catalogAgents.find((agent) => agent.name === "OpenCode(auto)").available, true);
+    assert.equal(snapshot.catalogAgents.find((agent) => agent.name === "Claude Code(auto)").available, false);
+});
+
+test("keeps a catalog active agent when a custom copy uses the same launch", async () => {
+    const fixture = await createFixture();
+    const service = createAgentConfigService({
+        rootDir: fixture.rootDir,
+        state: fixture.state,
+        secretCrypto: fixture.crypto,
+        getDiscoveredAgents: () => [{ name: "OpenCode(auto)", command: "opencode", args: ["acp"], env: {} }],
+        getConfiguredAgents: () => [
+            { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
+        ],
+        reloadRuntime: async (snapshot) => {
+            fixture.reloads.push(snapshot);
+        },
+    });
+
+    const result = await service.saveAgentServers({
+        activeAgentName: "OpenCode(auto)",
+        agentServers: [
+            { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
+            { name: "Claude", command: "claude", args: [], env: {} },
+        ],
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.snapshot.activeAgentName, "OpenCode(auto)");
+    assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode(auto)");
+});
+
+test("rejects an unavailable catalog agent as the active agent", async () => {
+    const fixture = await createFixture();
+    const result = await fixture.service.saveAgentServers({
+        activeAgentName: "Claude Code(auto)",
+        agentServers: [
+            { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
+            { name: "Claude", command: "claude", args: [], env: {} },
+        ],
+    });
+
+    assert.equal(result.error, "validation_failed");
+    assert.equal(result.message, "active agent must reference an available discovered agent");
+});
+
+test("rejects duplicate ACP launch commands with a concrete conflict", async () => {
+    const fixture = await createFixture();
+    const snapshot = validSnapshot();
+    snapshot.agentServers.push({ name: "OpenCode Copy", command: "opencode", args: ["acp", "--debug"], env: { OTHER: "value" } });
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "duplicate_agent_launch");
+    assert.equal(result.status, 409);
+    assert.equal(result.conflictingAgent, "OpenCode");
+    assert.equal(result.duplicateAgent, "OpenCode Copy");
+});
+
+test("supports the built-in agent as active with no generic agents", async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.rootDir, "agent-servers.json"), { activeAgent: "msinsight-native", agentServers: [] });
+    const snapshot = validSnapshot();
+    snapshot.activeAgentName = "msinsight-native";
+    snapshot.agentServers = [];
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.ok, true);
+    assert.equal(result.snapshot.activeAgentName, "msinsight-native");
+    assert.deepEqual(result.snapshot.agentServers, []);
+});
+
+test("removes matching transient agents before runtime reload", async () => {
+    const fixture = await createFixture();
+    const calls = [];
+    const service = createAgentConfigService({
+        rootDir: fixture.rootDir,
+        state: fixture.state,
+        secretCrypto: fixture.crypto,
+        beforeReload: async (snapshot) => {
+            calls.push(`before:${snapshot.agentServers.at(-1).name}`);
+        },
+        reloadRuntime: async () => {
+            calls.push("reload");
+        },
+    });
+
+    const result = await service.saveAgentServers(agentConfigFrom(sealForSave(validSnapshot(), fixture.crypto)));
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls, ["before:NewAgent", "reload"]);
+});
+
+test("adds a new agent and switches active agent only when requested by the snapshot", async () => {
+    const fixture = await createFixture();
+    const withoutSwitch = sealForSave(validSnapshot(), fixture.crypto);
+
+    await fixture.service.saveAgentServers(agentConfigFrom(withoutSwitch));
+    assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode");
+
+    const withSwitch = { ...withoutSwitch, activeAgentName: "NewAgent" };
+    await fixture.service.saveAgentServers(agentConfigFrom(withSwitch));
+
+    assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "NewAgent");
+});
+
+test("allows adding a generic agent when the unchanged built-in agent is not configured", async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.rootDir, "msinsight-native.json"), {
+        schemaVersion: 1,
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "",
+        apiKey: "",
+    });
+    const snapshot = await fixture.service.readSnapshot();
+    snapshot.agentServers.push({ name: "NewAgent", command: "new-agent", args: ["serve"], env: {} });
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.ok, true);
+    assert.equal(result.snapshot.agentServers.at(-1).name, "NewAgent");
+});
+
+test("rejects invalid config snapshots without writing or reloading", async () => {
+    const fixture = await createFixture();
+    const beforeAgentConfig = await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8");
+    const beforeSessionConfig = await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8");
+
+    const cases = [
+        { name: "duplicate names", patch: { agentServers: [{ name: "A", command: "a", args: [], env: {} }, { name: "A", command: "b", args: [], env: {} }], activeAgentName: "A" } },
+        { name: "built-in reserved name", patch: { agentServers: [{ name: "msinsight-native", command: "other", args: [], env: {} }], activeAgentName: "msinsight-native" } },
+        { name: "auto reserved suffix", patch: { agentServers: [{ name: "Other(auto)", command: "other", args: [], env: {} }], activeAgentName: "Other(auto)" } },
+        { name: "empty command", patch: { agentServers: [{ name: "A", command: "", args: [], env: {} }], activeAgentName: "A" } },
+        { name: "empty arg", patch: { agentServers: [{ name: "A", command: "a", args: [""], env: {} }], activeAgentName: "A" } },
+        { name: "empty env key", patch: { agentServers: [{ name: "A", command: "a", args: [], env: { "": "value" } }], activeAgentName: "A" } },
+        { name: "non-positive timeout", patch: { sessionConfig: { ...validSnapshot().sessionConfig, requestTimeoutMs: 0 } } },
+        { name: "missing active agent", patch: { activeAgentName: "Missing" } },
+    ];
+
+    for (const item of cases) {
+        const snapshot = { ...validSnapshot(), ...item.patch };
+        const result = item.name === "non-positive timeout"
+            ? await fixture.service.saveSessionConfig(snapshot.sessionConfig)
+            : await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+        assert.equal(result.error, "validation_failed", item.name);
+    }
+    assert.equal(fixture.reloads.length, 0);
+    assert.equal(await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8"), beforeAgentConfig);
+    assert.equal(await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8"), beforeSessionConfig);
+});
+
+test("rejects trim-empty args without writing or reloading", async () => {
+    const fixture = await createFixture();
+    const beforeAgentConfig = await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8");
+    const beforeSessionConfig = await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8");
+    const snapshot = validSnapshot();
+    snapshot.agentServers[0].args = ["   "];
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "validation_failed");
+    assert.equal(result.message, "agent args cannot be empty");
+    assert.equal(fixture.reloads.length, 0);
+    assert.equal(await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8"), beforeAgentConfig);
+    assert.equal(await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8"), beforeSessionConfig);
+});
+
+test("rejects trim-empty env keys without writing or reloading", async () => {
+    const fixture = await createFixture();
+    const beforeAgentConfig = await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8");
+    const beforeSessionConfig = await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8");
+    const snapshot = validSnapshot();
+    snapshot.agentServers[0].env = { "   ": "value" };
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "validation_failed");
+    assert.equal(result.message, "env keys cannot be empty");
+    assert.equal(fixture.reloads.length, 0);
+    assert.equal(await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8"), beforeAgentConfig);
+    assert.equal(await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8"), beforeSessionConfig);
+});
+
+test("rejects env keys that collide after trimming without writing or reloading", async () => {
+    const fixture = await createFixture();
+    const beforeAgentConfig = await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8");
+    const beforeSessionConfig = await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8");
+    const snapshot = validSnapshot();
+    snapshot.agentServers[0].env = { TOKEN: "one", " TOKEN ": "two" };
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "validation_failed");
+    assert.equal(result.message, "env keys must be unique");
+    assert.equal(fixture.reloads.length, 0);
+    assert.equal(await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8"), beforeAgentConfig);
+    assert.equal(await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8"), beforeSessionConfig);
+});
+
+test("blocks saves while a prompt or permission is pending without writing or reloading", async () => {
+    for (const busy of ["prompt", "permission"]) {
+        const fixture = await createFixture();
+        const beforeAgentConfig = await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8");
+        const beforeSessionConfig = await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8");
+        if (busy === "prompt") {
+            getSessionContext(fixture.state, "session-1").pendingPrompt = true;
+        } else {
+            fixture.state.pendingPermissions.set("session-1:req-1", { sessionId: "session-1", requestId: "req-1", state: "pending" });
+        }
+
+        const result = await fixture.service.saveAgentServers(agentConfigFrom(sealForSave(validSnapshot(), fixture.crypto)));
+
+        assert.equal(result.error, "agent_busy");
+        assert.equal(result.status, 409);
+        assert.equal(fixture.reloads.length, 0);
+        assert.equal(await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8"), beforeAgentConfig);
+        assert.equal(await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8"), beforeSessionConfig);
+    }
+});
+
+test("returns reload_failed after a successful file save without rolling config back", async () => {
+    const fixture = await createFixture();
+    fixture.service = createAgentConfigService({
+        rootDir: fixture.rootDir,
+        state: fixture.state,
+        secretCrypto: fixture.crypto,
+        reloadRuntime: async () => {
+            throw new Error("adapter failed");
+        },
+    });
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(sealForSave(validSnapshot(), fixture.crypto)));
+
+    assert.equal(result.error, "reload_failed");
+    assert.match(result.message, /adapter failed/);
+    assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode");
+});
+
+test("returns config_write_failed without reload or single-file replacement when a temp write fails", async () => {
+    const fixture = await createFixture();
+    const beforeAgentConfig = await readText(join(fixture.rootDir, "agent-servers.json"));
+    const beforeSessionConfig = await readText(join(fixture.rootDir, "acp-session-conf.json"));
+    await mkdir(join(fixture.rootDir, `acp-session-conf.json.${process.pid}.session-temp.tmp`));
+    const service = createAgentConfigService({
+        rootDir: fixture.rootDir,
+        state: fixture.state,
+        tempId: () => "session-temp",
+        reloadRuntime: async (snapshot) => {
+            fixture.reloads.push(snapshot);
+            return { snapshot };
+        },
+    });
+
+    const result = await service.saveSessionConfig(validSnapshot().sessionConfig);
+
+    assert.equal(result.error, "config_write_failed");
+    assert.match(result.message, /EISDIR|EPERM|EACCES/);
+    await rm(join(fixture.rootDir, `acp-session-conf.json.${process.pid}.session-temp.tmp`), { recursive: true, force: true });
+    assert.equal(fixture.reloads.length, 0);
+    assert.equal(await readText(join(fixture.rootDir, "agent-servers.json")), beforeAgentConfig);
+    assert.equal(await readText(join(fixture.rootDir, "acp-session-conf.json")), beforeSessionConfig);
+});
+
+test("returns config_write_failed when output files cannot be written and leaves existing files intact", async () => {
+    if (process.platform === "win32") return;
+    const fixture = await createFixture();
+    const beforeAgentConfig = await readText(join(fixture.rootDir, "agent-servers.json"));
+    const beforeSessionConfig = await readText(join(fixture.rootDir, "acp-session-conf.json"));
+    const blockedRoot = join(fixture.rootDir, "blocked");
+    await mkdir(blockedRoot, { recursive: true });
+    await writeFile(join(blockedRoot, "agent-servers.json"), beforeAgentConfig, "utf8");
+    await writeFile(join(blockedRoot, "acp-session-conf.json"), beforeSessionConfig, "utf8");
+    const { chmod } = await import("node:fs/promises");
+    await chmod(blockedRoot, 0o555);
+    const blockedService = createAgentConfigService({
+        rootDir: blockedRoot,
+        state: fixture.state,
+        reloadRuntime: async (snapshot) => {
+            blockedService.reloads.push(snapshot);
+            return { snapshot };
+        },
+    });
+    blockedService.reloads = [];
+
+    let result;
+    try {
+        result = await blockedService.saveSessionConfig(validSnapshot().sessionConfig);
+    } finally {
+        await chmod(blockedRoot, 0o755);
+    }
+
+    assert.equal(result.error, "config_write_failed");
+    assert.equal(blockedService.reloads.length, 0);
+    assert.equal(await readText(join(fixture.rootDir, "agent-servers.json")), beforeAgentConfig);
+    assert.equal(await readText(join(fixture.rootDir, "acp-session-conf.json")), beforeSessionConfig);
+});

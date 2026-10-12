@@ -104,7 +104,7 @@ Linux is the default local development environment used in this development guid
 | Software Name | Version Requirements | Purpose |
 | --- | --- | --- |
 | git | No special requirements | Code Pull and Commit |
-| Node.js | v18.20.8+ | Frontend development and build |
+| Node.js | v22.14.0+ | Frontend development, build, and ACP agent runtime |
 | pnpm | It is recommended to use a version compatible with the lockfile. | Frontend package management |
 | Python | 3.11+ | Tool Scripts, pre-commit, third-party dependency preprocessing |
 | CMake | 3.16~3.20 | Backend project build and compilation |
@@ -126,7 +126,7 @@ openEuler/CentOS/RHEL:
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-`Node.js` can be installed via the official installation package, system package manager, or version management tool. Ensure that the version v18.20.8+ is used.
+`Node.js` can be installed via the official installation package, system package manager, or version management tool. Ensure that the version v22.14.0+ is used (the minimum required by the Native Agent runtime).
 
 ### 2.3 Environment Verification
 
@@ -151,7 +151,7 @@ The Windows platform uses the MinGW toolchain for backend compilation.
 | Software Name | Version Requirements | Purpose |
 | --- | --- | --- |
 | git | No special requirements | Code Pull and Commit |
-| Node.js | v18.20.8+ | Frontend development and build |
+| Node.js | v22.14.0+ | Frontend development, build, and ACP agent runtime |
 | pnpm | It is recommended to use a version compatible with the lockfile. | Frontend package management |
 | Python | 3.11+ | Tool Scripts, pre-commit, third-party dependency preprocessing |
 | MinGW | 10.0+ (msvcrt version); 11.0+ recommended for packaging | Backend compilation |
@@ -185,7 +185,7 @@ On macOS, the backend compilation uses the Clang toolchain.
 | Software Name | Version Requirements | Purpose |
 | --- | --- | --- |
 | git | No special requirements | Code Pull and Commit |
-| Node.js | v18.20.8+ | Frontend development and build |
+| Node.js | v22.14.0+ | Frontend development, build, and ACP agent runtime |
 | pnpm | It is recommended to use a version compatible with the lockfile. | Frontend package management |
 | Python | 3.11+ | Tool Scripts, pre-commit, third-party dependency preprocessing |
 | Clang | 15 | Backend compilation |
@@ -245,7 +245,7 @@ Artifacts are located under the `out` directory of the project root directory.
 | CMake | 3.16~3.20 | Backend Build |
 | NSIS | No requirement | Installer packaging software |
 | nsProcess plugin | unicode support | Check for duplicate running instances |
-| Node.js | v18.20.8+ | Frontend Build |
+| Node.js | v22.14.0+ | Frontend build and ACP agent runtime |
 | pnpm | No requirement | Frontend Build |
 | Python | 3.11+ | Cluster Tool Packaging |
 
@@ -310,7 +310,7 @@ Artifacts are located in the `out` directory under the project root directory.
 
 - Ninja: download the binary from the [official website](https://ninja-build.org) or install via a package manager. Verify with `ninja --version`.
 
-- Node.js: install the LTS version (v18.20.8+) from the [official website](https://nodejs.org). Verify with `node --version`.
+- Node.js: install an LTS version (v22.14.0+, required by the Native Agent runtime) from the [official website](https://nodejs.org). Verify with `node --version`.
 
 - pnpm: Run `npm install -g pnpm`. Verify with `pnpm --version`.
 
@@ -325,7 +325,7 @@ Artifacts are located in the `out` directory under the project root directory.
 | rust | 1.89 | Base compilation and build |
 | cargo-bundle | N/A | Packaging |
 | Ninja | N/A | Backend compilation |
-| Node.js | v18.20.8+ | Frontend build |
+| Node.js | v22.14.0+ | Frontend build and ACP agent runtime |
 | pnpm | N/A | Frontend build |
 | Python | 3.11+ | Cluster tool packaging |
 | Clang | 15 | Compilation |

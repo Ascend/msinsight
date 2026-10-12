@@ -21,13 +21,16 @@ import { store } from '@/store';
 import { localStorageService, LocalStorageKey } from '@insight/lib';
 import { ThemeName, Language } from '@/utils/enum';
 import type { LayerType } from '@/centralServer/websocket/defs';
+import { sendAgentPanelNotification } from './agentPanelNotification';
 
 export function sendTheme(to?: string): void {
+    const isDark = themeInstance.getCurrentTheme() === ThemeName.DARK;
     connector.send({
         event: 'setTheme',
-        body: { isDark: themeInstance.getCurrentTheme() === ThemeName.DARK },
+        body: { isDark },
         to,
     });
+    sendAgentPanelNotification('setTheme', { isDark });
 }
 
 export function sendModuleReset(): void {
@@ -57,11 +60,13 @@ export function sendStatus(): void {
 }
 
 export function sendLanguage(to?: string): void {
+    const lang = localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? Language.EN;
     connector.send({
         event: 'switchLanguage',
         to,
-        body: { lang: localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? Language.EN },
+        body: { lang },
     });
+    sendAgentPanelNotification('switchLanguage', { lang });
 }
 
 export function sendWakeupPlugin(): void {

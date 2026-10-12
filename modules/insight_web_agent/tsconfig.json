@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "target": "es2020",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "plugins": [{ "name": "typescript-plugin-css-modules" }],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react",
+    "jsxImportSource": "@emotion/react",
+    "useDefineForClassFields": true,
+    "downlevelIteration": true,
+    "paths": {
+      "@insight/lib/*": ["../lib/src/*"],
+      "@insight/lib": ["../lib/src"]
+    }
+  },
+  "include": [
+    "src",
+    "../lib/src/**/*.d.ts"
+  ]
+}

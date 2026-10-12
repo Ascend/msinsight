@@ -59,6 +59,8 @@ export const dark: Theme = {
     timelineAxisColor: '#3e4551',
     searchInputCaretColor: '#317AF7', // 搜索输入框光标颜色
     allSessionHeadBgColor: 'rgba(255, 255, 255, 0.05)', // session列表页头部背景色
+    agentWelcomeCardBackgroundColor: 'rgba(255, 255, 255, 0.05)',
+    agentUserMessageBackgroundColor: '#213d5b',
     deviceProcessActiveBackgroundColor: '#313131', // 设备和进程下拉框选中范围的背景颜色
     placeholderFontColor: 'rgb(100, 100, 100)',
     unitTagInfoBackgroundColor: 'rgb(255, 255, 255, 0.15)', // 泳道tag背景色
@@ -227,6 +229,7 @@ export const dark: Theme = {
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen, Ubuntu, Cantarell, \'Fira Sans\', \'Droid Sans\', sans-serif',
     borderRadiusBase: '4px',
     borderRadiusSmall: '2px',
+    borderRadiusLarge: '8px',
     borderRadiusRound: '20px',
     borderRadiusCircle: '100%',
     pagePadding: '16px',
