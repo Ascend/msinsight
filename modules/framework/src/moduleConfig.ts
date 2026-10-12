@@ -160,3 +160,5 @@ export const modulesConfig: ModuleConfig[] = [
         hasNumaData: true,
     },
 ];
+
+export const ACP_SESSION_SRC = isDev ? 'http://localhost:3011' : './plugins/InsightWebAgent/index.html';

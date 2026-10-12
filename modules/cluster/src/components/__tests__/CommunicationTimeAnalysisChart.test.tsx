@@ -215,6 +215,7 @@ it('uses the latest operator data when a hidden chart initializes after becoming
             lists: {
                 compare: [{ operatorName: 'AllReduce', startTime: 0, duration: 100 }],
                 baseline: [],
+                diff: [],
             },
         }],
     } as AnalysisChartData;

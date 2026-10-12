@@ -23,6 +23,7 @@ import {
     getLeaksOpfsRoot,
     normalizeLeaksFileHash,
 } from './opfsConfig';
+import { queryBlockSummaries } from './blockQuery';
 
 const DIR_NAME = 'block-data';
 const CACHE_MANIFEST_FILE = 'cache-manifest.json';
@@ -679,6 +680,15 @@ export class BlockDataOPFS {
             }
         }
         return result;
+    }
+
+    queryBlockSummaries(query: BlockQuery): BlockQueryResult {
+        const metas = function * (batches: Map<number, BlockMeta[]>): Generator<BlockMeta> {
+            for (const batch of batches.values()) {
+                for (const meta of batch) yield meta;
+            }
+        };
+        return queryBlockSummaries(metas(this.blockMetas), query);
     }
 
     async findBlockById(blockId: number): Promise<Block | null> {

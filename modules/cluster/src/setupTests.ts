@@ -20,7 +20,9 @@ import { cleanup } from '@testing-library/react';
 import { customConsole as console } from '@insight/lib/utils';
 
 declare global {
-    const session: Session;
+    // Assigned before each test; var also declares the globalThis property.
+    // eslint-disable-next-line no-var
+    var session: Session;
 }
 
 Object.defineProperty(window, 'matchMedia', {

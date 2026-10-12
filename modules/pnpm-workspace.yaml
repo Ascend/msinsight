@@ -11,3 +11,4 @@ packages:
   - 'reinforcement-learning'
   - 'memory-on-chip'
   - 'numa'
+  - 'insight_web_agent'

@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import React, { useRef } from 'react';
+import { getWindowMessageRouter } from '../WindowMessageRouter';
 import './Resizor.css';
 
 // eslint-disable-next-line max-lines-per-function
@@ -28,6 +29,7 @@ export function Resizor(props: {
     let offsetX: number;
     let initialWidth: number;
     let initialNextWidth: number;
+    let unsubscribeTopWindow: (() => void) | undefined;
     const handleMouseDown = (event: React.MouseEvent): void => {
         event.preventDefault();
         if (!isDown) {
@@ -46,7 +48,7 @@ export function Resizor(props: {
             window.addEventListener('mouseup', handleMouseUp);
             // 如果当前在iframe中
             if (window.self !== window.top) {
-                window.addEventListener('message', handleTopWindow);
+                unsubscribeTopWindow = getWindowMessageRouter().subscribe(handleTopWindow);
             }
             // 如果页面中有iframe
             if (window.document.querySelectorAll('iframe').length !== 0) {
@@ -86,9 +88,8 @@ export function Resizor(props: {
             parentNode.style.pointerEvents = null;
         }
         // 如果当前在iframe中
-        if (window.self !== window.top) {
-            window.removeEventListener('message', handleTopWindow);
-        }
+        unsubscribeTopWindow?.();
+        unsubscribeTopWindow = undefined;
         // 如果页面中有iframe
         if (window.document.querySelectorAll('iframe').length !== 0) {
             window.document.querySelectorAll('iframe').forEach((item: HTMLIFrameElement) => {
@@ -97,16 +98,10 @@ export function Resizor(props: {
             });
         }
     }
-    function handleTopWindow(event?: MessageEvent): void {
-        try {
-            if (typeof event?.data !== 'string') {
-                return;
-            }
-            const data = JSON.parse(event.data);
-            if (data.from === 'framework' && data.event === 'mouseover') {
-                handleMouseUp();
-            }
-        } catch (error) { /* empty */ }
+    function handleTopWindow(event: MessageEvent): void {
+        if (event.data?.from === 'framework' && event.data?.event === 'mouseover') {
+            handleMouseUp();
+        }
     }
 
     return <div ref={divRef} className={'resizor'} onMouseDown={handleMouseDown} style={props.style ?? {}}></div>;

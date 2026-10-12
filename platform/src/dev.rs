@@ -31,7 +31,7 @@ fn create_webview(
 ) -> wry::Result<WebView> {
     // Wry only borrows Window in newer versions; run_event_loop owns it later.
     let builder = WebViewBuilder::new(&window)
-        .with_url("http://localhost:5174?port=9000")?
+        .with_url("http://localhost:5174?port=9000")
         .with_file_drop_handler(move |ev| {
             match ev {
                 FileDropEvent::Dropped { paths, .. } => {

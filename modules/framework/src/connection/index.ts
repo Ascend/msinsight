@@ -21,17 +21,20 @@ import { listenerMap } from './notification';
 import { store } from '@/store';
 import { requestModule } from '@/centralServer/server';
 import { GLOBAL_HOST } from '@/centralServer/websocket/defs';
+import { getTargetWindow } from './targetWindow';
 
 type TargetWindow = Window;
 
 const pluginEvents = ['remote/import', 'remote/reset', 'remote/remove', 'setTheme', 'wakeupPlugin', 'language', 'switchLanguage'];
 
-const connector = new ServerConnector({
-    getTargetWindow: (): TargetWindow[] => {
-        const res: TargetWindow[] = [];
-        document?.querySelectorAll('iframe')?.forEach((item) => item.contentWindow && res.push(item.contentWindow));
-        return res;
-    },
+class FrameworkConnector extends ServerConnector {
+    protected getTargetWindows(): TargetWindow[] {
+        return getTargetWindow();
+    }
+}
+
+const connector = new FrameworkConnector({
+    getTargetWindow,
     getInterceptorHandlers: (command: string): (...args: any[]) => void => INTERCEPTOR_HANDLERS[command] as any,
     sendBefore: (origin: any): any => {
         const message = origin;

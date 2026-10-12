@@ -69,6 +69,10 @@
 | --- | --- |
 | 首次参与开发 | 本文 `2. Linux 环境快速搭建与运行`、`4. 测试指南` |
 | 新增前端/后端模块 | 本文 `3.1 新增模块开发` |
+| 新增前端 Agent Command | [Frontend Agent Command 实践指南](./frontend_agent_command_implementation.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
+| 在 Agent 回复中展示可确认的页面操作 | [Agent 回复 Action 设计](./design/AgentReplyAction.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
+| 新增 Native 分析助手或安装包 Skill | [为 Native Agent 添加分析助手](./native_primary_agent_implementation.md)、[Native Primary Agent 与 Skill 架构设计](./design/NativePrimaryAgentAndSkill.md)、[安装包 Skill 的 Runtime 原生发现集成](./design/PackagedSkillIntegration.md) |
+| 为业务表格接入 Agent 能力 | [表格 Command 接入指南](./agent_table_command_implementation.md)、[AgentTable Command 设计](./design/AgentTableCommand.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
 | 新增或维护 Timeline 泳道 | 本文 `3.2 DB 场景新增泳道`、[TrackRender](./design/TrackRender.md)、[Timeline](./design/Timeline.md) |
 | 维护概览和通信模块 | [Summary](./design/Summary.md)、[Communication](./design/Communication.md) |
 | 维护内存模块 | [Memory](./design/Memory.md)、[Device 内存分析](./design/support_device_memory_analysis.md)、[Snapshot 分析](./design/support_snapshot_analysis.md) |
@@ -87,7 +91,7 @@ Linux 本地开发建议准备如下工具：
 | 软件名 | 版本要求 | 用途 |
 | --- | --- | --- |
 | git | 无特殊要求 | 代码拉取与提交 |
-| Node.js | v18.20.8+ | 前端开发与构建 |
+| Node.js | v22.14.0+ | 前端开发、构建与 ACP Agent 运行时 |
 | pnpm | 建议使用与 lockfile 兼容的版本 | 前端包管理 |
 | Python | 3.11+ | 工具脚本、pre-commit、第三方依赖预处理 |
 | CMake | 3.16~3.20 | 后端项目构建与编译 |
@@ -107,7 +111,7 @@ openEuler / CentOS / RHEL 类系统可参考：
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v18.20.8+。
+Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Native Agent 运行时的最低要求）。
 
 完成安装后可执行如下命令验证：
 
@@ -225,11 +229,243 @@ python3 build.py
 
 产物位于项目根目录 `out` 目录下。Windows 和 macOS 出包需要额外准备 Rust、平台运行时、打包工具和集成 Python 解释器，详见[开发环境搭建](./environment_setup.md#5-本地出包环境)。
 
+#### 2.7.1 构建预激活 RAG 软件包
+
+RAG 软件包通过环境变量提供知识包和 ONNX 模型输入，构建命令不再显式传递这些路径。路径变量全部设置时构建预激活 RAG；全部未设置时执行 code-only 构建；只设置部分变量会在清理和编译前直接报错。
+
+RAG 前端构建优先复用工作区依赖。即使传入 `modules/build/build.py --no-install`，若 workspace 或模块的 `node_modules` 缺失，或缺少 `cross-env`、`craco`、`react-scripts`、`esbuild`，也会在 `modules` 目录兜底执行 `pnpm install --force --prod=false --frozen-lockfile`。兜底安装需要可访问依赖源；安装失败或检查仍不完整时停止构建，不启动并行模块编译。完全离线的构建服务器必须提前准备完整依赖。
+
+| 环境变量 | 含义 | 输入要求 |
+| --- | --- | --- |
+| `MSINSIGHT_RAG_MODE` | RAG 构建模式 | 可选。`development`（默认）或 `product-bundled` |
+| `MSINSIGHT_RAG_BUILD_MODE` | RAG 依赖构建策略 | 可选。`1` 使用 online 构建；未设置、空值或 `0` 保持现有 offline 路径 |
+| `MSINSIGHT_RAG_PACKAGE` | RAG Knowledge Package v4 路径 | 指向 `knowledge-pack-v4.zip` 普通文件 |
+| `MSINSIGHT_RAG_PACKAGE_SHA256` | 知识包 SHA256 sidecar 路径 | 指向与知识包匹配的 `knowledge-pack-v4.zip.sha256` 普通文件 |
+| `MSINSIGHT_RAG_MODEL_DIR` | 已解压的 ONNX Embedding 模型目录 | 包含 `model-manifest.json`、`onnx/model.onnx` 和 Tokenizer 配置文件 |
+
+设置 `MSINSIGHT_RAG_BUILD_MODE=1` 时仍须提供完整、有效的知识包、SHA256 sidecar 和模型目录；输入预检失败会在清理和编译前终止。online 模式允许前端 pnpm 安装依赖、后端预处理下载缺失源码，并取消 Cargo 的 `--offline`。知识包与 ONNX 模型仍从上述本地目录读取，不在线下载；RAG 顺序编译、预激活、元数据与 smoke 校验保持不变。此变量独立于 `MSINSIGHT_RAG_MODE`，开发模式和产品模式均支持。
+
+```powershell
+$env:MSINSIGHT_RAG_BUILD_MODE = "1"
+```
+
+Package schemaVersion 仍为 `4.0`，但知识包必须包含 `bm25-domain-dict.txt`，并满足以下约束：
+
+- `manifest.json.retrieval.keyword.domainDictionarySha256` 等于词典文件 SHA256；
+- `checksums.json.files` 包含 `bm25-domain-dict.txt`；
+- ZIP member closure 和顺序包含该词典文件；
+- 词典使用 UTF-8、LF 结尾，每行一个非空领域词，忽略大小写后不得重复；
+- BM25 索引生产和消费端 query 分词必须使用同一份词典。
+
+旧的 v4 知识包不包含该 member，不能继续使用，必须由知识库生产仓按新契约重新构建。领域词由知识库维护，`msinsight` 的生产 runtime 不再内置产品或工具关键词。
+
+Windows PowerShell 示例：
+
+```powershell
+$env:MSINSIGHT_RAG_PACKAGE = "D:\rag\knowledge-pack-v4.zip"
+$env:MSINSIGHT_RAG_PACKAGE_SHA256 = "D:\rag\knowledge-pack-v4.zip.sha256"
+$env:MSINSIGHT_RAG_MODEL_DIR = "D:\models\bge-small-zh-v1.5"
+$env:MSINSIGHT_RAG_MODE = "development"
+
+Set-Location build
+python build.py --build_version 26.1.1-rag-dev.1
+```
+
+Linux 或 macOS 示例：
+
+```bash
+export MSINSIGHT_RAG_PACKAGE=/opt/rag/knowledge-pack-v4.zip
+export MSINSIGHT_RAG_PACKAGE_SHA256=/opt/rag/knowledge-pack-v4.zip.sha256
+export MSINSIGHT_RAG_MODEL_DIR=/opt/models/bge-small-zh-v1.5
+export MSINSIGHT_RAG_MODE=development
+
+cd build
+python3 build.py --build_version 26.1.1-rag-dev.1
+```
+
+development RAG 包版本必须使用 `MAJOR.MINOR.PATCH-rag-dev.SERIAL` 格式，例如 `26.1.1-rag-dev.1`。正式产品构建设置 `MSINSIGHT_RAG_MODE=product-bundled`，并使用普通 `MAJOR.MINOR.PATCH` 产品版本。构建脚本会在产生输出前校验知识包摘要、Package manifest、模型目录和目标平台原生运行时；正式模式任一输入缺失都会失败。
+
+Agent Server 根据根构建的产品目标自动选择 Windows x64、Linux x86_64/aarch64 或 macOS x86_64/arm64 原生依赖。各平台统一使用 `onnxruntime-node/onnxruntime-common 1.22.0`、`@node-rs/jieba 2.0.1` 和 N-API v6；一个安装包只包含当前目标的原生文件。
+
+RAG 构建输入仅支持 `MSINSIGHT_RAG_*` 环境变量，不再接受任何 RAG 命令行参数（如已删除的 `--rag-mode`、`--rag-dev-pack`、`--rag-dev-sidecar`、`--rag-model-dir`）；传入未知或残留的 RAG 参数时构建直接报错退出。非 RAG 参数（`--revision`、`--build_version`、`--whl_version`、`clean`）保持不变。
+
 ## 3. 开发流程
 
 ### 3.1 新增模块开发
 
 #### 3.1.1 前端部分
+
+**Step 4. 执行出包脚本**
+
+进入项目根目录下 `build` 目录，执行 `python build.py`，产物位于项目根目录 `out` 目录下。
+
+### 3.6 Insight Web Agent (ACP server) 单独拉起与调试
+
+Insight Web Agent 是一个独立 Node ESM runtime，承载 ACP（Agent Control Protocol）chat panel 与 agent server 之间的桥接服务，入口文件为 `modules/insight_web_agent/server/index.mjs`，构建产物为 `modules/insight_web_agent/dist-server/index.mjs`。
+
+在对 ACP adapter / session manager / agent config save-reload 逻辑进行修改时，常常只需要让这一个进程生效即可，无需触发 C++ server、前端、Rust 底座、`.dmg` 的全量重出包。本节描述在不改出 `.app/.dmg` 的前提下独立拉起、调试和更新它的几种方式。
+
+#### 3.6.1 目录与产物关系
+
+| 资源 | 路径 | 说明 |
+| --- | --- | --- |
+| 源码入口 | `modules/insight_web_agent/server/index.mjs` | 启动时按目录推断 `--path` |
+| 构建脚本 | `modules/insight_web_agent/scripts/build-server.mjs` | esbuild bundle + 拷贝 configs / prompts / agents / skills / docs |
+| 构建入口 | `pnpm --filter insight-web-agent server:build` 或 `cd modules/insight_web_agent && pnpm server:build` | 产物位于 `dist-server/` |
+| 构建产物 | `modules/insight_web_agent/dist-server/` | `index.mjs`、`native-agent/index.mjs`、配置文件以及 `prompts/`、`agents/`、`skills/`、`docs/` |
+| App 内位置 | `<MindStudioInsight.app>/Contents/MacOS/resources/profiler/server/insight_web_agent/` | App 启动时由 `profiler_server` 通过 `node .../index.mjs --path ... --port <port>` 拉起 |
+| 一键更新脚本 | `build/patch-acp-server.py` | 见 [§ 3.6.5](#365-一键更新到已安装-appbuildpatch-acp-serverpy) |
+
+> 注意：因为 `.gitignore` 里有 `**/build`，`build/patch-acp-server.py` 默认被忽略。如要随代码一同提交，需要 `git add -f build/patch-acp-server.py build/test_patch_acp_server.py`。
+
+#### 3.6.2 直接拉起源文件（源码级调试）
+
+适合改 `server/**/*.mjs` 后立刻看效果，不依赖 esbuild。
+
+同时调试 Web Agent 前端和服务端时，可分别在两个终端执行以下命令。开发脚本会使用仅供本机调试的共享 token，并将服务端限制在默认 loopback 地址；无需额外设置环境变量。
+
+```bash
+cd modules/insight_web_agent
+pnpm server
+```
+
+```bash
+cd modules/insight_web_agent
+pnpm start
+```
+
+浏览器访问 `http://127.0.0.1:3010`。开发前端和服务端均仅监听 loopback，前端直接请求 `127.0.0.1:9090`，不通过开发服务器代理。直接执行 Node 入口时仍必须显式提供 token：
+
+```bash
+cd modules/insight_web_agent
+ACP_CAPABILITY_TOKEN=<development-token> node server/index.mjs --path . --port 9002
+```
+
+行为说明：
+
+- `--path` 指定运行时工作目录，等价于 App 内 `--path <app>/Contents/MacOS/resources/profiler/server/insight_web_agent`。该目录必须包含 `agent-servers.json` 与（可选）`acp-session-conf.json`、`prompts/`、`docs/`。
+- `--port` 默认 `9090`；常用本地调试推荐显式指定 `9002`、`9004` 等与 App 错开的端口。
+- `ACP_CAPABILITY_TOKEN` 必须显式设置（包括仅监听 loopback 的开发环境），所有 API（包括 `/api/events` 事件流）均通过 `Authorization: Bearer <token>` 请求头传入；token 不通过进程参数传递。
+- 启动后会在 stdout 打印类似 `ACP web extracted API: http://127.0.0.1:9002/` 与 `Agent: <activeAgentName> (<command> <args>)`。
+
+源代码模式支持 Node 原生调试器：
+
+```bash
+cd modules/insight_web_agent
+ACP_CAPABILITY_TOKEN=<development-token> node --inspect server/index.mjs --path . --port 9002
+# 或启动即断点
+ACP_CAPABILITY_TOKEN=<development-token> node --inspect-brk server/index.mjs --path . --port 9002
+```
+
+随后在 Chrome DevTools 的 `chrome://inspect` 或者 VS Code 的 "Attach to Node Process" 中挂载即可步入 `server/services/*`、`server/controllers/*`、`server/infrastructure/*` 等模块。
+
+#### 3.6.3 跑构建后 bundle（贴近 App 内行为）
+
+App 内执行的 `node .../index.mjs` 就是 esbuild 打包后的 bundle。要复现 App 内行为，先构建再起服务：
+
+```bash
+cd modules/insight_web_agent
+pnpm server:build
+ACP_CAPABILITY_TOKEN=<development-token> node dist-server/index.mjs --path dist-server --port 9002
+```
+
+要点：
+
+- `dist-server/index.mjs` 是单一 bundle，源码 `server/index.mjs` 之外不再被解析；调试时直接断点到 `dist-server` 也不再友好，因此建议源码级调试用 [§ 3.6.2](#362-直接拉起源文件源码级调试)。
+- 构建过程会自动复制 `agent-servers.json`、`acp-session-conf.json`、`prompts/`、`agents/`、`skills/`、`docs/` 到 `dist-server/`；不要在 `dist-server/` 里手动改这些文件。
+
+#### 3.6.4 与 App / profiler_server 共存时的注意事项
+
+- **同一时刻只能有一份 web agent 监听同一端口**。App 启动后 `profiler_server` 会自己 spawn 一个 `node .../insight_web_agent/index.mjs --port <port>`；该实例退出前，你单独起的实例会因为端口冲突报 `EADDRINUSE`。
+- 推荐先停 App，再独立调试：
+
+  ```bash
+  # 1. 退出 MindStudioInsight.app
+  # 2. 兜底清理遗留的 web agent 与 profiler_server
+  pkill -f 'insight_web_agent/index.mjs'
+  pkill -f 'profiler_server --wsPort'
+
+  # 3. 单独拉起
+  cd modules/insight_web_agent
+  ACP_CAPABILITY_TOKEN=<development-token> node server/index.mjs --path . --port 9002
+  ```
+
+- 如果只是要验证 reload-bug / config save / switch agent 这类纯后端逻辑，可以连接本地 `127.0.0.1:9002` + `curl` / 前端本地代理，不需要起 framework。
+
+#### 3.6.5 一键更新到已安装 App：build/patch-acp-server.py
+
+新增的 `build/patch-acp-server.py` 提供"构建并覆盖到 MindStudioInsight.app"或"仅根据现有产物覆盖"两种模式，用于在不改出 `.dmg` 的前提下把当前分支的 ACP server 替换到本机 App。
+
+```bash
+# 仅根据现有 dist-server 覆盖（需要先 pnpm server:build）
+python3 build/patch-acp-server.py
+
+# 等价于：
+python3 build/patch-acp-server.py --app /Applications/MindStudioInsight.app
+```
+
+```bash
+# 重新构建（pnpm server:build）再覆盖
+python3 build/patch-acp-server.py --build
+```
+
+行为：
+
+1. 默认覆盖目标：`/Applications/MindStudioInsight.app/Contents/MacOS/resources/profiler/server/insight_web_agent`，可通过 `--app <path>` 指定自定义 App。
+2. 启用 `--build` 时会在 `modules/insight_web_agent/` 执行 `pnpm server:build`，再覆盖。
+3. 覆盖前校验 `dist-server` 至少包含 `index.mjs`、`agent-servers.json`、`acp-session-conf.json`、`prompts/`，否则不会触碰目标 App。
+4. 采用"临时目录 + 备份"原子替换：替换期间出现异常会回滚到旧目录。
+
+#### 3.6.6 单独拉起后的快速验证
+
+服务起来后可以先做一轮接口探活，再接入前端：
+
+```bash
+PORT=9002
+BASE=http://127.0.0.1:${PORT}
+TOKEN=<development-token>
+
+curl -s -H "Authorization: Bearer ${TOKEN}" ${BASE}/api/agents -w '\nstatus: %{http_code}\n'
+curl -s -H "Authorization: Bearer ${TOKEN}" ${BASE}/api/agent-config -w '\nstatus: %{http_code}\n'
+curl -s -H "Authorization: Bearer ${TOKEN}" ${BASE}/api/sessions -w '\nstatus: %{http_code}\n'
+```
+
+对应的响应字段与错误码参见 `docs/zh/development_guide/design/InsightAgentBridge.md`。
+
+#### 3.6.7 node:test 单测
+
+后端逻辑改动建议同时补充 `server/**/*.test.mjs`，并通过 Node 自带 test runner 跑：
+
+```bash
+cd modules/insight_web_agent
+node --test \
+  server/test/services/agentConfigService.test.mjs \
+  server/test/controllers/agentConfigController.test.mjs \
+  server/test/services/permissionService.test.mjs \
+  server/test/state/runtimeState.test.mjs \
+  server/test/integration/indexReloadLifecycle.test.mjs
+```
+
+`indexReloadLifecycle.test.mjs` 是端到端 reload 生命周期测试，会启动真正的 Node 进程并验证：
+
+- reload 失败时回滚到旧 runtime，旧 adapter 仍可用；
+- 失败的 settings reload 不会让旧会话的状态丢失。
+
+#### 3.6.8 常见错误与排查
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `EADDRINUSE 9002` | App 内已有一个 `insight_web_agent` 监听该端口 | `pkill -f 'insight_web_agent/index.mjs'`，或换一个端口 |
+| `/api/agent-config` 返回 `Not found` | App 内的 web agent 进程跑的是旧 bundle | 用 `python3 build/patch-acp-server.py --build` 替换并退出再重开 App |
+| `No ACP agent servers configured` | `--path` 指向目录里没有 `agent-servers.json` | 显式 `--path` 指向 `dist-server/` 或仓库根目录 |
+| 启动后立即报错 `ACP agent initialization failed` | 当前 `--path` 下的 agent command / args / env 在本机不可达 | 编辑 `--path/agent-servers.json` 或 `acp-session-conf.json` |
+| `--inspect-brk` 后访问 `127.0.0.1:9229` 无响应 | 防火墙或端口冲突 | 改用 `--inspect=0.0.0.0:9229` 或单独 IDE Attach |
+
+## 4. 开发流程
+
+### 4.1 新增模块开发
+
+#### 4.1.1 前端部分
 
 **1. 添加新模块目录**
 

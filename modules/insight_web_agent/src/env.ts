@@ -1,0 +1,121 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import { resolveAcpRuntimeStatus } from './acpStatus';
+
+declare const process: {
+    readonly env: {
+        readonly NODE_ENV?: 'development' | 'production' | 'test';
+        readonly REACT_APP_ACP_CAPABILITY_TOKEN?: string;
+    };
+};
+
+declare global {
+    interface Window {
+        __ACP_API_BASE__?: string;
+    }
+}
+
+const searchParams = new URLSearchParams(window.location.search);
+const acpPort = searchParams.get('acpPort');
+export const ACP_NODE_VERSION = searchParams.get('acpNodeVersion') || '';
+export const ACP_STATUS = resolveAcpRuntimeStatus(
+    window.location.search,
+    process.env.NODE_ENV,
+    Boolean(window.__ACP_API_BASE__),
+);
+export const resolveCapabilityToken = (
+    search: string = window.location.search,
+    nodeEnv: string | undefined = process.env.NODE_ENV,
+    developmentToken: string | undefined = process.env.REACT_APP_ACP_CAPABILITY_TOKEN,
+): string => new URLSearchParams(search).get('capabilityToken')
+    || new URLSearchParams(search).get('acpCapabilityToken')
+    || (nodeEnv === 'development' ? developmentToken ?? '' : '');
+
+const TOKEN_STORAGE_KEY = 'msinsight.acpCapabilityToken';
+const queryCapabilityToken = searchParams.get('capabilityToken') || searchParams.get('acpCapabilityToken') || '';
+const storedCapabilityToken = (): string => {
+    try {
+        return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) ?? '';
+    } catch {
+        return '';
+    }
+};
+const capabilityToken = resolveCapabilityToken() || storedCapabilityToken();
+if (queryCapabilityToken) {
+    try {
+        window.sessionStorage.setItem(TOKEN_STORAGE_KEY, queryCapabilityToken);
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('capabilityToken');
+        cleanUrl.searchParams.delete('acpCapabilityToken');
+        window.history.replaceState(window.history.state, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+    } catch {
+        // Some embedded WebViews restrict history or storage access; the in-memory token still works.
+    }
+}
+const jupyterlabProxy = searchParams.get('jupyterlabProxy') === 'true';
+const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:9090' : '';
+
+type AcpLocation = Pick<Location, 'host' | 'hostname' | 'pathname' | 'protocol'>;
+
+const resolveAcpApiBase = (): string => {
+    if (window.__ACP_API_BASE__) return window.__ACP_API_BASE__;
+    if (acpPort) return resolveAcpPortBase(acpPort);
+    return defaultApiBase;
+};
+
+export const resolveAcpPortBase = (
+    port: string,
+    location: AcpLocation = window.location,
+    useJupyterlabProxy: boolean = jupyterlabProxy,
+): string => {
+    const { host, pathname, protocol } = location;
+    const apiProtocol = `${protocol === 'https:' && host !== 'wry.localhost' ? 'https:' : 'http:'}//`;
+    if (useJupyterlabProxy) {
+        const path = pathname.replace(/\/resources\/profiler\/frontend.*/, '').replace(/\/proxy\/\d+.*/, '');
+        return `${apiProtocol}${host}${path}/proxy/${port}`;
+    }
+    if (!pathname.includes('/proxy/')) {
+        const isWryProtocol = protocol === 'wry:' || location.hostname === 'wry.localhost';
+        const hostname = isWryProtocol ? '127.0.0.1' : location.hostname || 'localhost';
+        return `${apiProtocol}${hostname}:${port}`;
+    }
+    const path = pathname.replace(/\/proxy\/\d+.*/, `/proxy/${port}`);
+    return `${apiProtocol}${host}${path}`;
+};
+
+export const apiBase = resolveAcpApiBase();
+
+export const JUPYTERLAB_PROXY = jupyterlabProxy;
+
+export const shouldPersistSessionExport = (
+    location: Pick<Location, 'protocol' | 'hostname'> = window.location,
+    isJupyter: boolean = jupyterlabProxy,
+): boolean => {
+    if (isJupyter) return false;
+    return location.protocol === 'wry:' || location.hostname === 'wry.localhost';
+};
+
+export const apiUrl = (path: string): string => (apiBase ? `${apiBase}${path}` : path);
+
+export const capabilityAuthHeaders = (): Record<string, string> => (
+    capabilityToken ? { Authorization: `Bearer ${capabilityToken}` } : {}
+);
+
+export const eventsUrl = (): string => apiUrl('/api/events');
+
+export {};

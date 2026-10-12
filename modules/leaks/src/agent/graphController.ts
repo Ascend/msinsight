@@ -1,0 +1,508 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * -------------------------------------------------------------------------
+ */
+import { runInAction } from 'mobx';
+import { COMMAND_ERROR_CODES, CommandError, type JsonObject } from '@insight/lib/FrontendAgentCommand';
+import type { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandClient';
+import type { Session } from '@/entity/session';
+import {
+    workerHoverItem as workerHoverBlock,
+    workerSelectItem as workerSelectBlock,
+    workerQueryBlocks,
+    workerTransform as workerTransformBlock,
+} from '@/leaksWorker/blockWorker/worker';
+import {
+    workerHoverItem as workerHoverState,
+    workerSelectItem as workerSelectState,
+    workerTransform as workerTransformState,
+} from '@/leaksWorker/stateWorker/worker';
+import { summarizeMemoryPool, type MemoryPoolSummary } from './memoryPoolSummary';
+import { getSnapshotDetail } from '@/utils/RequestUtils';
+import { toBoundedDetail } from './boundedDetail';
+import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from '@/components/blockLoadState';
+import {
+    applyMemSnapshotEventLocate,
+    isMemSnapshotSliceReadyForQuery,
+    resolveMemSnapshotSliceIndexByEventId,
+} from '@/utils/memSnapshotSlices';
+import {
+    computeVisibleRange,
+    hasLoadedGraphDomain,
+    type VisibleRangeAxis,
+} from '@/components/leaks/visibleRange';
+
+const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+
+let activeSession: Session | undefined;
+let sessionGeneration = 0;
+let memoryPoolSummary: MemoryPoolSummary | undefined;
+let memoryPoolSummaryContext: (() => boolean) | undefined;
+
+export const setMemScopeAgentSession = (session: Session | undefined): void => {
+    if (activeSession !== session) {
+        sessionGeneration++;
+        clearMemoryPoolSummary();
+    }
+    activeSession = session;
+};
+
+// The UI retains this signature and must discard stale state requests before publishing.
+export const updateMemoryPoolSummary = (eventId: number, segments: Segment[]): void => {
+    const session = activeSession;
+    if (!session || session.module !== 'memsnapshot' || !isMemSnapshotSliceReadyForQuery(session) ||
+        resolveMemSnapshotSliceIndexByEventId(session.snapshotSlices[session.deviceId], eventId) !== session.selectedSliceIndex) {
+        clearMemoryPoolSummary();
+        return;
+    }
+    memoryPoolSummary = summarizeMemoryPool(eventId, segments);
+    memoryPoolSummaryContext = captureSessionContext(session);
+};
+
+export const clearMemoryPoolSummary = (): void => {
+    memoryPoolSummary = undefined;
+    memoryPoolSummaryContext = undefined;
+};
+
+export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient): (() => void) => {
+    const unregister = [
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.getSummary',
+            title: 'Get memory lifecycle graph summary',
+            description: 'Returns bounded lifecycle graph metadata and the selected block without returning block paths or full graph data.',
+            inputSchema: emptySchema(),
+        }, lifecycleSummary),
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.getVisibleRange',
+            title: 'Get visible lifecycle graph data range',
+            description: [
+                'Returns the data-coordinate range covered by the current lifecycle graph window after intersecting it with the loaded graph domain.',
+                'Online leaks values are relative nanoseconds from the dataset minimum (the same raw timestamps as sizeInfo and allocation metadata, not formatTime millisecond labels).',
+                'Snapshot values are closed integer event IDs on the X axis, not worker order or array indexes.',
+                'This is not the full timestampRange, not the selected block, and not the debounced session min/max.',
+                'available is true only when a session exists.',
+                'status is ready with a finite closed visibleRange, unavailable when the viewport, transform, or domain is not computable (visibleRange null), or empty when the window has no domain overlap or no integer event ID (visibleRange null).',
+            ].join(' '),
+            inputSchema: emptySchema(),
+        }, lifecycleVisibleRange),
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.selectBlock',
+            title: 'Select a block in the lifecycle graph',
+            description: 'Locates and selects one memory block by its numeric block ID.',
+            inputSchema: objectSchema({ blockId: { type: 'integer', minimum: 0 } }, ['blockId']),
+        }, (args) => selectBlock(args)),
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.getBlockDetail',
+            title: 'Get bounded memory block detail',
+            description: 'Returns bounded snapshot detail for one block ID, including limited related events or call stack fields when available.',
+            inputSchema: detailSchema('blockId'),
+        }, async (args) => getBlockDetail(args)),
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.queryBlocks',
+            title: 'Query lifecycle block candidates',
+            description: 'Scans lifecycle metadata inside the graph worker and returns at most 20 block summaries ranked by size or lifetime. Block paths are never returned.',
+            inputSchema: objectSchema({
+                sortBy: { type: 'string', enum: ['size', 'lifetime'] },
+                limit: { type: 'integer', minimum: 1, maximum: 20, default: 10 },
+                address: { type: 'string' },
+                minSize: { type: 'number', minimum: 0 },
+                minLifetime: { type: 'number', minimum: 0 },
+            }, ['sortBy']),
+        }, async (args) => queryBlocks(args)),
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.resetView',
+            title: 'Reset memory lifecycle graph view',
+            description: 'Resets lifecycle graph pan and zoom to the default view.',
+            inputSchema: emptySchema(),
+        }, resetLifecycleView),
+        client.registerCommand({
+            name: 'MemScope.memoryPool.getSummary',
+            title: 'Get memory pool state summary',
+            description: 'Returns aggregate memory pool statistics and at most five largest segments without returning full segment or block arrays.',
+            inputSchema: emptySchema(),
+        }, poolSummary),
+        client.registerCommand({
+            name: 'MemScope.memoryPool.selectEvent',
+            title: 'Select a memory pool event',
+            description: 'Locates an event in the memory pool event list and updates the state diagram.',
+            inputSchema: objectSchema({ eventId: { type: 'integer', minimum: 0 } }, ['eventId']),
+        }, (args) => selectEvent(args)),
+        client.registerCommand({
+            name: 'MemScope.memoryPool.getEventDetail',
+            title: 'Get bounded memory event detail',
+            description: 'Returns bounded snapshot detail for one memory event ID without returning unrestricted nested arrays.',
+            inputSchema: detailSchema('eventId'),
+        }, async (args) => getEventDetail(args)),
+        client.registerCommand({
+            name: 'MemScope.memoryPool.getSegmentDetail',
+            title: 'Get bounded memory segment detail',
+            description: 'Returns bounded detail for one segment at a selected memory state event.',
+            inputSchema: objectSchema({
+                eventId: { type: 'integer', minimum: 0 },
+                address: { type: 'string', minLength: 1 },
+                stream: { type: 'integer' },
+                maxItems: detailLimitSchema(),
+            }, ['eventId', 'address', 'stream']),
+        }, async (args) => getSegmentDetail(args)),
+        client.registerCommand({
+            name: 'MemScope.memoryPool.clearSelection',
+            title: 'Clear graph selection',
+            description: 'Clears selected lifecycle blocks, memory pool items, and events.',
+            inputSchema: emptySchema(),
+        }, clearSelection),
+        client.registerCommand({
+            name: 'MemScope.memoryPool.resetView',
+            title: 'Reset memory pool state view',
+            description: 'Resets memory pool state graph pan and zoom to the default view.',
+            inputSchema: emptySchema(),
+        }, resetPoolView),
+    ];
+    return () => unregister.forEach(stop => stop());
+};
+
+const lifecycleVisibleRange = (): JsonObject => {
+    if (!activeSession) return { available: false };
+    const session = activeSession;
+    const info = session.leaksWorkerInfo;
+    const axis: VisibleRangeAxis = session.module === 'memsnapshot' ? 'eventId' : 'timestamp';
+    const { viewport, zoom, transform } = info.renderOptions;
+    const result = computeVisibleRange(
+        { viewport, zoom, transform },
+        {
+            blockMinTimestamp: info.sizeInfo.minTimestamp,
+            blockMaxTimestamp: info.sizeInfo.maxTimestamp,
+            allocationMinTimestamp: session.allocationData.minTimestamp,
+            allocationMaxTimestamp: session.allocationData.maxTimestamp,
+            funcMinTimestamp: session.funcData.minTimestamp,
+            funcMaxTimestamp: session.funcData.maxTimestamp,
+        },
+        axis,
+        hasLoadedGraphDomain({
+            blockMinTimestamp: info.sizeInfo.minTimestamp,
+            blockMaxTimestamp: info.sizeInfo.maxTimestamp,
+            allocationCount: Array.isArray(session.allocationData.allocations)
+                ? session.allocationData.allocations.length
+                : 0,
+            funcTraceCount: Array.isArray(session.funcData.traces) ? session.funcData.traces.length : 0,
+            progressiveTotalEventCount: session.progressiveTotalEventCount,
+        }),
+    );
+    return {
+        available: true,
+        axis,
+        status: result.status,
+        visibleRange: result.visibleRange,
+    };
+};
+
+const lifecycleSummary = (): JsonObject => {
+    if (!activeSession) return { available: false };
+    const session = activeSession;
+    const info = session.leaksWorkerInfo;
+    const selected = info.clickItem;
+    const metrics = (globalThis as { __LEAKS_MEMORY_METRICS__?: BlockGraphBuildMetrics }).__LEAKS_MEMORY_METRICS__;
+    return {
+        available: true,
+        ready: isLifecycleGraphReady(session),
+        timestampRange: { min: finite(info.sizeInfo.minTimestamp), max: finite(info.sizeInfo.maxTimestamp) },
+        sizeRangeBytes: { min: finite(info.sizeInfo.minSize), max: finite(info.sizeInfo.maxSize) },
+        reservedSizeMaxBytes: finite(info.sizeInfo.reservedSizeMax),
+        build: metrics
+            ? {
+                blockCount: metrics.blockCount,
+                eventCount: metrics.eventCount,
+                pathPoints: metrics.pathPoints,
+                droppedPathPoints: metrics.droppedPathPoints,
+                buildDurationMs: metrics.buildDurationMs,
+                lodApplied: metrics.lodApplied,
+            }
+            : null,
+        selectedBlock: selected ? blockSummary(selected) : null,
+        view: { ...info.renderOptions.transform },
+    };
+};
+
+const poolSummary = (): JsonObject => {
+    if (!activeSession) return { available: false };
+    const session = activeSession;
+    if (!memoryPoolSummaryContext?.() || !isMemSnapshotSliceReadyForQuery(session) ||
+        memoryPoolSummary?.eventId !== session.stateWorkerInfo.eventId) {
+        clearMemoryPoolSummary();
+    }
+    const selected = session.stateWorkerInfo.clickItem;
+    return {
+        available: true,
+        selectedEventId: session.stateWorkerInfo.eventId >= 0 ? session.stateWorkerInfo.eventId : null,
+        aggregate: memoryPoolSummary ?? null,
+        selectedItem: selected
+            ? {
+                type: selected.type,
+                segment: segmentSummary(selected.data),
+            }
+            : null,
+        selectedEvent: session.clickEventItem
+            ? {
+                id: finite(session.clickEventItem.id),
+                action: String(session.clickEventItem.action ?? ''),
+                address: String(session.clickEventItem.address ?? ''),
+                stream: finite(session.clickEventItem.stream),
+                sizeBytes: finite(session.clickEventItem.size),
+            }
+            : null,
+        view: { ...session.stateWorkerInfo.renderOptions.transform },
+    };
+};
+
+const selectBlock = (args: JsonObject): JsonObject => {
+    const session = requireSession();
+    const blockId = integerArg(args.blockId, 'blockId');
+    runInAction(() => { session.pendingBlockLocateId = blockId; });
+    return { accepted: true, blockId };
+};
+
+const selectEvent = (args: JsonObject): JsonObject => {
+    const session = requireSession();
+    const eventId = integerArg(args.eventId, 'eventId');
+    if (session.module !== 'memsnapshot') throw unavailable('Memory pool events require a snapshot session.');
+    if (!session.deviceId) throw unavailable('No memory device is currently selected.');
+    const deviceId = session.deviceId;
+    const deviceSlices = session.snapshotSlices[deviceId];
+    const sliceIndex = resolveMemSnapshotSliceIndexByEventId(deviceSlices, eventId);
+    if (sliceIndex === undefined) {
+        const targetSlice = deviceSlices?.slices.find(slice => eventId >= slice.startEventId && eventId <= slice.endEventId);
+        throw new CommandError({
+            code: targetSlice ? COMMAND_ERROR_CODES.UNAVAILABLE : COMMAND_ERROR_CODES.NOT_FOUND,
+            message: targetSlice ? 'The target memory snapshot slice is not ready.' : 'The event is not in a known memory snapshot slice.',
+            retryable: targetSlice !== undefined,
+            details: { eventId, deviceId, sliceIndex: targetSlice?.index ?? null },
+        });
+    }
+    runInAction(() => { applyMemSnapshotEventLocate(session, eventId, deviceId); });
+    // The existing state-diagram locate effect selects the row and clears pending.
+    return { accepted: true, eventId, deviceId, sliceIndex };
+};
+
+const getBlockDetail = async (args: JsonObject): Promise<JsonObject> => {
+    const session = requireSnapshotSession();
+    const blockId = integerArg(args.blockId, 'blockId');
+    const maxItems = maxItemsArg(args.maxItems);
+    const detail = await requestSnapshotDetail(session, { type: 'block', id: blockId });
+    return boundedDetailResult(detail, maxItems);
+};
+
+const queryBlocks = async (args: JsonObject): Promise<JsonObject> => {
+    const session = requireSession();
+    requireLifecycleGraphReady(session);
+    const sortBy = args.sortBy;
+    if (sortBy !== 'size' && sortBy !== 'lifetime') throw invalid('sortBy must be size or lifetime.');
+    const limit = optionalIntegerArg(args.limit, 'limit', 10, 1, 20);
+    const address = args.address === undefined ? undefined : stringArg(args.address, 'address');
+    const minSize = optionalNonNegativeNumber(args.minSize, 'minSize');
+    const minLifetime = optionalNonNegativeNumber(args.minLifetime, 'minLifetime');
+    const isCurrentContext = captureSessionContext(session);
+    let result: BlockQueryResult;
+    try {
+        result = await workerQueryBlocks({ sortBy, limit, address, minSize, minLifetime });
+    } finally {
+        requireCurrentContext(isCurrentContext);
+        requireLifecycleGraphReady(session);
+    }
+    return {
+        blocks: result.blocks.slice(0, limit).map(block => ({
+            id: block.id,
+            address: String(block.address).slice(0, 2000),
+            startTimestamp: finite(block.startTimestamp),
+            endTimestamp: finite(block.endTimestamp),
+            lifetime: finite(block.lifetime),
+            sizeBytes: finite(block.sizeBytes),
+        })),
+        scannedEntries: finite(result.scannedEntries),
+        matchedEntries: finite(result.matchedEntries),
+        limit,
+        sortBy,
+    };
+};
+
+const getEventDetail = async (args: JsonObject): Promise<JsonObject> => {
+    const session = requireSnapshotSession();
+    const eventId = integerArg(args.eventId, 'eventId');
+    const maxItems = maxItemsArg(args.maxItems);
+    const detail = await requestSnapshotDetail(session, { type: 'event', id: eventId });
+    return boundedDetailResult(detail, maxItems);
+};
+
+const getSegmentDetail = async (args: JsonObject): Promise<JsonObject> => {
+    const session = requireSnapshotSession();
+    const eventId = integerArg(args.eventId, 'eventId');
+    const address = stringArg(args.address, 'address');
+    const stream = signedIntegerArg(args.stream, 'stream');
+    const maxItems = maxItemsArg(args.maxItems);
+    const detail = await requestSnapshotDetail(session, {
+        type: 'segment',
+        id: -1,
+        eventId,
+        segmentAddress: address,
+        stream,
+    });
+    return boundedDetailResult(detail, maxItems);
+};
+
+const clearSelection = (): JsonObject => {
+    const session = requireSession();
+    const selectionVersion = session.selectionVersion + 1;
+    workerSelectBlock({ item: null, selectionVersion });
+    workerSelectState({ item: null, selectionVersion });
+    runInAction(() => {
+        session.selectionVersion = selectionVersion;
+        session.leaksWorkerInfo.clickItem = null;
+        session.stateWorkerInfo.clickItem = null;
+        session.clickEventItem = null;
+    });
+    return { cleared: true };
+};
+
+const resetLifecycleView = (): JsonObject => {
+    const session = requireSession();
+    runInAction(() => { session.leaksWorkerInfo.renderOptions.transform = { ...DEFAULT_TRANSFORM }; });
+    workerTransformBlock({ transform: { ...DEFAULT_TRANSFORM } });
+    workerHoverBlock({ clientX: -1, clientY: -1 });
+    document.querySelector('[data-testid="blockDiagramPanel"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return { reset: true };
+};
+
+const resetPoolView = (): JsonObject => {
+    const session = requireSession();
+    runInAction(() => { session.stateWorkerInfo.renderOptions.transform = { ...DEFAULT_TRANSFORM }; });
+    workerTransformState({ transform: { ...DEFAULT_TRANSFORM } });
+    workerHoverState({ clientX: -1, clientY: -1 });
+    document.querySelector('[data-testid="stateDiagramPanel"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return { reset: true };
+};
+
+const blockSummary = (block: Block): JsonObject => ({
+    id: block.id,
+    address: block.addr,
+    startTimestamp: block._startTimestamp,
+    endTimestamp: block._endTimestamp,
+    lifetime: Math.max(0, block._endTimestamp - block._startTimestamp),
+    sizeBytes: block.size,
+});
+
+const segmentSummary = (segment: Segment): JsonObject => ({
+    address: segment.address,
+    stream: segment.stream,
+    capacityBytes: segment.size,
+    blockCount: segment.blocks.length,
+    usedBytes: segment.blocks.reduce((total, block) => total + finite(block.size), 0),
+    allocOrMapEventId: segment.allocOrMapEventId,
+    eventId: segment.eventId ?? null,
+});
+
+const requireSession = (): Session => {
+    if (!activeSession) throw unavailable('MemScope has no active analysis session.');
+    return activeSession;
+};
+const requireSnapshotSession = (): Session => {
+    const session = requireSession();
+    requireSnapshotReady(session);
+    return session;
+};
+const requireSnapshotReady = (session: Session): void => {
+    if (session.module !== 'memsnapshot') throw unavailable('Snapshot detail is unavailable for the current live leaks session.');
+    if (!session.deviceId) throw unavailable('No memory device is currently selected.');
+    if (!isMemSnapshotSliceReadyForQuery(session)) throw unavailable('The current memory snapshot slice is not ready.');
+};
+const isLifecycleGraphReady = (session: Session): boolean => (
+    session.deviceId !== '' && !session.loadingBlocks && isMemSnapshotSliceReadyForQuery(session) &&
+    isMemoryBlockLoadReady(session) && session.loadedMemoryBlockContextKey === createMemoryBlockContextKey(session)
+);
+const requireLifecycleGraphReady = (session: Session): void => {
+    if (!isLifecycleGraphReady(session)) throw unavailable('The lifecycle graph is not ready for the current memory context.');
+};
+const captureSessionContext = (session: Session): (() => boolean) => {
+    const contextKey = createMemoryBlockContextKey(session);
+    const { dbPath, deviceIds } = session;
+    const generation = sessionGeneration;
+    return () => activeSession === session && sessionGeneration === generation &&
+        createMemoryBlockContextKey(session) === contextKey && session.dbPath === dbPath && session.deviceIds === deviceIds;
+};
+const requireCurrentContext = (isCurrentContext: () => boolean): void => {
+    if (!isCurrentContext()) throw new CommandError({
+        code: COMMAND_ERROR_CODES.CANCELLED,
+        message: 'The memory context changed before the command completed.',
+        retryable: true,
+        details: { reason: 'context_changed' },
+    });
+};
+const requestSnapshotDetail = async (
+    session: Session,
+    params: Omit<Parameters<typeof getSnapshotDetail>[0], 'deviceId' | 'sliceIndex'>,
+): Promise<unknown> => {
+    const isCurrentContext = captureSessionContext(session);
+    const { deviceId, selectedSliceIndex } = session;
+    try {
+        return await getSnapshotDetail({ ...params, deviceId, sliceIndex: selectedSliceIndex });
+    } finally {
+        requireCurrentContext(isCurrentContext);
+        requireSnapshotReady(session);
+    }
+};
+const integerArg = (value: unknown, name: string): number => {
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < 0) throw invalid(`${name} must be a non-negative integer.`);
+    return number;
+};
+const signedIntegerArg = (value: unknown, name: string): number => {
+    const number = Number(value);
+    if (!Number.isInteger(number)) throw invalid(`${name} must be an integer.`);
+    return number;
+};
+const stringArg = (value: unknown, name: string): string => {
+    if (typeof value !== 'string' || !value.trim()) throw invalid(`${name} must be a non-empty string.`);
+    return value.trim();
+};
+const maxItemsArg = (value: unknown): number => optionalIntegerArg(value, 'maxItems', 20, 1, 50);
+const optionalIntegerArg = (
+    value: unknown,
+    name: string,
+    fallback: number,
+    minimum: number,
+    maximum: number,
+): number => {
+    if (value === undefined) return fallback;
+    const number = Number(value);
+    if (!Number.isInteger(number) || number < minimum || number > maximum) {
+        throw invalid(`${name} must be an integer between ${minimum} and ${maximum}.`);
+    }
+    return number;
+};
+const optionalNonNegativeNumber = (value: unknown, name: string): number | undefined => {
+    if (value === undefined) return undefined;
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0) throw invalid(`${name} must be a non-negative number.`);
+    return number;
+};
+const boundedDetailResult = (detail: unknown, maxItems: number): JsonObject => ({
+    detail: toBoundedDetail(detail, { maxArrayItems: maxItems }),
+    limits: { maxArrayItems: maxItems, maxDepth: 4, maxObjectKeys: 50, maxStringLength: 2000 },
+});
+const finite = (value: unknown): number => Number.isFinite(Number(value)) ? Number(value) : 0;
+const emptySchema = (): JsonObject => objectSchema({}, []);
+const detailSchema = (idName: string): JsonObject => objectSchema({
+    [idName]: { type: 'integer', minimum: 0 },
+    maxItems: detailLimitSchema(),
+}, [idName]);
+const detailLimitSchema = (): JsonObject => ({ type: 'integer', minimum: 1, maximum: 50, default: 20 });
+const objectSchema = (properties: JsonObject, required: string[]): JsonObject => ({
+    type: 'object', properties, required, additionalProperties: false,
+});
+const invalid = (message: string): CommandError => new CommandError({
+    code: COMMAND_ERROR_CODES.INVALID, message, retryable: false,
+});
+const unavailable = (message: string): CommandError => new CommandError({
+    code: COMMAND_ERROR_CODES.UNAVAILABLE, message, retryable: true,
+});

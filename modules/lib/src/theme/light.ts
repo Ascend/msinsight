@@ -59,6 +59,8 @@ export const light: Theme = {
     timelineAxisColor: '#C3CEDF',
     searchInputCaretColor: '#0A59F7',
     allSessionHeadBgColor: 'rgba(0, 0, 0, 0.05)',
+    agentWelcomeCardBackgroundColor: 'rgba(0, 0, 0, 0.03)',
+    agentUserMessageBackgroundColor: '#EDF3FE',
     deviceProcessActiveBackgroundColor: '#FFFFFF', // 设备和进程下拉框选中范围的背景颜色
     placeholderFontColor: 'rgb(150, 150, 150, 0.9)',
     unitTagInfoBackgroundColor: 'rgb(0, 0, 0, 0.15)',
@@ -227,6 +229,7 @@ export const light: Theme = {
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen, Ubuntu, Cantarell, \'Fira Sans\', \'Droid Sans\', sans-serif',
     borderRadiusBase: '4px',
     borderRadiusSmall: '2px',
+    borderRadiusLarge: '8px',
     borderRadiusRound: '20px',
     borderRadiusCircle: '100%',
     pagePadding: '16px',

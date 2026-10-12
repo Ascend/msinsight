@@ -55,7 +55,9 @@
       "@insight/lib/useDraggableContainer": "<rootDir>/../lib/src/useDraggableContainer/index.ts",
       "@insight/lib/utils": "<rootDir>/../lib/src/utils/index.ts",
       "@insight/lib/resize": "<rootDir>/../lib/src/resize/index.ts",
-      "@insight/lib/components": "<rootDir>/../lib/src/components/index.ts"
+      "@insight/lib/components": "<rootDir>/../lib/src/components/index.ts",
+      "^@insight/lib/FrontendAgentCommand$": "<rootDir>/../lib/src/FrontendAgentCommand/index.ts",
+      "^@insight/lib/ModuleAgentCommandClient$": "<rootDir>/../lib/src/ModuleAgentCommandClient/index.ts"
     }
   },
   "browserslist": {

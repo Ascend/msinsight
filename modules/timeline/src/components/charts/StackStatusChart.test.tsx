@@ -17,13 +17,14 @@
  */
 
 import React from 'react';
-import { act, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import type { StackStatusData } from '../../entity/chart';
 import type { ThreadMetaData } from '../../entity/data';
-import { UnitHeight, type InsightUnit } from '../../entity/insight';
-import type { Session } from '../../entity/session';
+import { unit, UnitHeight } from '../../entity/insight';
+import { Session } from '../../entity/session';
+import { selectSlice } from '../../agent/selectSlice';
 import { StackStatusChart } from './StackStatusChart';
-import { useClick, useData } from './hooks';
+import { useClick, useDataState, useRangeAndDomain } from './hooks';
 import type { OffsetSide } from '../../insight/units/offset';
 
 // Use the distributed CommonJS bundle so pnpm's nested ESM package path works in Jest.
@@ -31,11 +32,17 @@ jest.mock('d3', () => jest.requireActual(require.resolve('d3').replace(/src[\\/]
 jest.mock('./hooks', () => ({
     useBatchedRender: jest.fn(),
     useClick: jest.fn(),
-    useData: jest.fn(),
+    useDataState: jest.fn(),
     useHoverPos: jest.fn(),
-    useRangeAndDomain: (): number[][] => [[0, 100], [0, 100]],
+    useRangeAndDomain: jest.fn(),
 }));
 jest.mock('./TooltipComp', () => ({ TooltipComponent: (): null => null }));
+
+afterEach(() => {
+    cleanup();
+    jest.resetAllMocks();
+    jest.restoreAllMocks();
+});
 
 const clickSlice = (metadata: Partial<ThreadMetaData>, returnedThreadId?: string, unitMetadata = metadata): Session => {
     const slice: StackStatusData = {
@@ -52,21 +59,29 @@ const clickSlice = (metadata: Partial<ThreadMetaData>, returnedThreadId?: string
         cardId: 'rank0',
         dbPath: 'trace.db',
     };
-    const unit = { metadata: unitMetadata, isTraceLoading: false } as InsightUnit;
-    const selectedSession = { endTimeAll: 100, selectedRangeData: [slice] } as unknown as Session;
-    (useData as jest.Mock).mockReturnValue([[slice]]);
+    const Stack = unit<ThreadMetaData>({ name: 'Python Stack' });
+    const lane = new Stack(unitMetadata as ThreadMetaData);
+    const selectedSession = new Session({ isNsMode: true });
+    selectedSession.endTimeAll = 100;
+    selectedSession.domainRange = { domainStart: 0, domainEnd: 100 };
+    selectedSession.selectedRangeData = [slice];
+    (useDataState as jest.Mock).mockReturnValue({ data: [[slice]], ready: true });
     render(<StackStatusChart
-        session={selectedSession} unit={unit} metadata={metadata} margin={0} width={100} height={UnitHeight.STANDARD}
+        session={selectedSession} unit={lane} metadata={metadata} margin={0} width={100} height={UnitHeight.STANDARD}
         rowHeight={UnitHeight.STANDARD} isCollapse={false} title="Python Stack" mapFunc={jest.fn()}
     />);
     const { handleMouseUp } = (useClick as jest.Mock).mock.calls[0][0];
     act(() => handleMouseUp({ offsetX: 20, offsetY: 5 } as MouseEvent));
-    expect(selectedSession.selectedDataUnit).toBe(unit);
+    expect(selectedSession.selectedDataUnit).toBe(lane);
     expect(selectedSession.selectedRangeData).toBeUndefined();
     return selectedSession;
 };
 
 describe('StackStatusChart slice selection', () => {
+    beforeEach(() => {
+        (useRangeAndDomain as jest.Mock).mockReturnValue([[0, 100], [0, 100]]);
+    });
+
     it.each<{ metaType: string; offsetSide?: OffsetSide; expectedSide: OffsetSide }>([
         { metaType: 'TEXT', offsetSide: 'device', expectedSide: 'device' },
         { metaType: 'TEXT', offsetSide: 'host', expectedSide: 'host' },
@@ -117,5 +132,56 @@ describe('StackStatusChart slice selection', () => {
         const selectedSession = clickSlice({ threadId: '2', processId: '200', metaType: 'Ascend Hardware' });
 
         expect(selectedSession.selectedData?.threadId).toBe('2');
+    });
+});
+
+describe('StackStatusChart Agent slice registration', () => {
+    beforeEach(() => {
+        const actualHooks = jest.requireActual<typeof import('./hooks')>('./hooks');
+        (useDataState as jest.Mock).mockImplementation(actualHooks.useDataState);
+        (useRangeAndDomain as jest.Mock).mockImplementation(actualHooks.useRangeAndDomain);
+    });
+
+    test('registers the mounted expanded chart and selects through its click callback, then removes collapsed/unmounted sources', async () => {
+        jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 200, right: 1000, top: 100, bottom: 180, width: 800, height: 80 } as DOMRect);
+        const session = new Session({ isNsMode: true });
+        const Thread = unit<ThreadMetaData>({ name: 'Thread' });
+        const metadata = { cardId: '0', processId: 'p1', threadId: 't1', threadName: 'stream', metaType: 'TEXT' } as ThreadMetaData;
+        const lane = new Thread(metadata);
+        const data: StackStatusData = { id: 'slice-1', startTime: 1000, originalStartTime: 1200, duration: 50, name: 'MatMul', type: 'MatMul', color: 'deepBlue', depth: 0, cname: '' };
+        session.phase = 'download';
+        session.endTimeAll = 2000;
+        session.domainRange = { domainStart: 0, domainEnd: 2000 };
+        const viewport = { ...session.domainRange };
+        const props = {
+            session,
+            unit: lane,
+            metadata,
+            margin: 0,
+            width: 800,
+            height: 80,
+            rowHeight: UnitHeight.STANDARD,
+            title: 'Thread',
+            mapFunc: jest.fn(async () => [[data]]),
+            onClick: jest.fn(),
+            isCollapse: false,
+        };
+        const view = render(<StackStatusChart {...props}/>);
+        await act(async () => { await Promise.resolve(); });
+        const context = { requestId: 'test', signal: new AbortController().signal, deadline: Date.now() + 5000 };
+        await act(async () => {
+            await expect(selectSlice({ name: 'MatMul' }, context, session, () => true)).resolves.toMatchObject({ status: 'selected' });
+        });
+        expect(session.selectedData).toMatchObject({ id: 'slice-1', timestamp: 1200, threadId: 't1', showSelectedData: true });
+        expect(session.selectedDataUnit).toBe(lane);
+        expect(session.selectedData?.offsetSide).toBe('host');
+        expect(session.selectedUnits).toEqual([lane]);
+        expect(props.onClick).toHaveBeenCalledWith(data, session, metadata);
+        expect(session.domainRange).toEqual(viewport);
+        view.rerender(<StackStatusChart {...props} isCollapse={true}/>);
+        await expect(selectSlice({ name: 'MatMul' }, context, session, () => true)).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE' });
+        view.rerender(<StackStatusChart {...props}/>);
+        view.unmount();
+        await expect(selectSlice({ name: 'MatMul' }, context, session, () => true)).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE' });
     });
 });

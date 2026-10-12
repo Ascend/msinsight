@@ -1,0 +1,368 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
+import { sortByTimeDescending } from '@insight/lib/utils';
+import type { HostContext } from './connection';
+import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, capabilityAuthHeaders } from './env';
+import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
+import { canAttemptAcpRequest, type AcpUnavailableReason } from './acpStatus';
+import { sealEnvSecrets, sealSecretInput } from './secretSeal';
+
+interface PromptResponse {
+    ok?: boolean;
+    sessionId?: string;
+    error?: string;
+}
+
+interface SessionsResponse {
+    sessions?: SessionItem[];
+    error?: string;
+}
+
+interface OkResponse {
+    ok?: boolean;
+    runtimeChanged?: boolean;
+    sessionId?: string;
+    configOptions?: ConfigOption[];
+    error?: string;
+}
+
+interface AgentsResponse extends OkResponse {
+    activeAgentName?: string;
+    agentServers?: AgentServerItem[];
+    discoveryLoading?: boolean;
+}
+
+export const fetchAgents = (): Promise<AgentsResponse> => {
+    return requestJson<AgentsResponse>('/api/agents');
+};
+
+export const refreshAgents = (): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/agents/refresh', { method: 'POST' });
+};
+
+interface LoadSessionResponse extends OkResponse {
+    messages?: ChatMessage[];
+    pendingPrompt?: boolean;
+}
+
+interface ErrorResponseBody {
+    error?: string;
+    code?: string;
+    message?: string;
+    details?: unknown;
+    saved?: boolean;
+}
+
+export class ApiRequestError extends Error {
+    constructor(
+        message: string,
+        readonly status: number | undefined,
+        readonly path: string,
+        readonly body?: ErrorResponseBody,
+    ) {
+        super(message);
+        this.name = 'ApiRequestError';
+    }
+}
+
+export const isBackendUnavailableError = (error: unknown): error is ApiRequestError => (
+    error instanceof ApiRequestError && error.status === undefined
+);
+
+const CONNECT_RETRY_DELAYS_MS = ACP_STATUS === 'starting' ? [400, 800, 1600, 3000] : [400, 800, 1600];
+
+const shouldRetryConnection = (): boolean => canAttemptAcpRequest(ACP_STATUS);
+
+const connectionFailureStatus = (): AcpUnavailableReason => {
+    if (ACP_STATUS === 'ready') {
+        return 'unreachable';
+    }
+    return ACP_STATUS;
+};
+
+const isAbortError = (error: unknown): boolean => (
+    (error instanceof DOMException && error.name === 'AbortError')
+    || (error instanceof Error && error.name === 'AbortError')
+);
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+});
+
+const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> => {
+    const delays = shouldRetryConnection() ? CONNECT_RETRY_DELAYS_MS : [];
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+        try {
+            return await fetch(url, {
+                ...init,
+                headers: {
+                    ...capabilityAuthHeaders(),
+                    ...(init?.body ? { 'content-type': 'application/json' } : {}),
+                    ...init?.headers,
+                },
+            });
+        } catch (error) {
+            lastError = error;
+            if (isAbortError(error) || attempt === delays.length) {
+                throw error;
+            }
+            await sleep(delays[attempt]);
+        }
+    }
+    throw lastError;
+};
+
+const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const url = apiUrl(path);
+    if (!canAttemptAcpRequest(ACP_STATUS)) {
+        reportBackendUnavailable({
+            url: safeEndpoint(url),
+            status: connectionFailureStatus(),
+            nodeVersion: ACP_NODE_VERSION,
+        });
+        throw new ApiRequestError(`Unable to connect to the Agent backend: ${ACP_STATUS}`, undefined, path);
+    }
+
+    let response: Response;
+    try {
+        response = await fetchBackend(url, init);
+    } catch (error) {
+        if (isAbortError(error)) {
+            throw error;
+        }
+        const cause = error instanceof Error ? error.message : String(error);
+        reportBackendUnavailable({
+            url: safeEndpoint(url),
+            cause,
+            status: connectionFailureStatus(),
+            nodeVersion: ACP_NODE_VERSION,
+        });
+        throw new ApiRequestError(`Unable to connect to the Agent backend: ${cause}`, undefined, path);
+    }
+
+    const rawBody = await response.text();
+    let body: (T & ErrorResponseBody) | undefined;
+    try {
+        body = rawBody ? JSON.parse(rawBody) as T & ErrorResponseBody : undefined;
+    } catch (_error) {
+        throw new ApiRequestError(
+            `The backend returned an invalid JSON response (HTTP ${response.status}).`,
+            response.status,
+            path,
+            { details: rawBody.slice(0, 500) },
+        );
+    }
+    if (!response.ok) {
+        const detail = formatErrorDetails(body?.details);
+        throw new ApiRequestError(
+            `${body?.message ?? body?.error ?? response.statusText}${detail}`,
+            response.status,
+            path,
+            body,
+        );
+    }
+    reportBackendAvailable();
+    return body as T;
+};
+
+const safeEndpoint = (url: string): string => {
+    try {
+        const parsed = new URL(url, window.location.href);
+        return `${parsed.origin}${parsed.pathname}`;
+    } catch (_error) {
+        return url.split('?')[0];
+    }
+};
+
+const formatErrorDetails = (details: unknown): string => {
+    if (details === undefined || details === null || details === '') {
+        return '';
+    }
+    if (typeof details === 'string') {
+        return `: ${details}`;
+    }
+    try {
+        return `: ${JSON.stringify(details)}`;
+    } catch (_error) {
+        return '';
+    }
+};
+
+export const fetchState = (): Promise<Partial<AppState>> => {
+    return requestJson<Partial<AppState>>('/api/state');
+};
+
+export const fetchSessions = async (): Promise<SessionItem[]> => {
+    const body = await requestJson<SessionsResponse>('/api/sessions');
+    return sortByTimeDescending(body.sessions ?? [], (session) => session.updatedAt);
+};
+
+export const createSession = (): Promise<LoadSessionResponse> => {
+    return requestJson<LoadSessionResponse>('/api/sessions/new', { method: 'POST' });
+};
+
+export const setSessionConfigOption = (configId: string, value: string, sessionId: string): Promise<SessionConfigUpdateResult> => {
+    return requestJson<SessionConfigUpdateResult>('/api/session-config/option', {
+        method: 'POST',
+        body: JSON.stringify({ configId, value, sessionId }),
+    });
+};
+
+export const setSessionModel = (model: string, sessionId?: string): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/session-config/model', {
+        method: 'POST',
+        body: JSON.stringify({ model, sessionId }),
+    });
+};
+
+export const setSessionMode = (mode: string, sessionId?: string): Promise<SessionConfigUpdateResult> => {
+    return requestJson<SessionConfigUpdateResult>('/api/session-config/mode', {
+        method: 'POST',
+        body: JSON.stringify({ mode, sessionId }),
+    });
+};
+
+export const loadSession = (sessionId: string): Promise<LoadSessionResponse> => {
+    return requestJson<LoadSessionResponse>('/api/sessions/load', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+    });
+};
+
+export const deleteSession = (sessionId: string): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/sessions/delete', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+    });
+};
+
+export const exportSession = (sessionId: string, persist = false): Promise<SessionExportDocument> => {
+    return requestJson<SessionExportDocument>('/api/sessions/export', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, persist }),
+    });
+};
+
+export const sendPrompt = (
+    text: string,
+    newSession?: boolean,
+    sessionId?: string,
+    images: ImageAttachment[] = [],
+    mode?: string,
+    pageObservation?: Record<string, unknown>,
+    promptPreset?: 'memory-tuning-assistant',
+): Promise<PromptResponse> => {
+    return requestJson<PromptResponse>('/api/prompt', {
+        method: 'POST',
+        body: JSON.stringify({ text, newSession, sessionId, images, mode, pageObservation, promptPreset }),
+    });
+};
+
+export const updateContext = (context: HostContext): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/context', {
+        method: 'POST',
+        body: JSON.stringify(context),
+    });
+};
+
+export const updatePageObservation = (observation: Record<string, unknown>): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/page/observation', {
+        method: 'POST',
+        body: JSON.stringify({ observation }),
+    });
+};
+
+export const fetchPageObservation = (): Promise<{ observation?: Record<string, unknown> | null; updatedAt?: number | null }> => {
+    return requestJson('/api/page/observation');
+};
+
+export const claimFrontendCommand = (requestId: string): Promise<{ ok?: boolean; claimed?: boolean; claimToken?: string }> => requestJson('/api/frontend-commands/claim', {
+    method: 'POST',
+    body: JSON.stringify({ requestId }),
+});
+
+export const respondFrontendCommand = (body: {
+    requestId: string;
+    claimToken: string;
+    status: 'completed' | 'failed' | 'cancelled';
+    result?: unknown;
+    error?: unknown;
+}): Promise<OkResponse> => requestJson<OkResponse>('/api/frontend-commands/respond', {
+    method: 'POST',
+    body: JSON.stringify(body),
+});
+
+export const cancelPrompt = (sessionId?: string): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId }),
+    });
+};
+
+export const switchAgent = (name: string): Promise<AgentsResponse> => {
+    return requestJson<AgentsResponse>('/api/agents/switch', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+};
+
+export const respondPermission = (sessionId: string, requestId: string, decision: PermissionDecision): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/permissions/respond', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, requestId, decision }),
+    });
+};
+
+export const fetchAgentConfig = async (): Promise<AgentConfigSnapshot> => {
+    const body = await requestJson<{ snapshot: AgentConfigSnapshot }>('/api/agent-config');
+    return body.snapshot;
+};
+
+export const saveAgentServersConfig = async (config: { activeAgentName: string; agentServers: AgentConfigServer[] }): Promise<AgentConfigSaveResult> => {
+    const crypto = (await fetchAgentConfig()).crypto;
+    return requestJson<AgentConfigSaveResult>('/api/agent-config/servers', {
+        method: 'PUT',
+        body: JSON.stringify({
+            ...config,
+            agentServers: await Promise.all(config.agentServers.map(async (server) => ({
+                ...server,
+                env: await sealEnvSecrets(server.env, crypto),
+            }))),
+        }),
+    });
+};
+
+export const saveBuiltinAgentConfig = async (config: BuiltinAgentConfig): Promise<AgentConfigSaveResult> => {
+    const crypto = (await fetchAgentConfig()).crypto;
+    return requestJson<AgentConfigSaveResult>('/api/agent-config/builtin', {
+        method: 'PUT',
+        body: JSON.stringify({
+            ...config,
+            apiKey: await sealSecretInput(config.apiKey, crypto),
+        }),
+    });
+};
+
+export const saveAgentSessionConfig = (config: AgentSessionConfig): Promise<AgentConfigSaveResult> => {
+    return requestJson<AgentConfigSaveResult>('/api/agent-config/session', {
+        method: 'PUT',
+        body: JSON.stringify(config),
+    });
+};

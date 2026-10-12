@@ -1,0 +1,385 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import styled from '@emotion/styled';
+import { ToolOutlined } from '@ant-design/icons';
+import React, { useRef, useState } from 'react';
+import { Tooltip } from '@insight/lib/components';
+import { useTranslation } from 'react-i18next';
+import { resolveAgentKind } from '../agentBrand';
+import { AgentKindIcon } from './AgentKindIcon';
+import { requestHostClose } from '../connection';
+import { useChatState } from '../hooks/useChatState';
+import closeIcon from '../icons/close.svg';
+import exportIcon from '../icons/export.svg';
+import historyIcon from '../icons/history-session.svg';
+import newSessionIcon from '../icons/new-session.svg';
+import refreshIcon from '../icons/refresh.svg';
+import settingsIcon from '../icons/settings.svg';
+import statusDotIcon from '../icons/status-dot.svg';
+import type { AvailableCapability } from '../types';
+import { AgentSelect } from './AgentSelect';
+import { AgentSettingsDialog } from './AgentSettingsDialog';
+import { SessionHistoryPopover } from './SessionHistoryPopover';
+
+const Container = styled.div`
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    min-height: 54px;
+    gap: 0;
+    padding: 10px 16px;
+    background: ${(props): string => props.theme.bgColor};
+
+    .agent-brand {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .agent-picker {
+        width: fit-content;
+        max-width: calc(100vw - 260px);
+        flex: 0 1 auto;
+        min-width: 0;
+    }
+
+    .capability-indicator {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        color: ${(props): string => props.theme.dangerColor};
+        font-size: 15px;
+        outline: none;
+    }
+
+    .capability-indicator.available {
+        color: ${(props): string => props.theme.successColor};
+    }
+
+    .capability-indicator:focus-visible {
+        box-shadow: 0 0 0 2px ${(props): string => props.theme.primaryColorLight2};
+    }
+
+    .agent-error {
+        color: ${(props): string => props.theme.dangerColor};
+        font-size: 12px;
+        line-height: 1;
+    }
+
+    .icon-button {
+        position: relative;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        padding: 6px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
+        cursor: pointer;
+    }
+
+    .icon-button:hover {
+        background: ${(props): string => props.theme.bgColorDark};
+    }
+
+    .icon-button img {
+        width: 16px;
+        height: 16px;
+        filter: ${(props): string => props.theme.mode === 'dark' ? 'invert(1)' : 'none'};
+    }
+
+    .icon-button:disabled {
+        color: ${(props): string => props.theme.textColorDisabled};
+        cursor: not-allowed;
+    }
+
+    .icon-button .history-attention {
+        width: 8px;
+        height: 8px;
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        filter: none;
+        pointer-events: none;
+    }
+
+`;
+
+const CapabilityTooltipContent = styled.div`
+    display: grid;
+    gap: 8px;
+    min-width: 180px;
+
+    .title {
+        font-weight: 700;
+    }
+
+    .item {
+        display: grid;
+        gap: 2px;
+    }
+
+    .description,
+    .empty {
+        color: ${(props): string => props.theme.textColorSecondary};
+    }
+`;
+
+const AgentAvatar = styled.span`
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: ${(props): string => props.theme.primaryColorLight5};
+    color: ${(props): string => props.theme.primaryColor};
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+
+    &.logo {
+        border-radius: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    img,
+    [data-agent-icon] {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+`;
+
+const AgentSelectActions = styled.div`
+    display: flex;
+    gap: 8px;
+`;
+
+const AgentSelectActionButton = styled.button`
+    flex: 1 1 0;
+    min-width: 0;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid ${(props): string => props.theme.borderColorLighter};
+    border-radius: ${(props): string => props.theme.borderRadiusLarge};
+    background: transparent;
+    color: ${(props): string => props.theme.textColorPrimary};
+    font-size: 14px;
+    cursor: pointer;
+
+    .refresh-icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+        background: currentColor;
+        -webkit-mask: url(${refreshIcon}) center / contain no-repeat;
+        mask: url(${refreshIcon}) center / contain no-repeat;
+    }
+
+    &:hover:not(:disabled) {
+        border-color: ${(props): string => props.theme.primaryColor};
+        color: ${(props): string => props.theme.primaryColor};
+    }
+
+    &:disabled {
+        color: ${(props): string => props.theme.textColorDisabled};
+        cursor: not-allowed;
+    }
+`;
+
+export const SessionSidebar = (): JSX.Element => {
+    const {
+        createSession,
+        activeAgentName,
+        agentError,
+        agentServers,
+        availableCapabilities,
+        currentSessionId,
+        deleteSession,
+        exportSession,
+        sessions,
+        selectSession,
+        setAgent,
+        refreshAgents,
+        agentDiscoveryLoading,
+    } = useChatState();
+    const [open, setOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [createAgentOnOpen, setCreateAgentOnOpen] = useState(false);
+    const [historyAttention, setHistoryAttention] = useState(false);
+    const historyButtonRef = useRef<HTMLButtonElement>(null);
+    const { t } = useTranslation('insightWebAgent');
+    const openSettings = (createAgent: boolean): void => {
+        setCreateAgentOnOpen(createAgent);
+        setSettingsOpen(true);
+    };
+
+    const getOptions = () => {
+        return agentServers.filter(agent => agent.available)
+            .map((agent) => ({
+                value: agent.name,
+                label: agent.available === false ? t('unavailableAgentLabel', { name: agent.name }) : agent.name,
+                title: agent.available === false ? t('unavailableAgentHint') : agent.name,
+                icon: getAgentIcon(agent.name),
+                disabled: agent.available === false,
+            }))
+    };
+
+    return (
+        <Container>
+            <div className="agent-brand">
+                <AgentSelect
+                    className="agent-picker"
+                    footer={(
+                        <AgentSelectActions>
+                            <AgentSelectActionButton onClick={() => openSettings(true)} type="button">
+                                {t('addAgent')}
+                            </AgentSelectActionButton>
+                            <AgentSelectActionButton
+                                aria-label={t('refreshAgents')}
+                                disabled={agentDiscoveryLoading}
+                                onClick={() => { refreshAgents(); }}
+                                title={t('refreshAgents')}
+                                type="button"
+                            >
+                                <span aria-hidden="true" className="refresh-icon" />
+                                {t('refresh')}
+                            </AgentSelectActionButton>
+                        </AgentSelectActions>
+                    )}
+                    onChange={(value) => {
+                        setAgent(value);
+                    }}
+                    options={getOptions()}
+                    placeholder={t('defaultAgent')}
+                    title={t('switchAgent')}
+                    value={activeAgentName}
+                />
+                <CapabilityIndicator capabilities={availableCapabilities} />
+            </div>
+            {agentError && <span className="agent-error" title={agentError}>{t('agentError')}</span>}
+            <div className="toolbar-actions">
+                <button className="icon-button" onClick={() => createSession()} title={t('newChat')} type="button">
+                    <img src={newSessionIcon} alt="" />
+                </button>
+                <button
+                    aria-label={t('exportCurrentSession')}
+                    className="icon-button"
+                    disabled={!currentSessionId}
+                    onClick={() => {
+                        const current = sessions.find((session) => session.sessionId === currentSessionId);
+                        if (current) exportSession(current);
+                    }}
+                    title={t('exportCurrentSession')}
+                    type="button"
+                >
+                    <img src={exportIcon} alt="" />
+                </button>
+                <button
+                    aria-expanded={open}
+                    aria-haspopup="dialog"
+                    className="icon-button drawer-toggle"
+                    disabled={!sessions.length}
+                    onClick={() => setOpen((current) => !current)}
+                    ref={historyButtonRef}
+                    title={t('openSessions')}
+                    type="button"
+                >
+                    <img src={historyIcon} alt="" />
+                    {historyAttention ? <img alt="" aria-hidden="true" className="history-attention" src={statusDotIcon} /> : null}
+                </button>
+                <button aria-label={t('agentSettings')} className="icon-button" onClick={() => openSettings(false)} title={t('agentSettings')} type="button">
+                    <img src={settingsIcon} alt="" />
+                </button>
+                <button className="icon-button" onClick={requestHostClose} title={t('close')} type="button">
+                    <img src={closeIcon} alt="" />
+                </button>
+            </div>
+            <AgentSettingsDialog
+                createOnOpen={createAgentOnOpen}
+                onOpenChange={setSettingsOpen}
+                open={settingsOpen}
+            />
+            <SessionHistoryPopover
+                anchorRef={historyButtonRef}
+                currentSessionId={currentSessionId}
+                onClose={() => setOpen(false)}
+                onDelete={deleteSession}
+                onExport={exportSession}
+                onAttentionChange={setHistoryAttention}
+                onSelect={selectSession}
+                open={open}
+                sessions={sessions}
+            />
+        </Container>
+    );
+};
+
+const CapabilityIndicator = ({ capabilities }: { capabilities: AvailableCapability[] }): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    const available = capabilities.length > 0;
+    const content = <CapabilityTooltipContent>
+        <span className="title">{t('availableCapabilities')}</span>
+        {available ? capabilities.map((capability) => (
+            <span className="item" key={capability.name}>
+                <strong>{capability.name}</strong>
+                {capability.description ? <span className="description">{capability.description}</span> : null}
+            </span>
+        )) : <span className="empty">{t('noAvailableCapabilities')}</span>}
+    </CapabilityTooltipContent>;
+
+    return <Tooltip title={content}>
+        <span
+            aria-label={available ? t('capabilitiesAvailable') : t('capabilitiesUnavailable')}
+            className={`capability-indicator${available ? ' available' : ''}`}
+            role="status"
+            tabIndex={0}
+        >
+            <ToolOutlined aria-hidden />
+        </span>
+    </Tooltip>;
+};
+
+const getAgentIcon = (agentName: string): JSX.Element => {
+    if (resolveAgentKind({ name: agentName })) {
+        return <AgentAvatar aria-hidden="true" className="logo"><AgentKindIcon name={agentName} /></AgentAvatar>;
+    }
+    return <AgentAvatar aria-hidden="true">{agentName.slice(0, 1)}</AgentAvatar>;
+};

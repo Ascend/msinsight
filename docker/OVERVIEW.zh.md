@@ -146,6 +146,8 @@ http://<host_ip>:9880
 
 容器会将根路径 `/` 重定向到 `/?proxy=true`，前端会连接当前浏览器端口，nginx 将 WebSocket 流量代理到容器内后端服务。
 
+> **已知限制：** 当前 Docker 单服务镜像不启动 Insight Web Agent 的 ACP/Node 运行时，也未配置对应的 nginx API/SSE 代理和 capability token。界面中可能显示 Agent 入口，但该功能在 Docker 形态下暂不可用。请勿直接对外暴露容器内的 ACP 管理端口作为替代方案。
+
 ### 本地构建
 
 #### 构建 Ubuntu 镜像

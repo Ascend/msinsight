@@ -1,0 +1,202 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import React, { useRef } from 'react';
+import styled from '@emotion/styled';
+import { useTranslation } from 'react-i18next';
+import guideOne from '../icons/guide-1.svg';
+import guideTwo from '../icons/guide-2.svg';
+import guideThree from '../icons/guide-3.svg';
+import logo from '../icons/logo-insight.svg';
+import { useChatState } from '../hooks/useChatState';
+import { WelcomeDots } from './WelcomeDots';
+
+const Container = styled.section`
+    min-height: 0;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+
+    .welcome-content {
+        position: relative;
+        width: min(100%, 410px);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: auto 0;
+    }
+
+    .welcome-heading {
+        position: relative;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex-shrink: 0;
+        margin-bottom: 22px;
+    }
+
+    .welcome-visual {
+        position: absolute;
+        z-index: 0;
+        top: 50%;
+        left: 50%;
+        width: min(560px, 92vw);
+        height: min(602px, 92vh);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+
+    .welcome-logo,
+    .welcome-title,
+    .guide-list {
+        position: relative;
+        z-index: 1;
+    }
+
+    .welcome-logo {
+        width: 68px;
+        height: 68px;
+        object-fit: contain;
+        animation: welcome-rise 0.35s ease-out both;
+    }
+
+    .welcome-title {
+        margin: 22px 0 0;
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 24px;
+        font-weight: 600;
+        line-height: 1.35;
+        letter-spacing: 0.01em;
+        text-align: center;
+        animation: welcome-rise 0.4s 0.04s ease-out both;
+    }
+
+    .guide-list {
+        width: 100%;
+        display: grid;
+        gap: 16px;
+    }
+
+    .guide-card {
+        width: 100%;
+        min-height: 86px;
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        align-items: center;
+        gap: 14px;
+        padding: 16px 20px;
+        border: 1px solid ${(props): string => props.theme.agentWelcomeCardBackgroundColor};
+        border-radius: 18px;
+        background: ${(props): string => props.theme.agentWelcomeCardBackgroundColor};
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        box-shadow: 0 1px 2px rgba(18, 25, 38, 0.02);
+        animation: welcome-rise 0.42s ease-out both;
+    }
+
+    .guide-card:hover {
+        border: 1px solid rgba(46, 83, 250, 1);
+        background: linear-gradient(201.64deg, rgba(110, 170, 255, 0.15) 13.834%, rgba(204, 98, 255, 0.04) 99.53%), rgba(0, 0, 0, 0.03);
+    }
+
+    .guide-card:nth-of-type(2) { animation-delay: 0.08s; }
+    .guide-card:nth-of-type(3) { animation-delay: 0.12s; }
+
+    .guide-icon {
+        width: 44px;
+        height: 44px;
+        object-fit: contain;
+    }
+
+    .guide-copy {
+        min-width: 0;
+        display: grid;
+        gap: 6px;
+    }
+
+    .guide-title {
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 1.35;
+    }
+
+    .guide-description {
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    @keyframes welcome-rise {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-height: 760px) {
+        .welcome-heading { margin-bottom: 16px; }
+        .welcome-title { margin-top: 14px; }
+        .guide-list { gap: 10px; }
+        .guide-card { min-height: 72px; padding: 11px 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .welcome-logo, .welcome-title, .guide-card { animation: none; }
+    }
+`;
+
+const guides = [
+    { icon: guideOne, title: 'memoryGuideTitle', description: 'memoryGuideDescription', prompt: 'memoryGuidePrompt', promptPreset: 'memory-tuning-assistant' },
+    { icon: guideTwo, title: 'slowGuideTitle', description: 'slowGuideDescription', prompt: 'slowGuidePrompt', promptPreset: undefined },
+    { icon: guideThree, title: 'ragGuideTitle', description: 'ragGuideDescription', prompt: 'ragGuidePrompt', promptPreset: undefined },
+] as const;
+
+export const WelcomePanel = (): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    const { selectWelcomePrompt, currentSessionId, isDraftSession, welcomeAnimationRequest } = useChatState();
+    const hitAreaRef = useRef<HTMLElement>(null);
+
+    return <Container ref={hitAreaRef}>
+        <div className="welcome-content">
+            <div className="welcome-heading">
+                <WelcomeDots
+                    className="welcome-visual"
+                    hitAreaRef={hitAreaRef}
+                    replayKey={`${isDraftSession ? 'draft' : currentSessionId}:${welcomeAnimationRequest}`}
+                />
+                <img className="welcome-logo" src={logo} alt="" />
+                <h1 className="welcome-title">{t('welcomeTitle')}</h1>
+            </div>
+            <div className="guide-list">
+                {guides.map((guide) => <button className="guide-card" key={guide.title} onClick={() => selectWelcomePrompt(t(guide.prompt), guide.promptPreset)} type="button">
+                    <img className="guide-icon" src={guide.icon} alt="" />
+                    <div className="guide-copy">
+                        <div className="guide-title">{t(guide.title)}</div>
+                        <div className="guide-description">
+                            {t(guide.description)}
+                        </div>
+                    </div>
+                </button>)}
+            </div>
+        </div>
+    </Container>;
+};

@@ -16,12 +16,12 @@
  * -------------------------------------------------------------------------
  */
 
-mod cleanup;
+pub(crate) mod cleanup;
 #[cfg(windows)]
 pub mod webview2err;
 
 use crate::logging::RustLogLevel;
-use crate::resource::resolve_resource_path;
+use crate::resource::resolve_frontend_resource_path;
 use std::{borrow::Cow, fs::read, path::PathBuf, sync::Arc, process::Command};
 use std::path::Path;
 #[cfg(target_os = "macos")]
@@ -63,11 +63,36 @@ fn resource_name_for_log(path: &str) -> Option<&str> {
     relative.rsplit('/').next()
 }
 
+fn frontend_index_url(
+    port: u16,
+    acp_port: u16,
+    capability_token: &str,
+    acp_status: &str,
+    acp_node_version: &str,
+) -> String {
+    let mut url = format!(
+        "wry://localhost/resources/profiler/frontend/index.html?port={port}&acpStatus={acp_status}"
+    );
+    if acp_status == "ready" && acp_port != 0 {
+        url.push_str(&format!(
+            "&acpPort={acp_port}&acpCapabilityToken={capability_token}"
+        ));
+    }
+    if !acp_node_version.is_empty() {
+        url.push_str(&format!("&acpNodeVersion={acp_node_version}"));
+    }
+    url
+}
+
 fn create_webview(
     window: &Window,
     cache_path: Arc<PathBuf>,
     resource_path: Arc<PathBuf>,
     port: u16,
+    acp_port: u16,
+    capability_token: &str,
+    acp_status: &str,
+    acp_node_version: &str,
     proxy: Arc<EventLoopProxy<PathBuf>>,
     log_level_control: Option<crate::logging::LogLevelControl>,
 ) -> wry::Result<WebView> {
@@ -77,7 +102,7 @@ fn create_webview(
             let path = request.uri().path();
             let resource_name =
                 resource_name_for_log(path).unwrap_or("<redacted>");
-            let resource = match resolve_resource_path(&resource_path, path) {
+            let resource = match resolve_frontend_resource_path(&resource_path, path) {
                 Ok(resource) => resource,
                 Err(_) => {
                     tracing::warn!(
@@ -112,7 +137,7 @@ fn create_webview(
 
             build_protocol_response(200, mimetype, content)
         })
-        .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}", port).as_str())?
+        .with_url(frontend_index_url(port, acp_port, capability_token, acp_status, acp_node_version).as_str())
         .with_file_drop_handler(move |ev| {
             match ev {
                 FileDropEvent::Dropped { paths, .. } => {
@@ -121,16 +146,18 @@ fn create_webview(
                         event = "file_drop_received",
                         file_count = paths.len()
                     );
-                    match proxy.send_event(paths[0].to_owned()) {
-                        Ok(()) => tracing::debug!(
-                            target: "msinsight_platform",
-                            event = "file_drop_event_sent"
-                        ),
-                        Err(_) => tracing::warn!(
-                            target: "msinsight_platform",
-                            event = "file_drop_event_send_failed",
-                            reason = "send_failed"
-                        ),
+                    if let Some(path) = paths.first() {
+                        match proxy.send_event(path.to_owned()) {
+                            Ok(()) => tracing::debug!(
+                                target: "msinsight_platform",
+                                event = "file_drop_event_sent"
+                            ),
+                            Err(_) => tracing::warn!(
+                                target: "msinsight_platform",
+                                event = "file_drop_event_send_failed",
+                                reason = "send_failed"
+                            ),
+                        }
                     }
                 }
                 _ => {}
@@ -348,6 +375,10 @@ pub fn run_script(
     root_path: &PathBuf,
     cache_path: &PathBuf,
     port: u16,
+    acp_port: u16,
+    capability_token: &str,
+    acp_status: &str,
+    acp_node_version: &str,
     log_level_control: Option<crate::logging::LogLevelControl>,
 ) -> wry::Result<(EventLoop<PathBuf>, WebView, Window)> {
     let event_loop = EventLoopBuilder::<PathBuf>::with_user_event().build();
@@ -378,6 +409,10 @@ pub fn run_script(
         log_path,
         resource_path,
         port,
+        acp_port,
+        capability_token,
+        acp_status,
+        acp_node_version,
         proxy,
         log_level_control,
     )?;
@@ -406,6 +441,44 @@ fn extract_mimetype(path: &str) -> &str {
 mod tests {
     use super::*;
     use crate::logging::RustLogLevel;
+
+    #[test]
+    fn frontend_url_forwards_ready_connection_and_optional_version() {
+        assert_eq!(
+            frontend_index_url(9000, 9090, "test-token", "ready", "22.14.0"),
+            "wry://localhost/resources/profiler/frontend/index.html?port=9000&acpStatus=ready&acpPort=9090&acpCapabilityToken=test-token&acpNodeVersion=22.14.0"
+        );
+        assert_eq!(
+            frontend_index_url(9000, 9090, "test-token", "ready", ""),
+            "wry://localhost/resources/profiler/frontend/index.html?port=9000&acpStatus=ready&acpPort=9090&acpCapabilityToken=test-token"
+        );
+    }
+
+    #[test]
+    fn frontend_url_omits_connection_without_ready_nonzero_port() {
+        for (status, port) in [
+            ("ready", 0),
+            ("missing-node", 9090),
+            ("unsupported-node", 9090),
+            ("start-failed", 9090),
+            ("starting", 9090),
+            ("Ready", 9090),
+            ("", 9090),
+        ] {
+            for version in ["", "18.20.0"] {
+                let mut expected = format!(
+                    "wry://localhost/resources/profiler/frontend/index.html?port=9000&acpStatus={status}"
+                );
+                if !version.is_empty() {
+                    expected.push_str(&format!("&acpNodeVersion={version}"));
+                }
+                assert_eq!(
+                    frontend_index_url(9000, port, "test-token", status, version),
+                    expected
+                );
+            }
+        }
+    }
 
     #[test]
     fn resource_log_name_identifies_frontend_assets() {

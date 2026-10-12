@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { getWindowMessageRouter } from '@insight/lib/WindowMessageRouter';
 
 export interface IMessageSender {
     sendMessage: (ceq: any) => void;
@@ -22,9 +23,13 @@ export interface IMessageSender {
     selectFile: () => Promise<string>;
 }
 
+const selectionCommands = new Set(['ascend.folderSelected', 'ascend.folderSelectionCanceled']);
+
 export const removeAndAddEventListener = (resolve: (value: (string | PromiseLike<string>)) => void): void => {
-    function onMessage(event: MessageEvent): void {
-        const message = event.data;
+    let unsubscribe = (): void => {};
+    unsubscribe = getWindowMessageRouter().subscribe((event) => {
+        const message = event.data as { command: string; path: string };
+        unsubscribe(); // 上一次的取消订阅
         switch (message.command) {
             case 'ascend.folderSelected':
                 resolve(message.path);
@@ -34,7 +39,9 @@ export const removeAndAddEventListener = (resolve: (value: (string | PromiseLike
                 break;
             default:
         }
-    }
-    window.removeEventListener('message', onMessage);
-    window.addEventListener('message', onMessage);
+    }, event => (
+        typeof event.data === 'object'
+        && event.data !== null
+        && selectionCommands.has((event.data as { command?: string }).command ?? '')
+    ));
 };

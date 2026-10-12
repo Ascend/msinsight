@@ -87,7 +87,7 @@ export const MindStudioInsightTab = (props: MindStudioInsightProps): JSX.Element
                 { !currentMindStudio && (
                 <iframe
                     style={{ width: '100%', height: '100%' }}
-                    sandbox="allow-scripts allow-forms allow-same-origin"
+                    sandbox="allow-scripts allow-forms allow-same-origin allow-downloads"
                     referrerPolicy="no-referrer"
                     src={srcVal}
                 />

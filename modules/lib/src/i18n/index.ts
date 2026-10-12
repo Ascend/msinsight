@@ -48,6 +48,8 @@ import rlEn from './reinforcement-learning/en.json';
 import rlZh from './reinforcement-learning/zh.json';
 import tritonEn from './triton/en.json';
 import tritonZh from './triton/zh.json';
+import insightWebAgentEn from './insight-web-agent/en.json';
+import insightWebAgentZh from './insight-web-agent/zh.json';
 
 export const resources = {
     enUS: {
@@ -66,6 +68,7 @@ export const resources = {
         ...statisticEn,
         ...rlEn,
         ...tritonEn,
+        ...insightWebAgentEn,
     },
     zhCN: {
         ...zh,
@@ -83,6 +86,7 @@ export const resources = {
         ...statisticZh,
         ...rlZh,
         ...tritonZh,
+        ...insightWebAgentZh,
     },
 };
 

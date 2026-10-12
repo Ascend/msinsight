@@ -687,16 +687,28 @@ export const copyToClipboard = async (text: string): Promise<void> => {
         return;
     }
 
+    const copyWithTextarea = (): void => {
+        const input = document.createElement('textarea');
+        input.value = text;
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(input);
+        if (!copied) throw new Error('document.execCommand copy failed');
+    };
+
     try {
         if (navigator.clipboard !== undefined) {
-            await navigator.clipboard.writeText(text);
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch (clipboardError) {
+                if (document.execCommand === undefined) throw clipboardError;
+                copyWithTextarea();
+            }
         } else {
-            const input = document.createElement('textarea');
-            input.value = text;
-            document.body.appendChild(input);
-            input.select();
-            document.execCommand('copy');
-            document.body.removeChild(input);
+            copyWithTextarea();
         }
         message.success({ content: i18nextT('CopySuccessful'), key: 'copyToClipboard' });
     } catch (err) {

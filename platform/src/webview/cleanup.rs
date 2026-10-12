@@ -27,7 +27,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use crate::default::PID;
+use crate::default::{ACP_PID, PID};
 
 #[cfg(windows)]
 fn query_child_pids(parent_pid: u32) -> Result<Vec<String>> {
@@ -125,7 +125,7 @@ fn kill_process_tree(parent_pid: String) -> Result<()> {
         Command::new("taskkill")
             .arg("/f")
             .arg("/t") // 终止包括子进程在内的所有进程
-            .arg("/im")
+            .arg("/pid")
             .arg(parent_pid)
             .creation_flags(0x08000000)
             .stdout(Stdio::null())
@@ -157,12 +157,17 @@ fn kill_child_pids(child_pids: Vec<String>) {
 
 pub fn handle_close_requested() {
     unsafe {
-        match query_child_pids(PID) {
-            Ok(child_pids) => {
-                kill_child_pids(child_pids);
-                let _ = kill_process_tree(PID.to_string());
+        for pid in [ACP_PID, PID] {
+            if pid == u32::MAX {
+                continue;
             }
-            Err(e) => eprintln!("Err when query child pids {e}"),
+            match query_child_pids(pid) {
+                Ok(child_pids) => {
+                    kill_child_pids(child_pids);
+                    let _ = kill_process_tree(pid.to_string());
+                }
+                Err(e) => eprintln!("Err when query child pids {e}"),
+            }
         }
     }
 }

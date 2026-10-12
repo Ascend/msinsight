@@ -39,6 +39,8 @@ const pendingOpfsProbes = new Map<number, (status: OpfsAvailabilityStatus) => vo
 let opfsProbeRequestId = 0;
 const pendingCacheRemovals = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
 let cacheRemovalRequestId = 0;
+const pendingBlockQueries = new Map<string, { resolve: (result: BlockQueryResult) => void; reject: (error: Error) => void }>();
+let blockQueryRequestId = 0;
 
 export const isCurrentBlockWorkerGeneration = (generation: number | undefined): boolean =>
     generation === undefined || generation === workerGeneration;
@@ -61,31 +63,43 @@ module.hot?.dispose(() => {
         pending.reject(new Error('Block worker replaced by hot reload'));
     }
     pendingCacheRemovals.clear();
+    for (const pending of pendingBlockQueries.values()) {
+        pending.reject(new Error('Block worker replaced by hot reload'));
+    }
+    pendingBlockQueries.clear();
 });
 
-BlockWorker.addEventListener('message', (event: MessageEvent<{
-    type?: string;
-    generation?: number;
-    error?: string;
+type BlockWorkerMessage = Omit<BlockWorkerResponsePayload, 'requestId'> & {
     status?: BlockPathCacheLoadStatus;
-    requestId?: number;
+    requestId?: number | string;
     availabilityStatus?: OpfsAvailabilityStatus;
-}>): void => {
-    if (event.data.type === 'blockPathCacheRemovalCompleted' && event.data.requestId !== undefined) {
+};
+
+BlockWorker.addEventListener('message', (event: MessageEvent<BlockWorkerMessage>): void => {
+    if (event.data.type === 'blockPathCacheRemovalCompleted' && typeof event.data.requestId === 'number') {
         pendingCacheRemovals.get(event.data.requestId)?.resolve();
         pendingCacheRemovals.delete(event.data.requestId);
         return;
     }
-    if (event.data.type === 'blockPathCacheRemovalFailed' && event.data.requestId !== undefined) {
+    if (event.data.type === 'blockPathCacheRemovalFailed' && typeof event.data.requestId === 'number') {
         pendingCacheRemovals.get(event.data.requestId)?.reject(
             new Error(event.data.error ?? 'Block worker cache removal failed'),
         );
         pendingCacheRemovals.delete(event.data.requestId);
         return;
     }
-    if (event.data.type === 'opfsAvailabilityChecked' && event.data.requestId !== undefined) {
+    if (event.data.type === 'opfsAvailabilityChecked' && typeof event.data.requestId === 'number') {
         pendingOpfsProbes.get(event.data.requestId)?.(event.data.availabilityStatus ?? 'transient');
         pendingOpfsProbes.delete(event.data.requestId);
+        return;
+    }
+    if (event.data.type === 'queryBlocksResult' && typeof event.data.requestId === 'string') {
+        const pendingQuery = pendingBlockQueries.get(event.data.requestId);
+        if (!pendingQuery) return;
+        if (event.data.error) pendingQuery.reject(new Error(event.data.error));
+        else if (event.data.result) pendingQuery.resolve(event.data.result);
+        else pendingQuery.reject(new Error('Block worker returned an invalid query result'));
+        pendingBlockQueries.delete(event.data.requestId);
         return;
     }
     const generation = event.data.generation;
@@ -206,6 +220,14 @@ const WorkerBackend = {
     selectBlockById({ blockId, selectionVersion }: Omit<SelectBlockByIdPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'selectBlockById', blockId, selectionVersion });
     },
+    queryBlocks(query: BlockQuery): Promise<BlockQueryResult> {
+        const requestId = `block-query-${++blockQueryRequestId}`;
+        const completion = new Promise<BlockQueryResult>((resolve, reject) => {
+            pendingBlockQueries.set(requestId, { resolve, reject });
+        });
+        BlockWorker.postMessage({ type: 'queryBlocks', requestId, query } as QueryBlocksPayload);
+        return completion;
+    },
     destroy(): void {
         const generation = ++workerGeneration;
         BlockWorker.postMessage({ type: 'destroy', generation } as DestroyPayload);
@@ -294,6 +316,9 @@ const MainThreadBackend = {
     async selectBlockById({ blockId, selectionVersion }: Omit<SelectBlockByIdPayload, 'type'>): Promise<void> {
         await mainThreadRender.selectBlockByIdHandler({ blockId, selectionVersion });
     },
+    queryBlocks(query: BlockQuery): Promise<BlockQueryResult> {
+        return Promise.resolve(mainThreadRender.queryBlocksHandler(query));
+    },
     async destroy(): Promise<void> {
         mainThreadGeneration++;
         const task = mainThreadLoadQueue.then(async () => {
@@ -324,4 +349,5 @@ export const workerHoverItem = backend.hoverItem;
 export const workerClickItem = backend.clickItem;
 export const workerSelectItem = backend.selectItem;
 export const workerSelectBlockById = backend.selectBlockById;
+export const workerQueryBlocks = backend.queryBlocks;
 export const workerDestroy = backend.destroy;

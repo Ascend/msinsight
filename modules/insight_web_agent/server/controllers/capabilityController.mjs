@@ -1,0 +1,56 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * -------------------------------------------------------------------------
+ */
+import { json } from "../http/response.mjs";
+import { readCapabilityToken, tokensEqual } from "../http/security.mjs";
+
+// Native Agent 使用独立进程级 Token 进入同一能力中心，不额外启动 MCP Client。
+export const createCapabilityController = ({ capabilityCenter, accessToken }) => ({
+    async invoke(req, res, body) {
+        if (!tokensEqual(accessToken, readCapabilityToken(req))) {
+            return json(res, { error: "Unauthorized" }, 401);
+        }
+        // Native fetch 中断或连接提前关闭时，取消仍在执行的 Capability/Frontend Command。
+        const controller = new AbortController();
+        const abort = () => controller.abort();
+        req.once("aborted", abort);
+        res.once("close", abort);
+        try {
+            const result = await capabilityCenter.invoke({ ...body, signal: controller.signal });
+            return json(res, { ok: true, result });
+        } catch (error) {
+            if (!res.destroyed) return capabilityErrorResponse(res, error);
+        } finally {
+            req.off("aborted", abort);
+            res.off("close", abort);
+        }
+    },
+});
+
+const capabilityErrorResponse = (res, error) => {
+    const code = error.code ?? "CAPABILITY_EXECUTION_FAILED";
+    return json(res, {
+        error: code,
+        code,
+        message: error.message || "The capability could not be completed",
+        retryable: Boolean(error.retryable),
+        details: error.details,
+        state: error.state,
+    }, capabilityErrorStatus(error.code));
+};
+
+const capabilityErrorStatus = (code) => {
+    if (code === "CAPABILITY_NOT_FOUND" || code === "COMMAND_NOT_FOUND") return 404;
+    if (code === "CAPABILITY_INVALID_ARGUMENT" || code === "COMMAND_INVALID") return 400;
+    if (code === "COMMAND_PERMISSION_DENIED") return 403;
+    if (code === "COMMAND_TIMEOUT" || code === "CLI_TIMEOUT") return 408;
+    if (code === "COMMAND_BUSY" || code === "CLI_BUSY") return 409;
+    if (code === "COMMAND_UNAVAILABLE" || code === "CLI_START_FAILED" || code === "CLI_EXIT_NONZERO" || code === "CLI_OUTPUT_LIMIT") return 422;
+    if (code === "COMMAND_CONNECTION_LOST") return 503;
+    return 500;
+};
