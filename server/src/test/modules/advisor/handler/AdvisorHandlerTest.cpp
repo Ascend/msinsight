@@ -34,6 +34,8 @@ using namespace Dic::Module::Timeline;
 class AdvisorHandlerTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {
+        // Earlier text suites register rank 1; this fixture owns only rank 0.
+        DataBaseManager::Instance().Clear();
         std::string dbPath = FileUtil::SplicePath(TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level1",
             "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler_0.db");
         DataBaseManager::Instance().SetDataType(DataType::DB, dbPath);

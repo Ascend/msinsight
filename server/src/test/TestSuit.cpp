@@ -17,6 +17,7 @@
  */
 
 #include "TestSuit.h"
+#include <filesystem>
 
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::Summary;
@@ -54,6 +55,16 @@ void TestSuit::SetUpTestSuite() {
     std::string refPath1 = FileUtil::SplicePath(testData, "test_rank_1", "ASCEND_PROFILER_OUTPUT");
     std::string dbPath0 = FileUtil::SplicePath(refPath0, "mindstudio_insight_data.db");
     std::string dbPath1 = FileUtil::SplicePath(refPath1, "mindstudio_insight_data.db");
+    // DeleteParseFiles stops parsers but does not delete parsed databases. A
+    // previous interrupted run can otherwise reuse kernels with stale device IDs.
+    // Close singleton-owned connections before touching this fixture's files.
+    KernelParse::Instance().Reset();
+    DataBaseManager::Instance().Clear();
+    for (const auto &path : {dbPath0, dbPath1}) {
+        for (const auto &suffix : {"", "-wal", "-shm"}) {
+            std::filesystem::remove(path + suffix);
+        }
+    }
     DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath0);
     DataBaseManager::Instance().SetFileType(FileType::PYTORCH, dbPath0);
     DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath1);
