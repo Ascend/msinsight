@@ -42,6 +42,23 @@ TEST_F(GlobalProtocolUtilTest, TestFilesGetResponseToJson) {
     EXPECT_EQ(jsonOp.has_value(), true);
 }
 
+TEST_F(GlobalProtocolUtilTest, TestFilesGetResponseIncludesMtime) {
+    Dic::Protocol::FilesGetResponse response;
+    auto file = std::make_unique<Dic::Protocol::File>("prof.json", "/tmp/prof.json", 1700000000123LL);
+    auto folder = std::make_unique<Dic::Protocol::Folder>();
+    folder->name = "dir";
+    folder->path = "/tmp/dir";
+    folder->mtime = 1700000000456LL;
+    response.body.childrenFiles.emplace_back(std::move(file));
+    response.body.childrenFolders.emplace_back(std::move(folder));
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+    ASSERT_TRUE(jsonOp.has_value());
+    const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
+    EXPECT_NE(json.find("\"mtime\":1700000000123"), std::string::npos);
+    EXPECT_NE(json.find("\"mtime\":1700000000456"), std::string::npos);
+    EXPECT_NE(json.find("\"name\":\"prof.json\""), std::string::npos);
+}
+
 TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoUpdateResponseToJson) {
     Dic::Protocol::ProjectExplorerInfoUpdateResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);

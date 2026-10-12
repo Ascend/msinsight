@@ -30,6 +30,7 @@ import { hasFileOverlap } from '@/utils/Project';
 export interface ResourceItem {
     path: string;
     name: string;
+    mtime?: number;
     childrenFolders: ResourceItem[];
     childrenFiles: ResourceItem[];
     exist: boolean;
@@ -47,24 +48,68 @@ export interface ProjectCheckResult {
     errorDetail: ProjectCheckErrorDetail[];
 }
 
+// 格式化 files/get 返回的 mtime（毫秒时间戳）
+const formatResourceMtime = (mtime?: number): string => {
+    if (mtime == null || mtime <= 0 || !Number.isFinite(mtime)) {
+        return '';
+    }
+    const date = new Date(mtime);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+// 目录树节点标题（名称 + 可选修改时间）
+const resourceTitle = (item: ResourceItem): React.ReactNode => {
+    const mtimeLabel = formatResourceMtime(item.mtime);
+    return (
+        <span id={item.path} style={{ display: 'inline-flex', alignItems: 'center', gap: 16, minWidth: 280 }}>
+            <span>{item.name}</span>
+            {mtimeLabel && (
+                <span style={{ opacity: 0.55, fontSize: 12, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {mtimeLabel}
+                </span>
+            )}
+        </span>
+    );
+};
+
 // 接口返回数据转为Tree组件数据结构
 export const dealResource = (resource: ResourceItem): TreeDataNode[] => {
     const folders = (resource.childrenFolders ?? []).map(item => ({
         isLeaf: false,
         icon: <FolderIcon/>,
-        title: <span id={item.path}>{item.name}</span>,
+        title: resourceTitle(item),
         key: item.path,
     }));
     const files = (resource.childrenFiles ?? [])?.map(item => ({
         isLeaf: true,
         icon: <FileIcon/>,
-        title: <span id={item.path}>{item.name}</span>,
+        title: resourceTitle(item),
         key: item.path,
     }));
     return [...folders, ...files];
 };
 
 const maxDepth = 100;
+
+// 重排父目录时保留已展开子树，避免子节点刚加载就被父层刷新冲掉
+export const preserveNestedChildren = (next: TreeDataNode[], prev?: TreeDataNode[]): TreeDataNode[] => {
+    if (!prev?.length) {
+        return next;
+    }
+    const prevMap = new Map(prev.map(item => [String(item.key), item]));
+    return next.map(item => {
+        const old = prevMap.get(String(item.key));
+        if (!old?.children?.length) {
+            return item;
+        }
+        return { ...item, children: old.children };
+    });
+};
+
 // 更新Tree组件子节点
 // Recursive，递归函数
 export const updateTreeData = (list: TreeDataNode[], key: React.Key, children: TreeDataNode[], depth: number = 0): TreeDataNode[] => {
@@ -76,7 +121,7 @@ export const updateTreeData = (list: TreeDataNode[], key: React.Key, children: T
         if (node.key === key) {
             return {
                 ...node,
-                children,
+                children: preserveNestedChildren(children, node.children),
             };
         }
         if (node.children) {

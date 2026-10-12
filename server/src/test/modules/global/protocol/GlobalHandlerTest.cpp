@@ -16,7 +16,15 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <cstdlib>
+#include <sys/stat.h>
+#include <utime.h>
+#endif
 #include <fstream>
+#include <memory>
 #include "ProtocolDefs.h"
 #include "GlobalProtocolRequest.h"
 #include "CancelBaselineHandler.h"
@@ -36,6 +44,8 @@
 #include "WsSessionManager.h"
 #include "WsSessionImpl.h"
 #include "FileUtil.h"
+#include "GlobalProtocolResponse.h"
+#include "WsSessionManager.h"
 
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
@@ -162,6 +172,103 @@ TEST_F(GlobalHandlerTest, TestCheckfilesGetHandler) {
     requestPtr->params.path = path;
     FilesGetHandler filesGetHandler;
     ASSERT_TRUE(filesGetHandler.HandleRequest(std::move(requestPtr)));
+}
+
+class CapturingWsSession : public Dic::Server::WsSession {
+  public:
+    std::unique_ptr<Dic::Protocol::Response> response;
+    void Start() override {}
+    Status GetStatus() const override { return Status::STARTED; }
+    void OnResponse(std::unique_ptr<Dic::Protocol::Response> responsePtr) override {
+        response = std::move(responsePtr);
+    }
+    void SendBaseResponse(std::unique_ptr<Dic::Protocol::Response> responsePtr) override {
+        response = std::move(responsePtr);
+    }
+    void OnEvent(std::unique_ptr<Dic::Protocol::Event> eventPtr) override { (void)eventPtr; }
+    void SetStatus(Status) override {}
+    void WaitForExit(int) override {}
+};
+
+bool SetHandlerMtimeSec(const std::string &path, int64_t unixSeconds) {
+#ifdef _WIN32
+    HANDLE handle = CreateFileA(path.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    constexpr uint64_t kEpochDiff = 116444736000000000ULL;
+    ULARGE_INTEGER ull;
+    ull.QuadPart = static_cast<uint64_t>(unixSeconds) * 10000000ULL + kEpochDiff;
+    FILETIME ft;
+    ft.dwLowDateTime = ull.LowPart;
+    ft.dwHighDateTime = ull.HighPart;
+    const BOOL ok = SetFileTime(handle, nullptr, nullptr, &ft);
+    CloseHandle(handle);
+    return ok != 0;
+#else
+    struct utimbuf times {};
+    times.actime = static_cast<time_t>(unixSeconds);
+    times.modtime = static_cast<time_t>(unixSeconds);
+    return utime(path.c_str(), &times) == 0;
+#endif
+}
+
+TEST_F(GlobalHandlerTest, TestFilesGetHandlerSortByMtime) {
+#ifdef _WIN32
+    char tempPath[MAX_PATH] = {0};
+    ASSERT_GT(GetTempPathA(MAX_PATH, tempPath), 0U);
+    const std::string root = Dic::FileUtil::SplicePath(tempPath,
+        "msinsight_handler_mtime_" + std::to_string(GetCurrentProcessId()) + "_" + std::to_string(GetTickCount()));
+    ASSERT_NE(CreateDirectoryA(root.c_str(), nullptr), 0);
+#else
+    char tmpl[] = "/tmp/msinsight_handler_mtime_XXXXXX";
+    char *created = mkdtemp(tmpl);
+    ASSERT_NE(created, nullptr);
+    const std::string root = created;
+#endif
+    const std::string older = Dic::FileUtil::SplicePath(root, "a_older.json");
+    const std::string newer = Dic::FileUtil::SplicePath(root, "z_newer.json");
+    {
+        std::ofstream ofs(older);
+        ofs << "old";
+    }
+    {
+        std::ofstream ofs(newer);
+        ofs << "new";
+    }
+    ASSERT_TRUE(SetHandlerMtimeSec(older, 1700000000));
+    ASSERT_TRUE(SetHandlerMtimeSec(newer, 1700000900));
+
+    auto capturing = std::make_shared<CapturingWsSession>();
+    WsSessionManager::Instance().RemoveSession();
+    WsSessionManager::Instance().AddSession(capturing);
+    struct SessionGuard {
+        ~SessionGuard() { WsSessionManager::Instance().RemoveSession(); }
+    } sessionGuard;
+    (void)sessionGuard;
+
+    auto requestPtr = std::make_unique<FilesGetRequest>();
+    requestPtr->params.path = root;
+    requestPtr->params.sortBy = "mtime";
+    requestPtr->params.order = "desc";
+    FilesGetHandler filesGetHandler;
+    ASSERT_TRUE(filesGetHandler.HandleRequest(std::move(requestPtr)));
+
+    auto *filesResponse = dynamic_cast<FilesGetResponse *>(capturing->response.get());
+    ASSERT_NE(filesResponse, nullptr);
+    ASSERT_EQ(filesResponse->body.childrenFiles.size(), 2U);
+    EXPECT_EQ(filesResponse->body.childrenFiles[0]->name, "z_newer.json");
+    EXPECT_EQ(filesResponse->body.childrenFiles[1]->name, "a_older.json");
+    EXPECT_GT(filesResponse->body.childrenFiles[0]->mtime, filesResponse->body.childrenFiles[1]->mtime);
+
+    std::remove(older.c_str());
+    std::remove(newer.c_str());
+#ifdef _WIN32
+    RemoveDirectoryA(root.c_str());
+#else
+    rmdir(root.c_str());
+#endif
 }
 
 TEST_F(GlobalHandlerTest, TestHandleRequest) {

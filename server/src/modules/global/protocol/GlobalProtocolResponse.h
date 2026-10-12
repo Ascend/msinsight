@@ -20,6 +20,7 @@
 #define DIC_GLOBAL_PROTOCOL_RESPONSE_H
 
 #include <vector>
+#include <cstdint>
 #include "GlobalDefs.h"
 #include "ProtocolDefs.h"
 #include "ProtocolMessage.h"
@@ -49,13 +50,16 @@ struct File {
     File() = default;
     ~File() = default;
     File(const std::string &n, const std::string &p) : name(n), path(p) {}
+    File(const std::string &n, const std::string &p, int64_t m) : name(n), path(p), mtime(m) {}
     std::string name;
     std::string path;
+    int64_t mtime = 0; // last write time in unix epoch milliseconds; 0 if unknown
 };
 
 struct Folder {
     std::string name;
     std::string path;
+    int64_t mtime = 0; // last write time in unix epoch milliseconds; 0 if unknown
     std::vector<std::unique_ptr<Folder>> childrenFolders;
     std::vector<std::unique_ptr<File>> childrenFiles;
 };

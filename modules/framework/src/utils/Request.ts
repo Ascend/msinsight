@@ -50,14 +50,24 @@ export interface ImportResult {
     result: CardInfo[];
 }
 
+export type FileSortBy = 'name' | 'mtime';
+export type FileSortOrder = 'asc' | 'desc';
+
+export interface GetFilesOptions {
+    sortBy?: FileSortBy;
+    order?: FileSortOrder;
+}
+
 /**
  * 获取文件路径下所有文件、文件夹
  * @returns ProjectDirectory[]
  */
-export const getFiles = async (path = ''): Promise<unknown> => {
+export const getFiles = async (path = '', options: GetFilesOptions = {}): Promise<unknown> => {
+    const sortBy = options.sortBy ?? 'name';
+    const order = options.order ?? 'asc';
     return request('global', {
         command: 'files/get',
-        params: { path },
+        params: { path, sortBy, order },
     });
 };
 

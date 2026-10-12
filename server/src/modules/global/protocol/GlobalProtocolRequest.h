@@ -34,6 +34,8 @@ struct HeartCheckRequest : public Request {
 
 struct FilesGetParams {
     std::string path;
+    std::string sortBy = "name"; // name | mtime
+    std::string order = "asc"; // asc | desc
 };
 
 struct FilesGetRequest : public Request {

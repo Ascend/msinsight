@@ -22,6 +22,10 @@ export enum LocalStorageKey {
     THEME = 'theme',
     LAST_FILE_PATH = 'last_file_path',
     OVERALL_METRICS_CLASSIFICATION_RULES = 'overall_metrics_classification_rules',
+    IMPORT_SORT_BY = 'import_sort_by',
+    IMPORT_SORT_ORDER = 'import_sort_order',
+    IMPORT_SORT_ORDER_NAME = 'import_sort_order_name',
+    IMPORT_SORT_ORDER_MTIME = 'import_sort_order_mtime',
 }
 
 class LocalStorageService {
