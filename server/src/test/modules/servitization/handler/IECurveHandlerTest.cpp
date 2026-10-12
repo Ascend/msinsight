@@ -24,7 +24,7 @@ class IECurveHandlerTest : public ::testing::Test {
     class MockRepo : public Dic::Module::IE::CurveRepo {
       public:
         std::vector<Dic::Module::ColumnAtt> QueryTableInfoByName(
-            const std::string &fileId, const std::string &tableName) {
+            const std::string &fileId, const std::string &tableName) override {
             std::vector<Dic::Module::ColumnAtt> res;
             Dic::Module::ColumnAtt col1;
             col1.key = "lll";
@@ -36,7 +36,10 @@ class IECurveHandlerTest : public ::testing::Test {
         }
 
         std::vector<std::map<std::string, std::string>> QueryDataByColumn(const std::string &fileId,
-            const std::string &tableName, const std::vector<Dic::Module::ColumnAtt> &columns) {
+            const std::string &tableName, const std::vector<Dic::Module::ColumnAtt> &columns) override {
+            if (!rows.empty()) {
+                return rows;
+            }
             std::vector<std::map<std::string, std::string>> res;
             std::map<std::string, std::string> data1;
             data1["lll"] = "mmm1";
@@ -49,11 +52,18 @@ class IECurveHandlerTest : public ::testing::Test {
             res.emplace_back(data2);
             return res;
         }
+
+        std::vector<std::map<std::string, std::string>> rows;
     };
 
     class MockIECurveHandler : public Dic::Module::IE::IECurveHandler {
       public:
         void SetRepo(std::shared_ptr<CurveRepo> mockRepo) { repo = std::move(mockRepo); }
+
+        void QueryData(const Dic::Protocol::IEUsageViewParamsRequest &request,
+            Dic::Protocol::IEUsageViewResponse &response, std::vector<Dic::Module::ColumnAtt> &columns) {
+            QueryDatasByCols(request, response, columns);
+        }
     };
 };
 
@@ -66,4 +76,50 @@ TEST_F(IECurveHandlerTest, TestHandler) {
     handler->SetRepo(mockRepo);
     auto res = handler->HandleRequest(std::move(request));
     EXPECT_EQ(res, true);
+}
+
+TEST_F(IECurveHandlerTest, RemovesConsecutiveDuplicateRows) {
+    auto mockRepo = std::make_shared<MockRepo>();
+    MockIECurveHandler handler;
+    handler.SetRepo(mockRepo);
+    Dic::Protocol::IEUsageViewParamsRequest request;
+    Dic::Protocol::IEUsageViewResponse response;
+    std::vector<Dic::Module::ColumnAtt> columns(2);
+    columns[0].key = "lll";
+    columns[1].key = "jjj";
+
+    handler.QueryData(request, response, columns);
+
+    ASSERT_EQ(response.data.lines.size(), 2);
+    EXPECT_EQ(response.data.lines[0], (std::vector<std::string>{"mmm1", "ggg2"}));
+    EXPECT_EQ(response.data.lines[1], (std::vector<std::string>{"mmm3", "ggg4"}));
+}
+
+TEST_F(IECurveHandlerTest, SamplesLargeCurveWithNonNumericValues) {
+    auto mockRepo = std::make_shared<MockRepo>();
+    for (int i = 0; i < 4000; ++i) {
+        mockRepo->rows.push_back({{"lll", std::to_string(i)}, {"jjj", std::to_string(i)}});
+    }
+    mockRepo->rows[1]["jjj"] = "NULL";
+    mockRepo->rows[2]["jjj"] = "invalid";
+    mockRepo->rows[3]["jjj"] = "NaN";
+    mockRepo->rows[4]["jjj"] = "";
+    mockRepo->rows.push_back(mockRepo->rows.back());
+
+    MockIECurveHandler handler;
+    handler.SetRepo(mockRepo);
+    Dic::Protocol::IEUsageViewParamsRequest request;
+    request.params.type = "curve";
+    Dic::Protocol::IEUsageViewResponse response;
+    std::vector<Dic::Module::ColumnAtt> columns(2);
+    columns[0].key = "lll";
+    columns[1].key = "jjj";
+
+    handler.QueryData(request, response, columns);
+
+    EXPECT_EQ(response.data.legends, (std::vector<std::string>{"lll", "jjj"}));
+    ASSERT_GT(response.data.lines.size(), 1000);
+    EXPECT_LT(response.data.lines.size(), 4000);
+    EXPECT_EQ(response.data.lines.front()[0], "0");
+    EXPECT_EQ(response.data.lines.back()[0], "3999");
 }

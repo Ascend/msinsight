@@ -17,11 +17,14 @@
 //  *
 
 #include <gtest/gtest.h>
+#include <array>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
 #include "JsonUtil.h"
+#include "TritonProtocol.h"
+#include "TritonProtocolEvent.h"
 #include "TritonProtocolRequest.h"
 #include "TritonProtocolResponse.h"
 
@@ -250,4 +253,52 @@ TEST_F(TritonProtocolTest, TritonMemoryUsageResponseToJsonTest) {
     EXPECT_TRUE(seg0["blocks"].IsArray());
     EXPECT_EQ(seg0["blocks"].Size(), 1);
     EXPECT_STREQ(seg0["blocks"][0]["id"].GetString(), "201");
+}
+
+TEST_F(TritonProtocolTest, RegisteredCommandsRouteRequestsAndResponses) {
+    TritonProtocolUtil protocol;
+    protocol.Register();
+    const std::array<std::string, 3> commands = {
+        REQ_RES_TRITON_MEMORY_BLOCKS, REQ_RES_TRITON_MEMORY_BASIC_INFO, REQ_RES_TRITON_MEMORY_USAGE};
+
+    for (const auto &command : commands) {
+        const std::string text = R"({"id":1,"type":"request","moduleName":"triton",)"
+                                 R"("projectName":"test","command":")" +
+            command + R"(","params":{"_startTimestamp":10,"_endTimestamp":20,"timestamp":15,"scope":"cc"}})";
+        document_t json;
+        json.Parse(text.c_str());
+        ASSERT_FALSE(json.HasParseError());
+        std::string error;
+        auto request = protocol.FromJson(json, error);
+        ASSERT_NE(request, nullptr) << command << ": " << error;
+        EXPECT_EQ(request->command, command);
+    }
+
+    TritonMemoryBlocksResponse blocks;
+    TritonBasicInfoResponse basicInfo;
+    TritonMemoryUsageResponse usage;
+    const std::array<const Response *, 3> responses = {&blocks, &basicInfo, &usage};
+    for (const auto *response : responses) {
+        std::string error;
+        auto json = protocol.ToJson(*response, error);
+        ASSERT_TRUE(json.has_value()) << response->command << ": " << error;
+        ASSERT_TRUE(json->HasMember("command"));
+        EXPECT_STREQ((*json)["command"].GetString(), response->command.c_str());
+    }
+}
+
+TEST_F(TritonProtocolTest, RegisteredParseEventSerializesModuleAndBody) {
+    TritonProtocolUtil protocol;
+    protocol.Register();
+    TritonParseSuccessEvent event;
+    event.id = 17;
+    event.result = true;
+
+    std::string error;
+    auto json = protocol.ToJson(event, error);
+    ASSERT_TRUE(json.has_value()) << error;
+    EXPECT_EQ((*json)["id"].GetUint(), 17);
+    EXPECT_STREQ((*json)["event"].GetString(), EVENT_PARSE_TRITON_COMPLETED.data());
+    EXPECT_STREQ((*json)["moduleName"].GetString(), MODULE_TRITON.c_str());
+    EXPECT_TRUE((*json)["body"].IsObject());
 }
