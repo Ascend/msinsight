@@ -648,6 +648,7 @@ test.describe('Timeline', () => {
 
     // 快捷键 - Alt 放大、撤销缩放（Backspace）、重置缩放（ctrl + 0）
     test('test_Alt_Backspace_and_Ctrl+0', async ({ timelinePage, page }) => {
+        await allPagesSuccessRes;
         const { timelineFrame, mainContainer } = timelinePage;
         const secondUnitInfo = timelineFrame.locator('.unit-info').nth(1);
         await secondUnitInfo.click();
@@ -656,6 +657,21 @@ test.describe('Timeline', () => {
         const chartInfo = await chart.boundingBox();
         if (chartInfo === null) { throw new Error('Timeline canvas is missing'); }
         const { x: startX, y: startY } = chartInfo;
+
+        const selectedThreadInfo = timelineFrame.locator('.unit-info').filter({
+            has: timelineFrame.getByText('Thread 3430895', { exact: true }),
+        });
+        const waitForZoomHistory = async (count: number): Promise<void> => {
+            // 缩放历史有防抖写入；确认每次缩放分别入栈，再进行下一步操作。
+            await selectedThreadInfo.click({ button: 'right' });
+            const undoZoom = timelineFrame.locator('.menu-item').filter({
+                has: timelineFrame.getByText(`Undo Zoom(${count})`, { exact: true }),
+            });
+            await expect(undoZoom).toBeVisible();
+            await mainContainer.focus();
+            await expect(undoZoom).toBeHidden();
+            await page.mouse.move(0, 0);
+        };
 
         type TestKeyboardEventOptions = {
             altKey?: boolean;
@@ -696,7 +712,7 @@ test.describe('Timeline', () => {
         await page.mouse.up();
         await page.keyboard.up('Alt');
 
-        await page.waitForTimeout(200);
+        await waitForZoomHistory(1);
 
         await page.keyboard.down('Alt');
         await page.mouse.move(startX + 50, startY + 50);
@@ -705,16 +721,15 @@ test.describe('Timeline', () => {
         await page.mouse.up();
         await page.keyboard.up('Alt');
 
-        await page.mouse.move(0,0);
-        await page.waitForTimeout(200);
+        await waitForZoomHistory(2);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Alt.png', { maxDiffPixels: 100 });
 
         await pressTimelineKeyOnce('Backspace', 'Backspace');
-        await page.waitForTimeout(200);
+        await waitForZoomHistory(1);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
 
         await page.keyboard.press('Control+0');
-        await page.waitForTimeout(200);
+        await waitForZoomHistory(0);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Ctrl_0_reset.png', { maxDiffPixels: 100 });
     });
 
