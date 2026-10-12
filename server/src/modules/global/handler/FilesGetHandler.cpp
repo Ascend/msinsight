@@ -31,8 +31,8 @@ bool FilesGetHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     FilesGetResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     response.body.path = request.params.path;
-    FileSelector::GetFoldersAndFiles(
-        request.params.path, response.body.childrenFolders, response.body.childrenFiles, response.body.exist);
+    FileSelector::GetFoldersAndFiles(request.params.path, response.body.childrenFolders, response.body.childrenFiles,
+        response.body.exist, request.params.sortBy, request.params.order);
     SendResponse(std::move(responsePtr), true);
     return true;
 }

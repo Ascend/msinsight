@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 #include "JsonUtil.h"
 #include "GlobalProtocolResponse.h"
+#include "GlobalProtocolRequest.h"
 #include "GlobalProtocol.h"
 class GlobalProtocolTest : public ::testing::Test {};
 
@@ -217,6 +218,52 @@ TEST_F(GlobalProtocolTest, ToCancelBaselineRequest) {
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
     unsigned int id = globalProtocol.FromJson(json, error)->id;
     EXPECT_EQ(id, tempId);
+}
+
+TEST_F(GlobalProtocolTest, ToFilesGetRequestWithSortParams) {
+    const uint64_t tempId = 464;
+    Dic::Protocol::GlobalProtocol globalProtocol;
+    globalProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "files/get", allocator);
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "path", "/tmp", allocator);
+    Dic::JsonUtil::AddMember(params, "sortBy", "mtime", allocator);
+    Dic::JsonUtil::AddMember(params, "order", "desc", allocator);
+    Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "global", allocator);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+    auto req = globalProtocol.FromJson(json, error);
+    ASSERT_NE(req, nullptr);
+    auto *filesReq = dynamic_cast<Dic::Protocol::FilesGetRequest *>(req.get());
+    ASSERT_NE(filesReq, nullptr);
+    EXPECT_EQ(filesReq->params.path, "/tmp");
+    EXPECT_EQ(filesReq->params.sortBy, "mtime");
+    EXPECT_EQ(filesReq->params.order, "desc");
+}
+
+TEST_F(GlobalProtocolTest, ToFilesGetRequestDefaultSortParams) {
+    Dic::Protocol::GlobalProtocol globalProtocol;
+    globalProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "files/get", allocator);
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "path", "/tmp", allocator);
+    Dic::JsonUtil::AddMember(json, "id", 1, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "global", allocator);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+    auto req = globalProtocol.FromJson(json, error);
+    ASSERT_NE(req, nullptr);
+    auto *filesReq = dynamic_cast<Dic::Protocol::FilesGetRequest *>(req.get());
+    ASSERT_NE(filesReq, nullptr);
+    EXPECT_EQ(filesReq->params.sortBy, "name");
+    EXPECT_EQ(filesReq->params.order, "asc");
 }
 
 TEST_F(GlobalProtocolTest, ResponseToJson) {

@@ -19,6 +19,7 @@
 #ifndef PROFILER_SERVER_FILE_SELECTOR_H
 #define PROFILER_SERVER_FILE_SELECTOR_H
 
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <memory>
@@ -27,6 +28,12 @@
 namespace Dic {
 namespace Module {
 namespace Global {
+
+inline const std::string kSortByName = "name";
+inline const std::string kSortByMtime = "mtime";
+inline const std::string kOrderAsc = "asc";
+inline const std::string kOrderDesc = "desc";
+
 class FileSelector {
   public:
     FileSelector() = default;
@@ -34,10 +41,13 @@ class FileSelector {
 
     static void GetFoldersAndFiles(const std::string &path,
         std::vector<std::unique_ptr<Protocol::Folder>> &childrenFolders,
-        std::vector<std::unique_ptr<Protocol::File>> &childrenFiles, bool &exist);
+        std::vector<std::unique_ptr<Protocol::File>> &childrenFiles, bool &exist,
+        const std::string &sortBy = kSortByName, const std::string &order = kOrderAsc);
 
   private:
     static bool CompareStrIgnoreCase(const std::string &s1, const std::string &s2);
+    static int64_t GetLastWriteTimeMs(const std::string &path);
+    static void NormalizeSortParams(std::string &sortBy, std::string &order);
 };
 } // end of namespace Global
 } // end of namespace Module

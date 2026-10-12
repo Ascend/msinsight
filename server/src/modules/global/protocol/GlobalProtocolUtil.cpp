@@ -39,11 +39,13 @@ json_t FolderToJson(const std::unique_ptr<Folder> &folder, RAPIDJSON_DEFAULT_ALL
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "name", folder->name, allocator);
     JsonUtil::AddMember(json, "path", folder->path, allocator);
+    JsonUtil::AddMember(json, "mtime", folder->mtime, allocator);
     json_t childrenFiles(kArrayType);
     for (const auto &file : folder->childrenFiles) {
         json_t jFile(kObjectType);
         JsonUtil::AddMember(jFile, "path", file->path, allocator);
         JsonUtil::AddMember(jFile, "name", file->name, allocator);
+        JsonUtil::AddMember(jFile, "mtime", file->mtime, allocator);
         childrenFiles.PushBack(jFile, allocator);
     }
     JsonUtil::AddMember(json, "childrenFiles", childrenFiles, allocator);
@@ -66,6 +68,7 @@ template <> std::optional<document_t> ToResponseJson<FilesGetResponse>(const Fil
         json_t jFile(kObjectType);
         JsonUtil::AddMember(jFile, "path", file->path, allocator);
         JsonUtil::AddMember(jFile, "name", file->name, allocator);
+        JsonUtil::AddMember(jFile, "mtime", file->mtime, allocator);
         childrenFiles.PushBack(jFile, allocator);
     }
     JsonUtil::AddMember(body, "childrenFiles", childrenFiles, allocator);

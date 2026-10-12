@@ -16,13 +16,14 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { observer } from 'mobx-react';
 import { Tree, type TreeDataNode } from 'antd';
 import type { EventDataNode } from 'antd/lib/tree';
-import { getFiles } from '@/utils/Request';
+import { getFiles, type FileSortBy, type FileSortOrder, type GetFilesOptions } from '@/utils/Request';
 import { dealResource, ResourceItem, updateTreeData } from '@/utils/Resource';
+import { catalogReloadKind, parentDirectory, shouldApplyUserSort } from './importCatalog';
 
 const ResourceCataologContainer = styled.div`
     margin-top: 24px;
@@ -76,6 +77,8 @@ export enum CatalogAction {
 export interface CatalogActionListener {
     type: CatalogAction;
     value?: string;
+    /** 每次显式搜索/刷新递增，避免同路径被内容签名跳过 */
+    nonce?: number;
 }
 
 export enum SearchReturnMessage {
@@ -92,117 +95,217 @@ export interface SearchResult {
 }
 interface IResourceProps {
     actionListener: CatalogActionListener;
+    sortBy: FileSortBy;
+    order: FileSortOrder;
     onSearchReturnChange: (val: SearchResult) => void;
     onSelectedChange: (val: string) => void;
 }
+const STABLE_SORT: GetFilesOptions = { sortBy: 'name', order: 'asc' };
 // 文件目录
-const ResourceCatalog = observer(({ actionListener, onSearchReturnChange, onSelectedChange }: IResourceProps) => {
+const ResourceCatalog = observer(({ actionListener, sortBy, order, onSearchReturnChange, onSelectedChange }: IResourceProps) => {
     const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
     const [selectedPath, setSelectedPath] = useState<React.Key>('');
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
     const selectedKeys = useMemo(() => selectedPath === '' ? [] : [selectedPath], [selectedPath]);
+    const sortOptions = useMemo(() => ({ sortBy, order }), [sortBy, order]);
+    const sortOptionsRef = useRef(sortOptions);
+    sortOptionsRef.current = sortOptions;
+    const requestEpoch = useRef(0);
+    // 上次成功选中的路径。排序重载用它，不用输入框里尚未确认的内容
+    const resolvedTargetRef = useRef('');
+    // 当前应用用户排序的目录（文件焦点时为其父目录）
+    const sortFocusRef = useRef('');
+    const confirmedSearchRef = useRef('');
+
+    const resolveSortOptions = (dirPath: string, focusPath: string): GetFilesOptions => {
+        return shouldApplyUserSort(dirPath, focusPath) ? sortOptionsRef.current : STABLE_SORT;
+    };
+
+    const rememberFocus = (path: string, isFile: boolean): string => {
+        resolvedTargetRef.current = path;
+        const focus = isFile ? parentDirectory(path) : path;
+        sortFocusRef.current = focus;
+        return focus;
+    };
+
+    // 加载子节点；epoch 不匹配说明排序或搜索已切换，丢弃过期响应
+    // stable=true 时强制 name/asc，仅用于首次展开尚未加载的祖先
+    const onLoadData = async(node: TreeDataNode | undefined, focusPath: string, epoch: number, stable = false): Promise<TreeDataNode[]> => {
+        const dirPath = String(node?.key ?? '');
+        const data = await getFiles(dirPath, stable ? STABLE_SORT : resolveSortOptions(dirPath, focusPath)) as ResourceItem;
+        if (epoch !== requestEpoch.current) {
+            return [];
+        }
+        const newTreeData = dealResource(data);
+        if (!node) {
+            setTreeData(newTreeData);
+        } else {
+            setTreeData(origin => updateTreeData(origin, node.key, newTreeData));
+        }
+        return newTreeData;
+    };
+
+    const reportSearch = (result: SearchResult, quiet: boolean): void => {
+        if (!result.success && quiet) {
+            return;
+        }
+        onSearchReturnChange(result);
+    };
 
     // 查询并跳转到对应文件
     // Recursive，递归函数
-    const searchPath = async(searchText: string = '', curLevelTree: TreeDataNode[] = [], historyRouteKeys: React.Key[] = [], depth = 0): Promise<void> => {
-        // 安全防护:最大查询深度
-        const maxDepth = 100;
-        if (depth > maxDepth) {
-            onSearchReturnChange({ success: false, result: { message: SearchReturnMessage.EXCEEDING_MAX_DEPETH, options: { maxDepth } } });
+    const searchPath = async(
+        searchText: string = '',
+        curLevelTree: TreeDataNode[] = [],
+        historyRouteKeys: React.Key[] = [],
+        depth = 0,
+        epoch = 0,
+        quiet = false,
+    ): Promise<void> => {
+        if (depth === 0) {
+            epoch = ++requestEpoch.current;
+        }
+        if (epoch !== requestEpoch.current) {
             return;
         }
-        // 第一次查询
+        const maxDepth = 100;
+        if (depth > maxDepth) {
+            reportSearch({ success: false, result: { message: SearchReturnMessage.EXCEEDING_MAX_DEPETH, options: { maxDepth } } }, quiet);
+            return;
+        }
         if (depth === 0) {
-            const nextLevelTree = await onLoadData();
-            searchPath(searchText, nextLevelTree, [], 1);
+            const nextLevelTree = await onLoadData(undefined, searchText, epoch, true);
+            if (epoch !== requestEpoch.current) {
+                return;
+            }
+            await searchPath(searchText, nextLevelTree, [], 1, epoch, quiet);
             return;
         }
         if (searchText === '') {
+            setExpandedKeys([]);
+            setSelectedPath('');
+            resolvedTargetRef.current = '';
+            sortFocusRef.current = '';
+            reportSearch({ success: true }, quiet);
             return;
         }
         const routeKeys: React.Key[] = historyRouteKeys;
         for (let i = 0; i < curLevelTree.length; i++) {
             const node = curLevelTree[i];
             if (node.key === searchText) {
-                // 展开层级目录
-                setExpandedKeys(routeKeys);
-                // 选中节点
+                const isFile = Boolean(node.isLeaf);
+                const sortFocus = rememberFocus(String(node.key), isFile);
+                if (isFile) {
+                    if (sortFocus) {
+                        await onLoadData({ key: sortFocus } as TreeDataNode, sortFocus, epoch);
+                    }
+                } else {
+                    await onLoadData(node, sortFocus, epoch);
+                }
+                if (epoch !== requestEpoch.current) {
+                    return;
+                }
+                setExpandedKeys([...routeKeys, node.key]);
                 setSelectedPath(node.key);
-                // 跳转到选中节点
                 setTimeout(() => {
                     const dom = document.getElementById(searchText)?.closest('div');
                     dom?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'start' });
                 }, 100);
-                onSearchReturnChange({ success: true });
+                reportSearch({ success: true }, quiet);
                 return;
-            } else {
-                // 是否上层目录
-                const curPath = String(node.key);
-                // 分隔符
-                const separator = curPath.includes('/') ? '/' : '\\';
-                const isParentDir = searchText.startsWith(curPath.endsWith(separator) ? curPath : `${curPath}${separator}`);
-                if (isParentDir) {
-                    routeKeys.push(node.key);
-                    const nextLevelTree = await onLoadData(node);
-                    searchPath(searchText, nextLevelTree, routeKeys, depth + 1);
+            }
+            const curPath = String(node.key);
+            const separator = curPath.includes('/') ? '/' : '\\';
+            const isParentDir = searchText.startsWith(curPath.endsWith(separator) ? curPath : `${curPath}${separator}`);
+            if (isParentDir) {
+                routeKeys.push(node.key);
+                // 祖先已展开则复用现有顺序，避免把父层重新排成 name/asc
+                const existing = node.children;
+                const nextLevelTree = existing?.length
+                    ? existing
+                    : await onLoadData(node, searchText, epoch, true);
+                if (epoch !== requestEpoch.current) {
                     return;
                 }
+                await searchPath(searchText, nextLevelTree, routeKeys, depth + 1, epoch, quiet);
+                return;
             }
         }
-        onSearchReturnChange({ success: false, result: { message: SearchReturnMessage.FILE_NOT_FOUND } });
+        reportSearch({ success: false, result: { message: SearchReturnMessage.FILE_NOT_FOUND } }, quiet);
     };
 
-    // 加载子节点
-    const onLoadData = async(node?: TreeDataNode): Promise<TreeDataNode[]> => {
-        return new Promise((resolve) => {
-            getFiles(String(node?.key ?? '')).then(data => {
-                const newTreeData = dealResource(data as ResourceItem);
-                // 根目录
-                if (!node) {
-                    setTreeData(newTreeData);
-                } else {
-                    setTreeData(origin => updateTreeData(origin, node?.key, newTreeData));
-                }
-                resolve(newTreeData);
-            });
-        });
+    // 仅重排当前焦点目录，不动祖先层
+    const reloadFocusSort = async(): Promise<void> => {
+        const focus = sortFocusRef.current || confirmedSearchRef.current;
+        const epoch = ++requestEpoch.current;
+        if (!focus) {
+            await onLoadData(undefined, '', epoch);
+            return;
+        }
+        await onLoadData({ key: focus } as TreeDataNode, focus, epoch);
     };
 
     // 点击节点文字
     const handleSelect = (keys: React.Key[], { node }: {node: EventDataNode<TreeDataNode>}): void => {
-        // 点击都是选中
         setSelectedPath(node.key);
-        // 更新输入框
+        const isFile = Boolean(node.isLeaf);
+        const sortFocus = rememberFocus(String(node.key), isFile);
         onSelectedChange(String(node.key));
-        // 展开的折叠or折叠的展开
         const newExpandedKeys = node.expanded ? expandedKeys.filter(key => key !== node.key) : [...expandedKeys, node.key];
         setExpandedKeys(newExpandedKeys);
+        const epoch = requestEpoch.current;
+        if (isFile) {
+            if (sortFocus) {
+                void onLoadData({ key: sortFocus } as TreeDataNode, sortFocus, epoch);
+            }
+            return;
+        }
         if (!node.expanded) {
-            onLoadData(node);
+            void onLoadData(node, sortFocus, epoch);
         }
     };
 
     // 点击展开图标
     const handleExpand = (keys: React.Key[], { node, expanded }: {expanded: boolean;node: TreeDataNode}): void => {
         setExpandedKeys(keys);
-        // 选中
         setSelectedPath(node.key);
+        const sortFocus = rememberFocus(String(node.key), false);
         if (expanded) {
-            onLoadData(node);
+            void onLoadData(node, sortFocus, requestEpoch.current);
         }
     };
+
+    const prevNonceRef = useRef(actionListener.nonce ?? 0);
+    const prevSortSig = useRef(`${sortBy}:${order}`);
 
     // 操作目录树
     useEffect(() => {
         const { type, value } = actionListener;
-        if ([CatalogAction.SEARCH, CatalogAction.REFRESH].includes(type)) {
-            searchPath(value);
+        const nonce = actionListener.nonce ?? 0;
+        const sortSig = `${sortBy}:${order}`;
+        const kind = catalogReloadKind({
+            prevNonce: prevNonceRef.current,
+            nonce,
+            type,
+            prevSortSig: prevSortSig.current,
+            sortSig,
+        });
+        prevNonceRef.current = nonce;
+        prevSortSig.current = sortSig;
+
+        if (kind === 'search') {
+            confirmedSearchRef.current = value ?? '';
+            void searchPath(value ?? '');
+            return;
         }
-        // 若输入框文字变化，清除选中目录
+        if (kind === 'sort') {
+            void reloadFocusSort();
+            return;
+        }
         if (type === CatalogAction.INPUT_PATH_CHANGE && value !== selectedPath) {
             setSelectedPath('');
         }
-    }, [actionListener]);
+    }, [actionListener, sortOptions]);
 
     // 选中目录变化
     useEffect(() => {

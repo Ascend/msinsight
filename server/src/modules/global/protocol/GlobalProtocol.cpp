@@ -71,6 +71,14 @@ std::unique_ptr<Request> GlobalProtocol::ToFilesGetRequest(const json_t &json, s
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.path, json["params"], "path");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.sortBy, json["params"], "sortBy");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.order, json["params"], "order");
+    if (reqPtr->params.sortBy.empty()) {
+        reqPtr->params.sortBy = "name";
+    }
+    if (reqPtr->params.order.empty()) {
+        reqPtr->params.order = "asc";
+    }
     return reqPtr;
 }
 

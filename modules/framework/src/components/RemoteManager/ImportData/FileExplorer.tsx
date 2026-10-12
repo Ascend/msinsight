@@ -15,21 +15,40 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { observer } from 'mobx-react';
 import styled from '@emotion/styled';
 import { Form, Input, Modal, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { Button, Tooltip } from '@insight/lib/components';
+import { Button, Tooltip, Select } from '@insight/lib/components';
 import { RefreshIcon } from '@insight/lib/icon';
+import { LocalStorageKey, localStorageService } from '@insight/lib';
 import { checkPathValid, fileExist, getLastFilePath, getSearchDir, getTrimedPath } from '@/utils/Resource';
 import type { ProjectCheckErrorDetail, ProjectCheckResult } from '@/utils/Resource';
 import { ProjectAction, ProjectError } from '@/utils/enum';
 import { type Project } from '@/centralServer/websocket/defs';
+import type { FileSortBy, FileSortOrder } from '@/utils/Request';
 import type { CatalogActionListener, SearchResult } from './ResourceCatalog';
 import ResourceCatalog, { CatalogAction } from './ResourceCatalog';
 import { handleProjectAction } from '@/utils/Project';
 import FileConflictDialog from './FileConflictDialog';
+
+const orderStorageKey = (sortBy: FileSortBy): LocalStorageKey => {
+    return sortBy === 'mtime' ? LocalStorageKey.IMPORT_SORT_ORDER_MTIME : LocalStorageKey.IMPORT_SORT_ORDER_NAME;
+};
+
+const readStoredSortBy = (): FileSortBy => {
+    const value = localStorageService.getItem(LocalStorageKey.IMPORT_SORT_BY);
+    return value === 'mtime' ? 'mtime' : 'name';
+};
+
+const readStoredSortOrder = (sortBy: FileSortBy): FileSortOrder => {
+    const value = localStorageService.getItem(orderStorageKey(sortBy));
+    if (value === 'asc' || value === 'desc') {
+        return value;
+    }
+    return sortBy === 'mtime' ? 'desc' : 'asc';
+};
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -149,6 +168,12 @@ const StyledModal = styled(Modal)`
             color: ${(props): string => props.theme.primaryColor};
         }
     }
+    .modal-sort {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-right: 12px;
+    }
 `;
 
 // 文件最大路径长度
@@ -164,7 +189,7 @@ interface IProps {
 }
 // 文件资源管理器
 const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, customImport, importTips, onConfirm, onCancel }: IProps) => {
-    const { t } = useTranslation('framework');
+    const { t, i18n } = useTranslation('framework');
     const [inputPath, setInputPath] = useState(getLastFilePath());
     const [selectedPath, setSelectedPath] = useState('');
     const [actionListener, setActionListener] = useState<CatalogActionListener>({ type: CatalogAction.NO_ACTION });
@@ -173,6 +198,10 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     const [checkResult, setCheckResult] = useState<ProjectError>(ProjectError.NO_ERRORS);
     const [checkErrors, setCheckErrors] = useState<ProjectCheckErrorDetail[]>([]);
     const [confirmLoading, setConfirmLoading] = useState<boolean>(false);
+    const initialSortBy = readStoredSortBy();
+    const [sortBy, setSortBy] = useState<FileSortBy>(initialSortBy);
+    const [order, setOrder] = useState<FileSortOrder>(readStoredSortOrder(initialSortBy));
+    const actionNonce = useRef(0);
 
     // 点击确认
     const handleConfirm = async (): Promise<void> => {
@@ -244,7 +273,8 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     const searchCatalog = (): void => {
         const path = getSearchDir(inputPath);
         setInputPath(path);
-        setActionListener({ type: CatalogAction.SEARCH, value: path });
+        actionNonce.current += 1;
+        setActionListener({ type: CatalogAction.SEARCH, value: path, nonce: actionNonce.current });
     };
 
     // 目录查询返回结果
@@ -269,7 +299,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
         setInputPath(e.target.value);
-        setActionListener({ type: CatalogAction.INPUT_PATH_CHANGE, value: e.target.value });
+        setActionListener({ type: CatalogAction.INPUT_PATH_CHANGE, value: e.target.value, nonce: actionNonce.current });
     };
 
     const handleSelectedChange = (val: string): void => {
@@ -291,11 +321,53 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
         setHit({ alert: false, message: 'FileSearchDescribe' });
     }, [inputPath]);
 
+    const applySortBy = (next: FileSortBy): void => {
+        setSortBy(next);
+        setOrder(readStoredSortOrder(next));
+        localStorageService.setItem(LocalStorageKey.IMPORT_SORT_BY, next);
+    };
+
+    const applyOrder = (next: FileSortOrder): void => {
+        setOrder(next);
+        localStorageService.setItem(orderStorageKey(sortBy), next);
+    };
+
     const modalTitle = <div className="modal-title">
         <span>{t('Import File Dialog Title')}</span>
-        <Tooltip placement="bottom" title={t('RefreshDirectory')}>
-            <RefreshIcon className="modal-refresh" onClick={searchCatalog}/>
-        </Tooltip>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div className="modal-sort" data-testid="importSortControls">
+                <Select
+                    size="small"
+                    width={88}
+                    value={sortBy}
+                    aria-label={t('SortBy')}
+                    // 语言切换时强制刷新选项文案
+                    key={`sort-by-${i18n.language}`}
+                    onChange={(value: FileSortBy): void => applySortBy(value)}
+                    options={[
+                        { value: 'name', label: t('SortByName') },
+                        { value: 'mtime', label: t('SortByDate') },
+                    ]}
+                    getPopupContainer={(trigger: HTMLElement): HTMLElement => trigger.parentElement ?? document.body}
+                />
+                <Select
+                    size="small"
+                    width={100}
+                    value={order}
+                    aria-label={t('SortOrder')}
+                    key={`sort-order-${i18n.language}`}
+                    onChange={(value: FileSortOrder): void => applyOrder(value)}
+                    options={[
+                        { value: 'asc', label: t('SortAsc') },
+                        { value: 'desc', label: t('SortDesc') },
+                    ]}
+                    getPopupContainer={(trigger: HTMLElement): HTMLElement => trigger.parentElement ?? document.body}
+                />
+            </div>
+            <Tooltip placement="bottom" title={t('RefreshDirectory')}>
+                <RefreshIcon className="modal-refresh" onClick={searchCatalog}/>
+            </Tooltip>
+        </div>
     </div>;
 
     return <><StyledModal title={modalTitle} open={dialogOpen} onCancel={handleCancel}
@@ -330,6 +402,8 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
             {!hit.alert && <Text>{t(hit.message, hit.options)}</Text>}
             <ResourceCatalog
                 actionListener={actionListener}
+                sortBy={sortBy}
+                order={order}
                 onSelectedChange={handleSelectedChange}
                 onSearchReturnChange={handleSearchReturn}
             />
