@@ -79,25 +79,46 @@ test.describe('Timeline(Operator)', () => {
     // 算子调优-Slice List-框选-算子统计项
     test('test_compute_timeline_selectUnitsRange_slice_list_total', async ({ timelinePage, page }) => {
         const { timelineFrame } = timelinePage;
-        const secondUnitInfo = timelineFrame.locator('.unit-info').nth(1);
-        await secondUnitInfo.click();
-        const chart = timelineFrame.locator('.ant-spin-container > .drawCanvas').first();
-        const boundingBox = await chart.boundingBox();
-        if (!boundingBox) {
-            return;
+        const processLane = timelinePage.unitWrapperScroller.locator('.unit').filter({
+            has: timelineFrame.getByText('core0.cubecore0', { exact: true }),
+        });
+        await timelinePage.expandUnit(processLane);
+        const scalarLane = timelinePage.unitWrapperScroller.locator('.unit').filter({
+            has: timelineFrame.locator('[class~="core0.cubecore0_SCALAR"]'),
+        });
+        await expect(scalarLane.locator('.insight-lane-info-name')).toHaveText('SCALAR');
+        await timelinePage.expandUnit(scalarLane);
+        const chart = scalarLane.locator('.ant-spin-container > canvas.drawCanvas');
+        await expect(chart).toBeVisible();
+        await expect(scalarLane.locator('.ant-spin-spinning')).toBeHidden();
+
+        const interactor = timelineFrame.locator('#chartInteractor');
+        // timeScale 使用两个 overlay canvas 的 contentRect.width，已扣除滚动条和边框。
+        // 此 fixture 的全览范围是 125818 ns；1305 px 下拖拽 50→200 px 查询 [4820, 19283] ns。
+        // 布局改变时先核对范围和独立统计期望，不能只更新统计值使测试通过。
+        await expect.poll(async () => interactor.locator(':scope > canvas').evaluateAll(canvases => canvases.map(canvas => {
+            const style = getComputedStyle(canvas);
+            return canvas.getBoundingClientRect().width - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth) -
+                parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        })), { message: 'Recheck the selection range and fixture totals if the timeline drawing width changes' }).toEqual([1305, 1305]);
+        const chartBox = await chart.boundingBox();
+        const interactorBox = await interactor.boundingBox();
+        if (!chartBox || !interactorBox) {
+            throw new Error('The core0.cubecore0 SCALAR chart and timeline interactor must be visible');
         }
-        await page.waitForTimeout(1000);
-        const { x: startX, y: startY } = boundingBox;
-        await page.mouse.move(startX + 50, startY + 50);
+        // 鼠标原点是 interactor 的左边界，不额外加 canvas 的 1 px 左边框。
+        const y = chartBox.y + Math.min(50, chartBox.height / 2);
+        await page.mouse.move(interactorBox.x + 50, y);
         await page.mouse.down();
-        await page.mouse.move(startX + 200, startY + 50);
+        await page.mouse.move(interactorBox.x + 200, y);
         await page.mouse.up();
-        const tfoot = await timelineFrame.locator('tfoot');
-        expect(await tfoot.locator('tr > td').nth(5).innerText()).toBe('7387');
-        expect(await tfoot.locator('tr > td').nth(1).innerText()).toBe('0.022960');
-        expect(await tfoot.locator('tr > td').nth(2).innerText()).toBe('0.000003');
-        expect(await tfoot.locator('tr > td').nth(3).innerText()).toBe('0.000022');
-        expect(await tfoot.locator('tr > td').nth(4).innerText()).toBe('0.000001');
+        const tfoot = timelinePage.bottomPanel.locator('tfoot');
+        // 独立查询 OP_SIMULATOR_BIN 的 SCALAR fixture 得到以下合计，不从页面/接口回填期望。
+        await expect(tfoot.locator('tr > td').nth(5)).toHaveText('7457');
+        await expect(tfoot.locator('tr > td').nth(1)).toHaveText('0.023115');
+        await expect(tfoot.locator('tr > td').nth(2)).toHaveText('0.000003');
+        await expect(tfoot.locator('tr > td').nth(3)).toHaveText('0.000022');
+        await expect(tfoot.locator('tr > td').nth(4)).toHaveText('0.000001');
     });
 
     // 算子调优-图形化窗格-点击算子
