@@ -17,135 +17,58 @@
  */
 
 #include <gtest/gtest.h>
-#include <gmock/gmock.h>
+#include <algorithm>
+#include <limits>
 #include <memory>
-#include <vector>
 #include <string>
-#include "DataBaseManager.h"
+#include <vector>
+#include "MemcpyDetailTestDatabase.h"
 #include "MemcpyOverallDatabaseAccesser.h"
-#include "DataEngine.h"
-#include "RepositoryFactory.h"
-#include "RenderEngine.h"
-#include "FullDbParser.h"
-#include "ParamsParser.h"
-#include "ProjectParserFactory.h"
+#include "TraceTime.h"
 
 namespace Dic::Module::Timeline {
 class MemcpyOverallDatabaseAccesserIntegrationTest : public ::testing::Test {
-  public:
-    static void InitDataEngine() {
-        auto repositoryFactory = RepositoryFactory::Instance();
-        auto dataEngine = DataEngine::Instance();
-        dataEngine->SetRepositoryFactory(repositoryFactory);
-        auto renderEngine = RenderEngine::Instance();
-        renderEngine->SetDataEngineInterface(dataEngine);
-    }
-
-    static void SetUpTestCase() {
-        // 重置全局状态
-        FullDb::FullDbParser::Instance().Reset();
-        InitDataEngine();
-
-        // 初始化日志系统
-        const ParamsOption &option = ParamsParser::Instance().GetOption();
-        ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, std::to_string(option.wsPort));
-
-        // 构建测试数据库路径（增强路径健壮性）
-        std::string currPath = Dic::FileUtil::GetCurrPath();
-        size_t index = currPath.rfind("server");
-        if (index == std::string::npos) {
-            FAIL() << "无法定位测试数据库路径：当前路径中不含'server'标识";
-        }
-        currPath = currPath.substr(0, index - 1);
-        testDbPath_ =
-            currPath + R"(/test/st/level2/rank_0_ascend_pt/ASCEND_PROFILER_OUTPUT/ascend_pytorch_profiler_0.db)";
-
-        // 配置数据库管理器
-        DataBaseManager::Instance().SetDataType(DataType::DB, testDbPath_);
-        DataBaseManager::Instance().SetFileType(FileType::PYTORCH, testDbPath_);
-        DataBaseManager::Instance().CreateTraceConnectionPool("0", testDbPath_);
-
-        // 执行解析
-        std::pair<std::string, ParserType> parserType = {testDbPath_, ParserType::DB};
-        auto factory = ParserFactory::GetProjectParser(parserType.second);
-        std::string warn;
-        std::vector<std::string> parseFileList = factory->GetParseFileByImportFile(testDbPath_, warn);
-
-        Global::ProjectExplorerInfo projectInfo;
-        projectInfo.fileName = testDbPath_;
-        projectInfo.projectName = testDbPath_;
-        projectInfo.projectType = static_cast<int64_t>(factory->GetProjectType({testDbPath_}));
-        projectInfo.importType = "import";
-
-        auto parseFileInfo = std::make_shared<ParseFileInfo>();
-        parseFileInfo->parseFilePath = testDbPath_;
-        projectInfo.subParseFileInfo.push_back(parseFileInfo);
-
-        ImportActionRequest request;
-        ImportActionResponse response;
-        factory->Parser({projectInfo}, request, response);
-
-        // 设置路径映射
-        const std::string projectId = "localhost.localdomain2152938157304401006_0";
-        Timeline::DataBaseManager::Instance().SetDbPathMapping("FullDb", testDbPath_, projectId);
-        Timeline::DataBaseManager::Instance().SetDbPathMapping("0", testDbPath_, projectId);
-
-        // 安全等待解析完成（带超时机制）
-        constexpr int MAX_WAIT_SEC = 120;
-        constexpr int CHECK_INTERVAL_MS = 500;
-        int elapsedMs = 0;
-        while (ParserStatusManager::Instance().GetParserStatus(projectId + " 0") != ParserStatus::FINISH_ALL) {
-            if (elapsedMs >= MAX_WAIT_SEC * 1000) {
-                FAIL() << "解析超时（超过" << MAX_WAIT_SEC << "秒）: " << projectId;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(CHECK_INTERVAL_MS));
-            elapsedMs += CHECK_INTERVAL_MS;
-        }
-
-        // 等待Overlap分析完成
-        auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
-        elapsedMs = 0;
-        while (!database || !database->CheckValueFromStatusInfoTable(OVERLAP_ANALYSIS_UNIT, FINISH_STATUS)) {
-            if (elapsedMs >= MAX_WAIT_SEC * 1000) {
-                FAIL() << "Overlap分析超时（超过" << MAX_WAIT_SEC << "秒）";
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(CHECK_INTERVAL_MS));
-            elapsedMs += CHECK_INTERVAL_MS;
-            database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
-        }
-    }
-
-    static void TearDownTestCase() {
-        // 安全清理数据库连接
-        auto connList = Timeline::DataBaseManager::Instance().GetAllTraceDatabase();
-        for (auto &conn : connList) {
-            if (conn) {
-                conn->Stop();
-            }
-        }
-        Timeline::DataBaseManager::Instance().Clear();
-        Timeline::TraceTime::Instance().Reset();
-        Timeline::ParserStatusManager::Instance().ClearAllParserStatus();
-    }
-
   protected:
     void SetUp() override {
-        // 正确构造被测对象（原构造函数需要database和fileId）
-        auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
-        if (!database) {
-            FAIL() << "无法获取rank 0的数据库连接";
+        TraceTime::Instance().Reset();
+        TraceTime::Instance().UpdateTime(1000, 3000);
+        database_ = std::make_shared<MemcpyDetailTestDatabase>(mutex_);
+        ASSERT_TRUE(database_->OpenMemory());
+        DataBaseManager::Instance().SetDataType(DataType::DB, fileId_);
+        const char *schema = R"SQL(
+            CREATE TABLE TASK(globalTaskId INTEGER, streamId INTEGER, taskType INTEGER, startNs INTEGER, endNs INTEGER);
+            CREATE TABLE MEMCPY_INFO(globalTaskId INTEGER, memcpyOperation INTEGER, size INTEGER);
+            CREATE TABLE ENUM_MEMCPY_OPERATION(id INTEGER, name TEXT);
+            CREATE TABLE STRING_IDS(id INTEGER, value TEXT);
+            INSERT INTO ENUM_MEMCPY_OPERATION VALUES(1,'host to device'),(2,'device to host');
+            INSERT INTO STRING_IDS VALUES(1,'MEMCPY_ASYNC');
+        )SQL";
+        ASSERT_EQ(sqlite3_exec(database_->Handle(), schema, nullptr, nullptr, nullptr), SQLITE_OK);
+        // Twelve disjoint records guarantee two pages and both directions on distinct streams.
+        for (uint64_t id = 1; id <= 12; ++id) {
+            const auto type = id % 2 == 1 ? 1 : 2;
+            const auto stream = id % 2 == 1 ? 7 : 8;
+            const auto start = 1000 + id * 100;
+            const std::string sql = "INSERT INTO TASK VALUES(" + std::to_string(id) + "," + std::to_string(stream) +
+                ",1," + std::to_string(start) + "," + std::to_string(start + 10) +
+                "); INSERT INTO MEMCPY_INFO VALUES(" + std::to_string(id) + "," + std::to_string(type) + "," +
+                std::to_string(id * 64) + ");";
+            ASSERT_EQ(sqlite3_exec(database_->Handle(), sql.c_str(), nullptr, nullptr, nullptr), SQLITE_OK);
         }
-        // 使用正确的fileId（与SetUpTestCase中创建的连接池一致）
-        accessor_ = std::make_unique<MemcpyOverallDatabaseAccesser>(database, testDbPath_);
+        accessor_ = std::make_unique<MemcpyOverallDatabaseAccesser>(database_, fileId_);
     }
 
-    void TearDown() override { accessor_.reset(); }
+    void TearDown() override {
+        accessor_.reset();
+        database_.reset();
+        TraceTime::Instance().Reset();
+    }
 
+    std::recursive_mutex mutex_;
+    std::shared_ptr<MemcpyDetailTestDatabase> database_;
     std::unique_ptr<MemcpyOverallDatabaseAccesser> accessor_;
-    static std::string testDbPath_;
+    const std::string fileId_ = "memcpy-overall-assertions-db";
 };
-
-std::string MemcpyOverallDatabaseAccesserIntegrationTest::testDbPath_ = "";
 
 // ======================
 // 测试用例1: 验证基础查询功能（修复参数和字段名）
@@ -155,7 +78,7 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_ReturnsVal
     bool success = accessor_->GetMemcpyRecords(0, 0, records);
 
     EXPECT_TRUE(success) << "查询应成功完成";
-    EXPECT_GT(records.size(), 0) << "测试数据库应包含Memcpy记录";
+    ASSERT_EQ(records.size(), 12u) << "测试数据库应包含Memcpy记录";
 
     // 验证关键字段（修复字段名：memcpyType 替代 operation）
     if (!records.empty()) {
@@ -173,28 +96,27 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_ReturnsVal
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_RespectsTimeRangeFilter) {
     std::vector<MemcpyRecord> allRecords;
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
-    accessor_->GetMemcpyRecords(0, MAX_TIME, allRecords);
+    const uint64_t MAX_TIME = 10000;
+    ASSERT_TRUE(accessor_->GetMemcpyRecords(0, MAX_TIME, allRecords));
 
-    if (allRecords.size() < 2) {
-        GTEST_SKIP() << "跳过测试：需要至少2条记录验证时间过滤";
-    }
+    ASSERT_EQ(allRecords.size(), 12u);
 
-    // 获取中间时间点
+    std::sort(allRecords.begin(), allRecords.end(),
+        [](const auto &left, const auto &right) { return left.startTime < right.startTime; });
+    // 固定样本在中点两侧各有六条记录
     uint64_t midTime = (allRecords.front().startTime + allRecords.back().endTime) / 2;
 
     // 查询前半部分
     std::vector<MemcpyRecord> firstHalf;
-    accessor_->GetMemcpyRecords(0, midTime, firstHalf);
+    ASSERT_TRUE(accessor_->GetMemcpyRecords(0, midTime, firstHalf));
 
     // 查询后半部分
     std::vector<MemcpyRecord> secondHalf;
-    accessor_->GetMemcpyRecords(midTime + 1, MAX_TIME, secondHalf);
+    ASSERT_TRUE(accessor_->GetMemcpyRecords(midTime + 1, MAX_TIME, secondHalf));
 
     // 验证过滤逻辑
-    EXPECT_LT(firstHalf.size(), allRecords.size());
-    EXPECT_LT(secondHalf.size(), allRecords.size());
+    EXPECT_EQ(firstHalf.size(), 6u);
+    EXPECT_EQ(secondHalf.size(), 6u);
     EXPECT_EQ(firstHalf.size() + secondHalf.size(), allRecords.size());
 
     // 验证时间范围正确性
@@ -211,8 +133,7 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_RespectsTi
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_ReturnsEmpty_WhenNoRecordsInTimeRange) {
     std::vector<MemcpyRecord> records;
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
+    const uint64_t MAX_TIME = 10000;
     // 使用极大时间范围外的区间（应无记录）
     bool success = accessor_->GetMemcpyRecords(MAX_TIME - 100, MAX_TIME, records);
 
@@ -226,13 +147,10 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_ReturnsEmp
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_ContainsExpectedOperationTypes) {
     std::vector<MemcpyRecord> records;
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
-    accessor_->GetMemcpyRecords(0, MAX_TIME, records);
+    const uint64_t MAX_TIME = 10000;
+    ASSERT_TRUE(accessor_->GetMemcpyRecords(0, MAX_TIME, records));
 
-    if (records.empty()) {
-        GTEST_SKIP() << "跳过测试：无记录可验证";
-    }
+    ASSERT_EQ(records.size(), 12u);
 
     // 统计操作类型
     bool hasH2D = false;
@@ -248,7 +166,8 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_ContainsEx
     }
 
     // 根据PyTorch Profiler典型场景验证
-    EXPECT_TRUE(hasH2D || hasD2H) << "应包含主机与设备间数据传输记录";
+    EXPECT_TRUE(hasH2D);
+    EXPECT_TRUE(hasD2H) << "应包含主机与设备间数据传输记录";
 }
 
 // ======================
@@ -258,7 +177,10 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_TimeOverfl
     std::vector<MemcpyRecord> records;
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     const uint64_t dangerousStart = std::numeric_limits<uint64_t>::max() + 1 - minTimestamp;
+    const auto prepareCount = database_->prepareCount;
     EXPECT_FALSE(accessor_->GetMemcpyRecords(dangerousStart, dangerousStart + 100, records));
+    EXPECT_EQ(database_->prepareCount, prepareCount);
+    EXPECT_TRUE(records.empty());
 }
 
 // ======================
@@ -267,8 +189,7 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyRecords_TimeOverfl
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged_ValidFirstPage_DataIntegrityAndOrder) {
     std::vector<MemcpyDetailRecord> records;
     uint64_t total = 0;
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
+    const uint64_t MAX_TIME = 10000;
 
     const OrderParam orderParam;
     // 查询第一页（10条）
@@ -298,25 +219,26 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
 // 测试用例7: 验证分页连续性与跨页数据一致性
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged_PageContinuity_NoDuplicationOrGap) {
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
+    const uint64_t MAX_TIME = 10000;
     uint64_t total = 0;
     std::vector<MemcpyDetailRecord> page1, page2;
 
     // 获取第一页（验证总记录数）
     ASSERT_TRUE(accessor_->GetMemcpyDetailRecordsPaged(
         0, MAX_TIME, "", std::nullopt, 1, 10, OrderParam{"startTime", "ascend"}, page1, total));
-    if (total <= 10) {
-        GTEST_SKIP() << "总记录数不足，跳过跨页验证";
-    }
+    ASSERT_EQ(total, 12u);
+    ASSERT_EQ(page1.size(), 10u);
 
     // 获取第二页
     ASSERT_TRUE(accessor_->GetMemcpyDetailRecordsPaged(
         0, MAX_TIME, "", std::nullopt, 2, 10, OrderParam{"startTime", "ascend"}, page2, total));
 
     // 验证第二页非空且记录数合理
-    EXPECT_GT(page2.size(), 0u);
-    EXPECT_LE(page2.size(), 10u);
+    ASSERT_EQ(page2.size(), 2u);
+    EXPECT_EQ(page1.front().id, "1");
+    EXPECT_EQ(page1.back().id, "10");
+    EXPECT_EQ(page2.front().id, "11");
+    EXPECT_EQ(page2.back().id, "12");
 
     // 验证无重复：第二页首条时间戳 > 第一页末条时间戳
     if (!page1.empty() && !page2.empty()) {
@@ -335,22 +257,17 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
 // 测试用例8: 验证复合过滤条件（tid + memcpyType）
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged_CompositeFilter_CorrectSubset) {
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
+    const uint64_t MAX_TIME = 10000;
 
-    // 获取示例过滤值（避免硬编码）
+    // 固定样本包含两个stream，每个stream有六条对应方向的记录
     std::vector<MemcpyRecord> baseRecords;
     ASSERT_TRUE(accessor_->GetMemcpyRecords(0, MAX_TIME, baseRecords));
-    if (baseRecords.empty()) {
-        GTEST_SKIP() << "无基础记录，跳过过滤测试";
-    }
+    ASSERT_EQ(baseRecords.size(), 12u);
 
     // 选取有效过滤值
-    std::string exampleTid = baseRecords[0].threadId;
-    std::string exampleType = baseRecords[0].memcpyType;
-    if (exampleType.empty()) {
-        GTEST_SKIP() << "示例记录memcpyType为空";
-    }
+    const std::string exampleTid = "7";
+    const std::string exampleType = "host to device";
+    ASSERT_FALSE(exampleType.empty());
 
     // 无过滤总记录数
     uint64_t totalAll = 0;
@@ -365,9 +282,12 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
         OrderParam{"startTime", "ascend"}, filteredRecords, filteredTotal));
 
     // 验证过滤效果
-    EXPECT_GT(filteredTotal, 0u) << "过滤后应有匹配记录";
+    EXPECT_EQ(filteredTotal, 6u) << "过滤后应有匹配记录";
     EXPECT_LE(filteredTotal, totalAll) << "过滤后记录数不应超过总数";
-    EXPECT_EQ(filteredRecords.size(), filteredTotal) << "返回记录数应等于total";
+    ASSERT_EQ(filteredRecords.size(), 6u);
+    for (size_t i = 0; i < filteredRecords.size(); ++i) {
+        EXPECT_EQ(filteredRecords[i].id, std::to_string(1 + i * 2));
+    }
 }
 
 // ======================
@@ -390,8 +310,7 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
 // 测试用例10: 验证边界参数处理（超大页码/页大小）
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged_BoundaryParams_HandledGracefully) {
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
+    const uint64_t MAX_TIME = 10000;
     uint64_t total = 0;
     std::vector<MemcpyDetailRecord> records;
 
@@ -421,17 +340,14 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
 // 测试用例11: 验证时间范围过滤与相对时间处理
 // ======================
 TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged_TimeRangeFilter_Accurate) {
-    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    const uint64_t MAX_TIME = std::numeric_limits<uint64_t>::max() - 1 - minTimestamp;
+    const uint64_t MAX_TIME = 10000;
 
     // 获取全量记录确定时间边界
     uint64_t totalAll = 0;
     std::vector<MemcpyDetailRecord> allRecords;
     ASSERT_TRUE(accessor_->GetMemcpyDetailRecordsPaged(
         0, MAX_TIME, "", std::nullopt, 1, 10000, OrderParam{"startTime", "ascend"}, allRecords, totalAll));
-    if (allRecords.size() < 2) {
-        GTEST_SKIP() << "记录不足，跳过时间过滤测试";
-    }
+    ASSERT_EQ(allRecords.size(), 12u);
 
     // 选取中间时间点（相对时间）
     uint64_t midRelTime = (allRecords.front().timestamp + allRecords.back().timestamp) / 2;
@@ -456,8 +372,10 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
         EXPECT_GT(rec.timestamp, midRelTime) << "后半段记录应在时间范围内";
     }
 
-    // 验证记录无重叠且覆盖全集（允许边界舍入误差）
-    EXPECT_LE(firstHalf.size() + secondHalf.size(), totalAll + 1) << "分段记录总数应接近全量（允许边界1条误差）";
+    // 固定样本的中点位于记录间隙，两段结果应恰好覆盖全集
+    EXPECT_EQ(firstHalf.size(), 6u);
+    EXPECT_EQ(secondHalf.size(), 6u);
+    EXPECT_EQ(firstHalf.size() + secondHalf.size(), totalAll);
 }
 
 // ======================
@@ -468,8 +386,12 @@ TEST_F(MemcpyOverallDatabaseAccesserIntegrationTest, GetMemcpyDetailRecordsPaged
     std::vector<MemcpyDetailRecord> records;
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     const uint64_t dangerousStart = std::numeric_limits<uint64_t>::max() + 1 - minTimestamp;
+    const auto prepareCount = database_->prepareCount;
     EXPECT_FALSE(accessor_->GetMemcpyDetailRecordsPaged(dangerousStart, dangerousStart + 100, "", std::nullopt, 1, 10,
         OrderParam{"startTime", "ascend"}, records, total));
+    EXPECT_EQ(database_->prepareCount, prepareCount);
+    EXPECT_TRUE(records.empty());
+    EXPECT_EQ(total, 0u);
 }
 
 } // namespace Dic::Module::Timeline

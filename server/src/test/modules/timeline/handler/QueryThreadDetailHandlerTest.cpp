@@ -21,10 +21,21 @@
 
 class QueryThreadDetailHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, QueryThreadDetailHandlerTestNormal) {
+TEST_F(HandlerTest, QueryThreadDetailHandlerRejectsMissingRenderEngine) {
+    ResponseCapture capture;
     Dic::Module::Timeline::QueryThreadDetailHandler handler;
-    std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::ThreadDetailRequest>();
-    handler.HandleRequest(std::move(requestPtr));
+    auto requestPtr = std::make_unique<Dic::Protocol::ThreadDetailRequest>();
+    requestPtr->id = 73;
+    const auto command = requestPtr->command;
+    EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    ASSERT_EQ(capture.session->responses.size(), 1u);
+    const auto &response = *capture.session->responses.front();
+    EXPECT_EQ(response.requestId, 73u);
+    EXPECT_EQ(response.command, command);
+    EXPECT_FALSE(response.result);
+    ASSERT_TRUE(response.error.has_value());
+    EXPECT_EQ(response.error->code, static_cast<int>(Dic::Module::Timeline::ErrorCode::QUERY_THREAD_DETAIL_FAILED));
+    EXPECT_FALSE(response.error->message.empty());
 }
 
 TEST_F(HandlerTest, QueryThreadDetailHandlerTestIdInvalid) {
