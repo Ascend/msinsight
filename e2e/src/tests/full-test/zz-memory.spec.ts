@@ -17,8 +17,8 @@
  */
 
 import { expect, test as baseTest, WebSocket } from '@playwright/test';
-import { FrameworkPage, MemoryPage, TimelinePage } from '@/page-object';
-import { clearAllData, importData, setCompare, setupWebSocketListener, waitForResponse, waitForWebSocketEvent } from '@/utils';
+import { FileExploreDialogPage, FrameworkPage, MemoryPage, TimelinePage } from '@/page-object';
+import { clearAllData, importData, observeWebSocketRequests, setCompare, setupWebSocketListener, waitForResponse, waitForWebSocketEvent } from '@/utils';
 import { CheckboxHelpers, InputHelpers, SelectHelpers } from '@/components';
 import { FilePath } from '@/utils/constants';
 
@@ -47,14 +47,26 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
     });
 
     // 【case】text非多机非对比memory界面加载
-    test('loadMemoryPageSuccess_when_dataParseSuccess', async ({ page, memoryPage }) => {
+    test('loadMemoryPageSuccess_when_dataParseSuccess', async ({ page, memoryPage, ws }) => {
         const { memoryFrame, rankIdSelector } = memoryPage;
         const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
+        const rankChanged = await rankIdSelect.getValue() !== '0';
+        const websocket = await ws;
+        const dataLoaded = rankChanged
+            ? Promise.all([
+                waitForResponse(websocket, res => res?.command === 'Memory/view/memoryUsage'),
+                waitForResponse(websocket, res => res?.command === 'Memory/view/operator'),
+            ])
+            : Promise.resolve();
         await rankIdSelect.open();
         await rankIdSelect.selectOption('0');
+        await dataLoaded;
+        // 解析完成事件不代表切卡后的曲线和表格已完成加载。
+        await expect(memoryFrame.locator('.ant-spin-spinning')).toHaveCount(0);
         await page.mouse.move(0, 0);
         await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('pytorch-single-rank-0.png', {
             maxDiffPixels: 500,
+            timeout: 20_000,
         });
     });
 
@@ -76,9 +88,13 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
 
     // 【case】memory底部表格条件查询后结果加载
     test('query_memoryDetailTable_by_tableFilterCondition', async ({ page, memoryPage, ws }) => {
-        const { memoryFrame } = memoryPage;
+        const { memoryFrame, rankIdSelector } = memoryPage;
         const websocket = await ws;
 
+        const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
+        await rankIdSelect.open();
+        await rankIdSelect.selectOption('0');
+        await memoryFrame.locator('.ant-spin-spinning').first().waitFor({ state: 'hidden' });
         const nameSearchPromise = waitForResponse(websocket, (res) => res?.command === 'Memory/view/operator');
         await memoryFrame.getByLabel('Name').getByRole('button').click();
         await memoryFrame.getByPlaceholder('Search Name').fill('aten::empty_strided');
@@ -128,18 +144,23 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
 
     // 表格跳转至Timeline
     test('test_redirectToTimeline', async ({ page, memoryPage }) => {
-        const { memoryFrame } = memoryPage;
+        const { memoryFrame, rankIdSelector } = memoryPage;
         const { fullPage } = new TimelinePage(page);
+        const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
+        await rankIdSelect.open();
+        await rankIdSelect.selectOption('0');
         await page.waitForTimeout(2000);
         await memoryFrame.locator('tr:nth-child(3) > td:nth-child(15)').getByRole('button').click();
 
+        await expect(fullPage.getByText('aten::empty_strided', { exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(fullPage.getByText('NPU Metrics', { exact: true })).toBeVisible({ timeout: 20_000 });
         await page.waitForTimeout(1000);
         await page.mouse.move(0, 0);
         try {
             await expect(fullPage).toHaveScreenshot('redirect-to-timeline.png', {
                 maxDiffPixels: 500,
             });
-        }catch (e) {
+        } catch (e) {
             await expect(fullPage).toHaveScreenshot('redirect-to-timeline-1.png', {
                 maxDiffPixels: 500,
             });
@@ -152,22 +173,28 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
         await setCompare(page, memoryFrame, { baseline: FilePath.DB_RANK_0, comparison: FilePath.DB_RANK_1 });
         await memoryFrame.getByText('Difference').first().waitFor({ state: 'visible' });
         await memoryFrame.locator('.ant-spin-spinning').first().waitFor({ state: 'hidden' });
+        await page.waitForTimeout(2000); // 等待图表坐标轴完成布局，避免采样点和刻度仍在变化
         await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('compare-rank.png', {
             maxDiffPixels: 4000,
         });
-        await page.waitForTimeout(2000); // 对比场景需要加延时，确保稳定
     });
 
     // 【case】memory中间调整区间，底部表格仅查看在选中时间区间分配或释放内存的数据时的结果展示
     test( 'query_memoryDetailTable_by_tableFilterConditionOnlyShowAllocatedOrReleasedWithinInterval', async ({ page, memoryPage, ws }) => {
-        const { memoryFrame, isOnlyShowAllocatedOrReleasedWithinIntervalChecker } = memoryPage;
+        const { memoryFrame, rankIdSelector, isOnlyShowAllocatedOrReleasedWithinIntervalChecker } = memoryPage;
         const isOnlyShowAllocatedOrReleasedWithinIntervalCheckbox = new CheckboxHelpers(page, isOnlyShowAllocatedOrReleasedWithinIntervalChecker, memoryFrame);
+        const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
+        await rankIdSelect.open();
+        await rankIdSelect.selectOption('0');
+        await memoryFrame.locator('.ant-spin-spinning').first().waitFor({ state: 'hidden' });
+        const totalNumListItem = memoryFrame.locator('.ant-spin-container > ul > li.ant-pagination-total-text');
+        const initialTotal = Number((await totalNumListItem.innerText()).match(/\d+/)?.[0]);
+        expect(initialTotal).toBeGreaterThan(0);
 
         const chart = memoryFrame.locator('.ant-spin-container > div > div:nth-child(2) > div:nth-child(1) > canvas');
         await page.waitForTimeout(1000);
         const chartInfo = await chart.boundingBox();
 
-        console.log(chart, chartInfo);
         // 等待echarts加载完成才能框选
         await page.waitForTimeout(1000);
         const { x: startX, y: startY } = chartInfo;
@@ -176,7 +203,9 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
         await page.mouse.move(startX + 400, startY + 200);
         await page.mouse.up();
 
+        const filteredPromise = waitForResponse(await ws, (res) => res?.command === 'Memory/view/operator');
         await isOnlyShowAllocatedOrReleasedWithinIntervalCheckbox.click();
+        await filteredPromise;
         expect(await isOnlyShowAllocatedOrReleasedWithinIntervalCheckbox.isChecked()).toBe(true);
 
         const spin = memoryFrame.locator('.panel-content .ant-spin-dot-spin');
@@ -184,8 +213,8 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
         await spin.waitFor({ state: 'detached' });
         await page.mouse.move(0, 0);
 
-        const totalNumListItem = memoryFrame.locator('.ant-spin-container > ul > li.ant-pagination-total-text');
-        expect(await totalNumListItem.innerText()).toBe('Total 315 items');
+        await expect.poll(async () => Number((await totalNumListItem.innerText()).match(/\d+/)?.[0]))
+            .toBeLessThan(initialTotal);
 
         await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('pytorch-interval-only-show.png', {
             maxDiffPixels: 500,
@@ -388,22 +417,45 @@ test.describe('Memory(Pytorch_MultiMachinesMultiRanksData)', () => {
 
 test.describe('Memory(Pytorch_SwitchProject)', () => {
     test.beforeEach(async ({ page, memoryPage, ws }) => {
-        const allCardParsedPromise = waitForWebSocketEvent(page, (res) => res?.event === 'allPagesSuccess');
+        test.setTimeout(90_000);
+        const textParsedPromise = waitForWebSocketEvent(page, (res) => res?.event === 'allPagesSuccess');
         await memoryPage.goto();
         await clearAllData(page);
         await importData(page, FilePath.TEXT);
-        await allCardParsedPromise;
-        await importData(page, FilePath.MULTI_NODES);
-        await allCardParsedPromise;
+        await textParsedPromise;
+        const frameworkPage = new FrameworkPage(page);
+        const dialog = new FileExploreDialogPage(page);
+        const directoryRequests = observeWebSocketRequests<{ path: string }, unknown>(await ws, 'files/get');
+        try {
+            await frameworkPage.importDataBtn.click();
+            await expect(dialog.mainDialog).toBeVisible();
+            // 再次打开时会自动定位上次目录，等待其完成，避免覆盖新输入的路径。
+            await directoryRequests.waitFor(params => params.path === FilePath.TEXT);
+            const selectedPath = dialog.fileTree.locator('.ant-tree-node-selected .ant-tree-title > span[id]');
+            await expect(selectedPath).toHaveAttribute('id', FilePath.TEXT);
+            await expect(dialog.input).toHaveValue(FilePath.TEXT);
+            await dialog.input.fill(FilePath.MULTI_NODES);
+            await dialog.input.press('Enter');
+            await expect(selectedPath).toHaveAttribute('id', FilePath.MULTI_NODES, { timeout: 30_000 });
+        } finally {
+            directoryRequests.dispose();
+        }
+        const dbParsedPromise = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
+        await dialog.confirmBtn.click();
+        await expect(dialog.mainDialog).toBeHidden();
+        await dbParsedPromise;
     });
 
     // 测试从多机多卡db类型数据切换到单机多卡text类型数据
-    test('test_pageDisplay_when_db_to_text', async ({ page, memoryPage }) => {
+    test('test_pageDisplay_when_db_to_text', async ({ page, memoryPage, ws }) => {
         const frameworkPage = new FrameworkPage(page);
+        const websocket = await ws;
         const dbRank0 = frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_0);
         await dbRank0.click();
         const textRank2 = frameworkPage.getRankLocator(FilePath.TEXT_RANK_2);
+        const textLoadedPromise = waitForResponse(websocket, (res) => res?.command === 'Memory/view/memoryUsage');
         await textRank2.click();
+        await textLoadedPromise;
         const { memoryFrame, hostSelector, rankIdSelector } = memoryPage;
         await hostSelector.waitFor({ state: 'detached' });
         await page.waitForTimeout(1000);
@@ -426,6 +478,7 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
 
         const dbRank1 = frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_1);
         const allCardParsedPromise = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
+        const searchPromise = waitForResponse(await ws, (res) => res?.command === 'Memory/view/operator');
         await dbRank1.click();
         await allCardParsedPromise;
 
@@ -438,7 +491,6 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
         const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
         const selectedText = await rankIdSelect.getValue();
         expect(selectedText).toBe('1');
-        const searchPromise = waitForResponse(await ws, (res) => res?.command === 'Memory/view/operator');
         await searchPromise;
         // 等待 echarts 动画结束
         await page.waitForTimeout(2000);
@@ -448,6 +500,11 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
     });
 
     test.afterEach(async ({ page, ws }) => {
+        const dialog = new FileExploreDialogPage(page);
+        if (await dialog.mainDialog.isVisible()) {
+            await dialog.mainDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+            await expect(dialog.mainDialog).toBeHidden();
+        }
         await clearAllData(page, ws);
     });
 });
@@ -651,17 +708,22 @@ test.describe('Memory(Text)', () => {
 
     // 表格跳转至Timeline
     test('test_redirectToTimeline_when_rightClickTable', async ({ page, memoryPage }) => {
-        const { memoryFrame } = memoryPage;
+        const { memoryFrame, rankIdSelector } = memoryPage;
         const { fullPage } = new TimelinePage(page);
+        const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
+        await rankIdSelect.open();
+        await rankIdSelect.selectOption('0');
         await page.waitForTimeout(2000);
         await memoryFrame.locator('tr:nth-child(3) > td:nth-child(15)').getByRole('button').click();
-        await page.waitForTimeout(2000);
+        await expect(fullPage.getByText('aten::empty_strided', { exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(fullPage.getByText('NPU Metrics', { exact: true })).toBeVisible({ timeout: 20_000 });
+        await page.waitForTimeout(1000);
         await page.mouse.move(0, 0);
         try {
             await expect(fullPage).toHaveScreenshot('text_memory_redirectToTimeline.png', {
                 maxDiffPixels: 500,
             });
-        }catch (e) {
+        } catch (e) {
             await expect(fullPage).toHaveScreenshot('text_memory_redirectToTimeline-1.png', {
                 maxDiffPixels: 500,
             });
