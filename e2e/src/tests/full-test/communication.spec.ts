@@ -148,13 +148,19 @@ test.describe('Communication', () => {
             await page.mouse.wheel(0, -200);
             await page.waitForTimeout(200);
         }
+        await page.mouse.move(0, 0);
         await expect(matrixChart).toHaveScreenshot('matrix-zoom-in.png');
         // 缩小图表
         for (let _ = 0; _ < 5; _++) {
             await page.mouse.wheel(0, 200);
             await page.waitForTimeout(200);
         }
+        await page.mouse.move(0, 0);
         await expect(matrixChart).toHaveScreenshot('matrix-zoom-out.png');
+
+        await page.mouse.move(1000, 500);
+        await page.waitForTimeout(1000);
+        await expect(matrixChart).toHaveScreenshot('matrix-tooltip.png');
     });
 
     // HCCL 图表、通信时长图表
