@@ -253,7 +253,8 @@ const EventsTable = observer(({
             name: t(column.name, { defaultValue: column.name, keyPrefix: 'tableHead' }),
         })),
         rows: committedContextKeyRef.current === contextKey && isQueryReady()
-            ? eventsTableData as unknown as Array<Record<string, unknown>> : [],
+            ? eventsTableData as unknown as Array<Record<string, unknown>>
+            : [],
         query: stableQueryRef.current,
         contextKey,
         total: committedContextKeyRef.current === contextKey && isQueryReady() ? eventsTotal : 0,
@@ -276,11 +277,13 @@ const EventsTable = observer(({
     };
 
     const runQueryTransition = async (query: TableQueryState, context: TransitionContext): Promise<TableStableSnapshot> => {
-        if (!isQueryReady()) throw new AgentTableError({
-            code: TABLE_ERROR_CODES.NOT_READY,
-            message: 'The MemScope event table is not ready for this context.',
-            retryable: true,
-        });
+        if (!isQueryReady()) {
+            throw new AgentTableError({
+                code: TABLE_ERROR_CODES.NOT_READY,
+                message: 'The MemScope event table is not ready for this context.',
+                retryable: true,
+            });
+        }
         const requestSequence = ++latestRequestRef.current;
         const frozenContextKey = requestContextKey();
         const frozenDeviceIds = session.deviceIds;
@@ -289,16 +292,20 @@ const EventsTable = observer(({
         const ownsTransition = (): boolean => requestSequence === latestRequestRef.current && isCurrentContext();
         requestSequencesRef.current.set(context.requestId, { sequence: requestSequence, isCurrentContext });
         const assertCurrent = (): void => {
-            if (context.signal.aborted) throw context.signal.reason ?? new AgentTableError({
-                code: TABLE_ERROR_CODES.COMMAND_CANCELLED,
-                message: 'The MemScope event table command was cancelled.',
-                retryable: true,
-            });
-            if (!ownsTransition()) throw new AgentTableError({
-                code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED,
-                message: 'The MemScope event table context or command was superseded.',
-                retryable: true,
-            });
+            if (context.signal.aborted) {
+                throw context.signal.reason ?? new AgentTableError({
+                    code: TABLE_ERROR_CODES.COMMAND_CANCELLED,
+                    message: 'The MemScope event table command was cancelled.',
+                    retryable: true,
+                });
+            }
+            if (!ownsTransition()) {
+                throw new AgentTableError({
+                    code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED,
+                    message: 'The MemScope event table context or command was superseded.',
+                    retryable: true,
+                });
+            }
         };
         let nextQuery = query;
         try {

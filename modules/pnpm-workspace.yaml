@@ -12,3 +12,20 @@ packages:
   - 'memory-on-chip'
   - 'numa'
   - 'insight_web_agent'
+
+# pnpm 11 reads hoist settings from this file. The same patterns remain in .npmrc for pnpm 10.
+publicHoistPattern:
+  - rc-select
+  - rc-tree
+  - rc-tabs
+  - rc-table
+  - '@ant-design/icons'
+  - mobx-react-lite
+  - classnames
+  - csstype
+  - '@types*'
+  - '*eslint*'
+  - react
+  - react-dom
+  - mobx-react
+  - react-i18next

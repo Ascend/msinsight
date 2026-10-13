@@ -431,8 +431,7 @@ bool ClusterFileParser::MsprofAnalyzeCluster(
     FileUtil::ModifyFilePermissions(logPath, fileMode);
 #endif
 
-    const std::string scriptPath =
-        std::string("msprof_analyze") + FILE_SEPARATOR + "cluster_analyse" + FILE_SEPARATOR + "cluster_analysis.py";
+    const std::string scriptPath = "msprof_cluster_entry.py";
     std::vector<std::string> arguments{"-d", selectedPath};
     if (!mode.empty()) {
         arguments.emplace_back("-m");
@@ -457,8 +456,7 @@ bool ClusterFileParser::MsprofAnalyzeOperatorMfu(const std::string &selectedPath
     }
     std::string logPath = FileUtil::SplicePath(selectedPath, "cluster_analysis.log");
 
-    const std::string scriptPath =
-        std::string("msprof_analyze") + FILE_SEPARATOR + "cluster_analyse" + FILE_SEPARATOR + "cluster_analysis.py";
+    const std::string scriptPath = "msprof_cluster_entry.py";
     std::vector<std::string> arguments{"-m", "operator_mfu", "-d", selectedPath};
     ServerLog::Info("Start execute command, selected path: ", selectedPath);
     if (PythonUtil::ExecuteScript(scriptPath, arguments, logPath) != 0) {

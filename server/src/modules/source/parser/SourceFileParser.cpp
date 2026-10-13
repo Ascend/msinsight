@@ -197,7 +197,7 @@ bool SourceFileParser::InitParser(const std::string &rankId, const std::string &
         }
     }
 
-    instance.fileProgressMap[rankId] = std::make_unique<FileProgress>(0, totalSize);
+    instance.SetFileProgress(rankId, std::make_unique<FileProgress>(0, totalSize));
 
     std::shared_ptr<std::vector<std::future<void>>> futures = std::make_shared<std::vector<std::future<void>>>();
     for (const auto &pos : adjustTraceFilePos) {
@@ -302,11 +302,10 @@ void SourceFileParser::ParseTask(
                 break;
             }
         }
-        // 发送解析进度事件
-        std::unique_ptr<FileProgress> &curFileProgress = instance.fileProgressMap[rankId];
-        curFileProgress->AddToParsedSize(NumberSafe::Sub(pair.second, pair.first));
-        instance.parseProgressCallback(rankId, curFileProgress->GetParsedSize(), curFileProgress->GetTotalSize(),
-            curFileProgress->GetProgressPercentage());
+        // 发送解析进度事件。测试和离线解析可能没有注册进度回调。
+        if (pair.second > pair.first) {
+            instance.AddParsedSizeAndNotify(rankId, NumberSafe::Sub(pair.second, pair.first));
+        }
     }
 }
 
@@ -316,9 +315,7 @@ void SourceFileParser::ParseEndCallBack(
         result = false;
     }
     auto &instance = SourceFileParser::Instance();
-    if (instance.parseEndCallback != nullptr) {
-        instance.parseEndCallback(rankId, fileId, result, message);
-    }
+    instance.InvokeEndCallback(rankId, fileId, result, message);
 }
 
 void SourceFileParser::Reset() {

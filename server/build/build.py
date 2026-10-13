@@ -142,6 +142,14 @@ def build(*, allow_dependency_install=True, jobs=MAKE_JOBS):
 
 
 def copy_msprof2server_dir():
+    source_init = os.path.join(os.path.dirname(CLUSTER_ANALYSE_DIR), '__init__.py')
+    launcher_source = os.path.join(BUILD_DIR, 'msprof_cluster_entry.py')
+    # A namespace-only copy can be shadowed by the independently installed CLI wheel.
+    # Validate the owned package/entry before touching an existing output directory.
+    for required_file in (source_init, launcher_source):
+        if not os.path.isfile(required_file):
+            raise FileNotFoundError(f'Required msprof packaging file is missing: {required_file}')
+
     att_dir = os.path.join(OUTPUT_DIR, get_gxx_type())
     att_bin_dir = os.path.join(att_dir, 'bin')
 
@@ -151,6 +159,8 @@ def copy_msprof2server_dir():
     shutil.copytree(CLUSTER_ANALYSE_DIR, os.path.join(script_path, CLUSTER_ANALYSE), copy_function=shutil.copy2)
     shutil.copytree(PROF_COMMON_DIR, os.path.join(script_path, PROF_COMMON), copy_function=shutil.copy2)
     shutil.copytree(PROF_EXPORTS_DIR, os.path.join(script_path, PROF_EXPORTS), copy_function=shutil.copy2)
+    shutil.copy2(source_init, os.path.join(script_path, '__init__.py'))
+    shutil.copy2(launcher_source, os.path.join(att_bin_dir, 'msprof_cluster_entry.py'))
 
 
 def move_snapdump2server_dir():

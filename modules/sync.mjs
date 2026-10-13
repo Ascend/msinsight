@@ -6,14 +6,13 @@ const SYNC_CONFIG = [
     { folder: 'reinforcement-learning', targetName: 'RL' },
     { folder: 'cluster', targetName: 'Cluster' },
     { folder: 'compute', targetName: 'Compute' },
-    { folder: 'insight_web_agent', targetName: 'InsightWebAgent' },
+    { folder: 'insight_web_agent', targetName: 'InsightWebAgent', required: true },
     { folder: 'leaks', targetName: 'Leaks' },
     { folder: 'memory', targetName: 'Memory' },
     { folder: 'operator', targetName: 'Operator' },
     { folder: 'statistic', targetName: 'Statistic' },
     { folder: 'timeline', targetName: 'Timeline' },
-    { folder: 'numa', targetName: 'NUMA' },
-    { folder: 'insight_web_agent', targetName: 'InsightWebAgent' },
+    { folder: 'numa', targetName: 'NUMA', required: true },
 ];
 
 const __dirname = path.resolve();
@@ -21,6 +20,7 @@ const FRAMEWORK_PLUGINS_ROOT = path.join(__dirname, 'framework/public/plugins');
 
 async function sync() {
     console.log('开始分发构建产物...');
+    let syncFailed = false;
 
     for (const item of SYNC_CONFIG) {
         const sourceDir = path.join(__dirname, item.folder, 'build');
@@ -42,12 +42,19 @@ async function sync() {
                 });
 
                 console.log(`✅ 已同步: ${item.folder} -> ${item.targetName}`);
+            } else if (item.required) {
+                syncFailed = true;
+                console.error(`❌ 缺少必需构建产物: ${item.folder} (未找到 build 目录: ${sourceDir})`);
             } else {
                 console.warn(`⚠️ 跳过: ${item.folder} (未找到 build 目录: ${sourceDir})`);
             }
         } catch (err) {
+            syncFailed = true;
             console.error(`❌ 同步 ${item.folder} 失败:`, err);
         }
+    }
+    if (syncFailed) {
+        process.exitCode = 1;
     }
 }
 

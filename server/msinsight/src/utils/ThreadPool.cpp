@@ -22,24 +22,34 @@
 namespace Dic {
 using namespace Dic::Server;
 void ThreadPool::ThreadFunc(ThreadPool &threadPool, int index) {
-    bool hasTask = false;
     while (threadPool.running) {
         std::function<void()> func;
         {
             std::unique_lock<std::mutex> lock(threadPool.taskMutex);
-            if (threadPool.taskQueue.Empty()) {
-                threadPool.taskCv.wait(
-                    lock, [&threadPool]() { return !threadPool.running || !threadPool.taskQueue.Empty(); });
+            threadPool.taskCv.wait(
+                lock, [&threadPool]() { return !threadPool.running || !threadPool.taskQueue.Empty(); });
+            if (!threadPool.running) {
+                break;
             }
-            hasTask = threadPool.taskQueue.Pop(func);
-        }
-        if (hasTask) {
+            if (!threadPool.taskQueue.Pop(func)) {
+                continue;
+            }
+            // 出队后、释放锁前计入正在执行，避免 Reset 在任务尚未开始时误判为空闲。
             threadPool.runningTasks++;
-            func();
-            threadPool.runningTasks--;
         }
-        if (threadPool.waiting && threadPool.runningTasks == 0 && threadPool.taskQueue.Empty()) {
-            threadPool.taskDoneCv.notify_all();
+        try {
+            func();
+        } catch (const std::exception &ex) {
+            ServerLog::Error("Thread pool task threw an exception: ", ex.what());
+        } catch (...) {
+            ServerLog::Error("Thread pool task threw an unknown exception.");
+        }
+        {
+            std::unique_lock<std::mutex> lock(threadPool.taskMutex);
+            threadPool.runningTasks--;
+            if (threadPool.waiting && threadPool.runningTasks == 0 && threadPool.taskQueue.Empty()) {
+                threadPool.taskDoneCv.notify_all();
+            }
         }
     }
     ServerLog::Info("[Thread worker] worker ", index, " exit.");

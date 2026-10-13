@@ -258,7 +258,8 @@ const BlocksTable = observer(({
             name: t(column.name, { defaultValue: column.name, keyPrefix: 'tableHead' }),
         })),
         rows: committedContextKeyRef.current === contextKey && isQueryReady()
-            ? blocksTableData as unknown as Array<Record<string, unknown>> : [],
+            ? blocksTableData as unknown as Array<Record<string, unknown>>
+            : [],
         query: stableQueryRef.current,
         contextKey,
         total: committedContextKeyRef.current === contextKey && isQueryReady() ? blocksTotal : 0,
@@ -281,11 +282,13 @@ const BlocksTable = observer(({
     };
 
     const runQueryTransition = async (query: TableQueryState, context: TransitionContext): Promise<TableStableSnapshot> => {
-        if (!isQueryReady()) throw new AgentTableError({
-            code: TABLE_ERROR_CODES.NOT_READY,
-            message: 'The MemScope block table is not ready for this context.',
-            retryable: true,
-        });
+        if (!isQueryReady()) {
+            throw new AgentTableError({
+                code: TABLE_ERROR_CODES.NOT_READY,
+                message: 'The MemScope block table is not ready for this context.',
+                retryable: true,
+            });
+        }
         const requestSequence = ++latestRequestRef.current;
         const frozenContextKey = requestContextKey();
         const frozenDeviceIds = session.deviceIds;
@@ -294,16 +297,20 @@ const BlocksTable = observer(({
         const ownsTransition = (): boolean => requestSequence === latestRequestRef.current && isCurrentContext();
         requestSequencesRef.current.set(context.requestId, { sequence: requestSequence, isCurrentContext });
         const assertCurrent = (): void => {
-            if (context.signal.aborted) throw context.signal.reason ?? new AgentTableError({
-                code: TABLE_ERROR_CODES.COMMAND_CANCELLED,
-                message: 'The MemScope block table command was cancelled.',
-                retryable: true,
-            });
-            if (!ownsTransition()) throw new AgentTableError({
-                code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED,
-                message: 'The MemScope block table context or command was superseded.',
-                retryable: true,
-            });
+            if (context.signal.aborted) {
+                throw context.signal.reason ?? new AgentTableError({
+                    code: TABLE_ERROR_CODES.COMMAND_CANCELLED,
+                    message: 'The MemScope block table command was cancelled.',
+                    retryable: true,
+                });
+            }
+            if (!ownsTransition()) {
+                throw new AgentTableError({
+                    code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED,
+                    message: 'The MemScope block table context or command was superseded.',
+                    retryable: true,
+                });
+            }
         };
         let nextQuery = query;
         try {
@@ -452,8 +459,16 @@ const BlocksTable = observer(({
             return;
         }
         const queryKey = JSON.stringify({
-            contextKey, sliceReady, blockLoadReady, loadedMemoryBlockContextKey, loadingBlocks,
-            lazyUsedThreshold, delayedFreeThreshold, longIdleThreshold, onlyInefficient, autoFilterPotentialLeaks,
+            contextKey,
+            sliceReady,
+            blockLoadReady,
+            loadedMemoryBlockContextKey,
+            loadingBlocks,
+            lazyUsedThreshold,
+            delayedFreeThreshold,
+            longIdleThreshold,
+            onlyInefficient,
+            autoFilterPotentialLeaks,
         });
         if (lastAutoQueryKeyRef.current === queryKey) return;
         // A graph reload can clear/invalidate table data even when the selected range is unchanged.

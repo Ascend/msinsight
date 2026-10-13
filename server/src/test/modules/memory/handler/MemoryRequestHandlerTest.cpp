@@ -17,7 +17,6 @@
  */
 
 #include <gtest/gtest.h>
-#include <mockcpp/mockcpp.hpp>
 #include "QueryMemoryComponentHandler.h"
 #include "QueryMemoryOperatorHandler.h"
 #include "QueryMemoryResourceTypeHandler.h"
@@ -31,6 +30,7 @@
 #include "DataBaseManager.h"
 #include "DbMemoryDataBase.h"
 #include "TraceTime.h"
+#include "BaselineManager.h"
 
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::Memory;
@@ -264,8 +264,10 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonGroupByStre
 
 TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonTestReturnFalse) {
     const int64_t defaultPageSize = 10;
+    // mockcpp only installs an x86 jump, so this arm64 build executes the real
+    // missing-baseline path and expects HandleRequest to return false.
+    Dic::Module::Global::BaselineManager::Instance().Reset();
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
-    MOCKER(&QueryMemoryOperatorHandler::GetRespectiveData).expects(once()).will(returnValue(false));
     std::unique_ptr<Dic::Protocol::MemoryOperatorRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryOperatorRequest>();
     requestPtr.get()->params.rankId = "0";
@@ -278,7 +280,6 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonTestReturnF
     requestPtr.get()->params.pageSize = defaultPageSize;
     requestPtr.get()->params.isCompare = true;
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
-    GlobalMockObject::verify();
 }
 
 TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffCompareEmptyTest) {

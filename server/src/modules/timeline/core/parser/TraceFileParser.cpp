@@ -150,7 +150,7 @@ void TraceFileParser::InitFileProcess(const std::vector<std::string> &filePathAr
     for (const auto &filePath : filePathArr) {
         ServerLog::Info("Start parse. rank id:", rankId, ". path:", filePath);
         auto splitFile = SplitFile(filePath);
-        fileProgressMap[rankId] = std::make_unique<FileProgress>(0, FileUtil::GetFileSize(filePath.c_str()));
+        SetFileProgress(rankId, std::make_unique<FileProgress>(0, FileUtil::GetFileSize(filePath.c_str())));
         if (splitFile.empty()) {
             ServerLog::Error("Failed to split file. filePath: %", filePath);
             ParseEndCallBack(rankId, "", false, "Failed to split file: " + filePath);
@@ -199,11 +199,10 @@ void TraceFileParser::ParseTask(const std::string &filePath, const std::string &
             ParseEndCallBack(rankId, "", false, eventParser.GetError());
         }
     }
-    // 发送单卡解析进度事件
-    std::unique_ptr<FileProgress> &curFileProgress = fileProgressMap[rankId];
-    curFileProgress->AddToParsedSize(pos.second - pos.first);
-    parseProgressCallback(rankId, curFileProgress->GetParsedSize(), curFileProgress->GetTotalSize(),
-                                   curFileProgress->GetProgressPercentage());
+    // 发送单卡解析进度事件。测试和离线解析可能没有注册进度回调。
+    if (pos.second > pos.first) {
+        AddParsedSizeAndNotify(rankId, static_cast<uint64_t>(pos.second - pos.first));
+    }
 }
 
 void TraceFileParser::EndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr,
@@ -327,8 +326,8 @@ void TraceFileParser::ParseEndCallBack(const std::string &rankId,
                                        const std::string &message)
 {
     auto oldStatus = ParserStatusManager::Instance().GetParserStatus(rankId);
-    if (parseEndCallback != nullptr && oldStatus != ParserStatus::TERMINATE) {
-        parseEndCallback(rankId, fileId, result, message);
+    if (oldStatus != ParserStatus::TERMINATE) {
+        InvokeEndCallback(rankId, fileId, result, message);
     }
 }
 

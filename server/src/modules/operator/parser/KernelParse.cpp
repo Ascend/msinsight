@@ -453,9 +453,7 @@ void KernelParse::ParseEndCallBack(
         return;
     }
     auto &instance = KernelParse::Instance();
-    if (instance.parseEndCallback != nullptr) {
-        instance.parseEndCallback(rankId, fileId, result, msg);
-    }
+    instance.InvokeEndCallback(rankId, fileId, result, msg);
 }
 
 void KernelParse::ParseCallBack(
