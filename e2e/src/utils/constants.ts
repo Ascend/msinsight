@@ -45,6 +45,7 @@ export const FilePath = {
     REINFORCEMENT_LEARNING: `${DATA_PATH}\\training\\reinforcement-learning\\verl`,
     LEAKS_DUMP: `${DATA_PATH}\\memscope\\leaks_dump_20250806.db`,
     SNAPSHOT_PKL: `${DATA_PATH}\\memscope\\snapshot_expandable.pkl`,
+    SNAPSHOT_PKL_SLICE_WINDOW: `${DATA_PATH}\\memscope\\memory0.pickle`,
 
     TEXT_330: 'D:\\GUI_TEST_DATA 路徑测试\\系统调优\\test_level1_PipeUtilization\\profiling_data', // 给 Memory 模块使用
     TEXT_330_RANK_0: 'D:\\GUI_TEST_DATA 路徑测试\\系统调优\\test_level1_PipeUtilization\\profiling_data\\ubuntu2204_3929556_20250411014455476_ascend_pt\\ASCEND_PROFILER_OUTPUT',

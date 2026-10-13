@@ -652,3 +652,156 @@ test.describe('Leaks(snapshot)', () => {
         await expect(frame.getByTestId('memoryMarkerManagerFloatingPanel')).toContainText('No flags');
     });
 });
+
+test.describe('Leaks(snapshotSliceWindow)', () => {
+    test.describe.configure({ timeout: 180000 });
+    let getAllocationsSuccess: Promise<unknown>;
+    test.beforeEach(async ({ page, leaksPage }) => {
+        getAllocationsSuccess = waitForWebSocketEvent(page, (res) => res?.command === 'Memory/snapshot/allocationLines');
+        await page.goto('/');
+        await importData(page, FilePath.SNAPSHOT_PKL_SLICE_WINDOW);
+        await leaksPage.goto();
+        await getAllocationsSuccess;
+        await leaksPage.waitForReady();
+    });
+
+    test.afterEach(async ({ leaksPage }, testInfo) => {
+        if (testInfo.status !== testInfo.expectedStatus) {
+            await testInfo.attach('leaks-ui', { body: await leaksPage.leaksFrame.locator('body').ariaSnapshot(), contentType: 'text/plain' });
+        }
+        await leaksPage.clearData();
+    });
+
+    test('display snapshot window navigation', async ({ leaksPage, page }) => {
+        const frame = leaksPage.leaksFrame;
+        const windowSelect = frame.getByRole('combobox', { name: 'Window', exact: true });
+        const overview = frame.getByTestId('snapshotSliceOverview');
+
+        await expect(windowSelect).toBeVisible();
+        await windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
+            .locator('.ant-select-selector').click();
+        const options = frame.getByRole('option', { name: /^Window \d+$/ });
+        await expect(options).toHaveCount(2);
+        await page.keyboard.press('Escape');
+        await expect(overview.getByRole('button', { name: /^Window 2 · Peak:/ })).toHaveAttribute('aria-pressed', 'true');
+        await expect(overview.getByTestId('sliceAxisCoordinate')).toHaveCount(3);
+        await page.mouse.move(0, 0);
+        await expect(overview).toHaveScreenshot('snapshot-slice-window-overview.png', { maxDiffPixels: 100 });
+    });
+
+    test('switch snapshot window from selector', async ({ leaksPage, page }) => {
+        const frame = leaksPage.leaksFrame;
+        const windowSelect = frame.getByRole('combobox', { name: 'Window', exact: true });
+        const overview = frame.getByTestId('snapshotSliceOverview');
+
+        await windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
+            .locator('.ant-select-selector').click();
+        await windowSelect.press('ArrowUp');
+        await windowSelect.press('Enter');
+        await expect(overview.getByRole('button', { name: /^Window 1 · Peak:/ })).toHaveAttribute('aria-pressed', 'true');
+        await expect(windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
+            .locator('.ant-select-selection-item')).toHaveText('Window 1');
+        const diagram = frame.getByTestId('blockDiagramSection');
+        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
+        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
+        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
+        await page.mouse.move(0, 0);
+        await expect(diagram).toHaveScreenshot('snapshot-slice-window-1.png', {
+            maxDiffPixels: 100,
+            timeout: 30000,
+        });
+    });
+
+    test('switch snapshot window from overview', async ({ leaksPage, page }) => {
+        const frame = leaksPage.leaksFrame;
+        const overview = frame.getByTestId('snapshotSliceOverview');
+        const windowSelect = frame.getByRole('combobox', { name: 'Window', exact: true });
+        const firstWindow = overview.getByRole('button', { name: /^Window 1 · Peak:/ });
+
+        await firstWindow.click();
+        await expect(firstWindow).toHaveAttribute('aria-pressed', 'true');
+        await expect(windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
+            .locator('.ant-select-selection-item')).toHaveText('Window 1');
+        const diagram = frame.getByTestId('blockDiagramSection');
+        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
+        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
+        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
+        await page.mouse.move(0, 0);
+        await expect(diagram).toHaveScreenshot('snapshot-overview-switch-window-1.png', {
+            maxDiffPixels: 100,
+            timeout: 30000,
+        });
+        await expect(frame.getByTestId('stateDiagram')).toHaveScreenshot('snapshot-overview-switch-state-window-1.png', {
+            maxDiffPixels: 100,
+            timeout: 30000,
+        });
+    });
+
+    test('switch snapshot window from expanded overview', async ({ leaksPage, page }) => {
+        const frame = leaksPage.leaksFrame;
+        const expandButton = frame.getByRole('button', { name: 'Enlarge', exact: true });
+        await expandButton.focus();
+        await expandButton.press('Enter');
+        const dialog = frame.getByRole('dialog', { name: 'Memory window overview', exact: true });
+        await expect(dialog).toBeVisible();
+
+        const switchWindowButton = dialog.getByRole('button', { name: 'Switch loaded window · 1', exact: true });
+        await switchWindowButton.focus();
+        await switchWindowButton.press('Enter');
+        await expect(dialog.getByRole('img', { name: 'Currently loaded window', exact: true })).toBeVisible();
+        const windowSelect = frame.getByRole('combobox', { name: 'Window', exact: true });
+        await expect(windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
+            .locator('.ant-select-selection-item')).toHaveText('Window 1');
+
+        const diagram = frame.getByTestId('blockDiagramSection');
+        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
+        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
+        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
+        await page.mouse.move(0, 0);
+        await expect(dialog).toHaveScreenshot('snapshot-expanded-overview-window-1.png', {
+            maxDiffPixels: 100,
+            timeout: 30000,
+        });
+        await expect(diagram).toHaveScreenshot('snapshot-expanded-overview-switch-window-1.png', {
+            maxDiffPixels: 100,
+            timeout: 30000,
+        });
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+    });
+
+    test('keep cross-window block details complete', async ({ leaksPage }) => {
+        const frame = leaksPage.leaksFrame;
+        const blockId = 485072;
+        const queryBlockDetail = async (sliceIndex: number): Promise<Record<string, unknown>> => {
+            return frame.locator('body').evaluate(async (_, params) => {
+                const browserWindow = window as unknown as Window & {
+                    request: (request: { command: string; params: Record<string, unknown> }) => Promise<Record<string, unknown>>;
+                };
+                return browserWindow.request({ command: 'Memory/snapshot/detail', params });
+            }, { type: 'block', id: blockId, deviceId: '0', sliceIndex });
+        };
+        const expectCompleteDetail = (detail: Record<string, unknown>): void => {
+            expect(detail.ID).toBe(blockId);
+            expect(detail.Address).toBe('21058799960064');
+            expect(detail['Size(MBytes)']).toBeTruthy();
+            expect(detail['Alloc Event']).toEqual(expect.objectContaining({ ID: blockId }));
+            expect(detail['Free Requested Event']).toEqual(expect.objectContaining({ ID: 563904 }));
+            expect(detail['Free Completed Event']).toEqual(expect.objectContaining({ ID: 582452 }));
+        };
+
+        const secondWindowDetail = await queryBlockDetail(1);
+        expectCompleteDetail(secondWindowDetail);
+        const firstWindow = frame.getByTestId('snapshotSliceOverview')
+            .getByRole('button', { name: /^Window 1 · Peak:/ });
+        await firstWindow.click();
+        await expect(firstWindow).toHaveAttribute('aria-pressed', 'true');
+        const diagram = frame.getByTestId('blockDiagramSection');
+        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
+        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
+
+        const firstWindowDetail = await queryBlockDetail(0);
+        expectCompleteDetail(firstWindowDetail);
+        expect(firstWindowDetail).toEqual(secondWindowDetail);
+    });
+});

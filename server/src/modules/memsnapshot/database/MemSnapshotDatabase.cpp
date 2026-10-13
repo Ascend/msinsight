@@ -1033,9 +1033,16 @@ std::optional<TraceEntry> MemSnapshotDatabase::QueryTraceEntryById(const int64_t
 
 std::optional<TraceEntry> MemSnapshotDatabase::QueryFreeRequestedTraceEntryByBlock(
     const Block &block, const std::string &deviceId) {
-    std::string querySql = StringUtil::FormatString("SELECT * FROM {} WHERE {} > ? AND {} = ? AND {} = ?;",
-        GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID, TraceEntryTableColumn::ADDRESS,
-        TraceEntryTableColumn::ACTION);
+    const bool hasUpperBound = block.freeEventId > block.allocEventId;
+    const auto tableName = GetTraceEntryTableNameByDeviceId(deviceId);
+    std::string querySql = hasUpperBound
+        ? StringUtil::FormatString("SELECT * FROM {} WHERE {} > ? AND {} < ? AND {} = ? AND {} = ? "
+                                   "ORDER BY {} ASC LIMIT 1;",
+              tableName, TraceEntryTableColumn::ID, TraceEntryTableColumn::ID, TraceEntryTableColumn::ADDRESS,
+              TraceEntryTableColumn::ACTION, TraceEntryTableColumn::ID)
+        : StringUtil::FormatString("SELECT * FROM {} WHERE {} > ? AND {} = ? AND {} = ? ORDER BY {} ASC LIMIT 1;",
+              tableName, TraceEntryTableColumn::ID, TraceEntryTableColumn::ADDRESS, TraceEntryTableColumn::ACTION,
+              TraceEntryTableColumn::ID);
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -1045,6 +1052,9 @@ std::optional<TraceEntry> MemSnapshotDatabase::QueryFreeRequestedTraceEntryByBlo
     }
     int bindIdx = bindStartIndex;
     sqlite3_bind_int64(stmt, bindIdx++, block.allocEventId);
+    if (hasUpperBound) {
+        sqlite3_bind_int64(stmt, bindIdx++, block.freeEventId);
+    }
     sqlite3_bind_int64(stmt, bindIdx++, block.address);
     // 涉及到使用dictionary，则使用prefix
     int freeRequestedActionKey = GetKeyInTableDictionaryMap(

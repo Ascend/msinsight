@@ -96,7 +96,8 @@ void QueryMemSnapshotDetailHandler::BuildBlockDetailDTO(BlockDetailDTO &blockDet
             allocEntry.has_value()) {
             blockDetail.allocEvent = std::make_optional<TraceEntryDetailDTO>(allocEntry.value());
         }
-        if (auto freeRequestEntry = database->QueryFreeRequestedTraceEntryByBlock(blockDetail, deviceId);
+        if (auto freeRequestEntry = QueryFreeRequestedTraceEntryAcrossSlices(
+                request, deviceId, request.params.sliceIndex, blockDetail, database);
             freeRequestEntry.has_value()) {
             blockDetail.freeRequestedEvent = std::make_optional<TraceEntryDetailDTO>(freeRequestEntry.value());
         }
