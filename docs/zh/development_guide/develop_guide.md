@@ -334,7 +334,7 @@ cd modules/insight_web_agent
 pnpm start
 ```
 
-浏览器访问 `http://127.0.0.1:3010`。开发前端和服务端均仅监听 loopback，前端直接请求 `127.0.0.1:9090`，不通过开发服务器代理。直接执行 Node 入口时仍必须显式提供 token：
+浏览器访问 `http://127.0.0.1:3011`。Agent 前端使用 `3011` 端口，`3010` 端口用于 NUMA 模块。开发前端和服务端均仅监听 loopback，前端直接请求 `127.0.0.1:9090`，不通过开发服务器代理。直接执行 Node 入口时仍必须显式提供 token：
 
 ```bash
 cd modules/insight_web_agent

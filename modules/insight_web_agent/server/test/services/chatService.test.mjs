@@ -41,6 +41,28 @@ test("createPromptContent serializes pasted images as ACP image blocks", () => {
     ]);
 });
 
+for (const text of ["", "Explain these images"]) {
+    test(`prompt preserves sent images in messages and events with text=${JSON.stringify(text)}`, async () => {
+        const { service, calls, events, state } = createPromptTestService();
+        const images = [
+            { id: "image-1", name: "photo.jpg", data: "/9j/4AAQSkZJRg==", mimeType: "image/jpeg" },
+            { id: "image-2", name: "chart.png", data: "iVBORw0KGgo=", mimeType: "image/png" },
+        ];
+
+        const result = await service.prompt(text, { sessionId: "session-1", images });
+        assert.equal(result.ok, true);
+        await waitForPromptCompletion(state);
+
+        const user = state.sessionContexts.get("session-1").messages.find((message) => message.role === "user");
+        assert.deepEqual(user.content.filter((block) => block.type === "image"), images.map((image) => ({ ...image, type: "image" })));
+        assert.deepEqual(user.content.filter((block) => block.type === "text").map((block) => block.text), [text || "2 images"]);
+        assert.deepEqual(events.find((event) => event.type === "message_added" && event.message.role === "user").message, user);
+        const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
+        assert.deepEqual(prompt.filter((block) => block.type === "image").map((block) => block.data), images.map((image) => image.data));
+        assert.equal(state.localTitles.get("session-1"), text || "2 images");
+    });
+}
+
 test("createPromptContent preserves image mime types", () => {
     const content = createPromptContent("", [
         { id: "image-1", name: "photo.jpg", data: "/9j/4AAQSkZJRg==", mimeType: "image/jpeg" },

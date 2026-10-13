@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { Image } from 'antd';
 import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -26,6 +27,7 @@ import type { ChatMessage, ConversationNotice, MessageContentBlock, PermissionDe
 import arrowDownIcon from '../icons/arrow-down.svg';
 import { ActionBlock } from './ActionBlock';
 import { parseActionMarkup } from './actionMarkup';
+import './messageImagePreview.css';
 
 const markdownComponents = {
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element => {
@@ -716,6 +718,7 @@ const Container = styled.div`
 
     .attachment {
         min-width: 0;
+        max-width: 100%;
         display: grid;
         gap: 6px;
         padding: 8px;
@@ -728,7 +731,14 @@ const Container = styled.div`
         width: 72px;
         height: 72px;
         border-radius: ${(props): string => props.theme.borderRadiusSmall};
-        object-fit: cover;
+        max-width: 100%;
+        object-fit: contain;
+        cursor: zoom-in;
+    }
+
+    .attachment .ant-image:focus-visible {
+        outline: 2px solid ${(props): string => props.theme.primaryColor};
+        outline-offset: 2px;
     }
 
     @keyframes pulse {
@@ -868,6 +878,18 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
     const [stuck, setStuck] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [overflowing, setOverflowing] = useState(false);
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const imageBlocks = message.content.filter((block) => block.type === 'image');
+
+    useEffect(() => {
+        if (!previewVisible) return undefined;
+        // The preview toolbar is a separate portal and can move focus outside the dialog.
+        const closeOnEscape = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') setPreviewVisible(false);
+        };
+        window.addEventListener('keydown', closeOnEscape);
+        return () => window.removeEventListener('keydown', closeOnEscape);
+    }, [previewVisible]);
 
     useEffect(() => {
         const sticky = stickyRef.current;
@@ -932,10 +954,19 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
                         <span aria-hidden="true" className="user-prompt-chevron" />
                     </button>
                 ) : null}
-                <div className="user-prompt-shell">
-                    <div className="user-prompt-content" onWheel={handleWheel} ref={contentRef}>
-                        {message.content.map((block) => <ContentBlock allowActions={false} block={block} key={block.id} streaming={false} />)}
+                <div>
+                    <div className="user-prompt-shell">
+                        <div className="user-prompt-content" onWheel={handleWheel} ref={contentRef}>
+                            {message.content.filter((block) => block.type !== 'image').map((block) => <ContentBlock allowActions={false} block={block} key={block.id} streaming={false} />)}
+                        </div>
                     </div>
+                    {imageBlocks.length
+                        ? <div className="attachments">
+                            <Image.PreviewGroup preview={{ visible: previewVisible, onVisibleChange: setPreviewVisible, rootClassName: 'message-image-preview' }}>
+                                {imageBlocks.map((block) => <ContentBlock allowActions={false} block={block} key={block.id} streaming={false} />)}
+                            </Image.PreviewGroup>
+                        </div>
+                        : null}
                 </div>
             </article>
             <span aria-hidden="true" className="user-prompt-fade" />
@@ -945,6 +976,24 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
 
 const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element | null => {
     if (block.type === 'thinking') return null;
+    if (block.type === 'image') {
+        return <div className="attachment">
+            <Image
+                alt={block.name}
+                aria-label={block.name}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.currentTarget.click();
+                    }
+                }}
+                preview={{ mask: false, rootClassName: 'message-image-preview' }}
+                role="button"
+                src={`data:${block.mimeType};base64,${block.data}`}
+                tabIndex={0}
+            />
+        </div>;
+    }
     if (block.type === 'text') {
         const segments = allowActions
             ? parseActionMarkup(block.text, { streaming, keyPrefix: block.id })
@@ -973,7 +1022,7 @@ const AssistantContent = ({
 }): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const streaming = isStreamingAssistantMessage(messages, index, pendingPrompt);
-    const lastProcessIndex = message.content.reduce((last, block, blockIndex) => block.type !== 'text' ? blockIndex : last, -1);
+    const lastProcessIndex = message.content.reduce((last, block, blockIndex) => block.type === 'thinking' || block.type === 'tool' ? blockIndex : last, -1);
     // Text followed by more reasoning or tools is progress narration, not the final answer.
     const timelineEntries = message.content.slice(0, lastProcessIndex + 1);
     const answerBlocks = message.content.slice(lastProcessIndex + 1);
@@ -1068,7 +1117,7 @@ const TimelineNode = ({
     entry: TimelineEntry;
     t: TFunction;
 }): JSX.Element => {
-    if (entry.type === 'text') return <div className="timeline-item progress completed">
+    if (entry.type === 'text' || entry.type === 'image') return <div className="timeline-item progress completed">
         <span aria-hidden="true" className="timeline-marker" />
         <ContentBlock allowActions block={entry} streaming={false} />
     </div>;
@@ -1140,7 +1189,7 @@ const timelineEntryDuration = (entries: TimelineEntry[], index: number, message:
 };
 
 const getTimelineEntryStartedAt = (entry: TimelineEntry): number | undefined => (
-    entry.type === 'tool' ? entry.toolCall.startedAt : entry.startedAt
+    entry.type === 'tool' ? entry.toolCall.startedAt : entry.type === 'image' ? undefined : entry.startedAt
 );
 
 const AnswerMeta = ({ inProgress = false, message, now }: { inProgress?: boolean; message: ChatMessage; now: number }): JSX.Element | null => {

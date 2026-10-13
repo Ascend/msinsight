@@ -1,0 +1,46 @@
+/*
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ * Licensed under Mulan PSL v2: http://license.coscl.org.cn/MulanPSL2
+ */
+
+/* Preview portals live outside the message list, so scope these rules to their root class. */
+.message-image-preview .ant-image-preview-operations {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+}
+
+.message-image-preview .ant-image-preview-operations-progress {
+    position: static;
+    order: 1;
+    flex: 1 0 48px;
+    transform: none;
+    padding: 0 8px;
+    text-align: left;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.message-image-preview .ant-image-preview-operations-operation {
+    display: inline-flex;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    border-radius: 4px;
+}
+
+.message-image-preview .ant-image-preview-operations-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+    line-height: 1;
+    pointer-events: none;
+}

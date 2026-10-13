@@ -25,7 +25,7 @@ describe('Agent panel notifications', () => {
     it('sends a notification to the Agent iframe using its origin', () => {
         const frame = document.createElement('iframe');
         frame.id = 'AcpSession';
-        frame.src = 'http://localhost:3010/index.html';
+        frame.src = 'http://localhost:3011/index.html';
         document.body.append(frame);
         const postMessage = jest.spyOn(frame.contentWindow!, 'postMessage').mockImplementation();
 
@@ -33,7 +33,7 @@ describe('Agent panel notifications', () => {
 
         expect(postMessage).toHaveBeenCalledWith(
             { event: 'switchLanguage', body: { lang: 'zhCN' } },
-            'http://localhost:3010',
+            'http://localhost:3011',
         );
     });
 
