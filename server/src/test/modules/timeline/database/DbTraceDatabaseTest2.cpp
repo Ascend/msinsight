@@ -2360,12 +2360,30 @@ TEST_F(DbTraceDatabaseTest2, TestQueryGroupedAscendHardwareThreads_ValidModelId)
     std::vector<Dic::Protocol::ThreadGroup> groups;
     const bool result = database.QueryGroupedAscendHardwareThreadsByModelId(groups);
     EXPECT_EQ(result, true);
-    ASSERT_EQ(groups.size(), 2);
-    EXPECT_EQ(groups[0].threadIds.size(), 1);
-    EXPECT_EQ(groups[0].threadIds[0], "2");
-    EXPECT_EQ(groups[1].threadIds.size(), 2);
-    EXPECT_EQ(groups[1].threadIds[0], "3");
-    EXPECT_EQ(groups[1].threadIds[1], "4");
+    ASSERT_EQ(groups.size(), 1);
+    ASSERT_EQ(groups[0].threadIds.size(), 2);
+    EXPECT_EQ(groups[0].threadIds[0], "3");
+    EXPECT_EQ(groups[0].threadIds[1], "4");
+}
+
+TEST_F(DbTraceDatabaseTest2, TestQueryGroupedAscendHardwareThreads_SingleStream) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_TASK, TableName::DB_MSTX_EVENTS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    database.SetDbPtr(db);
+    const std::string taskTableInsert = "INSERT INTO TASK (startNs, endNs, deviceId, connectionId, globalTaskId, "
+                                        "globalPid, taskType, contextId, streamId, taskId, modelId, depth) VALUES "
+                                        "(20, 30, 7, 4294967295, 82550, 511284, 221, 4294967295, 2, 40, 1, 0),"
+                                        "(40, 50, 7, 4294967295, 82551, 511284, 221, 4294967295, 2, 41, 1, 0);";
+    DatabaseTestCaseMockUtil::InsertData(db, taskTableInsert);
+
+    // 同一泳道上的多个任务不能产生自动合并组，且成功查询必须清除旧输出。
+    std::vector<Dic::Protocol::ThreadGroup> groups(1);
+    EXPECT_TRUE(database.QueryGroupedAscendHardwareThreadsByModelId(groups));
+    EXPECT_TRUE(groups.empty());
 }
 
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenSIORetainsNameIdentity) {

@@ -195,16 +195,48 @@ describe('MergedThreadData automatic merge snapshot', () => {
         expect(conflictData.mergedThreadGroupList).toEqual([autoGroup(['1', '4'])]);
     });
 
-    it('resolves a complete singleton automatic group', () => {
+    it('ignores empty and singleton automatic groups, including duplicate thread IDs', () => {
         const data = new MergedThreadData();
-        data.registerAutoThreadGroups([autoGroup(['1'])]);
+        data.registerAutoThreadGroups([autoGroup([]), autoGroup(['1']), autoGroup(['1', '1'])]);
         const parent = createParent();
         const source = createStream('1');
         attach(parent, source);
 
-        expect(data.getAutoMergeGroupUnits(createSession(parent))).toEqual([
-            { group: autoGroup(['1']), sourceUnits: [source] },
-        ]);
+        expect(data.autoMergedThreadGroupList).toEqual([]);
+        expect(data.mergedThreadGroupList).toEqual([]);
+        expect(data.isAutoMergeSource(source.metadata as ThreadMetaData)).toBe(false);
+        expect(data.getAutoMergeGroupUnits(createSession(parent))).toEqual([]);
+        expect(data.getNeedMergeThreadLists(createSession(parent))).toEqual([]);
+        expect(source.isMerged).toBe(false);
+    });
+
+    it('keeps valid automatic groups when other models have only one stream', () => {
+        const data = new MergedThreadData();
+        data.registerAutoThreadGroups([autoGroup(['1']), autoGroup(['3', '2', '3'])]);
+        const parent = createParent();
+        const source1 = createStream('1');
+        const source2 = createStream('2');
+        const source3 = createStream('3');
+        attach(parent, source1, source2, source3);
+
+        expect(data.autoMergedThreadGroupList).toEqual([autoGroup(['2', '3'])]);
+        expect(data.getNeedMergeThreadLists(createSession(parent))).toEqual([[source2, source3]]);
+        expect(data.isAutoMergeSource(source1.metadata as ThreadMetaData)).toBe(false);
+        expect(data.isAutoMergeSource(source2.metadata as ThreadMetaData)).toBe(true);
+    });
+
+    it('removes legacy singleton groups when replaying saved merge settings', () => {
+        const data = new MergedThreadData();
+        data.mergedThreadGroupList = [autoGroup(['1', '1']), autoGroup(['2', '3'])];
+        const parent = createParent();
+        const source1 = createStream('1');
+        const source2 = createStream('2');
+        const source3 = createStream('3');
+        attach(parent, source1, source2, source3);
+
+        expect(data.getNeedMergeThreadLists(createSession(parent))).toEqual([[], [source2, source3]]);
+        expect(data.mergedThreadGroupList).toEqual([autoGroup(['2', '3'])]);
+        expect(source1.isMerged).toBe(false);
     });
 
     it('keeps an active merged group in the current registry during incremental reconciliation', () => {

@@ -340,6 +340,8 @@
     "autoMerge": {
       "restore": "Restore automatically merged lanes",
       "unmerge": "Unmerge automatically merged lanes",
+      "disabledWhileParsing": "Cards are still being parsed. Please wait until parsing finishes to merge or unmerge automatic lane groups.",
+      "disabledUntilReady": "The timeline is not ready. Please try merging or unmerging automatic lane groups again later.",
       "restoreFailed": "Failed to restore automatically merged lanes: {{reason}}",
       "restoreBlockedByMerged": "one or more lanes are part of another merged group",
       "restoreBlockedByHidden": "one or more lanes are hidden",
