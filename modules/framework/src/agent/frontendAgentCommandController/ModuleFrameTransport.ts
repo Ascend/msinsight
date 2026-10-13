@@ -39,6 +39,13 @@ interface PendingRequest {
     timeoutId: number;
 }
 
+// Module 的 Agent runtime 在 React effect 里启动，可能晚于 iframe 的 load 事件（包体大、首屏渲染重、机器繁忙），
+// 此时 attach 与 load 两次 hello 都会丢失，且不会再有第三次，Module 命令会永久不可用。
+// 按退避间隔重发 hello（同一 connectionToken，不重建目录），直到模块 ready 或 transport 释放；
+// 未接入 Agent 的 Module 最多每 4s 收到一条 hello，开销可忽略。
+const HELLO_RETRY_INITIAL_DELAY_MS = 250;
+const HELLO_RETRY_MAX_DELAY_MS = 4000;
+
 interface ModuleFrameTransportOptions {
     moduleId: string;
     frame: HTMLIFrameElement;
@@ -53,6 +60,8 @@ export class ModuleFrameTransport {
     private connectionToken = '';
     private ready = false;
     private disposed = false;
+    private helloRetryId = 0;
+    private helloRetryDelay = HELLO_RETRY_INITIAL_DELAY_MS;
 
     constructor(private readonly options: ModuleFrameTransportOptions) {
         this.unsubscribe = getWindowMessageRouter().subscribe(
@@ -94,6 +103,7 @@ export class ModuleFrameTransport {
     dispose(): void {
         if (this.disposed) return;
         this.disposed = true;
+        this.clearHelloRetry();
         this.options.frame.removeEventListener('load', this.onLoad);
         this.unsubscribe();
         this.disconnect(connectionLost(`Module '${this.options.moduleId}' iframe was detached.`));
@@ -103,12 +113,35 @@ export class ModuleFrameTransport {
         if (this.disposed) return;
         this.connectionToken = crypto.randomUUID();
         this.ready = false;
+        this.helloRetryDelay = HELLO_RETRY_INITIAL_DELAY_MS;
         this.disconnect(connectionLost(`Module '${this.options.moduleId}' iframe was reloaded.`));
+        this.sendHello();
+    }
+
+    private sendHello(): void {
+        if (this.disposed) return;
         this.post({
             event: MODULE_AGENT_HELLO,
             moduleId: this.options.moduleId,
             connectionToken: this.connectionToken,
         });
+        this.scheduleHelloRetry();
+    }
+
+    private scheduleHelloRetry(): void {
+        this.clearHelloRetry();
+        this.helloRetryId = window.setTimeout(() => {
+            this.helloRetryId = 0;
+            if (this.disposed || this.ready) return;
+            this.helloRetryDelay = Math.min(this.helloRetryDelay * 2, HELLO_RETRY_MAX_DELAY_MS);
+            this.sendHello();
+        }, this.helloRetryDelay);
+    }
+
+    private clearHelloRetry(): void {
+        if (!this.helloRetryId) return;
+        window.clearTimeout(this.helloRetryId);
+        this.helloRetryId = 0;
     }
 
     private disconnect(error: CommandError): void {
@@ -125,6 +158,8 @@ export class ModuleFrameTransport {
         if (event.source !== this.options.frame.contentWindow || !matchesWindowMessageOrigin(event.origin, this.targetOrigin())) return;
         if (message.event === MODULE_AGENT_READY) {
             this.ready = true;
+            this.helloRetryDelay = HELLO_RETRY_INITIAL_DELAY_MS;
+            this.clearHelloRetry();
             return;
         }
         if (message.event === MODULE_AGENT_COMMANDS_CHANGED) {

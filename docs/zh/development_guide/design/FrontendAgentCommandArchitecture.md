@@ -459,6 +459,11 @@ framework 每次 attach 或 reload Module iframe 时：
 
 `ready`、`commandsChanged`、request、response、error 和 cancel 都必须携带当前 connectionToken。
 
+Module 的 Agent runtime 在 React effect 中启动，可能晚于 iframe 的 `load` 事件（包体大、首屏渲染重、机器繁忙）。
+attach 与 load 两次 `hello` 都丢失时不会再有第三次，因此 framework 必须按退避间隔重发 `hello`
+（初始 250ms，上限 4s，沿用同一 `connectionToken`、不重建 Command 目录），直到收到 `ready` 或 transport 释放。
+重发只发 `hello`，Module 侧 `connect` 幂等：已连接时只重新上报 `ready` 与完整快照。
+
 ### 11.2 完整快照
 
 ```ts
