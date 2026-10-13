@@ -137,6 +137,44 @@ class MemSnapshotRequestHandler : public ModuleRequestHandler {
         }
         return database->QueryTraceEntryById(eventId, deviceId);
     }
+
+    static inline std::optional<TraceEntry> QueryFreeRequestedTraceEntryAcrossSlices(const Protocol::Request &request,
+        const std::string &deviceId, int currentSliceIndex, const Block &block,
+        const std::shared_ptr<FullDb::MemSnapshotDatabase> &currentDatabase) {
+        if (currentDatabase != nullptr && currentDatabase->IsOpen()) {
+            if (auto entry = currentDatabase->QueryFreeRequestedTraceEntryByBlock(block, deviceId); entry.has_value()) {
+                return entry;
+            }
+        }
+        const auto manifest = MemSnapshotSliceService::LoadManifest(GetMemSnapshotDataKey(request));
+        if (!manifest.has_value()) {
+            return std::nullopt;
+        }
+        const auto device = manifest->devices.find(deviceId);
+        if (device == manifest->devices.end()) {
+            return std::nullopt;
+        }
+        const bool hasUpperBound = block.freeEventId > block.allocEventId;
+        std::vector<const MemSnapshotSliceInfo *> candidates;
+        for (const auto &slice : device->second.slices) {
+            if (slice.ready && slice.index != currentSliceIndex && slice.endEventId > block.allocEventId &&
+                (!hasUpperBound || slice.startEventId < block.freeEventId)) {
+                candidates.push_back(&slice);
+            }
+        }
+        std::sort(candidates.begin(), candidates.end(),
+            [](const auto *left, const auto *right) { return left->startEventId < right->startEventId; });
+        for (const auto *slice : candidates) {
+            const auto database = GetMemSnapshotDatabaseByRequest(request, deviceId, slice->index);
+            if (database == nullptr || !database->IsOpen()) {
+                continue;
+            }
+            if (auto entry = database->QueryFreeRequestedTraceEntryByBlock(block, deviceId); entry.has_value()) {
+                return entry;
+            }
+        }
+        return std::nullopt;
+    }
 };
 } // namespace Dic::Module::MemSnapshot
 #endif // PROFILER_SERVER_MEM_SNAPSHOT_REQUEST_HANDLER_H

@@ -1078,6 +1078,60 @@ TEST_F(MemSnapshotDatabaseTest, QueryFreeRequestedTraceEntryByBlock) {
     EXPECT_TRUE(foundBlockWithFree || !blocks.empty());
 }
 
+TEST_F(MemSnapshotDatabaseTest, QueryFreeRequestedTraceEntryRespectsLifecycleAndReturnsEarliestEvent) {
+    const std::string eventDbPath = testDbPath + ".free_requested.db";
+    sqlite3 *eventDb = nullptr;
+    ASSERT_EQ(sqlite3_open(eventDbPath.c_str(), &eventDb), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(eventDb,
+                  "CREATE TABLE dictionary (`table` TEXT, `column` TEXT, `key` TEXT, `value` TEXT);"
+                  "CREATE TABLE block_0 (`id` INTEGER PRIMARY KEY, `address` INTEGER, `size` INTEGER, "
+                  "`requestedSize` INTEGER, `state` INTEGER, `allocEventId` INTEGER, `freeEventId` INTEGER);"
+                  "CREATE TABLE trace_entry_0 (`id` INTEGER PRIMARY KEY, `action` INTEGER, `address` INTEGER, "
+                  "`size` INTEGER, `stream` INTEGER, `allocated` INTEGER, `active` INTEGER, `reserved` INTEGER, "
+                  "`callstack` TEXT);"
+                  "INSERT INTO dictionary VALUES ('trace_entry_0', 'action', '4', 'free_requested');"
+                  "INSERT INTO trace_entry_0 VALUES (30, 4, 4096, 0, 3, 0, 0, 0, 'later');"
+                  "INSERT INTO trace_entry_0 VALUES (20, 4, 4096, 0, 2, 0, 0, 0, 'earliest');"
+                  "INSERT INTO trace_entry_0 VALUES (110, 4, 4096, 0, 4, 0, 0, 0, 'reused_address');",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    sqlite3_close(eventDb);
+
+    auto eventSnapshotDb = DataBaseManager::Instance().GetMemSnapshotDatabase(eventDbPath);
+    ASSERT_NE(eventSnapshotDb, nullptr);
+    ASSERT_TRUE(eventSnapshotDb->OpenDbReadOnly(eventDbPath));
+
+    Block releasedBlock;
+    releasedBlock.address = 4096;
+    releasedBlock.allocEventId = 10;
+    releasedBlock.freeEventId = 100;
+    const auto boundedEntry = eventSnapshotDb->QueryFreeRequestedTraceEntryByBlock(releasedBlock, "0");
+    ASSERT_TRUE(boundedEntry.has_value());
+    EXPECT_EQ(boundedEntry->id, 20);
+    EXPECT_EQ(boundedEntry->callstack, "earliest");
+
+    Block unreleasedBlock;
+    unreleasedBlock.address = 4096;
+    unreleasedBlock.allocEventId = 100;
+    unreleasedBlock.freeEventId = -1;
+    const auto unboundedEntry = eventSnapshotDb->QueryFreeRequestedTraceEntryByBlock(unreleasedBlock, "0");
+    ASSERT_TRUE(unboundedEntry.has_value());
+    EXPECT_EQ(unboundedEntry->id, 110);
+
+    Block addressReuseOnly;
+    addressReuseOnly.address = 4096;
+    addressReuseOnly.allocEventId = 40;
+    addressReuseOnly.freeEventId = 100;
+    EXPECT_FALSE(eventSnapshotDb->QueryFreeRequestedTraceEntryByBlock(addressReuseOnly, "0").has_value());
+
+    eventSnapshotDb->CloseDb();
+    DataBaseManager::Instance().Clear(DatabaseType::MEM_SNAPSHOT);
+    std::remove(eventDbPath.c_str());
+    snapshotDb = DataBaseManager::Instance().GetMemSnapshotDatabase(testDbPath);
+    ASSERT_NE(snapshotDb, nullptr);
+    ASSERT_TRUE(snapshotDb->OpenDbReadOnly(testDbPath));
+}
+
 // 测试查询blocks表带Size范围过滤
 TEST_F(MemSnapshotDatabaseTest, QueryBlocksTableWithSizeRange) {
     MemSnapshotBlockParams params;
