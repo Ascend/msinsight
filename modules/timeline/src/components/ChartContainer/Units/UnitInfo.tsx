@@ -62,7 +62,7 @@ import { updateThreadsToFetch } from '../../../actions/actionExpandUnits';
 import { checkIsSameUnit, getUnitUniqueId } from '../../../utils';
 import { getLaneDescriptionKey } from '../../../insight/units/laneDescription';
 import {
-    isAutoMergeActionDisabled,
+    getAutoMergeActionDisabledReason,
     tryRestoreAutoMergedGroup,
     unmergeAutoMergedGroup,
 } from '../../../actions/actionMergeUnits';
@@ -150,28 +150,30 @@ const AutoMergeActionButton = styled.button`
 interface AutoMergeActionIconProps {
     label: string;
     buttonTestId: string;
-    disabled: boolean;
+    disabledReason?: string;
     icon: JSX.Element;
     action: () => void;
 }
 
-const AutoMergeActionIcon = ({ label, buttonTestId, disabled, icon, action }: AutoMergeActionIconProps): JSX.Element => {
+const AutoMergeActionIcon = ({ label, buttonTestId, disabledReason, icon, action }: AutoMergeActionIconProps): JSX.Element => {
     const stopLaneEvent = (event: React.MouseEvent<HTMLButtonElement>): void => {
         event.stopPropagation();
         event.preventDefault();
     };
     const onClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
         stopLaneEvent(event);
-        if (!disabled) {
-            action();
+        if (disabledReason !== undefined) {
+            message.warning(disabledReason);
+            return;
         }
+        action();
     };
 
-    return <Tooltip title={label}>
+    return <Tooltip title={disabledReason ?? label}>
         <AutoMergeActionButton
             type="button"
             aria-label={label}
-            aria-disabled={disabled}
+            aria-disabled={disabledReason !== undefined}
             data-testid={buttonTestId}
             onMouseDown={stopLaneEvent}
             onMouseUp={stopLaneEvent}
@@ -243,7 +245,7 @@ const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProp
     const allNumeric = tooltipInfo.cardNames?.every(str => str?.trim() !== '' && !isNaN(Number(str))) ?? false;
     const isUnmergedAutoMergeSource = shouldShowAutoMergeSourceIcon(session, unit);
     const isAutoMergedGroup = shouldShowAutoMergedGroupIcon(session, unit);
-    const isActionDisabled = isAutoMergeActionDisabled(session);
+    const disabledReason = getAutoMergeActionDisabledReason(session);
     return <DefaultInfoContainer>
         <div
             key={ `${getAutoKey(unit)} lane info` }
@@ -258,7 +260,7 @@ const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProp
                 {isUnmergedAutoMergeSource && <AutoMergeActionIcon
                     label={t('autoMerge.restore')}
                     buttonTestId="auto-merge-source-button"
-                    disabled={isActionDisabled}
+                    disabledReason={disabledReason}
                     icon={<AutoMergeIcon data-testid="auto-merge-source-icon" />}
                     action={(): void => { tryRestoreAutoMergedGroup(session, unit); }}
                 />}
@@ -266,7 +268,7 @@ const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProp
                     ? <AutoMergeActionIcon
                         label={t('autoMerge.unmerge')}
                         buttonTestId="auto-unmerge-group-button"
-                        disabled={isActionDisabled}
+                        disabledReason={disabledReason}
                         icon={<AutoUnmergeIcon data-testid="auto-unmerge-group-icon" />}
                         action={(): void => { unmergeAutoMergedGroup(session, unit); }}
                     />

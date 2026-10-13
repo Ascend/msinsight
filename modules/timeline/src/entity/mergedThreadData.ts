@@ -137,7 +137,8 @@ export class MergedThreadData {
     }
 
     registerAutoThreadGroups(groups: ThreadGroup[]): void {
-        const normalizedGroups = normalizeThreadGroups(groups);
+        // 兼容旧服务端：单成员组无需合并，也不应显示自动合并操作入口。
+        const normalizedGroups = normalizeThreadGroups(groups).filter(group => group.threadIds.length > 1);
         const newAutoGroups = normalizedGroups.filter(group => !this._autoMergedThreadGroupKeySet.has(getThreadGroupKey(group)));
         this._autoMergedThreadGroupList = normalizeThreadGroups(this._autoMergedThreadGroupList.concat(normalizedGroups));
         this.rebuildAutoThreadIndexes();
@@ -208,7 +209,13 @@ export class MergedThreadData {
         const map = new Map(sourceUnits.map(item => [getThreadKey(item.metadata as ThreadMetaData), item]));
         const invalidGroupIndexes = new Set<number>();
         const needMergeThreadLists = mergedThreadGroupList.map((threadGroup, idx): InsightUnit[] => {
+            // 跨数据源同编号泳道的有效手动合并也可能只记录一个 threadId。
             if (activeMergedGroupKeys.has(getThreadGroupKey(threadGroup))) { return []; }
+            // 历史配置可能保存了单成员合并组，恢复时保留原始 Stream。
+            if (threadGroup.threadIds.length < 2) {
+                invalidGroupIndexes.add(idx);
+                return [];
+            }
             const threads = threadGroup.threadIds.map((id) => {
                 const key = getThreadKey({
                     cardId: threadGroup.cardId,

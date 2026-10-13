@@ -77,7 +77,7 @@ const hasSameThreadIds = (unit: InsightUnit, threadIds: string[]): boolean => {
 const canMergeUnitList = (units: InsightUnit[]): boolean => {
     const [firstUnit] = units;
     const unitParent = firstUnit?.parent;
-    if (!unitParent?.children || units.length === 0 || units.some(unit => unit.parent !== unitParent)) {
+    if (!unitParent?.children || new Set(units).size < 2 || units.some(unit => unit.parent !== unitParent)) {
         return false;
     }
     const threadIds = extractThreadIds(units);
@@ -353,9 +353,17 @@ const applyAutoMergeRestorePlan = (session: Session, threadLists: InsightUnit[][
     return restored;
 };
 
-export const isAutoMergeActionDisabled = (session: Session): boolean => {
-    return session.phase !== 'download' || session.units.some(unit => unit.phase === 'analyzing');
+export const getAutoMergeActionDisabledReason = (session: Session): string | undefined => {
+    if (session.units.some(unit => unit.phase === 'analyzing')) {
+        return i18n.t('timeline:autoMerge.disabledWhileParsing');
+    }
+    if (session.phase !== 'download') {
+        return i18n.t('timeline:autoMerge.disabledUntilReady');
+    }
+    return undefined;
 };
+
+export const isAutoMergeActionDisabled = (session: Session): boolean => getAutoMergeActionDisabledReason(session) !== undefined;
 
 export const tryRestoreAutoMergedGroup = (session: Session, sourceUnit: InsightUnit): boolean => {
     if (isAutoMergeActionDisabled(session)) { return false; }

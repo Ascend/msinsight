@@ -340,6 +340,8 @@
     "autoMerge": {
       "restore": "恢复自动合并泳道",
       "unmerge": "取消自动合并泳道",
+      "disabledWhileParsing": "仍有卡正在解析，暂时无法操作自动合并泳道，请等待解析完成。",
+      "disabledUntilReady": "时间线尚未就绪，暂时无法操作自动合并泳道，请稍后重试。",
       "restoreFailed": "恢复自动合并泳道失败：{{reason}}",
       "restoreBlockedByMerged": "组内存在已参与其他合并的泳道",
       "restoreBlockedByHidden": "组内存在已隐藏的泳道",

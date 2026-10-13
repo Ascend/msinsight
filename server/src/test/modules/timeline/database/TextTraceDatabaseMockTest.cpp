@@ -1856,12 +1856,33 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_ValidMod
     std::vector<Dic::Protocol::ThreadGroup> groups;
     const bool result = database.QueryGroupedAscendHardwareThreadsByModelId(groups);
     EXPECT_EQ(result, true);
-    ASSERT_EQ(groups.size(), 2);
-    EXPECT_EQ(groups[0].threadIds.size(), 2);
+    ASSERT_EQ(groups.size(), 1);
+    ASSERT_EQ(groups[0].threadIds.size(), 2);
     EXPECT_EQ(groups[0].threadIds[0], "2");
     EXPECT_EQ(groups[0].threadIds[1], "6");
-    EXPECT_EQ(groups[1].threadIds.size(), 1);
-    EXPECT_EQ(groups[1].threadIds[0], "3");
+}
+
+TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_SingleStream) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    database.SetDbPtr(dbPtr);
+    database.CreateTable();
+    const std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+                                   "\"thread_sort_index\") VALUES (54, '2', '3513236896', 'Stream 2', 2);";
+    const std::string sliceData =
+        "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", "
+        "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES "
+        "(1, 20, 10, 'task1', NULL, 54, NULL, '{\"Model Id\":\"1\"}', '', 30, ''),"
+        "(2, 40, 10, 'task2', NULL, 54, NULL, '{\"Model Id\":\"1\"}', '', 50, '');";
+    DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceData);
+
+    // 同一泳道上的多个切片不能产生自动合并组，且成功查询必须清除旧输出。
+    std::vector<Dic::Protocol::ThreadGroup> groups(1);
+    EXPECT_TRUE(database.QueryGroupedAscendHardwareThreadsByModelId(groups));
+    EXPECT_TRUE(groups.empty());
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbNotOpen) {

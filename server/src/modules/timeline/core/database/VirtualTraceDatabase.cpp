@@ -64,9 +64,11 @@ bool VirtualTraceDatabase::QueryGroupedAscendHardwareThreadsByModelId(std::vecto
     threadGroupList.clear();
     threadGroupList.reserve(modelIdToThreadsMap.size());
 
-    // 将map中的所有ThreadGroup添加到输出列表
+    // 只有包含多个不同泳道的组才需要自动合并；单泳道保留原始 Stream。
     for (const auto &[modelId, threadGroup] : modelIdToThreadsMap) {
-        threadGroupList.push_back(threadGroup);
+        if (threadGroup.threadIds.size() > 1) {
+            threadGroupList.push_back(threadGroup);
+        }
     }
 
     return true; // 操作成功
