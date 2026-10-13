@@ -160,7 +160,7 @@ In the `server/build` directory, run the backend build script.
 python3 build.py build
 ```
 
-The build output is located in the `server/output/linux-<Architecture>/bin` directory, where `<Architecture>` is typically `x86_64` or `aarch64`. When starting `profiler_server`, it is recommended to explicitly specify the WebSocket port to avoid conflicts with an already running msInsight desktop app on the local machine. 
+The build output is located in the `server/output/linux-<Architecture>/bin` directory, where `<Architecture>` is typically `x86_64` or `aarch64`. When starting `profiler_server`, it is recommended to explicitly specify the WebSocket port to avoid conflicts with an already running msInsight desktop app on the local machine.
 
 ```bash
 cd ../output/linux-$(uname -m)/bin
@@ -1017,13 +1017,13 @@ server/src/test/
 
 - **Test case naming**:
 - Functional style: `QueryComputeStatisticsData` (describes the function under test)
-  
+
 - Scenario style: `TestFindSliceByAllocationTimeHandlerWhenTimelineNotExist` (describes the test scenario)
-  
+
 - Parameter validation style: `OperatorDetailsParamTest` (validates parameter boundaries)
-  
+
 - Security injection style: `TestOpenDbWithPathInject` (validates security issues such as path injection)
-  
+
 - **Stateless utility test**: Use `TEST(UtilName, FunctionName)`, for example, `TEST(StringUtil, IntToString)`
 
 #### 4.1.4 Steps for Adding a New Test Case
@@ -1087,9 +1087,15 @@ bash cpp_coverage.sh
 
   5. Use genhtml to generate an HTML report.
 
+  6. Summarize coverage for each directory under `server/src/modules/<module>`.
+
+  7. Push the report to `msinsight-org/qa-test-assets` and post the summary as an MR comment by default. The step is skipped when the token is missing. Set `COVERAGE_ASSET=off` or `COVERAGE_COMMENT=off` to disable each part.
+
 - Coverage report path: `build_llt/output/cpp_coverage/result/index.html`
 
-- Note: The lcov/genhtml report generation feature is temporarily disabled, but coverage data files (.gcda) are still generated normally.
+- Module summary: `build_llt/output/cpp_coverage/coverage_summary.md`
+
+- Archive path: `server/cpp-ut/coverage-reports/<YYYY-MM-DD>_pr<MR>_<short-sha>/`
 
 ### 4.2 GUI Developer Test
 
