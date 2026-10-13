@@ -357,21 +357,9 @@ fn run_acp_server(
         .arg("--host")
         .arg("127.0.0.1");
 
-    #[cfg(target_os = "macos")]
-    server_command
-        .arg("--allowed-origin")
-        .arg("wry://localhost");
-    #[cfg(windows)]
-    server_command
-        .arg("--allowed-origin")
-        .arg("http://wry.localhost");
-    #[cfg(target_os = "linux")]
-    // Legacy Wry omits Origin on Linux but still requires a CORS response.
-    server_command
-        .arg("--allowed-origin")
-        .arg("wry://localhost")
-        .arg("--allowed-origin")
-        .arg("*");
+    for origin in crate::acp_origin::acp_allowed_origins() {
+        server_command.arg("--allowed-origin").arg(origin);
+    }
 
     server_command.env("ACP_CAPABILITY_TOKEN", capability_token);
 

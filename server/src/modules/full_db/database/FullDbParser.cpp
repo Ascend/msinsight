@@ -257,9 +257,7 @@ void FullDbParser::EndParseTask(const std::vector<std::string> &rankIds, const s
 void FullDbParser::ParserCallBack(
     std::string rankId, const std::string &fileId, bool result, const std::string &message) {
     auto &instance = FullDbParser::Instance();
-    if (instance.parseEndCallback != nullptr) {
-        instance.parseEndCallback(rankId, fileId, result, message);
-    }
+    instance.InvokeEndCallback(rankId, fileId, result, message);
 }
 
 void FullDbParser::InitSummary(const std::vector<std::string> &rankIds, const std::string &path) {

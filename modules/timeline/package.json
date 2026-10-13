@@ -5,8 +5,8 @@
   "homepage": "./",
   "scripts": {
     "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider craco start",
-    "build": "cross-env NODE_OPTIONS=\"==--max-old-space-size=3072 --openssl-legacy-provider\" NODE_ENV=production GENERATE_SOURCEMAP=false CI=false craco build",
-    "build:vscode": "cross-env NODE_OPTIONS=\"==--max-old-space-size=3072 --openssl-legacy-provider\" NODE_ENV=production REACT_APP_IS_VSCODE=true GENERATE_SOURCEMAP=false CI=false craco build && node ../inline-build.js",
+    "build": "cross-env NODE_OPTIONS=\"--max-old-space-size=3072 --openssl-legacy-provider\" NODE_ENV=production GENERATE_SOURCEMAP=false CI=false craco build",
+    "build:vscode": "cross-env NODE_OPTIONS=\"--max-old-space-size=3072 --openssl-legacy-provider\" NODE_ENV=production REACT_APP_IS_VSCODE=true GENERATE_SOURCEMAP=false CI=false craco build && node ../inline-build.js",
     "build:dev": "cross-env GENERATE_SOURCEMAP=true CI=false craco build",
     "test": "set REACT_APP_TEST=1&&set CI=true&&react-scripts test --watchAll=false  --coverage",
     "test:dev": "set REACT_APP_TEST=1&&react-scripts test",
@@ -58,7 +58,8 @@
       "@insight/lib/FrontendAgentCommand": "<rootDir>/../lib/src/FrontendAgentCommand/index.ts",
       "@insight/lib/ModuleAgentCommandClient": "<rootDir>/../lib/src/ModuleAgentCommandClient/index.ts",
       "@insight/lib/i18n": "<rootDir>/../lib/src/i18n/index.ts",
-      "@insight/lib/components": "<rootDir>/../lib/src/components/index.ts"
+      "@insight/lib/components": "<rootDir>/../lib/src/components/index.ts",
+      "@insight/lib/resize": "<rootDir>/../lib/src/resize/index.ts"
     }
   },
   "browserslist": {

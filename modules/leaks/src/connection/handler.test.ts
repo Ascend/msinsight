@@ -36,11 +36,6 @@ jest.mock('@/connection', () => ({
     __esModule: true,
     default: { send: jest.fn() },
 }), { virtual: true });
-jest.mock('@/entity/session', () => ({
-    LEAKS_WORKER_INFO_DEFAULT: {},
-    MARK_LINE_POSITION_DEFAULT: {},
-    STATE_WORKER_INFO_DEFAULT: {},
-}), { virtual: true });
 
 const incompleteSlices = {
     0: {

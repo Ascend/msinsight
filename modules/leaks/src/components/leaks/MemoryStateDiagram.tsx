@@ -34,7 +34,7 @@ import { ArrowDownOutlined, ArrowUpOutlined, CloseCircleFilled, OneToOneOutlined
 import { Tooltip } from '@insight/lib/components';
 import { formatBytes } from '@/utils/utils';
 import { type EvenItem, getMemoryStateData, getSnapshotEvent } from '@/utils/RequestUtils';
-import { isMemoryBlockLoadReady } from '../blockLoadState';
+import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from '../blockLoadState';
 import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
 import styled from '@emotion/styled/macro';
@@ -60,7 +60,6 @@ import {
 } from './lifecycleNavigation';
 import { LifecycleZoomModeIcon, LifecycleZoomModeTooltip } from './LifecycleGraphToolbar';
 import { clearMemoryPoolSummary, updateMemoryPoolSummary } from '@/agent/graphController';
-import { createMemoryBlockContextKey } from '../blockLoadState';
 import { isMemSnapshotSliceReadyForQuery } from '@/utils/memSnapshotSlices';
 
 export const MemoryStateDiagram = ({ session }: { session: Session }): JSX.Element => {

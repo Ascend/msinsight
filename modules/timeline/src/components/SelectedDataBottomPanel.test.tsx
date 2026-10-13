@@ -21,6 +21,20 @@ import React from 'react';
 import type { AscendSliceDetail } from '../entity/data';
 import { ArgsData } from './SelectedDataBottomPanel';
 
+jest.mock('antd/es/locale/zh_CN', () => ({ __esModule: true, default: {} }));
+jest.mock('antd/es/locale/en_US', () => ({ __esModule: true, default: {} }));
+jest.mock('./BottomPanel', () => ({
+    MoreContainer: ({ children }: { children: React.ReactNode }): JSX.Element => <div>{children}</div>,
+    StyledMoreCard: ({ children }: { children: React.ReactNode }): JSX.Element => <div>{children}</div>,
+}));
+jest.mock('./error/ChartErrorBoundary', () => ({
+    ChartErrorBoundary: ({ children }: { children: React.ReactNode }): JSX.Element => <>{children}</>,
+}));
+jest.mock('./detailViews/SystemView', () => ({ DETAIL_HEADER_HEIGHT_ETC_PX: 0 }));
+jest.mock('./details/CommunicationBandwidthInfoTable', () => ({
+    CommunicationBandwidthInfoTable: (): null => null,
+}));
+
 jest.mock('react-i18next', () => ({
     useTranslation: (): { t: (key: string) => string } => ({
         t: (key: string): string => key,

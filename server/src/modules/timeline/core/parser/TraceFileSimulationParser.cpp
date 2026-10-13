@@ -86,7 +86,8 @@ bool TraceFileSimulationParser::InitParser(
     for (const auto &filePath : filePathArr) {
         ServerLog::Info("Start parse. file id:", rankId, ". path:", filePath);
         auto splitFile = TraceFileSimulationParser::SplitFile(filePath);
-        instance.fileProgressMap[rankId] = std::make_unique<FileProgress>(0, FileUtil::GetFileSize(filePath.c_str()));
+        instance.SetFileProgress(rankId,
+            std::make_unique<FileProgress>(0, FileUtil::GetFileSize(filePath.c_str())));
         if (splitFile.empty()) {
             ServerLog::Error("Failed to split file. filePath: %", filePath);
             ParseEndCallBack(rankId, fileId, false, "Failed to split file: " + filePath);
@@ -134,12 +135,11 @@ void TraceFileSimulationParser::ParseTask(const std::string &filePath, const std
             ParseEndCallBack(rankId, fileId, false, eventParser.GetError());
         }
     }
-    // 发送单卡解析进度事件
-    auto &instance = TraceFileSimulationParser::Instance();
-    std::unique_ptr<FileProgress> &curFileProgress = instance.fileProgressMap[rankId];
-    curFileProgress->AddToParsedSize(pos.second - pos.first);
-    instance.parseProgressCallback(rankId, curFileProgress->GetParsedSize(), curFileProgress->GetTotalSize(),
-        curFileProgress->GetProgressPercentage());
+    // 发送单卡解析进度事件。测试和离线解析可能没有注册进度回调。
+    if (pos.second > pos.first) {
+        TraceFileSimulationParser::Instance().AddParsedSizeAndNotify(
+            rankId, static_cast<uint64_t>(pos.second - pos.first));
+    }
 }
 
 void TraceFileSimulationParser::EndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr,
@@ -188,9 +188,9 @@ void TraceFileSimulationParser::ParseEndCallBack(
         ParserStatusManager::Instance().SetTerminateStatus(rankId);
     }
     auto &instance = TraceFileSimulationParser::Instance();
-    if (instance.parseEndCallback != nullptr && oldStatus != ParserStatus::TERMINATE) {
+    if (oldStatus != ParserStatus::TERMINATE) {
         ServerLog::Info("TraceFileSimulationParser send Message");
-        instance.parseEndCallback(rankId, fileId, result, message);
+        instance.InvokeEndCallback(rankId, fileId, result, message);
     }
 }
 

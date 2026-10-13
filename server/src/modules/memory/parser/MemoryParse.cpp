@@ -685,9 +685,7 @@ void MemoryParse::ParseEndCallBack(
     }
 
     auto &instance = MemoryParse::Instance();
-    if (instance.parseEndCallback != nullptr) {
-        instance.parseEndCallback(rankId, fileId, result, message);
-    }
+    instance.InvokeEndCallback(rankId, fileId, result, message);
 }
 
 void MemoryParse::ParseCallBack(

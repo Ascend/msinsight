@@ -24,6 +24,7 @@
 #include <map>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include "ValidateUtil.h"
 
 namespace Dic {
@@ -74,10 +75,16 @@ class FileParser {
     virtual std::string GetError();
     virtual void Reset();
 
-    inline bool HasCallbackFuncSet() const { return parseEndCallback && parseProgressCallback; }
+    bool HasCallbackFuncSet() const;
 
   protected:
+    void SetFileProgress(const std::string &rankId, std::unique_ptr<FileProgress> progress);
+    void AddParsedSizeAndNotify(const std::string &rankId, uint64_t bytes);
+    void InvokeEndCallback(const std::string &rankId, const std::string &fileId, bool result,
+        const std::string &message);
+
     std::string error;
+    mutable std::mutex callbackMutex;
     std::function<void(const std::string, const std::string, bool result, const std::string)> parseEndCallback;
     std::function<void(const std::string, uint64_t parsedSize, uint64_t totalSize, int progress)> parseProgressCallback;
     std::map<std::string, std::unique_ptr<FileProgress>> fileProgressMap;

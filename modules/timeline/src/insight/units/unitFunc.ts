@@ -83,6 +83,10 @@ export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataLi
         }
         const existingUnit = parentUnit?.children?.find(unit => checkMetaData(unit.metadata, metaData));
         if (existingUnit) {
+            // 后到的 Python Stack 要把已经展开的 Text 泳道改到 host。
+            if (containsPythonStack(metaData)) {
+                existingUnit.metadata.offsetSide = OFFSET_SIDE.HOST;
+            }
             recursiveExpandUnit(metaData.children ?? [], existingUnit, depth + 1);
         } else {
             const subtreeOffsetSide = containsPythonStack(metaData) ? OFFSET_SIDE.HOST : undefined;

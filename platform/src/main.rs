@@ -20,6 +20,8 @@
 #![allow(non_snake_case)]
 
 #[cfg(any(all(not(debug_assertions), feature = "default"), test))]
+mod acp_origin;
+#[cfg(any(all(not(debug_assertions), feature = "default"), test))]
 mod local_port;
 #[cfg(any(all(not(debug_assertions), feature = "default"), test))]
 #[path = "webview/resource.rs"]

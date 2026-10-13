@@ -31,28 +31,23 @@ describe('getVisibleStatsSystemViewItems', () => {
 
     it('shows ftrace and MFU labels when only ftrace data has been imported', () => {
         const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, true, false);
+        const expected = itemsWithDynamicLayer.filter(item =>
+            item.name === KERNEL_MFU_VIEW_NAME || ftraceTypes.includes(item.name));
 
-        expect(getNames(visibleItems)).toEqual([...ftraceTypes, KERNEL_MFU_VIEW_NAME]);
+        expect(getNames(visibleItems)).toEqual(getNames(expected));
         expect(visibleItems.map(item => item.originIndex)).toEqual(
-            [...ftraceTypes, KERNEL_MFU_VIEW_NAME].map(name => statsSystemViewItems.findIndex(item => item.name === name)),
+            expected.map(item => itemsWithDynamicLayer.indexOf(item)),
         );
     });
 
     it('shows non-ftrace labels and dynamic layers when only non-ftrace data has been imported', () => {
         const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, false, true);
+        const expected = itemsWithDynamicLayer.filter(item => !ftraceTypes.includes(item.name));
 
-        expect(getNames(visibleItems)).toEqual([
-            'Overall Metrics',
-            'Memcpy Overall',
-            'Python API Summary',
-            'CANN API Summary',
-            'Ascend HardWare Task Summary',
-            'Communication Summary',
-            'Overlap Analysis',
-            'Kernel Details',
-            KERNEL_MFU_VIEW_NAME,
-            'Custom Layer',
-        ]);
+        expect(getNames(visibleItems)).toEqual(getNames(expected));
+        expect(visibleItems.map(item => item.originIndex)).toEqual(
+            expected.map(item => itemsWithDynamicLayer.indexOf(item)),
+        );
     });
 
     it('shows all labels after ftrace and non-ftrace data are both imported', () => {

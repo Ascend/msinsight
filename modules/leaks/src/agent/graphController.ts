@@ -431,12 +431,14 @@ const captureSessionContext = (session: Session): (() => boolean) => {
         createMemoryBlockContextKey(session) === contextKey && session.dbPath === dbPath && session.deviceIds === deviceIds;
 };
 const requireCurrentContext = (isCurrentContext: () => boolean): void => {
-    if (!isCurrentContext()) throw new CommandError({
-        code: COMMAND_ERROR_CODES.CANCELLED,
-        message: 'The memory context changed before the command completed.',
-        retryable: true,
-        details: { reason: 'context_changed' },
-    });
+    if (!isCurrentContext()) {
+        throw new CommandError({
+            code: COMMAND_ERROR_CODES.CANCELLED,
+            message: 'The memory context changed before the command completed.',
+            retryable: true,
+            details: { reason: 'context_changed' },
+        });
+    }
 };
 const requestSnapshotDetail = async (
     session: Session,

@@ -65,14 +65,23 @@ class ProjectParserDbTest : public testing::Test {
         for (int i = 0; i < 4; i++) {
             fs::create_directories(FileUtil::SplicePath(profDir, "device_" + std::to_string(i)));
         }
-        std::string profilerDbPath =
-            FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler.dat");
-        std::string newProfilerDbPath =
-            FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler.db");
-        fs::rename(profilerDbPath, newProfilerDbPath);
-        std::string analysisDbPath = FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.dat");
-        std::string newAnalysisDbPath = FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.db");
-        fs::rename(analysisDbPath, newAnalysisDbPath);
+        RenameFixture(FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler.dat"),
+            FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler.db"));
+        RenameFixture(FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.dat"),
+            FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.db"));
+    }
+    static void RenameFixture(const std::string &from, const std::string &to) {
+        std::error_code error;
+        if (fs::exists(from, error)) {
+            fs::rename(from, to, error);
+        }
+    }
+    void RestoreMultiDeviceFixtures() {
+        std::string path = GetMultiDeviceTestDataPath();
+        RenameFixture(FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler.db"),
+            FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler.dat"));
+        RenameFixture(FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.db"),
+            FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.dat"));
     }
     void TearDown() override {
         FullDb::DataBaseManager::Instance().Clear();
@@ -81,6 +90,7 @@ class ProjectParserDbTest : public testing::Test {
             std::error_code error;
             fs::remove_all(path, error);
         }
+        RestoreMultiDeviceFixtures();
     }
 
     class DbParserTestHelper : public ProjectParserDb {

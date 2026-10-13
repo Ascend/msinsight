@@ -59,7 +59,7 @@ bool CommunicationRapidSaxHandler::RawNumber(const char *str, SizeType len, bool
     }
     if (currentDepth == tableFlagDepth + 1 && tableFlag == "Communication Time Info") {
         if (currentKey == "Start Timestamp(us)") {
-            int64_t tempStartTime = NumberUtil::TimestampUsToNs(s);
+            int64_t tempStartTime = NumberUtil::TimestampUsToNsStable(s);
             timeInfo.startTime = NumberUtil::Int64ToUint64(tempStartTime);
         }
         if (currentKey == "Elapse Time(ms)") {
