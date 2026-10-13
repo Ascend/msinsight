@@ -30,7 +30,8 @@ import urllib.request
 import subprocess
 import logging
 
-from build import init_log
+# Import the sibling build.py; Pylint can resolve a different module named build.
+from build import init_log  # pylint: disable=no-name-in-module
 
 BUILD_DIR = os.path.dirname(os.path.abspath(__file__))
 HOME_DIR = os.path.dirname(BUILD_DIR)
@@ -143,7 +144,7 @@ def prepare_sqlite_src() -> bool:
             tar_path = os.path.join(THIRD_PARTY_DIR, SQLITE_SRC_TAR)
             urllib.request.urlretrieve(SQLITE3_SOURCE_URL, tar_path)
             with tarfile.open(tar_path) as tar:
-                tar.extractall(THIRD_PARTY_DIR)
+                tar.extractall(THIRD_PARTY_DIR, filter="data")
             os.remove(tar_path)
             return True
     else:
