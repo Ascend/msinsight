@@ -1062,8 +1062,11 @@ bash cpp_coverage.sh
   3. 执行 `insight_test` 生成 `.gcda` 覆盖率数据
   4. 使用 lcov 过滤 include/test/third_party 目录后生成覆盖率信息
   5. 使用 genhtml 生成 HTML 报告
+  6. 按 `server/src/modules/<module>` 汇总各模块覆盖率
+  7. 默认把报告提交到 `msinsight-org/qa-test-assets`，并把汇总回帖到 MR 评论（缺令牌时跳过；`COVERAGE_ASSET=off` / `COVERAGE_COMMENT=off` 可分别关闭）
 - 覆盖率报告路径：`build_llt/output/cpp_coverage/result/index.html`
-- 注意：当前 lcov/genhtml 报告生成功能暂时屏蔽，覆盖率数据文件（.gcda）仍正常生成
+- 模块汇总：`build_llt/output/cpp_coverage/coverage_summary.md`
+- 归档路径：`server/cpp-ut/coverage-reports/<YYYY-MM-DD>_pr<MR>_<短提交>/`
 
 ### 4.2 GUI 开发者测试
 
