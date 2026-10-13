@@ -125,7 +125,10 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             const userMessage = {
                 id: crypto.randomUUID(),
                 role: "user",
-                content: displayText ? [{ id: crypto.randomUUID(), type: "text", text: displayText }] : [],
+                content: [
+                    ...(displayText ? [{ id: crypto.randomUUID(), type: "text", text: displayText }] : []),
+                    ...images.map((image) => ({ ...image, type: "image" })),
+                ],
             };
             sessionContext.messages.push(userMessage, assistant);
             eventBus.broadcast({ type: "message_added", sessionId, message: userMessage });

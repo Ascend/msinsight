@@ -15,7 +15,11 @@ import type { ServerEvent } from '../../types';
 const { act, render, waitFor } = testingLibrary;
 
 jest.mock('antd', () => ({ message: { error: jest.fn() } }));
-jest.mock('../../env', () => ({ apiUrl: (path: string) => path }));
+jest.mock('../../env', () => ({
+    apiUrl: (path: string) => path,
+    eventsUrl: () => '/api/events',
+    capabilityAuthHeaders: () => ({}),
+}));
 jest.mock('../../api', () => ({
     fetchState: jest.fn(),
     fetchAgents: jest.fn(),
@@ -83,6 +87,22 @@ beforeEach(async () => {
 
 afterEach(() => {
     globalThis.EventSource = originalEventSource;
+});
+
+test('preserves sent and replayed image blocks when switching sessions', async () => {
+    const image = { id: 'image', name: 'chart.png', mimeType: 'image/png', data: 'iVBORw0KGgo=' };
+    act(() => chat.addImages([image]));
+    await send('Explain this image');
+    expect(chat.images).toEqual([]);
+    expect(mockSendPrompt).toHaveBeenLastCalledWith('Explain this image', true, undefined, [image], undefined, undefined, undefined);
+
+    const message = { id: 'user-image', role: 'user' as const, content: [{ ...image, type: 'image' as const }] };
+    emit({ type: 'message_added', sessionId: 'session-a', message });
+    await act(async () => { await chat.createSession(); });
+    const replayed = { ...image, id: 'replayed-image', type: 'image' as const };
+    emit({ type: 'message_content_added', sessionId: 'session-a', id: message.id, block: replayed });
+    await select('session-a');
+    expect(chat.messages[0].content).toEqual([message.content[0], replayed]);
 });
 
 test('opens a draft while a session runs and keeps its background replies available', async () => {

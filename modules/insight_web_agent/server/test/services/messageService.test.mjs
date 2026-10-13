@@ -84,6 +84,38 @@ test("consecutive text deltas merge until another content type starts", () => {
     ]);
 });
 
+test("history replay preserves images between text blocks and broadcasts them", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", { ...buildSessionContext(), replayingHistory: true });
+    const events = [];
+    const context = { eventBus: { broadcast: (event) => events.push(event) }, state };
+    const image = { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" };
+
+    appendContentBlock(context, "session-1", "user", { type: "text", text: "before" });
+    appendContentBlock(context, "session-1", "user", image);
+    appendContentBlock(context, "session-1", "user", { type: "text", text: "after" });
+
+    const content = state.sessionContexts.get("session-1").messages[0].content;
+    assert.deepEqual(content.map((block) => block.type), ["text", "image", "text"]);
+    assert.deepEqual(content[1], { ...image, id: content[1].id, name: "Image" });
+    assert.equal(typeof content[1].id, "string");
+    assert.deepEqual(events.find((event) => event.block?.type === "image").block, content[1]);
+});
+
+test("invalid or unavailable image content does not create empty messages", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", buildSessionContext());
+    const events = [];
+    const context = { eventBus: { broadcast: (event) => events.push(event) }, state };
+    for (const image of [
+        { type: "image", mimeType: "image/png", data: "" },
+        { type: "image", mimeType: "text/html", data: "PGgxPg==" },
+        { type: "image", mimeType: "image/png", uri: "file:///image.png" },
+    ]) appendContentBlock(context, "session-1", "user", image);
+    assert.deepEqual(state.sessionContexts.get("session-1").messages, []);
+    assert.deepEqual(events, []);
+});
+
 test("thinking blocks retain their start time for the execution timeline", () => {
     const state = createRuntimeState();
     state.sessionContexts.set("session-1", buildSessionContext());

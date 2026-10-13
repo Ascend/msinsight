@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { ThemeProvider } from '@emotion/react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { themeInstance } from '@insight/lib/theme';
@@ -61,7 +61,10 @@ const MockMarkdown = ({ text }: { text: string }): JSX.Element => {
             <table><tbody><tr><th>HeaderHeaderHeaderHeader</th><th>OtherHeaderHeaderHeader</th></tr></tbody></table>
         </>;
     }
-    return <p>A very long token abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz and <code>/workspace/really/long/path/that/should/wrap/in/the/panel/file.ts</code></p>;
+    if (text.startsWith('A very long token')) {
+        return <p>A very long token abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz and <code>/workspace/really/long/path/that/should/wrap/in/the/panel/file.ts</code></p>;
+    }
+    return <p>{text}</p>;
 };
 
 test('shows the msinsight command as the tool card name', () => {
@@ -83,6 +86,67 @@ test('shows the msinsight command as the tool card name', () => {
         status: 'in_progress',
         input: '{"command":"observe"}',
     })).toBe('other-tool');
+});
+
+test.each([false, true])('renders sent images outside collapsed prompt text (with text: %s)', (withText) => {
+    render(<MessageList
+        messages={[{
+            id: 'user-images',
+            role: 'user',
+            content: [
+                ...(withText ? [{ id: 'text', type: 'text' as const, text: 'Explain these images' }] : []),
+                { id: 'image-1', type: 'image', name: 'chart.png', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+                { id: 'image-2', type: 'image', name: 'photo.jpg', mimeType: 'image/jpeg', data: '/9j/4AAQSkZJRg==' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.getByRole('img', { name: 'chart.png' })).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgo=');
+    expect(screen.getByRole('img', { name: 'photo.jpg' })).toHaveAttribute('src', 'data:image/jpeg;base64,/9j/4AAQSkZJRg==');
+    expect(document.querySelector('.user-prompt-content img')).toBeNull();
+    expect(document.querySelectorAll('.message.user .attachments img')).toHaveLength(2);
+});
+
+test.each(['click', 'Enter', ' '])('opens the selected sent image with %s and supports switching and closing', async (trigger) => {
+    render(<MessageList
+        messages={[{
+            id: 'user-preview',
+            role: 'user',
+            content: [
+                { id: 'first', type: 'image', name: 'first.png', mimeType: 'image/png', data: 'Zmlyc3Q=' },
+                { id: 'second', type: 'image', name: 'second.png', mimeType: 'image/png', data: 'c2Vjb25k' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+    const thumbnail = screen.getByRole('button', { name: 'second.png' });
+    if (trigger === 'click') await userEvent.click(thumbnail);
+    else fireEvent.keyDown(thumbnail, { key: trigger });
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', 'data:image/png;base64,c2Vjb25k');
+    await userEvent.click(screen.getByRole('img', { name: 'left' }));
+    expect(within(dialog).getByRole('img')).toHaveAttribute('src', 'data:image/png;base64,Zmlyc3Q=');
+    fireEvent.keyDown(window, { key: 'Escape', keyCode: 27 });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'second.png' })).toBeInTheDocument();
+});
+
+test('renders assistant images as answer content', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-image',
+            role: 'assistant',
+            content: [{ id: 'image', type: 'image', name: 'result.png', mimeType: 'image/png', data: 'iVBORw0KGgo=' }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+    expect(screen.getByRole('button', { name: 'result.png' })).toBeInTheDocument();
+    expect(document.querySelector('.thinking-timeline')).toBeNull();
 });
 
 test('renders assistant content blocks in text-tool-text order', () => {

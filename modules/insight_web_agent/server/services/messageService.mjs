@@ -86,6 +86,22 @@ const definedToolCallFields = (toolCall) => Object.fromEntries(
 
 export const appendContentBlock = (serviceContext, sessionId, role, block, type = "text") => {
     if (shouldSkipAgentContent(block)) return;
+    if (block?.type === "image") {
+        if (typeof block.data !== "string" || !block.data.trim() ||
+            typeof block.mimeType !== "string" || !block.mimeType.startsWith("image/")) return;
+        const message = ensureMessage(serviceContext, sessionId, role);
+        if (!message) return;
+        const image = {
+            id: crypto.randomUUID(),
+            type: "image",
+            name: typeof block.name === "string" ? block.name : "Image",
+            mimeType: block.mimeType,
+            data: block.data,
+        };
+        message.content.push(image);
+        serviceContext.eventBus.broadcast({ type: "message_content_added", sessionId, id: message.id, block: image });
+        return;
+    }
 
     const text = textFromContentBlock(block);
     if (text) appendChunk(serviceContext, sessionId, role, type, text);

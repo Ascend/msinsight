@@ -63,6 +63,7 @@ export interface ActionItem {
 
 export type MessageContentBlock =
     | { id: string; type: 'text'; text: string; startedAt?: number }
+    | (ImageAttachment & { type: 'image' })
     | { id: string; type: 'thinking'; text: string; startedAt?: number; durationMs?: number }
     | { id: string; type: 'tool'; toolCall: ToolCallItem };
 
