@@ -92,9 +92,15 @@ test.describe('Leaks(MemScope)', () => {
         await expect(leaksFrame.locator('.ant-select-selection-item').and(leaksFrame.getByTitle('1', { exact: true }))).toBeVisible();
         await page.mouse.move(0, 0);
         await page.mouse.click(0, 0);
-        await page.waitForTimeout(1000);
+        await leaksPage.waitForReady();
         await page.mouse.move(0, 0);
-        await expect(leaksFrame.locator('#barContent')).toHaveScreenshot('barContent_deviceId.png', { maxDiffPixels: 100 });
+        const overview = leaksFrame.getByTestId('memoryDataZoom');
+        await expect(overview).toHaveAttribute('data-loading', 'false', { timeout: 30000 });
+        await expect(overview.locator('canvas')).toHaveCount(2);
+        await expect(leaksFrame.locator('#barContent')).toHaveScreenshot('barContent_deviceId.png', {
+            maxDiffPixels: 100,
+            animations: 'disabled',
+        });
     });
 
     // 切换类型
@@ -105,18 +111,22 @@ test.describe('Leaks(MemScope)', () => {
         await expect(leaksFrame.locator('.ant-select-selection-item').and(leaksFrame.getByTitle('HAL', { exact: true }))).toBeVisible();
         await page.mouse.click(0, 0);
         await page.mouse.move(0, 0);
-        await page.waitForTimeout(1000);
+        await leaksPage.waitForReady();
         await page.mouse.move(0, 0);
-        await expect(leaksFrame.locator('#barContent')).toHaveScreenshot('barContent_type.png', { maxDiffPixels: 100 });
+        const overview = leaksFrame.getByTestId('memoryDataZoom');
+        await expect(overview).toHaveAttribute('data-loading', 'false', { timeout: 30000 });
+        await expect(overview.locator('canvas')).toHaveCount(2);
+        await expect(leaksFrame.locator('#barContent')).toHaveScreenshot('barContent_type.png', {
+            maxDiffPixels: 100,
+            animations: 'disabled',
+        });
     });
 
     // 内存拆解图展示
     test('test_memorySlice_show', async ({ leaksPage, page }) => {
         await getAllocationsSuccess;
         const { leaksFrame } = leaksPage;
-        // 等待 echarts 动画结束
-        await page.waitForTimeout(1000);
-        await leaksFrame.locator('#barContent').click({ position: { x: 526, y: 217 } });
+        await leaksPage.clickMemoryBlock();
         await expect(leaksFrame.locator('#detailsContent canvas').first()).toBeVisible();
         await page.mouse.move(0, 0);
         await expect(leaksFrame.locator('#detailsContent')).toHaveScreenshot('detailsContent.png', { maxDiffPixels: 100, animations: 'disabled' });
