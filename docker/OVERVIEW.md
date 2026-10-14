@@ -6,9 +6,9 @@
 
 - Where to get help:
 
-  - [AtlasHub Image Repository](https://www.hiascend.com/developer/ascendhub)
+  - [AtlasHub Image Repository](https://www.hiascend.com/en/developer/ascendhub)
   - [MindStudio Insight Code Repository](https://gitcode.com/Ascend/msinsight)
-  - [MindStudio Insight Atlas Community](https://www.hiascend.com/document/detail/zh/mindstudio/2600/GUI_baseddevelopmenttool/MindStudioInsight/docs/zh/user_guide/overview.md)
+  - [MindStudio Insight Atlas Community](https://www.hiascend.com/document/detail/en/mindstudio/latest/GUI_baseddevelopmenttool/MindStudioInsight/docs/en/user_guide/overview.md)
   - [Issue Tracker](https://gitcode.com/Ascend/msinsight/issues)
 
 ---
