@@ -8,7 +8,7 @@
 
   - [AscendHub镜像仓库](https://www.hiascend.com/developer/ascendhub)
   - [MindStudio Insight 代码仓](https://gitcode.com/Ascend/msinsight)
-  - [MindStudio Insight 昇腾社区](https://www.hiascend.com/document/detail/zh/mindstudio/2600/GUI_baseddevelopmenttool/MindStudioInsight/docs/zh/user_guide/overview.md)
+  - [MindStudio Insight 昇腾社区](https://www.hiascend.com/document/detail/zh/mindstudio/latest/GUI_baseddevelopmenttool/MindStudioInsight/docs/zh/user_guide/overview.md)
   - [问题反馈](https://gitcode.com/Ascend/msinsight/issues)
 
 ---
