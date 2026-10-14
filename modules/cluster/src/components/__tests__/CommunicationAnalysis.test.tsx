@@ -187,7 +187,9 @@ it('only reloads operator data when changing the alignment', async() => {
     testingLibrary.fireEvent.click(testingLibrary.screen.getByTestId('align-operator'));
     expect(testingLibrary.screen.getByTestId('operator-loading')).toHaveTextContent('true');
     await testingLibrary.waitFor(() => expect(queryCommunicationOperatorLists).toHaveBeenCalledTimes(2));
-    expect(queryCommunicationOperatorLists).toHaveBeenLastCalledWith(expect.objectContaining({ targetOperatorName: 'AllReduce' }));
+    expect(queryCommunicationOperatorLists).toHaveBeenLastCalledWith(
+        expect.objectContaining({ targetOperatorName: 'AllReduce' }), expect.any(Function),
+    );
     expect(queryCommunication).toHaveBeenCalledTimes(1);
     expect(queryIterations).toHaveBeenCalledTimes(optionRequestCounts.iterations);
     expect(queryStages).toHaveBeenCalledTimes(optionRequestCounts.stages);
@@ -205,6 +207,8 @@ it('only reloads operator data when changing the alignment', async() => {
     (queryCommunicationOperatorLists as jest.Mock).mockResolvedValue({ minTime: 0, maxTime: 1, data: [] });
     testingLibrary.fireEvent.click(testingLibrary.screen.getByTestId('restore-alignment'));
     await testingLibrary.waitFor(() => expect(queryCommunicationOperatorLists).toHaveBeenCalledTimes(3));
-    expect(queryCommunicationOperatorLists).toHaveBeenLastCalledWith(expect.objectContaining({ targetOperatorName: '' }));
+    expect(queryCommunicationOperatorLists).toHaveBeenLastCalledWith(
+        expect.objectContaining({ targetOperatorName: '' }), expect.any(Function),
+    );
     expect(queryCommunication).toHaveBeenCalledTimes(1);
 });

@@ -98,7 +98,11 @@ const renderUnit = (session: Session, lane: InsightUnit): ReturnType<typeof rend
 );
 
 describe('automatic merge buttons while another card is parsing', () => {
-    const warning = jest.spyOn(message, 'warning').mockImplementation(jest.fn());
+    let warning: jest.SpyInstance;
+
+    beforeEach(() => {
+        warning = jest.spyOn(message, 'warning').mockImplementation(jest.fn());
+    });
 
     it.each([
         { merged: false, buttonId: 'auto-merge-source-button' },

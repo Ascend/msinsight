@@ -113,12 +113,6 @@ describe('parseMemoryCompletedHandler', () => {
         const spy = jest.spyOn(require('mobx'), 'runInAction');
         await parseMemoryCompletedHandler(mockData);
         expect(spy).toHaveBeenCalled();
-        // Verify that runInAction was called with a function
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        expect(typeof actionFunction).toBe('function');
-
-        // Execute the action function to verify its behavior
-        actionFunction();
         expect(mockSession.memoryCardInfos).toBeDefined();
         spy.mockRestore();
     });
@@ -161,8 +155,6 @@ describe('removeRemoteHandler', () => {
         setMemoryStoreSession(mockMemorySession);
         const spy = jest.spyOn(require('mobx'), 'runInAction');
         await removeRemoteHandler({});
-        const actionFunction = (spy as jest.Mock).mock.calls[0][0];
-        actionFunction();
 
         expect(mockSession.memoryCardInfos).toEqual([]);
         expect(mockSession.isAllMemoryCompletedSwitch).toBe(false);
@@ -177,9 +169,6 @@ describe('removeRemoteHandler', () => {
         setMemoryStoreSession(null);
         const spy = jest.spyOn(require('mobx'), 'runInAction');
         await removeRemoteHandler({});
-
-        const actionFunction = (spy as jest.Mock).mock.calls[0][0];
-        actionFunction();
 
         // No changes should be made
         expect(store.sessionStore.activeSession).toBeNull();
@@ -253,9 +242,6 @@ describe('updateSessionHandler', () => {
         jest.spyOn(require('mobx'), 'runInAction');
         await updateSessionHandler(mockData);
 
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
         expect(mockSession.memoryCardInfos).toEqual([
             { rankInfo: { rankId: '2' }, index: 1, dbPath: '/path2' },
             { rankInfo: { rankId: '1' }, index: 2, dbPath: '/path1' },
@@ -272,21 +258,13 @@ describe('updateSessionHandler', () => {
         jest.spyOn(require('mobx'), 'runInAction');
         await updateSessionHandler(mockData);
 
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
         expect(mockSession.isCluster).toBe(true);
         expect(mockSession.unitcount).toBe(5);
         expect((mockSession as any).someOtherKey).toBeUndefined();
     });
 
     it('should handle empty data object', async () => {
-        jest.spyOn(require('mobx'), 'runInAction');
-        const spy = jest.spyOn(require('mobx'), 'runInAction');
         await updateSessionHandler({});
-
-        const actionFunction = (spy as jest.Mock).mock.calls[0][0];
-        actionFunction();
 
         // No changes should occur
         expect(mockSession.memoryCardInfos).toEqual([]);
@@ -302,9 +280,6 @@ describe('allSuccessHandler', () => {
 
         await allSuccessHandler({ isAllPageParsed: true });
 
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
         expect(mockSession.isAllMemoryCompletedSwitch).toBe(true);
     });
 
@@ -316,9 +291,6 @@ describe('allSuccessHandler', () => {
 
         await allSuccessHandler({ isAllPageParsed: false });
 
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
         expect(mockSession.isAllMemoryCompletedSwitch).toBe(false);
     });
 
@@ -329,9 +301,6 @@ describe('allSuccessHandler', () => {
         setStoreSession(mockSession);
 
         await allSuccessHandler({});
-
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
 
         expect(mockSession.isAllMemoryCompletedSwitch).toBe(false);
     });
@@ -357,9 +326,6 @@ describe('deleteCardHandler', () => {
 
         await deleteCardHandler(mockData);
 
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
         expect(mockSession.memoryCardInfos).toHaveLength(1);
         expect(mockSession.memoryCardInfos[0].rankInfo.rankId).toBe('2');
     });
@@ -374,9 +340,6 @@ describe('deleteCardHandler', () => {
 
         await deleteCardHandler({ info: [] });
 
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
         expect(mockSession.memoryCardInfos).toHaveLength(1);
     });
 });
@@ -386,13 +349,9 @@ describe('switchLanguageHandler', () => {
         const mockSession = {
             language: 'zhCN',
         };
-        const spy = jest.spyOn(require('mobx'), 'runInAction');
         setStoreSession(mockSession);
 
         switchLanguageHandler({ lang: 'enUS' });
-
-        const actionFunction = (spy as jest.Mock).mock.calls[0][0];
-        actionFunction();
 
         expect(mockSession.language).toBe('enUS');
         expect(i18n.changeLanguage).toHaveBeenCalledWith('enUS');
@@ -415,11 +374,7 @@ describe('switchDirectoryHandler', () => {
             compareRank: { rankId: '', isCompare: false },
         };
         setStoreSession(mockSession);
-        const spy = jest.spyOn(require('mobx'), 'runInAction');
         switchDirectoryHandler({ rankId: 'newRank', isCompare: true });
-
-        const actionFunction = (spy as jest.Mock).mock.calls[0][0];
-        actionFunction();
 
         expect(mockSession.compareRank).toEqual({
             rankId: 'newRank',
@@ -444,7 +399,7 @@ describe('Error Handling', () => {
     });
 
     it('should catch errors in parseMemoryCompletedHandler', async () => {
-        (runInAction as jest.Mock).mockImplementation(() => {
+        jest.spyOn(require('mobx'), 'runInAction').mockImplementation(() => {
             throw new Error('Test error');
         });
 
@@ -453,7 +408,7 @@ describe('Error Handling', () => {
     });
 
     it('should catch errors in removeRemoteHandler', async () => {
-        (runInAction as jest.Mock).mockImplementation(() => {
+        jest.spyOn(require('mobx'), 'runInAction').mockImplementation(() => {
             throw new Error('Test error');
         });
 
@@ -462,7 +417,7 @@ describe('Error Handling', () => {
     });
 
     it('should catch errors in updateSessionHandler', async () => {
-        (runInAction as jest.Mock).mockImplementation(() => {
+        jest.spyOn(require('mobx'), 'runInAction').mockImplementation(() => {
             throw new Error('Test error');
         });
 

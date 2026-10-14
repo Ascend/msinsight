@@ -19,7 +19,7 @@
 import { render } from '@testing-library/react';
 import React from 'react';
 import type { AscendSliceDetail } from '../entity/data';
-import { ArgsData } from './SelectedDataBottomPanel';
+import { ArgsData } from './ArgsData';
 
 jest.mock('react-i18next', () => ({
     useTranslation: (): { t: (key: string) => string } => ({
@@ -28,6 +28,7 @@ jest.mock('react-i18next', () => ({
 }));
 
 jest.mock('@insight/lib/icon', () => ({
+    ...jest.requireActual('@insight/lib/icon'),
     CaretDownIcon: (): JSX.Element => <span/>,
     AlarmIcon: (): JSX.Element => <span data-testid="alarm-icon"/>,
 }));
@@ -35,6 +36,7 @@ jest.mock('@insight/lib/icon', () => ({
 let mockTooltipProps: any;
 
 jest.mock('@insight/lib/components', () => ({
+    ...jest.requireActual('@insight/lib/components'),
     Tooltip: (props: { children: React.ReactNode }): JSX.Element => {
         mockTooltipProps = props;
         return <>{props.children}</>;

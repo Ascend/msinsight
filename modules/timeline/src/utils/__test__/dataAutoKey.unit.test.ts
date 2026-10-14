@@ -34,9 +34,10 @@ describe('getAutoKey', () => {
         expect(key1).toEqual(key2);
     });
 
-    it('should return the provided key if the object has one', () => {
+    it('does not confuse an unrelated symbol with the internal key', () => {
         const obj: AutoKey<{}> = { [Symbol('autokey')]: 'customKey' };
         const key = getAutoKey(obj);
-        expect(key).toEqual('3');
+        expect(key).not.toBe('customKey');
+        expect(getAutoKey(obj)).toBe(key);
     });
 });

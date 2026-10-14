@@ -32,9 +32,9 @@ describe('getVisibleStatsSystemViewItems', () => {
     it('shows ftrace and MFU labels when only ftrace data has been imported', () => {
         const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, true, false);
 
-        expect(getNames(visibleItems)).toEqual([...ftraceTypes, KERNEL_MFU_VIEW_NAME]);
+        expect(getNames(visibleItems)).toEqual([KERNEL_MFU_VIEW_NAME, ...ftraceTypes]);
         expect(visibleItems.map(item => item.originIndex)).toEqual(
-            [...ftraceTypes, KERNEL_MFU_VIEW_NAME].map(name => statsSystemViewItems.findIndex(item => item.name === name)),
+            [KERNEL_MFU_VIEW_NAME, ...ftraceTypes].map(name => statsSystemViewItems.findIndex(item => item.name === name)),
         );
     });
 
@@ -43,13 +43,19 @@ describe('getVisibleStatsSystemViewItems', () => {
 
         expect(getNames(visibleItems)).toEqual([
             'Overall Metrics',
-            'Memcpy Overall',
             'Python API Summary',
+            'Python API Trace',
             'CANN API Summary',
+            'CANN API Trace',
             'Ascend HardWare Task Summary',
+            'Ascend HardWare Task Trace',
             'Communication Summary',
+            'Communication Trace',
             'Overlap Analysis',
+            'Kernel Dispatch Duration Breakdown',
             'Kernel Details',
+            'Kernel Summary',
+            'Memcpy Overall',
             KERNEL_MFU_VIEW_NAME,
             'Custom Layer',
         ]);

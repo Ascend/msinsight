@@ -26,7 +26,9 @@ function main() {
   export npm_config_disturl=https://npmmirror.com/mirrors/node
   export npm_config_registry=https://registry.npmmirror.com/
   cd "${route}"/..
-  npm run test
+  pnpm --dir modules install --frozen-lockfile
+  npm run test:ci
+  python3 build/test_unite.py
 }
 
 main

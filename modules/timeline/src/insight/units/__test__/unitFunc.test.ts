@@ -625,6 +625,11 @@ describe('timeline unit metadata expansion', () => {
 
         expect(processUnit?.children?.[0].metadata.offsetSide).toBe('host');
         expect(processUnit?.children?.[0].children?.[0].metadata.offsetSide).toBe('host');
+
+        const refreshTree = createTextTree(false);
+        updateDataSourceAndParentMetaDataMap(refreshTree, dataSource);
+        recursiveExpandUnit(refreshTree.children?.[0].children ?? [], processUnit as InsightUnit);
+        expect(processUnit?.children?.[0].metadata.offsetSide).toBe('host');
     });
 
     it('keeps host lanes with the same process id separated during metadata expansion', () => {

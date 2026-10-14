@@ -8,10 +8,15 @@
         "build": "cross-env DISABLE_ESLINT_PLUGIN=true pnpm -r build",
         "sync": "node sync.mjs",
         "lint": "eslint \"**/src/**/*.{js,jsx,ts,tsx}\" --max-warnings=0",
-        "test": "pnpm install && pnpm testMemory && pnpm testTimeline",
-        "testCluster": "cd cluster && pnpm test",
-        "testMemory": "cd memory && pnpm test",
-        "testTimeline": "cd timeline && pnpm test"
+        "test": "node testing/run.cjs",
+        "testCluster": "node testing/run.cjs --module cluster",
+        "testMemory": "node testing/run.cjs --module memory",
+        "testTimeline": "node testing/run.cjs --module timeline",
+        "test:ci": "pnpm test:infra && node testing/run.cjs --ci --coverage",
+        "test:coverage": "node testing/run.cjs --coverage",
+        "test:watch": "node testing/run.cjs --watch",
+        "test:infra": "node testing/run-infra.cjs",
+        "test:browser": "node leaks/tests/tooltip-layout/run.cjs"
     },
     "dependencies": {
         "@emotion/react": "11.14.0",
@@ -53,15 +58,21 @@
         "eslint-plugin-promise": "6.1.1",
         "eslint-plugin-react": "7.33.2",
         "eslint-plugin-react-hooks": "4.6.0",
- 	    "html-inline-css-webpack-plugin": "1.11.2",
- 	    "html-webpack-inline-source-plugin": "^0.0.10",
+        "html-inline-css-webpack-plugin": "1.11.2",
+        "html-webpack-inline-source-plugin": "^0.0.10",
         "html-webpack-plugin": "^5.5.3",
         "react-scripts": "5.0.1",
         "resize-observer-polyfill": "1.5.1",
         "typescript": "5.5.4",
- 	    "typescript-plugin-css-modules": "3.4.0",
- 	    "mini-css-extract-plugin": "^2.9.4",
- 	    "style-loader": "^3.3.3",
- 	    "css-loader": "^6.8.1"
+        "typescript-plugin-css-modules": "3.4.0",
+        "mini-css-extract-plugin": "^2.9.4",
+        "style-loader": "^3.3.3",
+        "css-loader": "^6.8.1",
+        "jest": "27.5.1",
+        "jest-environment-jsdom": "27.5.1",
+        "jest-environment-node": "27.5.1",
+        "jest-junit": "16.0.0",
+        "yaml": "2.8.1",
+        "fast-glob": "3.3.3"
     }
 }
