@@ -17,6 +17,7 @@
  */
 
 #include <chrono>
+#include <algorithm>
 #include <cstdio>
 #include <memory>
 #include <set>
@@ -25,12 +26,24 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <utility>
 #include <gtest/gtest.h>
 #include <sqlite3.h>
 #include "DataBaseManager.h"
 #include "GlobalDefs.h"
 #include "ProjectParserFactory.h"
 #include "ProjectParserPytorchTrace.h"
+#include "ProjectParserBin.h"
+#include "ProjectParserDb.h"
+#include "ProjectParserDbNPUMonitor.h"
+#include "ProjectParserFtrace.h"
+#include "ProjectParserJson.h"
+#include "ProjectParserMemScope.h"
+#include "ProjectParserMemSnapshot.h"
+#include "ProjectParserTriton.h"
+#include "ParserIE.h"
+#include "MemSnapshotParser.h"
+#include "../timeline/handler/TimelineHandlerTestSupport.h"
 #include "FileUtil.h"
 #include "TableDefs.h"
 #include "TraceTime.h"
@@ -63,11 +76,13 @@ class ParserFactoryTest : public ::testing::Test {
 
     std::string CreateStableTempDirectoryWithFiles(const std::vector<std::string> &fileNames) {
         const ::testing::TestInfo *testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+        std::string testName = testInfo->name();
+        std::replace(testName.begin(), testName.end(), '/', '_');
         static std::atomic<int> seq{0};
         std::string directory;
         for (int i = 0; i < 8; ++i) {
-            const std::string candidate = Dic::FileUtil::SplicePath(
-                ::testing::TempDir(), std::string(testInfo->name()) + "_" + std::to_string(seq.fetch_add(1)));
+            const std::string candidate =
+                Dic::FileUtil::SplicePath(::testing::TempDir(), testName + "_" + std::to_string(seq.fetch_add(1)));
             std::error_code ec;
             if (std::filesystem::create_directories(candidate, ec)) {
                 directory = candidate;
@@ -517,3 +532,347 @@ TEST_F(ParserFactoryTest, ParserBaseSendFail) {
     EXPECT_EQ(parser.GetRankIdFromPath("test", "test/rank0"), "test");
     EXPECT_EQ(ProjectParserBase::GetDbPath("test", 0), "test_0.db");
 }
+
+namespace {
+namespace Global = Dic::Module::Global;
+class CapturingImportSession : public Dic::Module::Timeline::Test::CapturingTimelineSession {
+  public:
+    void OnEvent(std::unique_ptr<Protocol::Event> event) override { events.emplace_back(std::move(event)); }
+    std::vector<std::unique_ptr<Protocol::Event>> events;
+};
+
+class FullDbImportUtTest : public ParserFactoryTest {
+  protected:
+    class TestableParserBase : public ProjectParserBase {
+      public:
+        using ProjectParserBase::IsNeedReset;
+        using ProjectParserBase::MergeFileTree;
+    };
+
+    void SetUp() override {
+        capture = std::make_shared<CapturingImportSession>();
+        previousSnapshotState = MemSnapshotParser::Instance().GetParseContext().GetState();
+        auto &sessions = Server::WsSessionManager::Instance();
+        std::lock_guard<std::mutex> lock(sessions.sessionMutex);
+        previousSession = std::exchange(sessions.session, capture);
+    }
+
+    void TearDown() override {
+        MemSnapshotParser::Instance().GetParseContext().SetState(previousSnapshotState);
+        {
+            auto &sessions = Server::WsSessionManager::Instance();
+            std::lock_guard<std::mutex> lock(sessions.sessionMutex);
+            sessions.session = std::move(previousSession);
+        }
+        ParserFactoryTest::TearDown();
+    }
+
+    std::shared_ptr<Global::ParseFileInfo> Node(const std::string &subId, Global::ParseFileType type) {
+        auto node = std::make_shared<Global::ParseFileInfo>();
+        node->subId = subId;
+        node->type = type;
+        return node;
+    }
+
+    template <typename Parser>
+    void ExpectProjectTree(ProjectTypeEnum type, const std::vector<std::string> &files, bool hasFileId) {
+        Global::ProjectExplorerInfo info{};
+        info.projectName = "full-db-import-ut";
+        info.fileName = CreateStableTempDirectoryWithFiles({});
+        ASSERT_FALSE(info.fileName.empty());
+        info.projectType = static_cast<int64_t>(type);
+        std::vector<std::string> parsedFiles;
+        for (const auto &file : files) {
+            parsedFiles.push_back(FileUtil::SplicePath(info.fileName, file));
+        }
+        Parser::BuildProjectExploreInfo(info, parsedFiles);
+        ASSERT_EQ(info.projectFileTree.size(), 1U);
+        const auto &root = info.projectFileTree.front();
+        EXPECT_EQ(root->type, Global::ParseFileType::PROJECT);
+        EXPECT_EQ(root->parseFilePath, info.fileName);
+        EXPECT_EQ(root->projectType, static_cast<int64_t>(type));
+        ASSERT_EQ(root->subParseFile.size(), files.size());
+        for (size_t i = 0; i < files.size(); ++i) {
+            const auto &child = root->subParseFile[i];
+            EXPECT_EQ(child->parseFilePath, parsedFiles[i]);
+            EXPECT_EQ(child->type, Global::ParseFileType::RANK);
+            EXPECT_EQ(child->curDirName, FileUtil::GetFileName(files[i]));
+            if (type == ProjectTypeEnum::DB_FTRACE) {
+                EXPECT_EQ(child->subId, FileUtil::GetFileName(files[i]));
+                EXPECT_EQ(child->projectType, static_cast<int64_t>(type));
+            } else {
+                EXPECT_EQ(child->subId, parsedFiles[i]);
+                EXPECT_EQ(child->rankId, parsedFiles[i]);
+            }
+            if (hasFileId) {
+                EXPECT_EQ(child->fileId, parsedFiles[i]);
+            }
+            EXPECT_EQ(info.GetSubParseFileInfo(child->subId, Global::ParseFileType::RANK), child);
+        }
+    }
+
+    std::shared_ptr<CapturingImportSession> capture;
+    std::shared_ptr<Server::WsSession> previousSession;
+    ParserState previousSnapshotState = ParserState::INIT;
+};
+
+TEST_F(FullDbImportUtTest, FactoryConstructsEachSupportedParserType) {
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserDb>(ParserFactory::GetProjectParser(ParserType::DB)), nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserBin>(ParserFactory::GetProjectParser(ParserType::BIN)), nullptr);
+    EXPECT_NE(
+        std::dynamic_pointer_cast<ProjectParserJson>(ParserFactory::GetProjectParser(ParserType::ACLGRPAH_DEBUG_JSON)),
+        nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserJson>(ParserFactory::GetProjectParser(ParserType::JSON)), nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ParserIE>(ParserFactory::GetProjectParser(ParserType::IE)), nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserDbNPUMonitor>(
+                  ParserFactory::GetProjectParser(ParserType::DB_NPUMONITOR)),
+        nullptr);
+    EXPECT_NE(
+        std::dynamic_pointer_cast<ProjectParserMemScope>(ParserFactory::GetProjectParser(ParserType::DB_MEMSCOPE)),
+        nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserMemSnapshot>(
+                  ParserFactory::GetProjectParser(ParserType::PKL_MEM_SNAPSHOT)),
+        nullptr);
+    EXPECT_NE(
+        std::dynamic_pointer_cast<ProjectParserTriton>(ParserFactory::GetProjectParser(ParserType::TRITON_MEMORY)),
+        nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserFtrace>(ParserFactory::GetProjectParser(ParserType::DB_FTRACE)),
+        nullptr);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserPytorchTrace>(
+                  ParserFactory::GetProjectParser(ParserType::PYTORCH_TRACE_JSON)),
+        nullptr);
+    auto other = ParserFactory::GetProjectParser(ParserType::OTHER);
+    ASSERT_NE(other, nullptr);
+    EXPECT_EQ(typeid(*other), typeid(ProjectParserBase));
+    EXPECT_EQ(other->GetProjectType("unused"), ProjectTypeEnum::OTHER);
+}
+
+TEST_F(FullDbImportUtTest, ResetDependsOnTransferConflictAndSelectedProject) {
+    ImportActionRequest request;
+    request.params.projectName = "target";
+    request.params.projectAction = ProjectActionEnum::TRANSFER_PROJECT;
+    EXPECT_TRUE(TestableParserBase::IsNeedReset(request));
+    request.params.projectAction = ProjectActionEnum::ADD_FILE;
+    request.params.isConflict = true;
+    EXPECT_TRUE(TestableParserBase::IsNeedReset(request));
+    request.params.isConflict = false;
+    request.projectName = "other";
+    EXPECT_TRUE(TestableParserBase::IsNeedReset(request));
+    request.projectName = "target";
+    EXPECT_FALSE(TestableParserBase::IsNeedReset(request));
+    request.projectName.clear();
+    EXPECT_FALSE(TestableParserBase::IsNeedReset(request));
+}
+
+TEST_F(FullDbImportUtTest, DbPathReplacesExtensionAndAddsDuplicateSuffix) {
+    EXPECT_EQ(ProjectParserBase::GetDbPath("trace.json", 1), "trace.db");
+    EXPECT_EQ(ProjectParserBase::GetDbPath("trace.json", 2), "trace_2.db");
+    EXPECT_EQ(ProjectParserBase::GetDbPath("trace", 1), "trace.db");
+    EXPECT_EQ(ProjectParserBase::GetDbPath("trace", 2), "trace_2.db");
+}
+
+TEST_F(FullDbImportUtTest, SubIdHandlesEmptyPathDirectoryAndFile) {
+    const std::string directory = CreateStableTempDirectoryWithFiles({});
+    ASSERT_FALSE(directory.empty());
+    EXPECT_TRUE(ProjectParserBase::GetSubId("", Global::ParseFileType::RANK).empty());
+    EXPECT_EQ(ProjectParserBase::GetSubId(directory, Global::ParseFileType::PROJECT), directory);
+    EXPECT_EQ(ProjectParserBase::GetSubId(FileUtil::SplicePath(directory, "trace.json"), Global::ParseFileType::RANK),
+        "trace.json");
+}
+
+TEST_F(FullDbImportUtTest, MergeTreePreservesChildOrderAndAppendsDifferentRoots) {
+    auto root = Node("same", Global::ParseFileType::PROJECT);
+    auto first = Node("first", Global::ParseFileType::RANK);
+    auto second = Node("second", Global::ParseFileType::RANK);
+    root->subParseFile = {first};
+    auto sameRoot = Node("same", Global::ParseFileType::PROJECT);
+    sameRoot->subParseFile = {second};
+    std::vector<std::shared_ptr<Global::ParseFileInfo>> roots = {root};
+    TestableParserBase::MergeFileTree(roots, {sameRoot});
+    ASSERT_EQ(roots.size(), 1U);
+    EXPECT_EQ(root->subParseFile, (std::vector<std::shared_ptr<Global::ParseFileInfo>>{first, second}));
+    auto otherRoot = Node("other", Global::ParseFileType::PROJECT);
+    TestableParserBase::MergeFileTree(roots, {otherRoot});
+    ASSERT_EQ(roots.size(), 2U);
+    EXPECT_EQ(roots.back(), otherRoot);
+    TestableParserBase::MergeFileTree(roots, {});
+    EXPECT_EQ(roots.size(), 2U);
+    std::vector<std::shared_ptr<Global::ParseFileInfo>> empty;
+    TestableParserBase::MergeFileTree(empty, roots);
+    EXPECT_EQ(empty, roots);
+}
+
+TEST_F(FullDbImportUtTest, ImportResponseSortsByCardNameLengthThenLexically) {
+    auto response = std::make_unique<ImportActionResponse>();
+    for (const auto &name : {"rank10", "b", "rank2", "a", "rank1"}) {
+        Protocol::Action action{};
+        action.cardName = name;
+        response->body.result.push_back(action);
+    }
+    ProjectParserBase::SendImportActionRes(std::move(response));
+    const auto *sent = capture->Get<ImportActionResponse>();
+    ASSERT_NE(sent, nullptr);
+    ASSERT_TRUE(sent->result);
+    std::vector<std::string> names;
+    for (const auto &action : sent->body.result) {
+        names.push_back(action.cardName);
+    }
+    EXPECT_EQ(names, (std::vector<std::string>{"a", "b", "rank1", "rank2", "rank10"}));
+}
+
+TEST_F(FullDbImportUtTest, FtraceFindsOnlyMatchingFilesAndReportsEmptyDirectory) {
+    ProjectParserFtrace parser;
+    std::string error;
+    EXPECT_EQ(parser.GetParseFileByImportFile("ftrace_data.db", error), (std::vector<std::string>{"ftrace_data.db"}));
+    EXPECT_TRUE(error.empty());
+    const std::string empty = CreateStableTempDirectoryWithFiles({});
+    ASSERT_FALSE(empty.empty());
+    EXPECT_EQ(parser.GetParseFileByImportFile(empty, error), (std::vector<std::string>{empty}));
+    EXPECT_EQ(error, "No ftrace db files found");
+    const std::string directory = CreateStableTempDirectoryWithFiles(
+        {"ftrace_data.db", "custom_ftrace_data.db", "ftrace_data.json", "ftrace_data.db.bak"});
+    ASSERT_FALSE(directory.empty());
+    error.clear();
+    const auto result = parser.GetParseFileByImportFile(directory, error);
+    // The shared finder keeps the lexically greatest matching non-sliced filename in each directory.
+    EXPECT_EQ(result, (std::vector<std::string>{FileUtil::SplicePath(directory, "ftrace_data.db")}));
+    EXPECT_TRUE(error.empty());
+}
+
+TEST_F(FullDbImportUtTest, FtraceDiscoversMatchingFilesAcrossSubdirectories) {
+    const std::string directory = CreateStableTempDirectoryWithFiles({});
+    ASSERT_FALSE(directory.empty());
+    std::set<std::string> expected;
+    for (const auto &rank : {"rank0", "rank1"}) {
+        const auto child = FileUtil::SplicePath(directory, rank);
+        ASSERT_TRUE(std::filesystem::create_directory(child));
+        const auto filePath = FileUtil::SplicePath(child, "ftrace_data.db");
+        std::ofstream file(filePath);
+        ASSERT_TRUE(file.is_open());
+        expected.insert(filePath);
+        std::ofstream noise(FileUtil::SplicePath(child, "ftrace_data.json"));
+        ASSERT_TRUE(noise.is_open());
+    }
+    ProjectParserFtrace parser;
+    std::string error;
+    const auto result = parser.GetParseFileByImportFile(directory, error);
+    EXPECT_EQ(std::set<std::string>(result.begin(), result.end()), expected);
+    EXPECT_TRUE(error.empty());
+}
+
+TEST_F(FullDbImportUtTest, MemScopeBuildsEmptySingleAndMultipleFileTrees) {
+    ExpectProjectTree<ProjectParserMemScope>(ProjectTypeEnum::DB_MEMSCOPE, {}, true);
+    ExpectProjectTree<ProjectParserMemScope>(ProjectTypeEnum::DB_MEMSCOPE, {"first.db"}, true);
+    ExpectProjectTree<ProjectParserMemScope>(ProjectTypeEnum::DB_MEMSCOPE, {"first.db", "second.db"}, true);
+}
+
+TEST_F(FullDbImportUtTest, SnapshotBuildsEmptySingleAndMultipleFileTrees) {
+    ExpectProjectTree<ProjectParserMemSnapshot>(ProjectTypeEnum::PKL_MEM_SNAPSHOT, {}, true);
+    ExpectProjectTree<ProjectParserMemSnapshot>(ProjectTypeEnum::PKL_MEM_SNAPSHOT, {"first.pkl"}, true);
+    ExpectProjectTree<ProjectParserMemSnapshot>(ProjectTypeEnum::PKL_MEM_SNAPSHOT, {"first.pkl", "second.pkl"}, true);
+}
+
+TEST_F(FullDbImportUtTest, TritonBuildsEmptySingleAndMultipleFileTrees) {
+    ExpectProjectTree<ProjectParserTriton>(ProjectTypeEnum::TRITON, {}, false);
+    ExpectProjectTree<ProjectParserTriton>(ProjectTypeEnum::TRITON, {"first_memory_info.json"}, false);
+    ExpectProjectTree<ProjectParserTriton>(
+        ProjectTypeEnum::TRITON, {"first_memory_info.json", "second_memory_info.json"}, false);
+}
+
+TEST_F(FullDbImportUtTest, FtraceBuildsEmptySingleAndMultipleFileTrees) {
+    ExpectProjectTree<ProjectParserFtrace>(ProjectTypeEnum::DB_FTRACE, {}, false);
+    ExpectProjectTree<ProjectParserFtrace>(ProjectTypeEnum::DB_FTRACE, {"ftrace_data.db"}, false);
+    ExpectProjectTree<ProjectParserFtrace>(
+        ProjectTypeEnum::DB_FTRACE, {"ftrace_data.db", "custom_ftrace_data.db"}, false);
+}
+
+class FullDbParserValidationUtTest : public FullDbImportUtTest, public testing::WithParamInterface<ParserType> {};
+
+TEST_P(FullDbParserValidationUtTest, EmptyProjectSendsFailureEventWithoutImportActions) {
+    auto parser = ParserFactory::GetProjectParser(GetParam());
+    ImportActionRequest request;
+    ImportActionResponse response;
+    parser->Parser({}, request, response);
+    EXPECT_TRUE(response.body.result.empty());
+    ASSERT_EQ(capture->events.size(), 1U);
+    const auto *event = dynamic_cast<ParseFailEvent *>(capture->events.front().get());
+    ASSERT_NE(event, nullptr);
+    EXPECT_EQ(event->body.error, "Project explorer info is not existed.");
+    EXPECT_TRUE(event->body.rankId.empty());
+    EXPECT_TRUE(event->body.dbPath.empty());
+}
+
+TEST_P(FullDbParserValidationUtTest, RejectsDirectoryAndReturnsSingleSupportedFile) {
+    auto parser = ParserFactory::GetProjectParser(GetParam());
+    const std::string directory = CreateStableTempDirectoryWithFiles({});
+    ASSERT_FALSE(directory.empty());
+    std::string error;
+    EXPECT_TRUE(parser->GetParseFileByImportFile(directory, error).empty());
+    if (GetParam() != ParserType::TRITON_MEMORY) {
+        EXPECT_FALSE(error.empty());
+    }
+    const std::string file = FileUtil::SplicePath(directory, "memory_info.json");
+    error.clear();
+    EXPECT_EQ(parser->GetParseFileByImportFile(file, error), (std::vector<std::string>{file}));
+    EXPECT_TRUE(error.empty());
+    const auto expectedType = GetParam() == ParserType::DB_MEMSCOPE ? ProjectTypeEnum::DB_MEMSCOPE
+        : GetParam() == ParserType::PKL_MEM_SNAPSHOT                ? ProjectTypeEnum::PKL_MEM_SNAPSHOT
+                                                                    : ProjectTypeEnum::TRITON;
+    EXPECT_EQ(parser->GetProjectType(file), expectedType);
+}
+
+TEST_P(FullDbParserValidationUtTest, FailedProjectUpdateStopsBeforeAsyncParsing) {
+    auto parser = ParserFactory::GetProjectParser(GetParam());
+    auto &context = MemSnapshotParser::Instance().GetParseContext();
+    const ParserState previousState = context.GetState();
+    context.SetState(ParserState::INIT);
+    Global::ProjectExplorerInfo project{};
+    project.projectType = static_cast<int64_t>(ProjectTypeEnum::OTHER);
+    auto root = Node("project", Global::ParseFileType::PROJECT);
+    auto rank = Node("rank", Global::ParseFileType::RANK);
+    rank->parseFilePath = "synthetic";
+    root->subParseFile = {rank};
+    project.projectFileTree = {root};
+    ImportActionRequest request;
+    ImportActionResponse response;
+    parser->Parser({project}, request, response);
+    context.SetState(previousState);
+    EXPECT_FALSE(response.result);
+    EXPECT_TRUE(response.body.result.empty());
+    EXPECT_TRUE(response.body.reset);
+    EXPECT_EQ(response.moduleName, MODULE_TIMELINE);
+    if (GetParam() == ParserType::TRITON_MEMORY) {
+        EXPECT_TRUE(response.body.isTriton);
+        ASSERT_EQ(capture->events.size(), 1U);
+        const auto *event = dynamic_cast<ParseFailEvent *>(capture->events.front().get());
+        ASSERT_NE(event, nullptr);
+        EXPECT_EQ(event->body.error, "Failed to update project in parsing");
+    } else {
+        EXPECT_TRUE(response.body.isLeaks);
+        EXPECT_EQ(rank->rankId, rank->parseFilePath);
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(ImportTypes, FullDbParserValidationUtTest,
+    testing::Values(ParserType::DB_MEMSCOPE, ParserType::PKL_MEM_SNAPSHOT, ParserType::TRITON_MEMORY));
+
+TEST_F(FullDbImportUtTest, SnapshotRejectsLoadingAndProcessingContexts) {
+    ProjectParserMemSnapshot parser;
+    auto &context = MemSnapshotParser::Instance().GetParseContext();
+    const ParserState previousState = context.GetState();
+    for (const auto state : {ParserState::Loading, ParserState::Processing}) {
+        context.SetState(state);
+        Global::ProjectExplorerInfo project{};
+        project.projectType = static_cast<int64_t>(ProjectTypeEnum::PKL_MEM_SNAPSHOT);
+        ImportActionRequest request;
+        ImportActionResponse response;
+        parser.Parser({project}, request, response);
+        EXPECT_FALSE(response.result);
+        EXPECT_TRUE(response.body.result.empty());
+        EXPECT_TRUE(response.body.isLeaks);
+        EXPECT_TRUE(capture->events.empty());
+        EXPECT_EQ(context.GetState(), state);
+    }
+    context.SetState(previousState);
+}
+} // namespace

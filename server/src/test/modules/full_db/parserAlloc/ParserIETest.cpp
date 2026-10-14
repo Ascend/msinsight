@@ -16,9 +16,12 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include "DataBaseManager.h"
 #include "JsonFileParserManager.h"
 #include "ParserIE.h"
+#include "ThreadPool.h"
+#include "EventNotifyThreadPoolExecutor.h"
 class ParserIETest : public ::testing::Test {};
 
 TEST_F(ParserIETest, TestParser) {
@@ -49,6 +52,12 @@ TEST_F(ParserIETest, TestParser) {
     ImportActionResponse response;
     request.params.path.emplace_back("");
     parserIe.Parser(projectInfos, request, response);
+    EXPECT_TRUE(response.result);
+    EXPECT_TRUE(response.body.isIE);
+    EXPECT_TRUE(response.body.result.empty());
+    // Finish the import and its completion notification before resetting the parser's shared state.
+    Dic::ThreadPool::Instance().WaitForAllTasks();
+    Dic::Module::Timeline::EventNotifyThreadPoolExecutor::Instance().GetThreadPool()->WaitForAllTasks();
     parserIe.Reset();
     Module::Timeline::JsonFileParserManager::ResetAll();
     Dic::Module::Timeline::DataBaseManager::Instance().Clear();
@@ -72,3 +81,67 @@ TEST_F(ParserIETest, BuidlProject) {
         EXPECT_EQ(projectInfo.subParseFileInfo[i]->parseFilePath, parseFileList[i]);
     }
 }
+
+namespace {
+class ParserIEDiscoveryUtTest : public ParserIETest {
+  protected:
+    class MockTaskApi : public Dic::Module::IE::ServitizationOpenApi {
+      public:
+        MOCK_METHOD(std::vector<Dic::Module::IE::TaskInfo>, ComputeTaskInfo, (const std::string &path), (override));
+    };
+
+    class TestableParserIE : public Dic::Module::ParserIE {
+      public:
+        void SetApi(const std::shared_ptr<Dic::Module::IE::ServitizationOpenApi> &api) { servitizationOpenApi = api; }
+    };
+
+    void SetUp() override {
+        api = std::make_shared<testing::StrictMock<MockTaskApi>>();
+        parser.SetApi(api);
+    }
+
+    std::shared_ptr<testing::StrictMock<MockTaskApi>> api;
+    TestableParserIE parser;
+};
+
+TEST_F(ParserIEDiscoveryUtTest, DirectFileDoesNotQueryTaskApi) {
+    const std::string file = Dic::FileUtil::SplicePath(testing::TempDir(), "ie-discovery-ut.json");
+    std::string error;
+    EXPECT_CALL(*api, ComputeTaskInfo(testing::_)).Times(0);
+    EXPECT_EQ(parser.GetParseFileByImportFile(file, error), (std::vector<std::string>{file}));
+    EXPECT_TRUE(error.empty());
+}
+
+TEST_F(ParserIEDiscoveryUtTest, EmptyTaskListFallsBackToImportedDirectory) {
+    const std::string directory = testing::TempDir();
+    std::string error;
+    EXPECT_CALL(*api, ComputeTaskInfo(directory)).WillOnce(testing::Return(std::vector<Dic::Module::IE::TaskInfo>{}));
+    EXPECT_EQ(parser.GetParseFileByImportFile(directory, error), (std::vector<std::string>{directory}));
+    EXPECT_TRUE(error.empty());
+}
+
+TEST_F(ParserIEDiscoveryUtTest, TasksInSameDirectoryAreDeduplicated) {
+    const std::string directory = testing::TempDir();
+    const std::string taskDirectory = Dic::FileUtil::SplicePath(directory, "service-a");
+    const std::vector<Dic::Module::IE::TaskInfo> tasks = {
+        {"rank0", Dic::FileUtil::SplicePath(taskDirectory, "first.db")},
+        {"rank1", Dic::FileUtil::SplicePath(taskDirectory, "second.db")}};
+    EXPECT_CALL(*api, ComputeTaskInfo(directory)).WillOnce(testing::Return(tasks));
+    std::string error;
+    EXPECT_EQ(parser.GetParseFileByImportFile(directory, error), (std::vector<std::string>{taskDirectory}));
+    EXPECT_TRUE(error.empty());
+}
+
+TEST_F(ParserIEDiscoveryUtTest, TasksInDifferentDirectoriesReturnBothParents) {
+    const std::string directory = testing::TempDir();
+    const std::string first = Dic::FileUtil::SplicePath(directory, "service-a");
+    const std::string second = Dic::FileUtil::SplicePath(directory, "service-b");
+    const std::vector<Dic::Module::IE::TaskInfo> tasks = {{"rank0", Dic::FileUtil::SplicePath(second, "trace.db")},
+        {"rank1", Dic::FileUtil::SplicePath(first, "trace.db")}};
+    EXPECT_CALL(*api, ComputeTaskInfo(directory)).WillOnce(testing::Return(tasks));
+    std::string error;
+    const auto files = parser.GetParseFileByImportFile(directory, error);
+    EXPECT_EQ(files, (std::vector<std::string>{first, second}));
+    EXPECT_TRUE(error.empty());
+}
+} // namespace
