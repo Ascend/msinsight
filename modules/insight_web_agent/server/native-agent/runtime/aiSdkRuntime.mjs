@@ -57,7 +57,7 @@ export const createRuntime = ({
         const modelInput = createPageContextPrompt(userText, observationContext);
         const userMessage = { role: "user", content: modelInput || "Please analyze the current Insight page." };
         const streamState = createStreamState();
-        const maxSteps = readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 12);
+        const maxSteps = readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 24);
         const system = createNativeSystemPrompt(session);
         session.runtimeSession.activeController = controller;
         try {

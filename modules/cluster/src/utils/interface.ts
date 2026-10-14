@@ -246,6 +246,12 @@ export interface SlowRankListItem {
 export interface GetSlowRankListResult {
     hasAdvice: boolean;
     fastTotalElapseTime: number;
+    // An empty string means the backend did not identify a fastest rank.
     fastRankId: string;
     data: SlowRankListItem[];
+}
+
+export interface GetSlowRankListWireResult extends Omit<GetSlowRankListResult, 'fastRankId' | 'data'> {
+    fastRankId: string | number;
+    data: Array<Omit<SlowRankListItem, 'rankId'> & { rankId: string | number }>;
 }

@@ -111,6 +111,7 @@ export class ModuleFrameTransport {
 
     private connect(): void {
         if (this.disposed) return;
+        this.clearHelloRetry();
         this.connectionToken = crypto.randomUUID();
         this.ready = false;
         this.helloRetryDelay = HELLO_RETRY_INITIAL_DELAY_MS;

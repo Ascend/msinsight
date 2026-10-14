@@ -179,7 +179,11 @@ export class FrontendAgentCommandController {
         }
         if (typeof commandName === 'string') {
             const entry = this.catalog.getVisible(commandName, this.activeModule);
-            if (!entry) throw unavailableHelpCommand(commandName);
+            if (!entry) {
+                const error = this.commandUnavailable(commandName);
+                if (error.details?.reason === 'module_not_active') throw error;
+                throw unavailableHelpCommand(commandName);
+            }
             return { command: toJsonObject(entry.definition) };
         }
         return {

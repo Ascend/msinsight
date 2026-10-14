@@ -439,5 +439,22 @@ export async function queryTimelineUnitKernelDetail(params: {
 
 // 通信时序图慢卡分析列表
 export const getSlowRankList = async(params: GetSlowRankListParams): Promise<GetSlowRankListResult> => {
-    return await window.requestDataDebounced('communication/duration/slow-rank/list', withClusterPath(params));
+    const result: import('./interface').GetSlowRankListWireResult = await window.requestDataDebounced(
+        'communication/duration/slow-rank/list', withClusterPath(params));
+    const rankIdOf = (value: string | number): string => {
+        // Rank IDs are opaque chart/Timeline identities: never collapse '01' into '1'.
+        if (typeof value === 'string' && value.length > 0) return value;
+        if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) return String(value);
+        throw new Error('Invalid rankId in communication slow-rank response.');
+    };
+    // Validate the complete response before mutating it. Keep its identity for observation provenance.
+    const rankIds = result.data.map(rank => rankIdOf(rank.rankId));
+    // The server leaves fastRankId empty when advice is unsupported or fewer than two ranks exist.
+    const fastRankId = result.fastRankId === '' && (!result.hasAdvice || result.data.length === 0)
+        ? ''
+        : rankIdOf(result.fastRankId);
+    const normalized = result as unknown as GetSlowRankListResult;
+    normalized.data.forEach((rank, index) => { rank.rankId = rankIds[index]; });
+    normalized.fastRankId = fastRankId;
+    return normalized;
 };

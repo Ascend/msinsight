@@ -18,6 +18,7 @@
 import styled from '@emotion/styled';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { COMMAND_ERROR_CODES, isCommandErrorShape } from '@insight/lib/FrontendAgentCommand';
 import { executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import type { ActionItem } from '../types';
 import { ActionApprovalCard, type ActionCommandDefinition } from './ActionApprovalCard';
@@ -70,6 +71,14 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
     const [state, setState] = useState<ActionState>('idle');
     const [definition, setDefinition] = useState<ActionCommandDefinition>();
     const [error, setError] = useState<string>();
+    const [targetModule, setTargetModule] = useState<string>();
+    const reportError = (nextError: unknown): void => {
+        const module = isCommandErrorShape(nextError) && nextError.code === COMMAND_ERROR_CODES.UNAVAILABLE &&
+            nextError.details?.reason === 'module_not_active' ? nextError.details.targetModule : undefined;
+        setTargetModule(typeof module === 'string' && module.trim() ? module.trim() : undefined);
+        setError(errorMessage(nextError));
+        setState('failed');
+    };
     const [result, setResult] = useState<string>();
     const [frozenAction, setFrozenAction] = useState<ActionItem>();
 
@@ -92,8 +101,7 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
             setFrozenAction(cloneAction(action));
             setState('approval');
         } catch (nextError) {
-            setError(errorMessage(nextError));
-            setState('failed');
+            reportError(nextError);
         }
     };
 
@@ -111,8 +119,7 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
             setResult(formatCommandResult(commandResult));
             setState('succeeded');
         } catch (nextError) {
-            setError(errorMessage(nextError));
-            setState('failed');
+            reportError(nextError);
         } finally {
             setDefinition(undefined);
             setFrozenAction(undefined);
@@ -160,7 +167,9 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
                 />
             ) : null}
             {state === 'succeeded' ? <div className="action-result succeeded">{t('actionSucceeded')}{result ? ` ${result}` : ''}</div> : null}
-            {state === 'failed' ? <div className="action-result failed">{t('actionFailed', { error })}</div> : null}
+            {state === 'failed' ? <div className="action-result failed">{targetModule
+                ? t('actionModuleNotActive', { module: targetModule })
+                : t('actionFailed', { error })}</div> : null}
         </Container>
     );
 };

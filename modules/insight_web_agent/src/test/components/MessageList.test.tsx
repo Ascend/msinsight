@@ -20,6 +20,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { themeInstance } from '@insight/lib/theme';
+import i18n from '@insight/lib/i18n';
+import { COMMAND_ERROR_CODES, CommandError } from '@insight/lib/FrontendAgentCommand';
 import type { ChatMessage } from '../../types';
 
 const mockExecuteFrontendCommand = jest.fn();
@@ -337,6 +339,70 @@ test('preflights an action and executes it only after approval', async () => {
     expect(mockExecuteFrontendCommand.mock.calls[1][0]).toBe('MemScope.lifecycleGraph.selectBlock');
     expect(mockExecuteFrontendCommand.mock.calls[1][1]).toEqual({ blockId: 123 });
     expect(await screen.findByText(/Command completed.*accepted.*true/)).toBeInTheDocument();
+});
+
+describe('action module availability diagnostics', () => {
+    beforeEach(async () => {
+        await i18n.changeLanguage('zhCN');
+    });
+
+    afterEach(async () => {
+        await i18n.changeLanguage('enUS');
+    });
+
+    test.each([
+        ['preflight', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', ' MemScope ', true],
+        ['execution', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', 'MemScope', true],
+        ['preflight', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_registered', 'MemScope', false],
+        ['execution', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_registered', 'MemScope', false],
+        ['preflight', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', '', false],
+        ['execution', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', '   ', false],
+        ['preflight', COMMAND_ERROR_CODES.NOT_FOUND, 'module_not_active', 'MemScope', false],
+        ['execution', COMMAND_ERROR_CODES.NOT_FOUND, 'module_not_active', 'MemScope', false],
+    ] as const)('%s handles %s / %s / "%s" without automatic navigation or retry', async (stage, code, reason, targetModule, showSwitchHint) => {
+        const error = new CommandError({
+            code,
+            message: 'Original command failure',
+            retryable: true,
+            details: { reason, targetModule, activeModule: 'Timeline' },
+        });
+        if (stage === 'execution') {
+            mockExecuteFrontendCommand.mockResolvedValueOnce({
+                command: {
+                    name: 'MemScope.lifecycleGraph.selectBlock',
+                    title: 'Select memory block',
+                    description: 'Select one block in the lifecycle graph.',
+                    inputSchema: { type: 'object' },
+                },
+            });
+        }
+        mockExecuteFrontendCommand.mockRejectedValueOnce(error);
+        render(<MessageList
+            messages={[{
+                id: 'assistant-inactive-action',
+                role: 'assistant',
+                content: [{ id: 'text-1', type: 'text', text: actionXml(123) }],
+            }]}
+            onPermissionDecision={noopPermissionDecision}
+            pendingPrompt={false}
+        />);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Block #123' }));
+        if (stage === 'execution') {
+            await userEvent.click(await screen.findByRole('button', { name: String(i18n.t('actionApprove', { ns: 'insightWebAgent' })) }));
+        }
+
+        const switchHint = '当前页面没有该功能，请切换到 MemScope 页面后使用。';
+        expect(await screen.findByText(showSwitchHint ? switchHint : '操作失败：Original command failure')).toBeInTheDocument();
+        if (!showSwitchHint) expect(screen.queryByText(switchHint)).not.toBeInTheDocument();
+        expect(document.querySelector('.action-approval-title')).not.toBeInTheDocument();
+        // A failure only reports the target page: it must not switch modules or dispatch/retry the target automatically.
+        expect(mockExecuteFrontendCommand.mock.calls.map(([command, args]) => [command, args])).toEqual(
+            stage === 'preflight'
+                ? [['help', { command: 'MemScope.lifecycleGraph.selectBlock' }]]
+                : [['help', { command: 'MemScope.lifecycleGraph.selectBlock' }], ['MemScope.lifecycleGraph.selectBlock', { blockId: 123 }]],
+        );
+    });
 });
 
 test('hides an unclosed action while streaming and shows it literally after completion', () => {

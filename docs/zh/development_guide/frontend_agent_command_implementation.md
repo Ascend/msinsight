@@ -336,7 +336,21 @@ const unregisterGraphCommands = registerGraphCommands(
 
 ## 5. Framework 全局 Command
 
-Framework 自有能力使用 Window 单例 `frontendAgentCommandController`：
+Framework 自有能力使用 Window 单例 `frontendAgentCommandController`。
+
+`framework.switchModule` 已实现于 `modules/framework/src/components/TabPane/useSwitchModuleCommand.ts`，由 TabPane effect 注册并在卸载时注销，`approval: 'none'`。实际调用：
+
+```ts
+msinsight({ command: 'framework.switchModule', args: { moduleId: 'Memory' } });
+```
+
+- 目标必须属于 `observe.app.availableModules`，与当前 UI 菜单严格一致（包括 MemScope / On-Chip Memory 特殊模式过滤与插件），无需目标注册 Agent Command。
+- 缺失、空白、非字符串或未知字段返回 `COMMAND_INVALID`；不可选目标返回 `COMMAND_UNAVAILABLE`，`details.availableModules` 提供当前可选集合。
+- 成功返回 `{ activeModule }`，只在 React 提交且 `controller.setActiveModule()` 更新路由后完成；重复切换幂等。不等待 iframe 加载或业务模块 Command 注册。
+- 提交前的重叠切换返回 `COMMAND_BUSY`；取消释放等待并透传 signal reason；卸载注销 Command 并以 `COMMAND_CONNECTION_LOST` 释放等待。取消不回滚已提交的导航。
+- 旧 `switchModule` 通知入口及其选择范围不变。
+
+下面是注册形式示意；`switchActiveModule` 必须由真实 UI 所有者提供，不能仅调用 setState 就立即完成。当前实现以上述 hook 为准。
 
 ```ts
 import {

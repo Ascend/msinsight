@@ -203,6 +203,29 @@ describe('Communication agent runtime with the actual module client', () => {
         }), window.location.origin);
     });
 
+    test('advertises explicit locate arguments and rejects the old empty-args wire contract', async () => {
+        startCommunicationAgentRuntime();
+        send(MODULE_AGENT_HELLO);
+        await flush();
+        expect(post).toHaveBeenCalledWith(expect.objectContaining({
+            event: MODULE_AGENT_COMMANDS_CHANGED,
+            commands: expect.arrayContaining([expect.objectContaining({
+                name: 'Communication.locateInTimeline',
+                inputSchema: expect.objectContaining({ required: ['rankId', 'operatorName'],
+                    properties: { rankId: { type: 'string', minLength: 1 },
+                        operatorName: { type: 'string', minLength: 1 } } }),
+            })]),
+        }), window.location.origin);
+        post.mockClear();
+        send(MODULE_AGENT_EXECUTE_COMMAND, 'connection-1', {
+            requestId: 'empty-locate', command: 'Communication.locateInTimeline', args: {}, deadline: Date.now() + 5000,
+        });
+        await flush();
+        expect(post).toHaveBeenCalledWith(expect.objectContaining({
+            event: MODULE_AGENT_COMMAND_ERROR, requestId: 'empty-locate',
+        }), window.location.origin);
+    });
+
     test('does not advertise or execute a placeholder business command', async () => {
         startCommunicationAgentRuntime();
         send(MODULE_AGENT_HELLO);
