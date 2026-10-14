@@ -2,10 +2,15 @@
  * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  * MindStudio is licensed under Mulan PSL v2.
  */
-import i18n from '@insight/lib/i18n';
+import { createInstance } from 'i18next';
+import en from '../../../../../lib/src/i18n/numa/en.json';
+import zh from '../../../../../lib/src/i18n/numa/zh.json';
 import { formatMetric, formatMetricValue, formatTimelineTimestamp } from '@/entities/numa/formatters';
 import { getMetricDescription } from '@/entities/numa/metricDescriptions';
 import type { Metric } from '@/entities/numa/types';
+
+const i18n = createInstance();
+void i18n.init({ initImmediate: false, lng: 'enUS', resources: { enUS: en, zhCN: zh } });
 
 const metric: Metric = {
     key: 'crossSocketRead', label: 'Cross Socket Read Traffic', description: 'Database description.', unit: 'GOps', value: 1,

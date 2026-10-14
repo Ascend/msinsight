@@ -5,7 +5,9 @@
   "homepage": "./",
   "scripts": {
     "start": "craco start",
-    "build": "craco build"
+    "build": "craco build",
+    "test": "node ../testing/run.cjs --module memory-on-chip",
+    "test:dev": "node ../testing/run.cjs --module memory-on-chip --watch"
   },
   "browserslist": {
     "production": [

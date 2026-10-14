@@ -18,15 +18,12 @@
 import { createSmartDebounceRequestFunc } from './createSmartDebounceRequestFunc';
 
 describe('createSmartDebounceRequestFunc', () => {
-    beforeAll(() => {
+    beforeEach(() => {
         jest.useFakeTimers();
     });
 
-    beforeEach(() => {
+    afterEach(() => {
         jest.clearAllTimers();
-    });
-
-    afterAll(() => {
         jest.useRealTimers();
     });
 
@@ -392,15 +389,12 @@ describe('createSmartDebounceRequestFunc', () => {
 });
 
 describe('createSmartDebounceRequestFunc with leading=true', () => {
-    beforeAll(() => {
+    beforeEach(() => {
         jest.useFakeTimers();
     });
 
-    beforeEach(() => {
+    afterEach(() => {
         jest.clearAllTimers();
-    });
-
-    afterAll(() => {
         jest.useRealTimers();
     });
 

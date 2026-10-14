@@ -6,7 +6,9 @@
   "scripts": {
     "start": "craco start",
     "build": "craco build",
- 	"build:vscode": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production GENERATE_SOURCEMAP=false CI=false REACT_APP_IS_VSCODE=true craco build && node ../inline-build.js"
+    "build:vscode": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production GENERATE_SOURCEMAP=false CI=false REACT_APP_IS_VSCODE=true craco build && node ../inline-build.js",
+    "test": "node ../testing/run.cjs --module reinforcement-learning",
+    "test:dev": "node ../testing/run.cjs --module reinforcement-learning --watch"
   },
   "browserslist": {
     "production": [

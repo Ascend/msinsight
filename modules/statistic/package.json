@@ -8,55 +8,11 @@
     "build": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production GENERATE_SOURCEMAP=false CI=false craco build",
     "build:vscode": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production GENERATE_SOURCEMAP=false CI=false REACT_APP_IS_VSCODE=true craco build && node ../inline-build.js",
     "build:dev": "cross-env GENERATE_SOURCEMAP=true CI=false craco build",
-    "test": "set REACT_APP_TEST=1&&set CI=true&&react-scripts test --watchAll=false  --coverage",
-    "test:dev": "set REACT_APP_TEST=1&&react-scripts test",
+    "test": "node ../testing/run.cjs --module statistic",
+    "test:dev": "node ../testing/run.cjs --module statistic --watch",
     "eject": "react-scripts eject",
     "lint": "eslint src --fix",
     "dt": "set BROWSER=none&&set REACT_APP_TEST=1&&react-scripts start"
-  },
-  "jest": {
-    "transformIgnorePatterns": [
-      "/node_modules/(?!d3|d3-array|ascend-)"
-    ],
-    "clearMocks": true,
-    "coverageReporters": [
-      "json",
-      "lcov",
-      "text",
-      "text-summary"
-    ],
-    "collectCoverageFrom": [
-      "**/src/**/*.{ts,tsx}"
-    ],
-    "coveragePathIgnorePatterns": [
-      "<rootDir>/src/i18n",
-      "<rootDir>/src/style",
-      "<rootDir>/src/insight",
-      "<rootDir>/src/tests",
-      ".d.ts",
-      ".type.ts",
-      ".const.ts",
-      ".mock.[ts,tsx]",
-      "index.[ts,tsx]",
-      "types.ts",
-      "__mocks__",
-      "__snapshots__"
-    ],
-    "coverageThreshold": {
-      "global": {
-        "statements": 0,
-        "branches": 0,
-        "functions": 0,
-        "lines": 0
-      }
-    },
-    "moduleNameMapper": {
-      "lib/i18n": "<rootDir>/../lib/src/i18n/index.ts",
-      "lib/ResizeTable": "<rootDir>/../lib/src/resize/ResizeTable.tsx",
-      "lib/theme": "<rootDir>/../lib/src/theme/index.ts",
-      "lib/Icon": "<rootDir>/../lib/src/icon/Icon.tsx",
-      "lib/components": "<rootDir>/../lib/src/components/index.ts"
-    }
   },
   "browserslist": {
     "production": [

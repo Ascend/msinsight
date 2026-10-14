@@ -81,11 +81,15 @@ export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataLi
         if (!metaData.metadata.dbPath) {
             metaData.metadata.dbPath = parentUnit.metadata.dbPath as string;
         }
+        const subtreeOffsetSide = containsPythonStack(metaData) ? OFFSET_SIDE.HOST : undefined;
         const existingUnit = parentUnit?.children?.find(unit => checkMetaData(unit.metadata, metaData));
         if (existingUnit) {
+            // Late Python Stack metadata also reclassifies lanes that were expanded earlier.
+            if (subtreeOffsetSide !== undefined || parentUnit.metadata.offsetSide === OFFSET_SIDE.HOST) {
+                existingUnit.metadata.offsetSide = OFFSET_SIDE.HOST;
+            }
             recursiveExpandUnit(metaData.children ?? [], existingUnit, depth + 1);
         } else {
-            const subtreeOffsetSide = containsPythonStack(metaData) ? OFFSET_SIDE.HOST : undefined;
             const newUnit = newLane(metaData, parentUnit.metadata, subtreeOffsetSide);
             if (newUnit !== undefined) {
                 parentUnit.children = parentUnit.children ?? [];
