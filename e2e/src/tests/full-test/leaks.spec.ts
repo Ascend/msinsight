@@ -95,8 +95,11 @@ test.describe('Leaks(MemScope)', () => {
         await leaksPage.waitForReady();
         await page.mouse.move(0, 0);
         const overview = leaksFrame.getByTestId('memoryDataZoom');
-        await expect(overview).toHaveAttribute('data-loading', 'false', { timeout: 30000 });
         await expect(overview.locator('canvas')).toHaveCount(2);
+        // 图表初始化后重新布局，补齐首次渲染可能遗漏的完成通知。
+        await page.waitForTimeout(1000);
+        await leaksFrame.locator('body').evaluate(() => window.dispatchEvent(new Event('resize')));
+        await expect(overview).toHaveAttribute('data-loading', 'false', { timeout: 30000 });
         await expect(leaksFrame.locator('#barContent')).toHaveScreenshot('barContent_deviceId.png', {
             maxDiffPixels: 100,
             animations: 'disabled',
@@ -114,8 +117,11 @@ test.describe('Leaks(MemScope)', () => {
         await leaksPage.waitForReady();
         await page.mouse.move(0, 0);
         const overview = leaksFrame.getByTestId('memoryDataZoom');
-        await expect(overview).toHaveAttribute('data-loading', 'false', { timeout: 30000 });
         await expect(overview.locator('canvas')).toHaveCount(2);
+        // 图表初始化后重新布局，补齐首次渲染可能遗漏的完成通知。
+        await page.waitForTimeout(1000);
+        await leaksFrame.locator('body').evaluate(() => window.dispatchEvent(new Event('resize')));
+        await expect(overview).toHaveAttribute('data-loading', 'false', { timeout: 30000 });
         await expect(leaksFrame.locator('#barContent')).toHaveScreenshot('barContent_type.png', {
             maxDiffPixels: 100,
             animations: 'disabled',
@@ -692,7 +698,11 @@ test.describe('Leaks(snapshotSliceWindow)', () => {
             .locator('.ant-select-selector').click();
         const options = frame.getByRole('option', { name: /^Window \d+$/ });
         await expect(options).toHaveCount(2);
-        await page.keyboard.press('Escape');
+        await windowSelect.press('Escape');
+        await expect(windowSelect).toHaveAttribute('aria-expanded', 'false');
+        // 当前窗就绪不代表其它窗的缩略数据已经返回，截图需等待全局趋势完整。
+        await expect(overview.getByRole('button', { name: /^Window \d+ · Peak:/ }))
+            .toHaveCount(2, { timeout: 90000 });
         await expect(overview.getByRole('button', { name: /^Window 2 · Peak:/ })).toHaveAttribute('aria-pressed', 'true');
         await expect(overview.getByTestId('sliceAxisCoordinate')).toHaveCount(3);
         await page.mouse.move(0, 0);
@@ -749,11 +759,16 @@ test.describe('Leaks(snapshotSliceWindow)', () => {
 
     test('switch snapshot window from expanded overview', async ({ leaksPage, page }) => {
         const frame = leaksPage.leaksFrame;
+        const overview = frame.getByTestId('snapshotSliceOverview');
+        await expect(overview.getByRole('button', { name: /^Window \d+ · Peak:/ }))
+            .toHaveCount(2, { timeout: 90000 });
         const expandButton = frame.getByRole('button', { name: 'Enlarge', exact: true });
         await expandButton.focus();
         await expandButton.press('Enter');
         const dialog = frame.getByRole('dialog', { name: 'Memory window overview', exact: true });
         await expect(dialog).toBeVisible();
+        // 可见不代表展开转场结束，等待布局和控件稳定后再切窗。
+        await expect(dialog).not.toHaveAttribute('data-opening', 'true', { timeout: 30000 });
 
         const switchWindowButton = dialog.getByRole('button', { name: 'Switch loaded window · 1', exact: true });
         await switchWindowButton.focus();
@@ -771,13 +786,16 @@ test.describe('Leaks(snapshotSliceWindow)', () => {
         await expect(dialog).toHaveScreenshot('snapshot-expanded-overview-window-1.png', {
             maxDiffPixels: 100,
             timeout: 30000,
+            // 保留 Web Animations 的正常完成流程，不让截图强制结束转场动画。
+            animations: 'allow',
         });
+        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        await expect(dialog).toBeHidden({ timeout: 30000 });
+        await page.mouse.move(0, 0);
         await expect(diagram).toHaveScreenshot('snapshot-expanded-overview-switch-window-1.png', {
             maxDiffPixels: 100,
             timeout: 30000,
         });
-        await page.keyboard.press('Escape');
-        await expect(dialog).toBeHidden();
     });
 
     test('keep cross-window block details complete', async ({ leaksPage }) => {
