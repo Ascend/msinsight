@@ -91,6 +91,7 @@ import {
     type LlcCacheStackedBarData,
 } from './llcCache';
 import { LlcCacheTooltip } from './LlcCacheTooltip';
+import { store } from '../../store';
 
 const MAX_UNIT_CANVAS_HEIGHT = 50_000; // 画布高度上限
 const MAX_UNIT_DEPTH = Math.floor(MAX_UNIT_CANVAS_HEIGHT / UnitHeight.STANDARD); // 泳道深度上限
@@ -785,12 +786,24 @@ export const ThreadUnit = unit<ThreadMetaData>({
         },
         onClick: async (data, session, metadata) => {
             if (data === undefined) { return; }
+            const selection = session.selectedData;
+            const navigation = session.locateUnit;
+            // Invalidate in-flight flows immediately, including a repeated navigation to the same ID.
+            runInAction(() => {
+                session.mapOfLinkLines.clear();
+                session.drawLineMode = 'single';
+                session.linkLines = {};
+                session.singleLinkLine = {};
+            });
             const linkFlow = generateFlowParam(metadata as ThreadMetaData, data);
             linkFlow.isSimulation = session.isSimulation;
             const timestampOffset = getTimeOffset(session, metadata as ThreadMetaData);
             linkFlow.startTime = timestampOffset + (linkFlow.startTime as number);
             linkFlow.endTime = timestampOffset + (linkFlow.endTime as number);
             const raw = await getUnitFlows(linkFlow as GetUnitFlowsParams);
+            // A later click/navigation or a session switch owns the chart now. Never publish stale lines.
+            if (store.sessionStore.activeSession !== session || session.selectedData !== selection ||
+                (session.locateUnit !== undefined && session.locateUnit !== navigation)) return;
             const categoryFlowEvents = raw.unitAllFlows as FlowItem[] ?? [];
             const newLines = buildSingleLinkLines(session, categoryFlowEvents, {
                 rankId: linkFlow.rankId as string,

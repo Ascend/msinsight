@@ -25,6 +25,7 @@ import { safeJSONParse } from '@insight/lib/utils';
 import {
     type ModuleConfig,
     modulesConfig,
+    getSelectableModules,
     MEM_SCOPE_MODULE_NAME,
     ON_CHIP_MEMORY_MODULE_NAME,
     NUMA_MODULE_NAME,
@@ -44,6 +45,7 @@ import {
 import { WindowMessageDebugger } from './WindowMessageDebugger';
 import { ACP_SESSION_MIN_WIDTH, WebAgentSessionPanel } from './WebAgentSessionPanel';
 import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
+import { useSwitchModuleCommand } from './useSwitchModuleCommand';
 
 const MODULE_FRAME_MIN_WIDTH = 360;
 
@@ -237,19 +239,15 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
             <span>{t(tabTitle, { defaultValue: tabTitle })}</span>
         </Tooltip>;
     };
-    const items: MenuProps['items'] = useMemo(() => {
-        const modules = availableModules.map(config => ({
-            label: getIcon(config.name),
-            key: config.name,
-        }));
-        if (isLeaks) {
-            return modules.filter(module => module.key === MEM_SCOPE_MODULE_NAME);
-        }
-        if (isTriton) {
-            return modules.filter(module => module.key === ON_CHIP_MEMORY_MODULE_NAME);
-        }
-        return modules;
-    }, [availableModules, t]);
+    // Menu, command validation and observation share the exact same selectable set;
+    // iframe rendering still uses availableModules and keeps the existing lifecycle.
+    const selectableModules = useMemo(() => getSelectableModules(availableModules), [availableModules]);
+    const selectableModuleIds = useMemo(() => selectableModules.map(module => module.name), [selectableModules]);
+    useSwitchModuleCommand(frontendAgentCommandController, activeModule, selectableModuleIds, setActiveModule);
+    const items: MenuProps['items'] = useMemo(() => selectableModules.map(config => ({
+        label: getIcon(config.name),
+        key: config.name,
+    })), [selectableModules, t]);
     const onClick: MenuProps['onClick'] = e => {
         setActiveModule(e.key);
     };
@@ -263,7 +261,6 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
     }, []);
 
     useEffect(() => {
-        frontendAgentCommandController.setActiveModule(activeModule);
         connector.send({
             event: 'moduleActive',
             to: activeModule,
@@ -437,7 +434,7 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
             ))}</div>
             <WebAgentSessionPanel
                 activeModule={activeModule}
-                availableModules={availableModules}
+                availableModules={selectableModules}
                 moduleFrameMinWidth={MODULE_FRAME_MIN_WIDTH}
                 onRequestClose={onCloseSessionPanel}
                 session={session}

@@ -199,6 +199,7 @@
     "actionExecuting": "执行中...",
     "actionSucceeded": "命令执行完成。再次点击仍需重新确认。",
     "actionFailed": "操作失败：{{error}}",
+    "actionModuleNotActive": "当前页面没有该功能，请切换到 {{module}} 页面后使用。",
     "allowFileRead": "允许读取文件？",
     "allowBashCommand": "允许运行 Bash 命令？",
     "allowToolUse": "允许使用工具？",

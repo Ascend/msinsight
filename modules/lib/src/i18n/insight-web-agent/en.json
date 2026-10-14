@@ -199,6 +199,7 @@
     "actionExecuting": "Running...",
     "actionSucceeded": "Command completed. Running it again requires another approval.",
     "actionFailed": "Action failed: {{error}}",
+    "actionModuleNotActive": "This feature is not available on the current page. Please switch to the {{module}} page to use it.",
     "allowFileRead": "Allow file read?",
     "allowBashCommand": "Allow Bash command?",
     "allowToolUse": "Allow tool use?",

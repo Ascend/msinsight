@@ -35,8 +35,17 @@ export interface CommunicationPageState {
 let activeSession: Session | undefined;
 let pageState: CommunicationPageState | undefined;
 
+export interface SlowRanksContext {
+    result: GetSlowRankListResult;
+    session: Session;
+    clusterPath: string;
+    conditions: ConditionDataType;
+    isCompare: boolean;
+}
+
 interface CommunicationState {
     conditions: ConditionDataType;
+    slowRanksContext?: SlowRanksContext;
     slowRanks: GetSlowRankListResult | null;
     chart: AnalysisChartData;
     unitcount: number;
@@ -44,14 +53,8 @@ interface CommunicationState {
 }
 
 let currentState: CommunicationState | undefined;
-let selectedOperator: { rankId: string; name: string } | undefined;
-
 export const setCommunicationAgentState = (state: CommunicationState | undefined): void => {
-    if (currentState?.conditions !== state?.conditions) selectedOperator = undefined;
     currentState = state;
-    if (!state || state.conditions.type !== AnalysisType.COMMUNICATION_DURATION_ANALYSIS || state.isCompare ||
-        (selectedOperator && !state.slowRanks?.data.some(rank => rank.rankId === selectedOperator?.rankId &&
-            rank.opList.some(operator => operator.name === selectedOperator?.name)))) selectedOperator = undefined;
 };
 
 export const setCommunicationAgentSession = (session: Session | undefined): void => {
@@ -94,8 +97,56 @@ export const observeCommunication = (): ObservationData => {
         scope: page ? scopeOf(page.scope, session?.isCompare ?? false) : null,
         // The existing rank detail does not identify a comparison side.
         selection: page && !session?.isCompare ? selectionOf(page.selection) : null,
+        slowRankAdvice: observeSlowRankAdvice(session, page),
     };
 };
+
+const observeSlowRankAdvice = (session: Session | undefined, page: CommunicationPageState | undefined): object => {
+    const state = currentState;
+    const context = state?.slowRanksContext;
+    const result = state?.slowRanks;
+    // Result identity binds the provenance to this response, not a previous filter's response.
+    // Compare all published filters as well as the session/cluster, without exporting private paths.
+    if (!session?.clusterCompleted || !session.durationFileCompleted || session.isCompare ||
+        page?.analysisType !== AnalysisType.COMMUNICATION_DURATION_ANALYSIS ||
+        state?.conditions.type !== AnalysisType.COMMUNICATION_DURATION_ANALYSIS || state.isCompare ||
+        !result || !context || context.result !== result || context.session !== session || context.isCompare ||
+        context.conditions.type !== AnalysisType.COMMUNICATION_DURATION_ANALYSIS ||
+        context.clusterPath !== session.selectedClusterPath ||
+        !sameScope(context.conditions, state.conditions) || !sameScope(context.conditions, page.scope)) {
+        return { status: 'unavailable' };
+    }
+    // The backend currently returns Top 3 ranks with Top 3 operators each. Keep a defensive
+    // bound if that contract grows, and explicitly report every omitted row.
+    const ranks = result.hasAdvice ? (result.data ?? []) : [];
+    return {
+        status: result.hasAdvice ? (ranks.length > 0 ? 'ready' : 'empty') : 'no-advice',
+        hasAdvice: result.hasAdvice,
+        timeUnit: 'us',
+        ...(result.hasAdvice ? { fastRankId: result.fastRankId, fastTotalElapseTime: result.fastTotalElapseTime } : {}),
+        totalRanks: ranks.length,
+        truncated: ranks.length > 3 || ranks.some(rank => rank.opList.length > 3),
+        ranks: ranks.slice(0, 3).map(rank => ({
+            rankId: rank.rankId,
+            totalElapseTime: rank.totalElapseTime,
+            totalDiffTime: rank.totalDiffTime,
+            totalOperators: rank.opList.length,
+            truncated: rank.opList.length > 3,
+            operators: rank.opList.slice(0, 3).map(operator => ({
+                name: operator.name,
+                elapseTime: operator.elapseTime,
+                diffTime: operator.diffTime,
+                maxTime: operator.maxTime,
+            })),
+        })),
+    };
+};
+
+const sameScope = (conditions: ConditionDataType, scope: CommunicationScope | ConditionDataType): boolean => (
+    (['iterationId', 'baselineIterationId', 'stage', 'pgName', 'groupIdHash', 'baselineGroupIdHash', 'operatorName'] as const)
+        .every(key => (conditions[key] === '' ? null : conditions[key] ?? null) ===
+            (scope[key] === '' ? null : scope[key] ?? null))
+);
 
 const scopeOf = (scope: CommunicationScope, isCompare: boolean): CommunicationScope => ({
     iterationId: scope.iterationId === '' ? null : scope.iterationId,
@@ -126,7 +177,6 @@ const switchAnalysis: CommandHandler = (args) => {
         throw new Error('type must be CommunicationMatrix or CommunicationDurationAnalysis.');
     }
     if (!currentState) throw new Error('Communication page is unavailable.');
-    selectedOperator = undefined;
     updateData({ ...currentState.conditions, type: args.type });
     return { analysisType: args.type };
 };
@@ -142,7 +192,6 @@ const highlightSlowRank: CommandHandler = (args) => {
     if (!state.chart.data?.some(item => item.rankId === rank.rankId)) {
         throw new Error('The slow rank is not available in the current communication chart.');
     }
-    selectedOperator = { rankId: rank.rankId, name: operator.name };
     eventBus.emit('onClickSlowRankOp', {
         rankId: rank.rankId,
         name: operator.name,
@@ -152,19 +201,36 @@ const highlightSlowRank: CommandHandler = (args) => {
     return { rankId: rank.rankId, operatorName: operator.name };
 };
 
-const locateInTimeline: CommandHandler = async (_args, context) => {
+const locateInTimeline: CommandHandler = async (args, context) => {
+    if (typeof args.rankId !== 'string' || !args.rankId ||
+        typeof args.operatorName !== 'string' || !args.operatorName.trim()) {
+        throw new Error('rankId must be a non-empty string and operatorName must be a non-empty string.');
+    }
     const state = requireDurationState();
-    if (!selectedOperator) throw new Error('Select a slow-rank operator before locating it in Timeline.');
-    if (state.unitcount <= 0) throw new Error('Timeline data is unavailable.');
-    const { rankId, name } = selectedOperator;
+    const session = activeSession;
+    if ((observeSlowRankAdvice(session, pageState) as { status: string }).status !== 'ready') {
+        throw new Error('No current slow-rank advice is available for the current Communication context.');
+    }
+    if (state.unitcount <= 0 || !session || session.unitcount <= 0) throw new Error('Timeline data is unavailable.');
+    const rankId = args.rankId;
+    const name = args.operatorName;
     const operator = state.slowRanks?.data.find(item => item.rankId === rankId)?.opList.find(item => item.name === name);
     const dbPath = state.chart.data?.find(item => item.rankId === rankId)?.dbPath;
-    if (!operator || !dbPath) throw new Error('The selected operator is no longer available.');
+    if (!operator || !dbPath) throw new Error('The specified slow rank or operator is not available in the current advice and chart.');
     const params = { name, rankId, dbPath };
+    // Snapshot target values as well as identities: in-place result/chart changes must not reuse old details.
+    const targetSnapshot = JSON.stringify(operator);
+    const scopeSnapshot = JSON.stringify(state.conditions);
+    const clusterPath = session.selectedClusterPath;
     const detail = await queryTimelineUnitKernelDetail(params);
     if (context.signal.aborted) throw new Error('Timeline navigation was cancelled.');
-    if (currentState !== state || selectedOperator?.rankId !== rankId || selectedOperator.name !== name) {
-        throw new Error('The communication selection changed during Timeline navigation.');
+    if (activeSession !== session || session.selectedClusterPath !== clusterPath || currentState !== state ||
+        (observeSlowRankAdvice(session, pageState) as { status: string }).status !== 'ready' ||
+        JSON.stringify(state.conditions) !== scopeSnapshot || state.unitcount <= 0 || session.unitcount <= 0 ||
+        state.slowRanks?.data.find(item => item.rankId === rankId)?.opList.find(item => item.name === name) !== operator ||
+        JSON.stringify(operator) !== targetSnapshot ||
+        state.chart.data?.find(item => item.rankId === rankId)?.dbPath !== dbPath) {
+        throw new Error('The communication context or target changed during Timeline navigation.');
     }
     if (detail?.startTime === undefined || detail?.pid === undefined) throw new Error('The selected operator could not be located in Timeline.');
     connector.send({
@@ -213,8 +279,13 @@ export const registerCommunicationCommands = (client: ModuleAgentCommandClient):
         client.registerCommand({
             name: 'Communication.locateInTimeline',
             title: 'Locate slow-rank operator in Timeline',
-            description: 'Open Timeline at the slow-rank operator most recently highlighted by Communication.highlightSlowRank.',
-            inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+            description: 'Open Timeline at the explicitly specified operator from current valid slow-rank advice in Communication Duration Analysis (parsed cluster and duration, non-compare, Timeline data available). No prior highlight is required. Navigation selects the exact operator and loads its available connections using the chart-click behavior.',
+            inputSchema: {
+                type: 'object',
+                properties: { rankId: { type: 'string', minLength: 1 }, operatorName: { type: 'string', minLength: 1 } },
+                required: ['rankId', 'operatorName'],
+                additionalProperties: false,
+            },
         }, locateInTimeline),
     ];
     return () => unregister.forEach(dispose => dispose());

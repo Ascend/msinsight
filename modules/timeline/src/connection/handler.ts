@@ -20,15 +20,15 @@ import type { CardMetaData, ThreadMetaData, ThreadTrace } from '../entity/data';
 import { runInAction } from 'mobx';
 import { updateDataSourceAndParentMetaDataMap, recursiveExpandUnit, clearParentMap } from '../insight/units/unitFunc';
 import { setUnitPhaseByCardId, setUnitProgressByFileId } from '../entity/insight';
-import { ProjectType, type InsightUnit } from '../entity/insight';
+import { ProjectType, type ChartDesc, type InsightUnit } from '../entity/insight';
 import { CardUnit, ROOT_UNIT, ThreadUnit } from '../insight/units/AscendUnit';
 import type { ImportCardInfo } from '../components/ImportSelect';
 import { Session } from '../entity/session';
 import { ImportResult, NotificationHandler } from './defs';
 import connector from '../connection/index';
 import { message } from 'antd';
-import { getTimeOffset } from '../insight/units/utils';
-import { getCardSideOffset, getOffsetSide, initializeCardOffsets } from '../insight/units/offset';
+import { colorPalette, getTimeOffset } from '../insight/units/utils';
+import { getCardSideOffset, initializeCardOffsets } from '../insight/units/offset';
 import { calculateDomainRange } from '../components/CategorySearch';
 import i18n from '@insight/lib/i18n';
 import { forEach, groupBy, isEmpty, cloneDeep } from 'lodash';
@@ -40,6 +40,9 @@ import { TIME_MAKER_DEFAULT } from '../entity/timeMaker';
 import { MAX_INITIAL_DURATION } from '../entity/domain';
 import { mergeUnitsWhenLoadProject } from '../actions/actionMergeUnits';
 import { buildBaselineCardMetadata, type TimelineCard } from './baseline';
+import { hashToNumber } from '../utils/colorUtils';
+import type { StackStatusData } from '../entity/chart';
+import { selectRenderedSlice } from '../utils/selectRenderedSlice';
 
 const DEFAULT_EXPAND_UNIT_NUMBER = 1;
 const MAX_PARSE_SIZE = 32;
@@ -995,31 +998,36 @@ export const locateUnitHandler: NotificationHandler = (data): void => {
     const { sessionStore } = store; // 获取会话存储
     const session = sessionStore.activeSession as Session; // 获取当前会话
     const slice = data as ThreadTrace; // 将数据转换为线程追踪类型
+    if (!session || session.selectedRangeIsLock) return;
     runInAction(() => { // 在动作中执行
+        // Invalidate the previous selection's pending flows even if this navigation finds no lane.
+        session.selectedData = undefined;
+        session.selectedDataUnit = undefined;
         session.locateUnit = { // 设置定位单元
             target: (unit: InsightUnit): boolean => { // 定位目标
-                return unit instanceof ThreadUnit && (Boolean(unit.metadata.cardId.includes(slice.rankId))) &&
+                return unit instanceof ThreadUnit && unit.metadata.cardId === slice.rankId &&
+                    (slice.dbPath === undefined || unit.metadata.dbPath === slice.dbPath) &&
                     unit.metadata.processId === slice.processId && unit.metadata.threadId === slice.threadId;
             },
             onSuccess: (unit): void => { // 定位成功后的操作
-                const unitMetadata = unit.metadata as ThreadMetaData;
-                const startTime = slice.startTime - getTimeOffset(session, unitMetadata); // 计算开始时间
+                if (sessionStore.activeSession !== session || session.selectedRangeIsLock) return;
+                const metadata = unit.metadata as ThreadMetaData;
+                const startTime = slice.startTime - getTimeOffset(session, metadata); // 计算开始时间
                 const [rangeStart, rangeEnd] = calculateDomainRange(session, startTime, slice.duration); // 计算域范围
                 session.domainRange = { domainStart: rangeStart, domainEnd: rangeEnd }; // 更新域范围
-                session.selectedData = { // 更新选中数据
-                    id: slice.id,
-                    name: slice.name,
+                // Navigation already has an exact slice ID; use the click path without a name search or waiting for paint.
+                const chart = unit.chart as ChartDesc<'stackStatus'> | undefined;
+                const selectedSlice: StackStatusData = {
+                    ...slice,
                     startTime,
-                    duration: slice.duration,
-                    depth: slice.depth,
-                    threadId: slice.threadId,
-                    processId: slice.processId as string,
-                    cardId: slice.rankId as string,
-                    metaType: unitMetadata.metaType,
-                    offsetSide: getOffsetSide(unitMetadata.metaType, unitMetadata.offsetSide),
-                    showSelectedData: (slice.showSelectedData as boolean) ?? false,
+                    type: slice.name,
+                    color: colorPalette[hashToNumber(session.isSimulation ? slice.cname : slice.name, colorPalette.length)],
+                    originalStartTime: slice.startTime,
+                    cardId: metadata.cardId,
+                    dbPath: metadata.dbPath,
                 };
-                session.selectedDataUnit = unit;
+                // Pass the owning lane so selection keeps upstream metaType/offsetSide and selectedDataUnit semantics.
+                selectRenderedSlice(session, metadata, selectedSlice, chart?.onClick, unit);
             },
             showDetail: true, // 显示详细信息
         };

@@ -34,7 +34,7 @@ import AdviceLabel, { type CommunicationAdvice } from './CommunicationDuration/A
 import Operators from './CommunicationDuration/Opertators';
 import DiffTimeTable from './DiffTimeTable';
 import { ClickOperatorItem, GetSlowRankListResult } from '../../utils/interface';
-import { clearCommunicationPageState, updateCommunicationPageState, setCommunicationAgentState } from '../../agent/communicationController';
+import { clearCommunicationPageState, updateCommunicationPageState, setCommunicationAgentState, type SlowRanksContext } from '../../agent/communicationController';
 
 interface ShowDataType {
     chartData: DataItem[];
@@ -204,27 +204,44 @@ const CommunicationAnalysisCom = (props: {[propName: string]: any}): JSX.Element
     const { t } = useTranslation('communication');
     const [loadingSlowRank, setLoadingSlowRank] = useState(false);
     const [slowRankData, setSlowRankData] = useState<GetSlowRankListResult | null>(null);
+    const [slowRanksContext, setSlowRanksContext] = useState<SlowRanksContext>();
+    const slowRanksGeneration = useRef(0);
+    // Invalidate only the observation provenance; do not change UI data or issue another request.
+    useEffect(() => {
+        slowRanksGeneration.current++;
+        setSlowRanksContext(undefined);
+    }, [session, session.selectedClusterPath, session.isCompare, session.clusterCompleted, session.durationFileCompleted]);
     useEffect(() => {
         setCommunicationAgentState(active && session.clusterCompleted
-            ? { conditions, slowRanks: slowRankData, chart: showData.analysisChartData, unitcount: session.unitcount, isCompare: session.isCompare }
+            ? { conditions, slowRanks: slowRankData, slowRanksContext, chart: showData.analysisChartData, unitcount: session.unitcount, isCompare: session.isCompare }
             : undefined);
-    }, [active, session, session.clusterCompleted, conditions, slowRankData, showData.analysisChartData, session.unitcount, session.isCompare]);
+    }, [active, session, session.clusterCompleted, conditions, slowRankData, slowRanksContext, showData.analysisChartData, session.unitcount, session.isCompare]);
     useEffect(() => () => setCommunicationAgentState(undefined), []);
     const slowRankTooltipContent = t('slowRankList.TitleTooltip', { returnObjects: true }) as string[];
     const slowRankTooltipList = slowRankTooltipContent.map((item, index) => <div style={{ padding: '6px 0' }} key={index}>{item}</div>);
 
     useEffect(() => {
+        const generation = ++slowRanksGeneration.current;
+        const context = { session, clusterPath: session.selectedClusterPath, conditions: { ...conditions }, isCompare: session.isCompare };
+        setSlowRanksContext(undefined);
         const fetchData = async (): Promise<void> => {
             setLoadingSlowRank(true);
-            const res = await getSlowRankList(conditions).finally(() => {
+            const res = await getSlowRankList(conditions).catch((error: unknown) => {
+                // Match other communication requests: report failures without an unhandled effect rejection.
+                console.log(error);
+                return null;
+            }).finally(() => {
                 setLoadingSlowRank(false);
             });
             setSlowRankData(res);
+            // Late responses may still update the existing UI, but must never become agent advice.
+            if (res && generation === slowRanksGeneration.current) setSlowRanksContext({ ...context, result: res });
         };
 
         if (conditions.type === AnalysisType.COMMUNICATION_DURATION_ANALYSIS) {
             fetchData();
         }
+        return () => { slowRanksGeneration.current++; };
     }, [conditions]);
 
     return (

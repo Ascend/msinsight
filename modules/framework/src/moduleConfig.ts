@@ -35,6 +35,17 @@ export interface ModuleConfig {
     hasNumaData?: boolean;
 }
 
+// Keep menu selection, agent validation and observation aligned in special modes.
+export function getSelectableModules(availableModules: ModuleConfig[]): ModuleConfig[] {
+    if (availableModules.some(module => module.isLeaks && module.name === MEM_SCOPE_MODULE_NAME)) {
+        return availableModules.filter(module => module.name === MEM_SCOPE_MODULE_NAME);
+    }
+    if (availableModules.some(module => module.isTriton && module.name === ON_CHIP_MEMORY_MODULE_NAME)) {
+        return availableModules.filter(module => module.name === ON_CHIP_MEMORY_MODULE_NAME);
+    }
+    return availableModules;
+}
+
 const isDev = process.env.REACT_APP_ENV === 'development';
 export const MEM_SCOPE_MODULE_NAME = 'MemScope';
 export const ON_CHIP_MEMORY_MODULE_NAME = 'On-Chip Memory'; // 原 Triton

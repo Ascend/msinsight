@@ -17,6 +17,7 @@ import {
     clearCommunicationPageState,
     observeCommunication,
     setCommunicationAgentSession,
+    setCommunicationAgentState,
     updateCommunicationPageState,
     type CommunicationPageState,
 } from './communicationController';
@@ -116,6 +117,7 @@ describe('Communication controller', () => {
             observedAt: 123,
             available: false,
             dataStatus: null,
+            slowRankAdvice: { status: 'unavailable' },
             analysisType: null,
             scope: null,
             selection: null,
@@ -254,7 +256,7 @@ describe('Communication controller', () => {
         if (state.selection) Object.assign(state.selection, { dbPath: '/private/data.db' });
         updateCommunicationPageState(state);
         const result = observeCommunication();
-        expect(Object.keys(result).sort()).toEqual(['analysisType', 'available', 'dataStatus', 'moduleId', 'observedAt', 'scope', 'selection']);
+        expect(Object.keys(result).sort()).toEqual(['analysisType', 'available', 'dataStatus', 'moduleId', 'observedAt', 'scope', 'selection', 'slowRankAdvice']);
         expect(Object.keys(result.scope as object).sort()).toEqual(['baselineGroupIdHash', 'baselineIterationId', 'groupIdHash', 'iterationId', 'operatorName', 'pgName', 'stage']);
         expect(JSON.stringify(result)).not.toContain('private');
         expect(JSON.parse(JSON.stringify(result))).toEqual(result);
@@ -274,7 +276,191 @@ describe('Communication controller', () => {
     });
 });
 
+const advisedResult = (): Awaited<ReturnType<typeof getSlowRankList>> => ({
+    hasAdvice: true,
+    fastRankId: '0',
+    fastTotalElapseTime: 3000,
+    data: [{ rankId: '3', totalElapseTime: 2000, totalDiffTime: 1000, opList: [{
+        name: 'all_reduce_1', startTime: 100, maxStartTime: 200, elapseTime: 2000, diffTime: 1000, maxTime: 3000,
+    }] }],
+});
+
+const publishAdvice = (session: Session, result = advisedResult()) => {
+    const conditions = { ...defaultCondition, ...page().scope, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS } as ConditionDataType;
+    // Unlike the comparison fixture, the actual non-compare page has empty baseline filters.
+    conditions.baselineIterationId = '';
+    conditions.baselineGroupIdHash = '';
+    updateCommunicationPageState({ ...page(), scope: conditions });
+    const state = {
+        conditions, slowRanks: result,
+        slowRanksContext: { result, session, clusterPath: session.selectedClusterPath, conditions: { ...conditions }, isCompare: false },
+        chart: { minTime: 0, maxTime: 1, data: [] }, unitcount: 2, isCompare: false,
+    };
+    setCommunicationAgentState(state);
+    return state;
+};
+
+describe('Communication slow-rank observation', () => {
+    test('exports minimal advice in microseconds with actionable rank and operator identifiers', () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        const result = advisedResult();
+        Object.assign(result.data[0], { dbPath: '/private/rank.db' });
+        Object.assign(result.data[0].opList[0], { internal: 'private' });
+        publishAdvice(session, result);
+        expect(observeCommunication().slowRankAdvice).toStrictEqual({
+            status: 'ready', hasAdvice: true, timeUnit: 'us', fastRankId: '0', fastTotalElapseTime: 3000,
+            totalRanks: 1, truncated: false,
+            ranks: [{ rankId: '3', totalElapseTime: 2000, totalDiffTime: 1000, totalOperators: 1, truncated: false,
+                operators: [{ name: 'all_reduce_1', elapseTime: 2000, diffTime: 1000, maxTime: 3000 }] }],
+        });
+        expect(JSON.stringify(observeCommunication())).not.toContain('private');
+    });
+
+    test.each([false, true])('distinguishes no advice from supported but empty advice: %s', hasAdvice => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        publishAdvice(session, { ...advisedResult(), hasAdvice, data: [] });
+        expect(observeCommunication().slowRankAdvice).toMatchObject({
+            status: hasAdvice ? 'empty' : 'no-advice', hasAdvice, totalRanks: 0, truncated: false, ranks: [],
+        });
+    });
+
+    test.each(['iterationId', 'stage', 'pgName', 'groupIdHash', 'operatorName'] as const)('hides old advice after changing %s', key => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        const state = publishAdvice(session);
+        setCommunicationAgentState({ ...state, conditions: { ...state.conditions, [key]: 'new-filter' } });
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+    });
+
+    test.each(['matrix', 'session', 'cluster', 'compare', 'state-compare', 'unparsed', 'duration-unparsed', 'clear', 'page-clear', 'pending', 'old-response'])(
+        'hides advice when %s invalidates it', change => {
+            const session = readySession();
+            setCommunicationAgentSession(session);
+            const state = publishAdvice(session);
+            if (change === 'matrix') updateCommunicationPageState({ ...page(), analysisType: 'CommunicationMatrix' });
+            if (change === 'session') setCommunicationAgentSession(readySession());
+            if (change === 'cluster') runInAction(() => { session.selectedClusterPath = '/private/cluster-b'; });
+            if (change === 'compare') runInAction(() => { session.isCompare = true; });
+            if (change === 'state-compare') setCommunicationAgentState({ ...state, isCompare: true });
+            if (change === 'unparsed') runInAction(() => { session.clusterList = []; });
+            if (change === 'duration-unparsed') runInAction(() => {
+                session.clusterList = [{ name: 'A', path: '/private/cluster-a', parsed: true, durationParsed: false }];
+            });
+            if (change === 'clear') setCommunicationAgentState(undefined);
+            if (change === 'page-clear') clearCommunicationPageState();
+            if (change === 'pending') setCommunicationAgentState({ ...state, slowRanks: null });
+            if (change === 'old-response') setCommunicationAgentState({ ...state, slowRanks: advisedResult() });
+            expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+        },
+    );
+
+    test('requires the page scope and provenance session to match', () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        const state = publishAdvice(session);
+        updateCommunicationPageState({ ...page(), scope: { ...page().scope, iterationId: 'new' } });
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+        publishAdvice(session);
+        setCommunicationAgentState({ ...state, slowRanksContext: { ...state.slowRanksContext, session: readySession() } });
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+    });
+
+    test('returns independent rank and operator objects', () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        const state = publishAdvice(session);
+        const first = observeCommunication().slowRankAdvice as { ranks: Array<{ rankId: string; operators: Array<{ name: string }> }> };
+        first.ranks[0].rankId = '99';
+        first.ranks[0].operators[0].name = 'changed';
+        expect(state.slowRanks.data[0].rankId).toBe('3');
+        expect(state.slowRanks.data[0].opList[0].name).toBe('all_reduce_1');
+        expect(observeCommunication().slowRankAdvice).not.toEqual(first);
+    });
+
+    test('bounds unexpectedly larger responses and reports omitted ranks and operators', () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        const result = advisedResult();
+        result.data = Array.from({ length: 4 }, (_, rankId) => ({
+            ...result.data[0], rankId: String(rankId), opList: Array.from({ length: 5 }, () => ({ ...result.data[0].opList[0] })),
+        }));
+        publishAdvice(session, result);
+        const advice = observeCommunication().slowRankAdvice as { ranks: Array<{ totalOperators: number; truncated: boolean; operators: unknown[] }> };
+        expect(advice).toMatchObject({ totalRanks: 4, truncated: true });
+        expect(advice.ranks).toHaveLength(3);
+        advice.ranks.forEach(rank => {
+            expect(rank).toMatchObject({ totalOperators: 5, truncated: true });
+            expect(rank.operators).toHaveLength(3);
+        });
+    });
+});
+
 describe('Communication page reporting through the real component', () => {
+    test('handles a rejected slow-rank response without publishing advice or an unhandled rejection', async () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        const error = new Error('Invalid rankId in communication slow-rank response.');
+        const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+        jest.mocked(getSlowRankList).mockRejectedValueOnce(error);
+        render(React.createElement(CommunicationAnalysis, { session }));
+        await act(async () => {
+            await mockFilterChange({ ...defaultCondition, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS,
+                stage: '[0,1]', operatorName: 'Total Op Info' });
+        });
+        expect(log).toHaveBeenCalledWith(error);
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+    });
+
+    test.each([false, true])('reports absent fastest rank with empty advice safely (hasAdvice=%s)', async hasAdvice => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        jest.mocked(getSlowRankList).mockResolvedValueOnce({ hasAdvice, fastRankId: '', fastTotalElapseTime: 0, data: [] });
+        render(React.createElement(CommunicationAnalysis, { session }));
+        await act(async () => {
+            await mockFilterChange({ ...defaultCondition, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS,
+                stage: '[0,1]', operatorName: 'Total Op Info' });
+        });
+        expect(observeCommunication().slowRankAdvice).toMatchObject({ status: hasAdvice ? 'empty' : 'no-advice', ranks: [] });
+    });
+
+    test('publishes only the current filter response and rejects a late response from the previous filter', async () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        let resolveOld!: (result: Awaited<ReturnType<typeof getSlowRankList>>) => void;
+        let resolveNew!: (result: Awaited<ReturnType<typeof getSlowRankList>>) => void;
+        jest.mocked(getSlowRankList)
+            .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+            .mockImplementationOnce(() => new Promise(resolve => { resolveNew = resolve; }));
+        render(React.createElement(CommunicationAnalysis, { session }));
+        const conditions = { ...defaultCondition, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS, stage: '[0,1]', operatorName: 'Total Op Info' };
+        await act(async () => { await mockFilterChange(conditions); });
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+        await act(async () => { await mockFilterChange({ ...conditions, iterationId: '2' }); });
+        await act(async () => { resolveNew(advisedResult()); });
+        expect(observeCommunication().slowRankAdvice).toMatchObject({ status: 'ready' });
+        await act(async () => { resolveOld({ ...advisedResult(), fastRankId: '99' }); });
+        // Existing UI data is untouched; mismatched result identity makes observation unavailable.
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+    });
+
+    test('clears completed advice on a filter change until the next response arrives', async () => {
+        const session = readySession();
+        setCommunicationAgentSession(session);
+        jest.mocked(getSlowRankList).mockResolvedValueOnce(advisedResult());
+        render(React.createElement(CommunicationAnalysis, { session }));
+        const conditions = { ...defaultCondition, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS, stage: '[0,1]', operatorName: 'Total Op Info' };
+        await act(async () => { await mockFilterChange(conditions); });
+        expect(observeCommunication().slowRankAdvice).toMatchObject({ status: 'ready' });
+        let resolveNext!: (result: Awaited<ReturnType<typeof getSlowRankList>>) => void;
+        jest.mocked(getSlowRankList).mockImplementationOnce(() => new Promise(resolve => { resolveNext = resolve; }));
+        await act(async () => { await mockFilterChange({ ...conditions, iterationId: '2' }); });
+        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+        await act(async () => { resolveNext({ ...advisedResult(), hasAdvice: false, data: [] }); });
+        expect(observeCommunication().slowRankAdvice).toMatchObject({ status: 'no-advice', ranks: [] });
+    });
+
     test('reports the actual default page after mount and clears it on unmount', () => {
         const session = readySession();
         setCommunicationAgentSession(session);
@@ -446,6 +632,9 @@ describe('Communication page reporting through the real component', () => {
                 operatorName: 'filtered_all_reduce',
             },
             selection: null,
+            slowRankAdvice: {
+                status: 'no-advice', hasAdvice: false, timeUnit: 'us', totalRanks: 0, truncated: false, ranks: [],
+            },
         };
         expect(observeCommunication()).toStrictEqual(expected);
         act(() => { mockShowOperator({ cardId: '01', dbPath: 'C:\\private\\rank.db' }); });
@@ -475,7 +664,7 @@ describe('Communication page reporting through the real component', () => {
                 scope: { operatorName: 'pending_all_reduce' },
                 selection: null,
             });
-            expect(Object.keys(result).sort()).toEqual(['analysisType', 'available', 'dataStatus', 'moduleId', 'observedAt', 'scope', 'selection']);
+            expect(Object.keys(result).sort()).toEqual(['analysisType', 'available', 'dataStatus', 'moduleId', 'observedAt', 'scope', 'selection', 'slowRankAdvice']);
         } finally {
             await act(async () => {
                 complete({ minTime: 0, maxTime: 0, data: [] });
