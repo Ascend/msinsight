@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { toSessionListItem } from "../shared/utils.mjs";
+import { resolveSessionModel } from "../config/modelCatalog.mjs";
 
 const JSON_RPC_METHOD_NOT_FOUND = -32601;
 
@@ -59,7 +60,7 @@ const createInitializeResult = ({ agentRegistry, skillRegistry }) => ({
 });
 
 /** 功能：创建 ACP 会话，初始化文件系统根目录并持久化会话元数据。 */
-const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry }) => {
+const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry, modelCatalog }) => {
     const sessionId = randomUUID();
     const now = Date.now();
     const filesystemRoots = filesystem.createSessionFilesystemRoots();
@@ -67,6 +68,7 @@ const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry
     sessions.set(sessionId, {
         sessionId,
         title: "New session",
+        modelId: modelCatalog.defaultModelId,
         messages: [],
         runtimeSession: undefined,
         hostSystemPrompt: "",
@@ -84,7 +86,7 @@ const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry
         updatedAt: now,
     });
     await sessionStore.save();
-    return { sessionId, configOptions: createConfigOptions(agentRegistry, sessions.get(sessionId)) };
+    return { sessionId, configOptions: createConfigOptions(agentRegistry, sessions.get(sessionId), modelCatalog) };
 };
 
 /** 功能：返回前端可展示的 ACP 会话标识、标题、Agent 名称和更新时间列表。 */
@@ -98,11 +100,13 @@ const listSessions = ({ sessions, agentRegistry }) => ({
 /** 功能：恢复指定 AI runtime 会话并向前端回放对应 ACP 历史。 */
 const loadSession = async (context, sessionId) => {
     const session = ensureSession(context, sessionId);
+    if (session.modelChangePending) throw new Error("Session model cannot be changed or loaded while selection is being saved");
+    resolveSessionModel(context.modelCatalog, session);
     resolveSessionPrimaryAgent(context, session);
     await context.aiRuntime.restoreSession(session);
     await context.sessionStore.save();
     replaySessionHistory(context, session);
-    return { sessionId: session.sessionId, configOptions: createConfigOptions(context.agentRegistry, session) };
+    return { sessionId: session.sessionId, configOptions: createConfigOptions(context.agentRegistry, session, context.modelCatalog) };
 };
 
 /** 功能：删除指定 ACP 会话及其关联的 AI runtime 持久化上下文。 */
@@ -134,8 +138,10 @@ const cancelPrompt = ({ sessions, running, aiRuntime }, sessionId) => {
 const runPrompt = async (context, { sessionId, prompt }) => {
     const id = String(sessionId ?? "").trim();
     const session = ensureSession(context, id);
+    resolveSessionModel(context.modelCatalog, session);
     resolveSessionPrimaryAgent(context, session);
     if (session.primaryAgentError) throw new Error(session.primaryAgentError);
+    if (session.modelChangePending) throw new Error("Session model change is still being saved");
     if (context.running.has(id)) throw new Error(`session already has a running prompt: ${id}`);
     session.promptStarted = true;
     session.updatedAt = Date.now();
@@ -177,6 +183,28 @@ const prepareUserPrompt = async ({ filesystem }, session, prompt) => {
 /** 功能：在首次 Prompt 前绑定 Primary Agent，并持久化不可变会话配置。 */
 const setConfigOption = async (context, { sessionId, configId, value }) => {
     const session = ensureSession(context, sessionId);
+    if (configId === "model") {
+        // No await before the busy check and assignment: prompt start cannot interleave here.
+        if (context.running.has(session.sessionId)) throw new Error("Model cannot be changed while a prompt is running");
+        if (session.modelChangePending) throw new Error("Session model change is still being saved");
+        if (!context.modelCatalog.models.some((model) => model.id === value)) throw new Error(`Model is unavailable: ${value}`);
+        const previous = session.modelId;
+        const previousUpdatedAt = session.updatedAt;
+        session.modelChangePending = true;
+        session.modelId = value;
+        session.updatedAt = Date.now();
+        try {
+            await context.sessionStore.save();
+        } catch (error) {
+            session.modelId = previous;
+            session.updatedAt = previousUpdatedAt;
+            throw error;
+        } finally {
+            // Prevent a turn or another switch from observing an uncommitted model selection.
+            session.modelChangePending = false;
+        }
+        return { configOptions: createConfigOptions(context.agentRegistry, session, context.modelCatalog) };
+    }
     if (String(configId ?? "") !== "primaryAgent") throw new Error(`unsupported config option: ${configId}`);
     if (session.promptStarted || session.messages.length || context.running.has(session.sessionId)) {
         throw new Error("Primary Agent cannot be changed because this session already has conversation history. Create a new session before selecting another Primary Agent.");
@@ -191,7 +219,7 @@ const setConfigOption = async (context, { sessionId, configId, value }) => {
     session.primaryAgentError = undefined;
     session.updatedAt = Date.now();
     await context.sessionStore.save();
-    return { configOptions: createConfigOptions(context.agentRegistry, session) };
+    return { configOptions: createConfigOptions(context.agentRegistry, session, context.modelCatalog) };
 };
 
 /** 功能：按当前 Registry 恢复 Agent 内容，并标记缺失或变更的持久化会话。 */
@@ -213,7 +241,7 @@ const resolveSessionPrimaryAgent = ({ agentRegistry }, session) => {
 };
 
 /** 功能：把当前可选 Primary Agents 转换为标准 ACP select config option。 */
-const createConfigOptions = (agentRegistry, session) => [{
+const createConfigOptions = (agentRegistry, session, modelCatalog) => [{
     id: "primaryAgent",
     name: "Primary Agent",
     description: "Select the analysis role for this native session.",
@@ -222,6 +250,13 @@ const createConfigOptions = (agentRegistry, session) => [{
     currentValue: session.primaryAgentId ?? "general",
     options: createPrimaryAgentOptions(agentRegistry, session.primaryAgentId),
     _meta: session.primaryAgentError ? { "msinsight.dev/error": session.primaryAgentError } : undefined,
+}, {
+    id: "model",
+    name: "Model",
+    category: "model",
+    type: "select",
+    currentValue: session.modelId,
+    options: modelCatalog.models.map(({ id, name }) => ({ value: id, name })),
 }];
 
 const createPrimaryAgentOptions = (agentRegistry, currentAgentId) => {

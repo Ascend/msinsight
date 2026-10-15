@@ -39,6 +39,10 @@ export const createRouter = ({ agentController, chatController, sessionControlle
             return agentConfigController.saveBuiltinAgent(req, res, await readJson(req));
         }
 
+        if (req.method === "POST" && url.pathname === "/api/agent-config/builtin/models") {
+            return agentConfigController.fetchBuiltinModels(req, res, await readJson(req));
+        }
+
         if (req.method === "PUT" && url.pathname === "/api/agent-config/session") {
             return agentConfigController.saveSessionConfig(req, res, await readJson(req));
         }

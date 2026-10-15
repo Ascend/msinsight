@@ -17,7 +17,7 @@
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../../api';
+import { fetchAgentConfig, fetchBuiltinAgentModels, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../../api';
 import { useChatState } from '../../hooks/useChatState';
 import { AgentSettingsDialog } from '../../components/AgentSettingsDialog';
 import { ChatPanel } from '../../components/ChatPanel';
@@ -57,6 +57,7 @@ jest.mock('@insight/lib/icon/Icon', () => ({
 
 jest.mock('../../api', () => ({
     fetchAgentConfig: jest.fn(),
+    fetchBuiltinAgentModels: jest.fn(),
     saveAgentServersConfig: jest.fn(),
     saveAgentSessionConfig: jest.fn(),
     saveBuiltinAgentConfig: jest.fn(),
@@ -263,17 +264,38 @@ test('failed validation stops navigation and shows errors beside each invalid fi
     expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
 });
 
-test('builtin required fields validate on blur and clear after correction', async () => {
+test('native provider uses shared dropdown options and required fields validate on blur', async () => {
     await openSettings();
     fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
-    for (const label of ['Provider', 'Model', 'Base URL']) {
-        const input = screen.getByLabelText(label);
-        fireEvent.change(input, { target: { value: '' } });
-        fireEvent.blur(input);
-        expect(input).toHaveAttribute('aria-invalid', 'true');
-        fireEvent.change(input, { target: { value: 'corrected' } });
-        expect(input).toHaveAttribute('aria-invalid', 'false');
-    }
+    const provider = screen.getByLabelText('Provider');
+    fireEvent.click(provider);
+    expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
+        'OpenAI', 'OpenAI-compatible', 'Anthropic',
+    ]);
+    fireEvent.click(screen.getByRole('option', { name: 'Anthropic' }));
+    expect(provider).toHaveTextContent('Anthropic');
+    const input = screen.getByLabelText('Base URL');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    fireEvent.change(input, { target: { value: 'corrected' } });
+    expect(input).toHaveAttribute('aria-invalid', 'false');
+});
+
+test('native JSON editor preserves and saves a maintainable model catalog', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    const editor = await screen.findByRole('textbox', { name: 'Script configuration' });
+    const config = JSON.parse((editor as HTMLTextAreaElement).value);
+    expect(config.models).toEqual([{ id: snapshot.builtinAgent.model, name: snapshot.builtinAgent.model }]);
+    const models = [{ id: snapshot.builtinAgent.model, name: 'Default' }, { id: 'second-model', name: 'Second' }];
+    fireEvent.change(editor, { target: { value: JSON.stringify({ ...config, models }) } });
+    fireEvent.click(screen.getAllByRole('tab').find((tab) => tab.textContent !== 'Script configuration')!);
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    expect(JSON.parse((await screen.findByRole('textbox', { name: 'Script configuration' }) as HTMLTextAreaElement).value).models).toEqual(models);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveBuiltinAgentConfig).toHaveBeenCalledWith(expect.objectContaining({ model: snapshot.builtinAgent.model, models })));
 });
 
 test('script configuration shows a format help example for the current agent type', async () => {
@@ -604,4 +626,93 @@ test('settings save and reload keep the messages list untouched', async () => {
 
     expect(screen.getByText('messages')).toBeVisible();
     expect(currentMessages).toEqual(existingMessages);
+});
+
+
+test('explicit model fetch uses unsaved settings, preserves default and marks the draft dirty without saving', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    const fetchButton = await screen.findByRole('button', { name: 'Fetch models from service' });
+    expect(fetchBuiltinAgentModels).not.toHaveBeenCalled();
+    (fetchBuiltinAgentModels as jest.Mock).mockResolvedValue({ models: [{ id: 'new-model', name: 'New Model' }], truncated: false });
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'unsaved-test-key' } });
+    fireEvent.click(fetchButton);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fetch models from service' })).toBeEnabled());
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(await screen.findByRole('option', { name: 'New Model' })).toBeInTheDocument();
+    expect(fetchBuiltinAgentModels).toHaveBeenCalledWith(expect.objectContaining({ apiKey: 'unsaved-test-key' }));
+    expect(screen.getByLabelText('Model')).toHaveTextContent(snapshot.builtinAgent.model);
+    expect(screen.getByRole('option', { name: snapshot.builtinAgent.model })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'New Model' }));
+    expect(screen.getByLabelText('Model')).toHaveTextContent('New Model');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+    expect(mockUseChatState.mock.results[mockUseChatState.mock.results.length - 1].value.applyAgentConfigSnapshot).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+});
+
+test('failed model fetch preserves the original list and clean state', async () => {
+    (fetchAgentConfig as jest.Mock).mockResolvedValue({ ...snapshot, activeAgentName: 'msinsight-native', builtinAgent: {
+        ...snapshot.builtinAgent, models: [{ id: snapshot.builtinAgent.model, name: 'Original' }],
+    } });
+    (fetchBuiltinAgentModels as jest.Mock).mockRejectedValue(new Error('provider secret raw error'));
+    render(<AgentSettingsDialog open />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Fetch models from service' }));
+    await screen.findByText(/Could not fetch models/);
+    expect(screen.getByLabelText('Model')).toHaveTextContent('Original');
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(await screen.findByRole('option', { name: 'Original' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('option', { name: 'Original' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.queryByText('provider secret raw error')).not.toBeInTheDocument();
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+});
+
+
+test('save failure after fetching leaves unsaved candidates available for retry', async () => {
+    (fetchAgentConfig as jest.Mock).mockResolvedValue({ ...snapshot, activeAgentName: 'msinsight-native' });
+    (fetchBuiltinAgentModels as jest.Mock).mockResolvedValue({ models: [{ id: 'new-model', name: 'New Model' }], truncated: false });
+    mockSaveBuiltinAgentConfig.mockRejectedValueOnce(new Error('Save failed'));
+    render(<AgentSettingsDialog open />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Fetch models from service' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fetch models from service' })).toBeEnabled());
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(await screen.findByRole('option', { name: 'New Model' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: snapshot.builtinAgent.model }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Save failed');
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(await screen.findByRole('option', { name: 'New Model' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.getByLabelText('Model')).toHaveTextContent(snapshot.builtinAgent.model);
+});
+
+
+test('manual JSON catalog validates default membership and form selection preserves all models', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    expect(screen.getByLabelText('Model')).toHaveTextContent(snapshot.builtinAgent.model);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    const editor = await screen.findByRole('textbox', { name: 'Script configuration' });
+    const config = JSON.parse((editor as HTMLTextAreaElement).value);
+    const models = [{ id: 'manual', name: 'Manual model' }, { id: 'other' }];
+    fireEvent.change(editor, { target: { value: JSON.stringify({ ...config, models }) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('The default model must belong to the models catalog.')).toBeVisible();
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByRole('tab').find((tab) => tab.textContent !== 'Script configuration')!);
+    fireEvent.click(screen.getByLabelText('Model'));
+    fireEvent.click(await screen.findByRole('option', { name: 'Manual model' }));
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    const updated = JSON.parse((await screen.findByRole('textbox', { name: 'Script configuration' }) as HTMLTextAreaElement).value);
+    expect(updated.models).toEqual(models);
+    expect(updated.model).toBe('manual');
+    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveBuiltinAgentConfig).toHaveBeenCalledWith(expect.objectContaining({ model: 'manual', models })));
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
 });

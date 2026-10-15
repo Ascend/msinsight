@@ -25,8 +25,9 @@ import { Alert, Button, Input, InputNumber, PasswordInput, Tooltip } from '@insi
 import { copyToClipboard } from '@insight/lib/utils';
 import { resolveAgentKind } from '../agentBrand';
 import { AgentKindIcon } from './AgentKindIcon';
+import { AgentSelect } from './AgentSelect';
 import { uniqueCopiedAgentName } from '../copiedAgentName';
-import { fetchAgentConfig, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
+import { fetchAgentConfig, fetchBuiltinAgentModels, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import { isSecretEnvKey, SECRET_PLACEHOLDER } from '../secretFields';
 import type { AgentConfigSnapshot } from '../types';
@@ -511,6 +512,26 @@ const Container = styled.div`
         font-size: 14px;
     }
 
+    .settings-select .agent-select-trigger {
+        height: 32px;
+        box-sizing: border-box;
+        border: 1px solid ${(props): string => props.theme.borderColorLighter};
+        border-radius: ${(props): string => props.theme.borderRadiusBase};
+        padding: 4px 11px;
+        background: ${(props): string => props.theme.bgColor};
+    }
+
+    .settings-select .agent-select-trigger[aria-invalid='true'] {
+        border-color: ${(props): string => props.theme.dangerColor};
+    }
+
+    .model-field-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
     .settings-input[readonly] {
         background: ${(props): string => props.theme.bgColorLight};
         color: ${(props): string => props.theme.textColorSecondary};
@@ -757,6 +778,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const open = controlledOpen ?? internalOpen;
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [fetchingModels, setFetchingModels] = useState(false);
+    const modelRequestRef = useRef(0);
     const savingRef = useRef(false);
     const [snapshot, setSnapshot] = useState<AgentConfigSnapshot | null>(null);
     const initialSnapshotRef = useRef<AgentConfigSnapshot | null>(null);
@@ -789,6 +812,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
 
     useEffect(() => {
         if (!open) return;
+        modelRequestRef.current += 1;
+        setFetchingModels(false);
         setLoading(true);
         setError(null);
         setPendingNavigation(null);
@@ -850,9 +875,19 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         (configMode === 'script' && scriptError)
     ));
 
+    const builtinModelOptions = useMemo(() => {
+        const builtin = snapshot?.builtinAgent;
+        const models = [...builtin?.models ?? []];
+        // Older configs need a visible default even before a service catalog is fetched.
+        if (builtin?.model && !models.some((item) => item.id === builtin.model)) {
+            models.unshift({ id: builtin.model, name: builtin.model });
+        }
+        return models.map((item) => ({ value: item.id, label: item.name?.trim() || item.id }));
+    }, [snapshot?.builtinAgent]);
+
     const getBuiltinScriptConfig = (): Record<string, unknown> => {
-        const { provider = '', model = '', baseUrl = '', apiKey = '' } = snapshot?.builtinAgent ?? {};
-        return { provider, model, baseUrl, apiKey };
+        const { provider = '', model = '', models, baseUrl = '', apiKey = '' } = snapshot?.builtinAgent ?? {};
+        return { provider, model, models: models ?? (model ? [{ id: model, name: model }] : []), baseUrl, apiKey };
     };
 
     const getExternalScriptConfig = (agent: { name?: string; command: string; args: string[]; env: Record<string, string> }, includeName: boolean): Record<string, unknown> => ({
@@ -889,12 +924,16 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             const config = parsed as Record<string, unknown>;
             if (isBuiltinSelected) {
                 if (['provider', 'model', 'baseUrl', 'apiKey'].some((key) => typeof config[key] !== 'string')) throw new Error(t('builtinJsonInvalid'));
+                if (config.models !== undefined && (!Array.isArray(config.models) || !config.models.length || !config.models.every((item) =>
+                    item && typeof item === 'object' && typeof item.id === 'string' && item.id.trim()
+                    && (item.name === undefined || (typeof item.name === 'string' && item.name.trim()))))) throw new Error(t('builtinJsonInvalid'));
                 setSnapshot((current) => current ? ({
                     ...current,
                     builtinAgent: {
                         ...current.builtinAgent,
                         provider: config.provider as string,
                         model: config.model as string,
+                        models: config.models as AgentConfigSnapshot['builtinAgent']['models'],
                         baseUrl: config.baseUrl as string,
                         apiKey: config.apiKey as string,
                     },
@@ -949,6 +988,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     };
 
     const navigate = (destination: SettingsNavigation, source: AgentConfigSnapshot | null = snapshot): void => {
+        modelRequestRef.current += 1;
+        setFetchingModels(false);
         setPendingNavigation(null);
         setError(null);
         setValidationAttempted(false);
@@ -999,9 +1040,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         }
         const { agentName } = destination;
         if (configMode === 'script') {
-            const { provider = '', model = '', baseUrl = '', apiKey = '' } = source?.builtinAgent ?? {};
+            const { provider = '', model = '', models, baseUrl = '', apiKey = '' } = source?.builtinAgent ?? {};
             const nextConfig = agentName === 'msinsight-native'
-                ? { provider, model, baseUrl, apiKey }
+                ? { provider, model, models: models ?? (model ? [{ id: model, name: model }] : []), baseUrl, apiKey }
                 : getExternalScriptConfig(findExternalAgent(source, agentName) ?? { command: '', args: [], env: {} }, false);
             setScriptValue(JSON.stringify(nextConfig, null, 2));
         }
@@ -1061,6 +1102,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     if (isBuiltinSelected && snapshot) {
         if (!snapshot.builtinAgent.provider.trim()) fieldErrors['builtin-provider'] = t('providerRequired');
         if (!snapshot.builtinAgent.model.trim()) fieldErrors['builtin-model'] = t('modelRequired');
+        else if (snapshot.builtinAgent.models && !snapshot.builtinAgent.models.some((item) => item.id === snapshot.builtinAgent.model.trim())) {
+            fieldErrors['builtin-model'] = t('defaultModelNotInCatalog');
+        }
         if (!snapshot.builtinAgent.baseUrl.trim()) fieldErrors['builtin-base-url'] = t('baseUrlRequired');
     } else if (editingAgent && !isReadOnlyAgent) {
         if (draftAgent) {
@@ -1134,8 +1178,39 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         };
     };
 
+    const handleFetchModels = async (): Promise<void> => {
+        if (!snapshot || fetchingModels || saving || scriptError) return;
+        const requested = snapshot.builtinAgent;
+        const requestId = ++modelRequestRef.current;
+        setFetchingModels(true);
+        setError(null);
+        try {
+            const result = await fetchBuiltinAgentModels(requested);
+            if (requestId !== modelRequestRef.current) return;
+            const models = [...result.models];
+            const defaultId = requested.model.trim();
+            if (defaultId && !models.some((item) => item.id === defaultId)) {
+                const defaultModel = requested.models?.find((item) => item.id === defaultId);
+                models.unshift({ id: defaultId, name: defaultModel?.name ?? defaultId });
+            }
+            const builtinAgent = { ...requested, models };
+            // Reject stale results if fields changed while the network request was pending.
+            setSnapshot((current) => current && isEqual(current.builtinAgent, requested)
+                ? { ...current, builtinAgent } : current);
+            if (configMode === 'script') setScriptValue(JSON.stringify({
+                provider: builtinAgent.provider, model: builtinAgent.model, models,
+                baseUrl: builtinAgent.baseUrl, apiKey: builtinAgent.apiKey,
+            }, null, 2));
+            if (result.truncated) message.warning(t('modelListTruncated'));
+        } catch {
+            if (requestId === modelRequestRef.current) setError(t('modelListFetchFailed'));
+        } finally {
+            if (requestId === modelRequestRef.current) setFetchingModels(false);
+        }
+    };
+
     const handleSave = async (destination: SettingsNavigation = { type: 'close' }): Promise<void> => {
-        if (savingRef.current || pendingPrompt || !hasUnsavedChanges) return;
+        if (savingRef.current || fetchingModels || pendingPrompt || !hasUnsavedChanges) return;
         setPendingNavigation(null);
         setError(null);
         setValidationAttempted(true);
@@ -1239,7 +1314,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 )}
                 width="100%"
             >
-                <fieldset className="settings-layout" disabled={saving || loading}>
+                <fieldset className="settings-layout" disabled={saving || loading || fetchingModels}>
                     <div className="panel" onScroll={(event) => updatePanelScrollState(event.currentTarget)} ref={panelRef}>
                     {loading ? <div className="hint">{t('loadingSettings')}</div> : null}
                     {pendingPrompt ? (
@@ -1315,6 +1390,12 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                         {t('scriptConfig')}
                                     </button>
                                 </div>
+                                {isBuiltinSelected && configMode === 'script' ? <div className="row">
+                                    <Button disabled={fetchingModels || saving || Boolean(scriptError)} onClick={() => { void handleFetchModels(); }} size="small">
+                                        {fetchingModels ? t('fetchingModels') : t('fetchModelsFromService')}
+                                    </Button>
+                                    <div className="hint">{t('modelListDraftHint')}</div>
+                                </div> : null}
                                 {configMode === 'form' ? <>
                                 {isCreatingAgent ? (
                                     <div className="row">
@@ -1330,20 +1411,53 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 </div>}
                                 {isBuiltinSelected ? <>
                                 <div className="row">
-                                    <label htmlFor="builtin-provider">{t('provider')}</label>
-                                    <div className="field-control"><Input {...fieldProps('builtin-provider')} className="settings-input" id="builtin-provider" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.provider} />{renderFieldError('builtin-provider')}</div>
-                                </div>
-                                <div className="row">
-                                    <label htmlFor="builtin-model">{t('model')}</label>
-                                    <div className="field-control"><Input {...fieldProps('builtin-model')} className="settings-input" id="builtin-model" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.model} />{renderFieldError('builtin-model')}</div>
+                                    <label htmlFor="builtin-api-key">{t('apiKey')}</label>
+                                    <PasswordInput className="settings-password" id="builtin-api-key" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, apiKey: event.target.value } }) : current)} value={snapshot.builtinAgent.apiKey} />
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-base-url">{t('baseUrl')}</label>
                                     <div className="field-control"><Input {...fieldProps('builtin-base-url')} className="settings-input" id="builtin-base-url" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, baseUrl: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.baseUrl} />{renderFieldError('builtin-base-url')}</div>
                                 </div>
                                 <div className="row">
-                                    <label htmlFor="builtin-api-key">{t('apiKey')}</label>
-                                    <PasswordInput className="settings-password" id="builtin-api-key" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, apiKey: event.target.value } }) : current)} value={snapshot.builtinAgent.apiKey} />
+                                    <label htmlFor="builtin-provider">{t('provider')}</label>
+                                    <div className="field-control">
+                                        <AgentSelect
+                                            aria-invalid={Boolean(getFieldError('builtin-provider'))}
+                                            aria-describedby={getFieldError('builtin-provider') ? 'builtin-provider-error' : undefined}
+                                            className="settings-select" id="builtin-provider" dropdownZIndex={1050}
+                                            disabled={saving || fetchingModels || Boolean(pendingNavigation)}
+                                            onBlur={() => setTouchedFields((current) => ({ ...current, 'builtin-provider': true }))}
+                                            options={[
+                                                { value: 'openai', label: 'OpenAI' },
+                                                { value: 'openai-compatible', label: 'OpenAI-compatible' },
+                                                { value: 'anthropic', label: 'Anthropic' },
+                                            ]}
+                                            value={snapshot.builtinAgent.provider}
+                                            onChange={(provider) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider } }) : current)}
+                                        />
+                                        {renderFieldError('builtin-provider')}
+                                    </div>
+                                </div>
+                                <div className="row">
+                                    <div className="model-field-header">
+                                        <label htmlFor="builtin-model">{t('model')}</label>
+                                        <Button disabled={fetchingModels || saving} onClick={() => { void handleFetchModels(); }} size="small">
+                                            {fetchingModels ? t('fetchingModels') : t('fetchModelsFromService')}
+                                        </Button>
+                                    </div>
+                                    <div className="field-control">
+                                        <AgentSelect
+                                            aria-invalid={Boolean(getFieldError('builtin-model'))}
+                                            aria-describedby={getFieldError('builtin-model') ? 'builtin-model-error' : undefined}
+                                            className="settings-select" id="builtin-model" dropdownZIndex={1050}
+                                            disabled={saving || fetchingModels || Boolean(pendingNavigation)}
+                                            onBlur={() => setTouchedFields((current) => ({ ...current, 'builtin-model': true }))}
+                                            options={builtinModelOptions} value={snapshot.builtinAgent.model}
+                                            onChange={(model) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model } }) : current)}
+                                        />
+                                        {renderFieldError('builtin-model')}
+                                    </div>
+                                    <div className="hint">{t('modelListDraftHint')}</div>
                                 </div>
                                 </> : editingAgent ? <>
                                 <div className="row">
@@ -1455,7 +1569,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             </div>
                                         </div>
                                         <Suspense fallback={<div className="hint">{t('loadingEditor')}</div>}>
-                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} readOnly={saving || isReadOnlyAgent} value={scriptValue} />
+                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} readOnly={saving || fetchingModels || isReadOnlyAgent} value={scriptValue} />
                                         </Suspense>
                                     </div>
                                     {scriptHasError && <div className="script-error" id="agent-script-error" role="alert">
@@ -1576,7 +1690,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                         </label>}
                         <div className="settings-footer-actions">
                             <Button disabled={saving} onClick={() => requestNavigation({ type: 'close' })} size="small" type="default">{t('cancel')}</Button>
-                            <Button disabled={pendingPrompt || saving || !hasUnsavedChanges} onClick={() => { void handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
+                            <Button disabled={pendingPrompt || saving || fetchingModels || !hasUnsavedChanges} onClick={() => { void handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
                         </div>
                     </div> : null}
                 </fieldset>

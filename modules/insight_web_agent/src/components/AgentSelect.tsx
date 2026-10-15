@@ -18,7 +18,7 @@
 import styled from '@emotion/styled';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
+import type { AriaAttributes, CSSProperties, FocusEventHandler, KeyboardEvent, ReactNode } from 'react';
 import { createImeCompositionTracker } from '../imeComposition';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import checkIcon from '../icons/check.svg';
@@ -32,6 +32,12 @@ export interface AgentSelectOption {
 }
 
 interface AgentSelectProps {
+    id?: string;
+    'aria-label'?: string;
+    'aria-invalid'?: AriaAttributes['aria-invalid'];
+    'aria-describedby'?: string;
+    onBlur?: FocusEventHandler<HTMLButtonElement>;
+    dropdownZIndex?: number;
     value?: string;
     options: AgentSelectOption[];
     onChange: (value: string) => void;
@@ -279,6 +285,12 @@ const Container = styled.div`
 `;
 
 export const AgentSelect = ({
+    id,
+    'aria-label': ariaLabel,
+    'aria-invalid': ariaInvalid,
+    'aria-describedby': ariaDescribedBy,
+    onBlur,
+    dropdownZIndex,
     value,
     options,
     onChange,
@@ -480,7 +492,7 @@ export const AgentSelect = ({
 
     const dropdown = open ? createPortal(
         <Container>
-            <div className="agent-select-dropdown" ref={dropdownRef} style={{ ...dropdownStyle, width: dropdownWidth }}>
+            <div className="agent-select-dropdown" ref={dropdownRef} style={{ ...dropdownStyle, width: dropdownWidth, zIndex: dropdownZIndex }}>
                 {title ? <div className="agent-select-title">{title}</div> : null}
                 {search ? <input
                     aria-label={search.placeholder}
@@ -545,6 +557,11 @@ export const AgentSelect = ({
     return (
         <Container className={className} ref={containerRef}>
             <button
+                id={id}
+                aria-label={ariaLabel}
+                aria-invalid={ariaInvalid}
+                aria-describedby={ariaDescribedBy}
+                onBlur={onBlur}
                 aria-controls={open ? listboxId : undefined}
                 aria-expanded={open}
                 aria-haspopup="listbox"

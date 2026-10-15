@@ -6,7 +6,7 @@
  * MindStudio is licensed under Mulan PSL v2.
  * -------------------------------------------------------------------------
  */
-import { fetchAgentConfig, saveAgentServersConfig, saveBuiltinAgentConfig } from '../api';
+import { fetchAgentConfig, fetchBuiltinAgentModels, saveAgentServersConfig, saveBuiltinAgentConfig } from '../api';
 import { clearBackendConnectionFailure } from '../backendConnection';
 import { sealEnvSecrets, sealSecretInput } from '../secretSeal';
 
@@ -84,4 +84,25 @@ test('sends capability tokens as Bearer headers and seals secrets before save', 
             agentServers: [expect.objectContaining({ env: expect.objectContaining({ TOKEN: sealed }) })],
         }),
     ]));
+});
+
+
+test.each(['plain-key', '******'])('model listing seals unsaved keys and preserves placeholders: %s', async (apiKey) => {
+    (sealSecretInput as jest.Mock).mockImplementation(async (value) => value === 'plain-key' ? sealed : value);
+    const fetchMock = jest.fn(async (url: string, init?: RequestInit) => ({
+        ok: true, status: 200,
+        text: async () => JSON.stringify(init?.method === 'POST'
+            ? { models: [{ id: 'a', name: 'A' }], truncated: false }
+            : { snapshot: { crypto: cryptoConfig } }),
+    }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await fetchBuiltinAgentModels({ schemaVersion: 1, name: 'msinsight-native', provider: 'openai',
+        model: 'old', baseUrl: 'https://example.test/v1', apiKey });
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe('http://127.0.0.1:9090/api/agent-config/builtin/models');
+    expect(init?.method).toBe('POST');
+    expect(init?.headers).toEqual(expect.objectContaining({ Authorization: 'Bearer test-token' }));
+    expect(JSON.parse(String(init?.body))).toEqual({ provider: 'openai', baseUrl: 'https://example.test/v1',
+        apiKey: apiKey === 'plain-key' ? sealed : apiKey });
+    expect(String(init?.body)).not.toContain('plain-key');
 });

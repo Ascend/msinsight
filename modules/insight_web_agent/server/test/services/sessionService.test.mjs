@@ -88,6 +88,27 @@ for (const canDelete of [true, false]) {
     });
 }
 
+test("failed session model change does not pollute preferredModel or currentValue", async () => {
+    const state = createRuntimeState();
+    state.preferredModel = "model-a";
+    state.configOptions = [{ id: "model", category: "model", type: "select", currentValue: "model-a", options: [{ value: "model-a", name: "A" }, { value: "model-b", name: "B" }] }];
+    let fail = true;
+    const service = createSessionService({
+        state, config: {}, eventBus: { broadcast: () => {} },
+        acpClient: { request: async () => {
+            if (fail) throw new Error("Model cannot be changed while a prompt is running");
+            return { configOptions: [{ ...state.configOptions[0], currentValue: "model-b" }] };
+        } },
+    });
+    const rejected = await service.setModel("model-b", "session-1");
+    assert.ok(rejected.error);
+    assert.equal(state.preferredModel, "model-a");
+    assert.equal(state.configOptions[0].currentValue, "model-a");
+    fail = false;
+    assert.equal((await service.setModel("model-b", "session-1")).ok, true);
+    assert.equal(state.preferredModel, "model-b");
+});
+
 test("configuration preload uses the staged adapter without broadcasting during an agent switch", async () => {
     const state = createRuntimeState();
     state.agentCapabilities = { session: { delete: true } };

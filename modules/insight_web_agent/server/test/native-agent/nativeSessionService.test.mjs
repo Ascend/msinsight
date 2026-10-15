@@ -30,6 +30,7 @@ const createContext = (sessions = new Map()) => {
     return {
         context: {
             sessions,
+            modelCatalog: { defaultModelId: "model-a", models: [{ id: "model-a", name: "Model A" }, { id: "model-b", name: "Model B" }] },
             running: new Map(),
             sessionStore: { save: async () => { saves.push(true); } },
             filesystem: {
@@ -193,6 +194,62 @@ test("missing bound Agent allows history load but blocks future prompts", async 
         sessionId: session.sessionId,
         prompt: [{ type: "text", text: "continue" }],
     }), /Primary Agent is unavailable: removed-agent/);
+});
+
+test("models default, switch with history, load, reject busy and never reset runtime", async () => {
+    const { context } = createContext();
+    context.aiRuntime.deleteSession = () => assert.fail("model switch must preserve runtime");
+    const service = createNativeSessionService(context);
+    const first = await service.handleRequest("session/new", {});
+    const second = await service.handleRequest("session/new", {});
+    assert.equal(first.configOptions[1].currentValue, "model-a");
+    assert.deepEqual(first.configOptions[1].options, [{ value: "model-a", name: "Model A" }, { value: "model-b", name: "Model B" }]);
+    const session = context.sessions.get(first.sessionId);
+    const history = [{ role: "user", content: [] }];
+    session.messages = history;
+    session.promptStarted = true;
+    session.runtimeSession = { retained: true };
+    const switched = await service.handleRequest("session/set_config_option", { sessionId: first.sessionId, configId: "model", value: "model-b" });
+    assert.equal(switched.configOptions[1].currentValue, "model-b");
+    assert.equal(session.messages, history);
+    assert.equal(session.runtimeSession.retained, true);
+    assert.equal(context.sessions.get(second.sessionId).modelId, "model-a");
+    assert.equal((await service.handleRequest("session/load", { sessionId: first.sessionId })).configOptions[1].currentValue, "model-b");
+    context.running.set(first.sessionId, {});
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: first.sessionId, configId: "model", value: "model-a" }), /while a prompt is running/);
+    assert.equal(session.modelId, "model-b");
+    context.running.clear();
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: first.sessionId, configId: "model", value: "invalid" }), /Model is unavailable/);
+    const publicConfig = JSON.stringify(switched);
+    for (const key of ["apiKey", "provider", "baseUrl", "MSINSIGHT_NATIVE"]) assert.equal(publicConfig.includes(key), false);
+});
+
+test("old session migrates only missing model IDs; deleted IDs fail load and prompt", async () => {
+    const { context } = createContext();
+    const service = createNativeSessionService(context);
+    const { sessionId } = await service.handleRequest("session/new", {});
+    const session = context.sessions.get(sessionId);
+    delete session.modelId;
+    assert.equal((await service.handleRequest("session/load", { sessionId })).configOptions[1].currentValue, "model-a");
+    session.modelId = "removed";
+    for (const method of ["session/load", "session/prompt"]) {
+        await assert.rejects(service.handleRequest(method, { sessionId, prompt: [] }), /Model is unavailable: removed/);
+        assert.equal(session.modelId, "removed");
+    }
+});
+
+test("failed model persistence rolls back and blocks overlapping prompts and switches", async () => {
+    const { context } = createContext();
+    const service = createNativeSessionService(context);
+    const { sessionId } = await service.handleRequest("session/new", {});
+    let rejectSave;
+    context.sessionStore.save = () => new Promise((_resolve, reject) => { rejectSave = reject; });
+    const pending = service.handleRequest("session/set_config_option", { sessionId, configId: "model", value: "model-b" });
+    await assert.rejects(service.handleRequest("session/prompt", { sessionId, prompt: [] }), /still being saved/);
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId, configId: "model", value: "model-a" }), /still being saved/);
+    rejectSave(new Error("disk failure"));
+    await assert.rejects(pending, /disk failure/);
+    assert.equal(context.sessions.get(sessionId).modelId, "model-a");
 });
 
 function agent(id, mode) {

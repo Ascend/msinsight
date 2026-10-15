@@ -172,6 +172,7 @@ export interface BuiltinAgentConfig {
     name: 'msinsight-native';
     provider: string;
     model: string;
+    models?: Array<{ id: string; name?: string }>;
     baseUrl: string;
     apiKey: string;
 }

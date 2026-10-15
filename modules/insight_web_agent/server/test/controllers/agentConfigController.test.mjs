@@ -132,3 +132,16 @@ test("legacy aggregate save endpoint is not available", async () => {
     assert.deepEqual(calls, []);
     assert.equal(res.status, 404);
 });
+
+
+test("POST builtin/models forwards only the model-list result and preserves error status", async () => {
+    const input = { provider: "openai", baseUrl: "", apiKey: "******" };
+    const router = createTestRouter({ fetchBuiltinModels: async (body) => {
+        assert.deepEqual(body, input);
+        return { error: "model_list_failed", message: "Could not fetch models", status: 502 };
+    } });
+    const res = createResponse();
+    await router(createJsonRequest("POST", "/api/agent-config/builtin/models", input), res);
+    assert.equal(res.status, 502);
+    assert.deepEqual(res.body, { error: "model_list_failed", code: "model_list_failed", message: "Could not fetch models" });
+});

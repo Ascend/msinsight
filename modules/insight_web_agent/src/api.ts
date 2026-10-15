@@ -391,6 +391,18 @@ export const saveBuiltinAgentConfig = async (config: BuiltinAgentConfig): Promis
     });
 };
 
+export const fetchBuiltinAgentModels = async (config: BuiltinAgentConfig): Promise<{ models: Array<{ id: string; name: string }>; truncated: boolean }> => {
+    const crypto = (await fetchAgentConfig()).crypto;
+    return requestJson('/api/agent-config/builtin/models', {
+        method: 'POST',
+        body: JSON.stringify({
+            provider: config.provider,
+            baseUrl: config.baseUrl,
+            apiKey: await sealSecretInput(config.apiKey, crypto),
+        }),
+    });
+};
+
 export const saveAgentSessionConfig = (config: AgentSessionConfig): Promise<AgentConfigSaveResult> => {
     return requestJson<AgentConfigSaveResult>('/api/agent-config/session', {
         method: 'PUT',

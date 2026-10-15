@@ -86,6 +86,7 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     const runtime = createRuntime({
         env: { MSINSIGHT_NATIVE_MAX_STEPS: "8" },
         aiSdkStoragePath: root,
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
         toolRegistry,
         notifier,
         streamTextImpl,
@@ -127,6 +128,7 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     const restoredSession = createSession();
     const restoredRuntime = createRuntime({
         aiSdkStoragePath: root,
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
         toolRegistry,
         notifier: createNotifier(),
         streamTextImpl,
@@ -149,6 +151,7 @@ for (const progressText of ["", "正在调整视域。"]) {
         ];
         const runtime = createRuntime({
             aiSdkStoragePath: root,
+            modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
             toolRegistry: { list: () => [], execute: async () => undefined },
             notifier,
             createModel: () => ({ modelId: "test-model" }),
@@ -188,6 +191,7 @@ test("AI SDK runtime persists interrupted UI output without adding partial model
     const controller = new AbortController();
     const runtime = createRuntime({
         aiSdkStoragePath: root,
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
         toolRegistry: { list: () => [], execute: async () => undefined },
         notifier,
         createModel: () => ({ modelId: "test-model" }),
@@ -213,6 +217,38 @@ test("AI SDK runtime persists interrupted UI output without adding partial model
     assert.deepEqual(stored.modelMessages, []);
     assert.equal(stored.uiMessages[0].content[0].text, "cancel me");
     assert.equal(stored.uiMessages[1].content[0].text, "partial");
+});
+
+test("each turn uses the session model and retains independent histories and shared env", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-model-isolation-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const env = Object.freeze({ MSINSIGHT_NATIVE_MODEL: "model-a", MSINSIGHT_NATIVE_API_KEY: "shared-key", MSINSIGHT_NATIVE_BASE_URL: "https://example.invalid" });
+    const created = [];
+    const turns = [];
+    const runtime = createRuntime({
+        env, aiSdkStoragePath: root, notifier: createNotifier(), toolRegistry: { list: () => [] },
+        modelCatalog: { defaultModelId: "model-a", models: [{ id: "model-a", name: "A" }, { id: "model-b", name: "B" }] },
+        createModel: (turnEnv) => { created.push(turnEnv); return { modelId: turnEnv.MSINSIGHT_NATIVE_MODEL }; },
+        streamTextImpl: (options) => {
+            turns.push(options);
+            return { fullStream: asAsyncStream(async function* () { yield { type: "text-delta", text: "answer" }; }), response: Promise.resolve({ messages: [{ role: "assistant", content: "answer" }] }) };
+        },
+    });
+    const a = { ...createSession(), sessionId: "a", modelId: "model-a" };
+    const b = { ...createSession(), sessionId: "b", modelId: "model-b" };
+    const run = (session) => runtime.runPrompt({ session, sessionId: session.sessionId, userText: "question", controller: new AbortController() });
+    assert.equal((await run(a)).ok, true);
+    assert.equal((await run(b)).ok, true);
+    a.modelId = "model-b";
+    assert.equal((await run(a)).ok, true);
+    assert.deepEqual(turns.map(({ model }) => model.modelId), ["model-a", "model-b", "model-b"]);
+    assert.deepEqual(turns.map(({ messages }) => messages.length), [1, 1, 3]);
+    assert.equal(b.messages.length, 2);
+    assert.equal(env.MSINSIGHT_NATIVE_MODEL, "model-a");
+    assert.ok(created.every((copy) => copy !== env && copy.MSINSIGHT_NATIVE_API_KEY === "shared-key"));
+    a.modelId = "removed";
+    assert.match((await run(a)).reason, /Model is unavailable: removed/);
+    assert.equal(created.length, 3);
 });
 
 test("AI SDK runtime reports unsupported providers before making a request", () => {
