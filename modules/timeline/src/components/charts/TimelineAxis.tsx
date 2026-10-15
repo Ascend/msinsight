@@ -314,6 +314,34 @@ interface TimelineAxisProps {
     timelineHeight: number;
 };
 
+interface TimelineAxisDrawState {
+    canvasWidth: number;
+    canvasHeight: number;
+    devicePixelRatio: number;
+    domainStart: number;
+    domainEnd: number;
+    timePerPx: number;
+    isNsMode: boolean;
+    margin: SizePx;
+    fontColor: React.CSSProperties['color'];
+    fontFamily: React.CSSProperties['fontFamily'];
+    lineColor: React.CSSProperties['color'];
+}
+
+const isSameDrawState = (previous: TimelineAxisDrawState | undefined, current: TimelineAxisDrawState): boolean =>
+    previous !== undefined &&
+    previous.canvasWidth === current.canvasWidth &&
+    previous.canvasHeight === current.canvasHeight &&
+    previous.devicePixelRatio === current.devicePixelRatio &&
+    previous.domainStart === current.domainStart &&
+    previous.domainEnd === current.domainEnd &&
+    previous.timePerPx === current.timePerPx &&
+    previous.isNsMode === current.isNsMode &&
+    previous.margin === current.margin &&
+    previous.fontColor === current.fontColor &&
+    previous.fontFamily === current.fontFamily &&
+    previous.lineColor === current.lineColor;
+
 type TextParser = (time: number, domain: Domain) => string;
 export const getTextParser = (isNsMode: boolean): TextParser => {
     return (time: number, [start, end]: Domain): string => {
@@ -361,38 +389,66 @@ const TotalDuration = observer(({ session }: { session: Session }): JSX.Element 
 
 const TimelineAxis = observer(({ session, margin, timelineHeight }: TimelineAxisProps): JSX.Element => {
     const canvas = React.useRef<HTMLCanvasElement>(null);
+    const previousDrawState = React.useRef<TimelineAxisDrawState>();
     const [width, ref] = useWatchResize<HTMLDivElement>('width');
     const theme = useTheme();
+    React.useLayoutEffect(() => {
+        // React 更新 Canvas 尺寸属性时会清空画布；即使恢复为原尺寸，也必须使绘制缓存失效。
+        previousDrawState.current = undefined;
+    }, [width, timelineHeight]);
     const draw = React.useMemo(() => () => {
-        if (canvas.current && ref.current?.clientWidth !== 0) {
-            runInAction(() => {
-                if (session.zoom !== undefined) {
-                    session.domain.zoom = {
-                        zoomCount: session.zoom.zoomCount,
-                        zoomPoint: session.zoom.zoomPoint ?? ((session.selectedRange) && ((session.selectedRange[0] + session.selectedRange[1]) / 2)),
-                    };
-                    session.zoom = undefined;
-                }
-                session.domain.chartViewWidth = ref.current?.clientWidth ?? 0;
-            });
-            drawTimelineAxis(canvas.current, {
-                domain: [session.domainRange.domainStart, session.domainRange.domainEnd],
-                spaceX: margin,
-                fontColor: theme.textColor,
-                fontFamily: theme.fontFamily,
-                lineColor: theme.timelineAxisColor,
-                textParser: getTextParser(session.isNsMode),
-                timePerPx: session.domain.timePerPx,
-            });
+        const canvasElement = canvas.current;
+        const container = ref.current;
+        if (canvasElement === null || container === null ||
+            canvasElement.clientWidth === 0 || canvasElement.clientHeight === 0) {
+            return;
         }
-    }, [theme]);
+        runInAction(() => {
+            if (session.zoom !== undefined) {
+                session.domain.zoom = {
+                    zoomCount: session.zoom.zoomCount,
+                    zoomPoint: session.zoom.zoomPoint ?? ((session.selectedRange) && ((session.selectedRange[0] + session.selectedRange[1]) / 2)),
+                };
+                session.zoom = undefined;
+            }
+            session.domain.chartViewWidth = container.clientWidth;
+        });
+        const { domainStart, domainEnd } = session.domainRange;
+        const currentDrawState: TimelineAxisDrawState = {
+            canvasWidth: canvasElement.clientWidth,
+            canvasHeight: canvasElement.clientHeight,
+            devicePixelRatio: window.devicePixelRatio,
+            domainStart,
+            domainEnd,
+            timePerPx: session.domain.timePerPx,
+            isNsMode: session.isNsMode,
+            margin,
+            fontColor: theme.textColor,
+            fontFamily: theme.fontFamily,
+            lineColor: theme.timelineAxisColor,
+        };
+        if (isSameDrawState(previousDrawState.current, currentDrawState)) {
+            return;
+        }
+        drawTimelineAxis(canvasElement, {
+            domain: [domainStart, domainEnd],
+            spaceX: margin,
+            fontColor: theme.textColor,
+            fontFamily: theme.fontFamily,
+            lineColor: theme.timelineAxisColor,
+            textParser: getTextParser(session.isNsMode),
+            timePerPx: session.domain.timePerPx,
+        });
+        // 仅在绘制完成后记录参数，异常时下一帧仍可重试，避免保留未更新的画面。
+        previousDrawState.current = currentDrawState;
+    }, [session, margin, timelineHeight, theme]);
     const renderEngine = useRenderEngine();
     React.useEffect(() => {
         const renderID = renderEngine.addTask(draw);
         return () => {
             renderEngine.deleteTask(renderID);
         };
-    }, [theme]);
+    }, [renderEngine, draw]);
     return <CanvasContainer ref={ref} className={TIME_LINE_AXIS_CLASSNAME}>
         <canvas
             ref={canvas}
