@@ -1,5 +1,13 @@
 {
   "insightWebAgent": {
+    "fetchModelsFromService": "Fetch models from service",
+    "fetchingModels": "Fetching models…",
+    "modelListTruncated": "Model list limit reached. Add further models manually in JSON.",
+    "modelListFetchFailed": "Could not fetch models. Check settings or enter models in JSON; the existing list is unchanged.",
+    "modelListDraftHint": "Fetches models into this unsaved dropdown, preserving the default model and running sessions. Edit model and models in JSON for manual configuration.",
+    "defaultModelNotInCatalog": "The default model must belong to the models catalog.",
+    "modelCandidates": "Model candidates",
+
     "agentError": "Agent error",
     "nodeBackendUnavailableTitle": "Node.js runtime unavailable",
     "nodeBackendUnavailableDescription": "The local Node.js service could not be reached. Node.js may not be installed, or the backend may have failed to start.",

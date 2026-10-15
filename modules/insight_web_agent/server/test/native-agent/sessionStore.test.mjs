@@ -27,6 +27,7 @@ test("session store persists only Insight metadata", async (t) => {
     const sessions = new Map([["session-1", {
         sessionId: "session-1",
         title: "Metadata",
+        modelId: "model-b",
         messages: [{ id: "assistant-1", role: "assistant", content: [{ id: "text-1", type: "text", text: "not persisted" }] }],
         primaryAgentId: "general",
         projectRoot: "D:/project",
@@ -46,6 +47,17 @@ test("session store persists only Insight metadata", async (t) => {
     const restoredStore = createStore(restored, storeDir);
     await restoredStore.load();
     assert.deepEqual(restored.get("session-1").messages, []);
+    assert.equal(restored.get("session-1").modelId, "model-b");
+    restored.get("session-1").modelId = "removed";
+    await restoredStore.save();
+    const invalid = new Map();
+    await createStore(invalid, storeDir).load();
+    assert.equal(invalid.get("session-1").modelId, "removed");
+    delete restored.get("session-1").modelId;
+    await restoredStore.save();
+    const legacy = new Map();
+    await createStore(legacy, storeDir).load();
+    assert.equal(legacy.get("session-1").modelId, undefined);
 
     restored.delete("session-1");
     await restoredStore.save();

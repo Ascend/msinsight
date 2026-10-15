@@ -192,3 +192,21 @@ test('clearing search scrolls back to the selected model even when its index is 
     expect(input).toHaveFocus();
     expect(onChange).not.toHaveBeenCalled();
 });
+
+
+test('forwards optional settings accessibility attributes and portal stacking without changing selection', async () => {
+    const onBlur = jest.fn();
+    const onChange = jest.fn();
+    render(<><label htmlFor="settings-model">Model</label><AgentSelect
+        id="settings-model" aria-invalid="true" aria-describedby="model-error"
+        onBlur={onBlur} onChange={onChange} options={options} value="native" dropdownZIndex={1050}
+    /></>);
+    const trigger = screen.getByLabelText('Model');
+    expect(trigger).toHaveAttribute('aria-invalid', 'true');
+    expect(trigger).toHaveAttribute('aria-describedby', 'model-error');
+    fireEvent.blur(trigger);
+    expect(onBlur).toHaveBeenCalled();
+    fireEvent.click(trigger);
+    expect((await screen.findByRole('listbox')).closest('.agent-select-dropdown')).toHaveStyle({ zIndex: 1050 });
+    expect(onChange).not.toHaveBeenCalled();
+});

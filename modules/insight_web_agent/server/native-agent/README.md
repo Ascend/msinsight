@@ -88,7 +88,33 @@ native agent 使用 Vercel AI SDK 的 `streamText` 完成多步 tool loop，暴�
 
 ## 模型配置
 
-模型配置保存在当前 agent 的 `env` 中，可以在 Agent View 的 Agent Settings 页面编辑。`MSINSIGHT_NATIVE_BASE_URL` 可作为 provider endpoint 覆盖地址；`openai-compatible` 必填，其他 provider 可选。
+正式模型配置保存在可写配置目录的 `msinsight-native.json`，在 Agent Settings 选择 Native 后通过现有「Script configuration」JSON 编辑器维护。`provider`、`baseUrl`、`apiKey` 为同一服务共享配置，`model` 是新会话默认模型；可选 `models` 为模型目录，`id` 必须是该服务实际接受的模型名，`name` 为展示名（省略时显示 id）。例如以下非敏感字段：
+
+```json
+{
+  "model": "service-model-a",
+  "models": [
+    { "id": "service-model-a", "name": "Model A" },
+    { "id": "service-model-b", "name": "Model B" }
+  ]
+}
+```
+
+在原有 JSON 中添加上述 `models` 即可，保留原有服务与密钥字段。目录按 id 去重（保留首项），拒绝空目录、空 id/name 和不属于目录的默认模型；不内置供应商模型列表。旧配置未提供 `models` 时仅暴露原 `model`。保存仍沿用原有密钥加密、占位符和重载流程。
+
+设置页提供「从服务获取模型列表」按钮，仅在点击时使用当前未保存的 provider/baseUrl/apiKey 请求服务，不逐模型探测、不调用推理。支持 OpenAI/OpenAI-compatible 的 `{baseUrl}/models`、Anthropic `/v1/models`（官方 version/header，最多 5 页）；默认 endpoint 与 provider 对齐，尾部 `/v1` 不重复添加。请求总超时 10 秒、总响应 1 MiB、最多 500 个候选，达到分页上限会提示手填补充。
+
+成功仅填充草稿 `models`，原默认模型若缺失则补回；必须手动保存才生效，不切换正在运行的会话。失败保留原列表，可继续在 JSON 手动填写。新密钥沿用现有 transit seal，密钥占位符由服务端解密持久化 key；仅相同 endpoint 可复用占位凭据，修改 endpoint 后需重新输入密钥。接口复用现有鉴权/origin 保护，返回仅包含候选 id/name 和截断标记，不返回服务错误或凭据。
+
+Host 仅通过 `MSINSIGHT_NATIVE_CONFIG_PATH` 指向其可写配置（不传递模型或 Tool schema）；Native 启动时读取目录，凭据仍通过原有私有进程环境传递。ACP `session/new` / `session/load` 返回 `id: "model"`、`category: "model"`、`type: "select"`、`currentValue` 和 `options: [{value, name}]`。Composer 复用已有模型选择器，调用：
+
+```json
+{"method":"session/set_config_option","params":{"sessionId":"<session-id>","configId":"model","value":"service-model-b"}}
+```
+
+会话 metadata 保存 `modelId`；空闲会话可以切换模型且保留 AI SDK 历史，运行中拒绝切换。旧会话仅在缺少 id 时迁移默认值；未知或已删除 id 在 load/prompt 明确报错，禁止静默回退（可显式切换到有效模型恢复）。每轮从会话解析模型，以独立 env 副本创建 SDK model，不改变共享环境或其他会话。ACP 仅返回模型 id/展示名，不返回 endpoint、provider 或凭据。仅支持同一服务的模型切换，不支持跨 provider 切换；不同模型对已有工具/消息历史的兼容性由服务负责。
+
+下面的环境变量示例仅用于独立启动 Native；未指定配置路径时兼容单模型模式。`MSINSIGHT_NATIVE_BASE_URL` 可覆盖 provider endpoint，`openai-compatible` 必填。
 
 ### OpenAI
 
@@ -107,10 +133,11 @@ MSINSIGHT_NATIVE_MODEL=claude-sonnet-4-6
 MSINSIGHT_NATIVE_BASE_URL=http://host:port
 ```
 
-### DeepSeek
+### DeepSeek 服务（使用 OpenAI-compatible 协议）
 
 ```text
-MSINSIGHT_NATIVE_PROVIDER=deepseek
+MSINSIGHT_NATIVE_PROVIDER=openai-compatible
+MSINSIGHT_NATIVE_BASE_URL=https://api.deepseek.com/v1
 MSINSIGHT_NATIVE_API_KEY=...
 MSINSIGHT_NATIVE_MODEL=deepseek-chat
 ```
@@ -127,13 +154,13 @@ MSINSIGHT_NATIVE_MODEL=...
 可选 runtime 参数：
 
 ```text
-MSINSIGHT_NATIVE_MAX_STEPS=12
+MSINSIGHT_NATIVE_MAX_STEPS=24
 MSINSIGHT_NATIVE_TEMPERATURE=0.2
-MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS=32768
+MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS=100000
 MSINSIGHT_FRONTEND_COMMAND_TIMEOUT_MS=30000
 ```
 
-单次模型调用的最大输出默认为 32768 tokens（32K），可通过 `MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS` 覆盖；配置值应符合所选模型的输出上限。
+单次模型调用的最大输出默认为 100000 tokens（100K），可通过 `MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS` 覆盖；配置值应符合所选模型的输出上限。
 
 ## 页面观察
 

@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { jsonSchema, stepCountIs, streamText, tool } from "ai";
@@ -25,11 +24,13 @@ import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { limitedToolValue, parseRetryAfterSeconds } from "../shared/utils.mjs";
 import { resolveShellRuntime } from "../tools/shellRuntime.mjs";
+import { normalizeModelCatalog, resolveSessionModel } from "../config/modelCatalog.mjs";
 
 const STATE_VERSION = 1;
 
 export const createRuntime = ({
     env = process.env,
+    modelCatalog = normalizeModelCatalog({ model: env.MSINSIGHT_NATIVE_MODEL }),
     aiSdkStoragePath,
     toolRegistry,
     notifier,
@@ -42,7 +43,9 @@ export const createRuntime = ({
         let model;
         const rateLimit = createRateLimitObserver({ sessionId, notifier });
         try {
-            model = createModel(env, rateLimit.fetch);
+            // Resolve each turn, without mutating the shared endpoint env or another session.
+            const modelId = resolveSessionModel(modelCatalog, session);
+            model = createModel({ ...env, MSINSIGHT_NATIVE_MODEL: modelId }, rateLimit.fetch);
         } catch (error) {
             rateLimit.clear();
             return { ok: false, reason: error.message };
@@ -72,7 +75,7 @@ export const createRuntime = ({
                     toolChoice: "none",
                     system: `${system}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
                 } : undefined,
-                maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 32768),
+                maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 100000),
                 maxRetries: 2,
                 abortSignal: controller.signal,
                 experimental_context: { sessionId },
@@ -179,7 +182,6 @@ export const createAiSdkModel = (env, fetch) => {
     if (!apiKey || !modelId) return undefined;
     if (providerType === "openai") return createOpenAI({ apiKey, baseURL, fetch })(modelId);
     if (providerType === "anthropic") return createAnthropic({ apiKey, baseURL, fetch })(modelId);
-    if (providerType === "deepseek") return createDeepSeek({ apiKey, baseURL, fetch })(modelId);
     if (providerType === "openai-compatible") {
         if (!baseURL) return undefined;
         return createOpenAICompatible({ name: "openai-compatible", apiKey, baseURL, fetch })(modelId);

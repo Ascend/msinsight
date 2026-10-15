@@ -221,6 +221,8 @@ const assertPackagedUnsupportedProvider = async (provider) => {
         env: {
             ...process.env,
             MSINSIGHT_NATIVE_PROVIDER: provider,
+            MSINSIGHT_NATIVE_MODEL: "test-model",
+            MSINSIGHT_NATIVE_CONFIG_PATH: "",
             MSINSIGHT_NATIVE_API_KEY: "test-key",
             MSINSIGHT_NATIVE_STORE_DIR: storeDir,
         },

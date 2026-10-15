@@ -21,7 +21,9 @@ import { join } from "node:path";
 import { presentCatalogAgents } from "./agentDiscoveryService.mjs";
 import { agentLaunchKey, BUILTIN_AGENT_NAME } from "./agentIdentityService.mjs";
 import { createSecretCrypto, nativeApiKeyAad, SecretCryptoError } from "../security/secretCrypto.mjs";
-import { isTransitEnvelope, projectSnapshot } from "../security/secretProjection.mjs";
+import { normalizeModelCatalog } from "../native-agent/config/modelCatalog.mjs";
+import { isTransitEnvelope, projectSnapshot, SECRET_PLACEHOLDER } from "../security/secretProjection.mjs";
+import { fetchProviderModels, modelListEndpoint } from "./modelListService.mjs";
 
 const AGENT_CONFIG_FILE = "agent-servers.json";
 const SESSION_CONFIG_FILE = "acp-session-conf.json";
@@ -39,6 +41,8 @@ export const createAgentConfigService = ({
     getDiscoveredAgents,
     getConfiguredAgents,
     secretCrypto = createSecretCrypto(),
+    modelListFetch = globalThis.fetch,
+    modelListTimeoutMs = 10000,
 } = {}) => {
     const agentConfigPath = join(rootDir, AGENT_CONFIG_FILE);
     const sessionConfigPath = join(rootDir, SESSION_CONFIG_FILE);
@@ -132,7 +136,36 @@ export const createAgentConfigService = ({
         });
     };
 
-    return { readSnapshot, saveAgentServers, saveBuiltinAgent, saveSessionConfig };
+    const fetchBuiltinModels = async (input) => {
+        if (!input || typeof input !== "object" || typeof input.provider !== "string"
+            || typeof input.baseUrl !== "string") return structuredError("validation_failed", "Invalid model list request", 400);
+        let endpoint;
+        try {
+            endpoint = modelListEndpoint(input.provider, input.baseUrl);
+        } catch {
+            return structuredError("model_list_unsupported", "Unsupported provider or invalid base URL", 400);
+        }
+        try {
+            const persisted = await readJson(nativeConfigPath);
+            // Placeholder reuse is endpoint-scoped, not provider-scoped: compatible adapters can share a key.
+            // Never send a persisted key to a newly edited destination without explicitly entering a key.
+            if (input.apiKey === SECRET_PLACEHOLDER || input.apiKey === undefined || input.apiKey === null) {
+                if (endpoint.href !== modelListEndpoint(persisted.provider ?? "openai", persisted.baseUrl ?? "").href) {
+                    return structuredError("secret_endpoint_changed", "Enter an API key for the changed endpoint", 400);
+                }
+            }
+            const encrypted = secretCrypto.resolveIncomingSecret(input.apiKey, persisted.apiKey, nativeApiKeyAad());
+            const apiKey = secretCrypto.openAtRest(encrypted, nativeApiKeyAad());
+            return await fetchProviderModels({ provider: input.provider, baseUrl: input.baseUrl, apiKey,
+                fetchImpl: modelListFetch, timeoutMs: modelListTimeoutMs });
+        } catch (error) {
+            // Provider/transport/crypto messages may contain credentials or endpoints; never log or forward them.
+            if (error instanceof SecretCryptoError) return structuredError("model_list_secret_invalid", "API key could not be read; enter it again", 400);
+            return structuredError("model_list_failed", "Could not fetch models; check settings or enter models in JSON", 502);
+        }
+    };
+
+    return { readSnapshot, saveAgentServers, saveBuiltinAgent, saveSessionConfig, fetchBuiltinModels };
 };
 
 const readJson = async (path) => JSON.parse((await readFile(path, "utf8")).replace(/^﻿/, ""));
@@ -163,6 +196,7 @@ const normalizeSnapshot = (agentConfig = {}, sessionConfig = {}, builtinAgent = 
 };
 
 const normalizeBuiltinAgent = (config = {}) => ({
+    models: normalizeModelCatalog(config).models,
     schemaVersion: 1,
     name: BUILTIN_AGENT_NAME,
     provider: String(config.provider ?? "openai"),
@@ -242,12 +276,18 @@ const validateAgentConfig = (input, currentSnapshot, catalogAgents = []) => {
 const validateBuiltinConfig = (input) => {
     if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "built-in agent config must be an object", 400);
     const errors = [];
-    const config = validateBuiltinAgent(input, errors);
+    let config;
+    try {
+        config = validateBuiltinAgent(input, errors);
+    } catch (error) {
+        return structuredError("validation_failed", error.message, 400);
+    }
     if (errors.length) return structuredError("validation_failed", errors[0].message, 400, { details: errors });
     return { config: {
         schemaVersion: 1,
         provider: config.provider,
-        model: config.model,
+        model: config.model.trim(),
+        models: config.models,
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
     } };
@@ -296,7 +336,9 @@ const validateAgentServers = (servers, currentSnapshot, errors) => {
 
 const validateBuiltinAgent = (input, errors) => {
     const config = normalizeBuiltinAgent(input);
-    if (!config.provider.trim()) errors.push({ field: "builtinAgent.provider", message: "provider is required" });
+    if (!["openai", "openai-compatible", "anthropic"].includes(config.provider)) {
+        errors.push({ field: "builtinAgent.provider", message: "provider must be openai, openai-compatible or anthropic" });
+    }
     if (!config.model.trim()) errors.push({ field: "builtinAgent.model", message: "model is required" });
     if (!config.baseUrl.trim()) errors.push({ field: "builtinAgent.baseUrl", message: "base URL is required" });
     return config;

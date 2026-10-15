@@ -29,7 +29,14 @@ const NATIVE_CONFIG_FILE = "msinsight-native.json";
 const AGENT_SERVERS_CONFIG_FILE = "agent-servers.json";
 const CAPABILITY_CENTER_CONFIG_FILE = "capability-center.json";
 const DEFAULT_AGENT_SERVERS_CONFIG = { agentServers: [] };
-const DEFAULT_NATIVE_CONFIG = { schemaVersion: 1, provider: "openai", model: "cx/gpt-5.5", baseUrl: "http://127.0.0.1:19099/v1", apiKey: "" };
+const DEFAULT_NATIVE_CONFIG = {
+    schemaVersion: 1,
+    provider: "openai-compatible",
+    model: "deepseek-flash",
+    models: [{ id: "deepseek-flash", name: "DeepSeek-V4.1-Flash" }],
+    baseUrl: "https://api.deepseek.com/v1",
+    apiKey: "",
+};
 
 const defaultRootDir = (() => {
     const entryDir = dirname(resolve(process.argv[1] ?? "."));
@@ -330,6 +337,7 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         command: process.execPath,
         args: ["server/native-agent/index.mjs"],
         env: {
+            MSINSIGHT_NATIVE_CONFIG_PATH: nativeConfigPath,
             MSINSIGHT_NATIVE_PROVIDER: String(persistedNative.provider ?? "openai"),
             MSINSIGHT_NATIVE_MODEL: String(persistedNative.model ?? ""),
             MSINSIGHT_NATIVE_BASE_URL: String(persistedNative.baseUrl ?? ""),

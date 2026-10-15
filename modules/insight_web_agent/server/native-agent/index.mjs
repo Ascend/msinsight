@@ -119,10 +119,19 @@ const sessionStore = createSessionStore({
     canonicalizeFilesystemRoots: filesystem.canonicalizeFilesystemRoots,
     canonicalizeProjectRoot: filesystem.canonicalizeProjectRoot,
 });
-const aiRuntime = createRuntime({ aiSdkStoragePath, toolRegistry, notifier });
+// The host supplies its writable config path (not bundled resources, which may be stale).
+// Only the normalized model directory is retained here; credentials never enter ACP metadata.
+const { readFile } = await import("node:fs/promises");
+const { normalizeModelCatalog } = await import("./config/modelCatalog.mjs");
+const modelConfig = process.env.MSINSIGHT_NATIVE_CONFIG_PATH
+    ? JSON.parse((await readFile(process.env.MSINSIGHT_NATIVE_CONFIG_PATH, "utf8")).replace(/^﻿/, ""))
+    : { model: process.env.MSINSIGHT_NATIVE_MODEL };
+const modelCatalog = normalizeModelCatalog(modelConfig);
+const aiRuntime = createRuntime({ aiSdkStoragePath, toolRegistry, notifier, modelCatalog });
 const sessionService = createNativeSessionService({
     sessions,
     running,
+    modelCatalog,
     aiRuntime,
     sessionStore,
     filesystem,

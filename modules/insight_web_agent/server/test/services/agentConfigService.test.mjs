@@ -26,7 +26,7 @@ import { createAgentConfigService } from "../../services/agentConfigService.mjs"
 import { createSecretCrypto, isAtRestEnvelope } from "../../security/secretCrypto.mjs";
 import { SECRET_PLACEHOLDER } from "../../security/secretProjection.mjs";
 
-const createFixture = async () => {
+const createFixture = async (options = {}) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-agent-config-"));
     await writeJson(join(rootDir, "agent-servers.json"), {
         activeAgent: "OpenCode",
@@ -61,6 +61,7 @@ const createFixture = async () => {
         rootDir,
         state,
         secretCrypto,
+        ...options,
         reloadRuntime: async (snapshot) => {
             reloads.push(snapshot);
             return { snapshot };
@@ -140,6 +141,7 @@ test("reads a normalized agent and session config snapshot", async () => {
             name: "msinsight-native",
             provider: "openai",
             model: "cx/gpt-5.5",
+            models: [{ id: "cx/gpt-5.5", name: "cx/gpt-5.5" }],
             baseUrl: "http://127.0.0.1:19099/v1",
             apiKey: "",
         },
@@ -156,6 +158,25 @@ test("reads a normalized agent and session config snapshot", async () => {
             },
         },
     });
+});
+
+test("native model lists round trip, deduplicate, validate default membership and preserve secret projection", async (t) => {
+    const fixture = await createFixture();
+    t.after(() => rm(fixture.rootDir, { recursive: true, force: true }));
+    const old = (await fixture.service.readSnapshot()).builtinAgent;
+    assert.deepEqual(old.models, [{ id: old.model, name: old.model }]);
+    const models = [{ id: old.model, name: "Default" }, { id: "second", name: "Second" }, { id: "second", name: "Duplicate" }];
+    const result = await fixture.service.saveBuiltinAgent({ ...old, models });
+    assert.equal(result.ok, true);
+    assert.deepEqual((await fixture.service.readSnapshot()).builtinAgent.models, models.slice(0, 2));
+    const persisted = await readJson(join(fixture.rootDir, "msinsight-native.json"));
+    assert.deepEqual(persisted.models, models.slice(0, 2));
+    assert.equal(persisted.model, old.model);
+    for (const invalid of [[], "second", [{ id: "" }], [{ id: "second" }], [{ id: old.model, name: "" }]]) {
+        const rejected = await fixture.service.saveBuiltinAgent({ ...old, models: invalid });
+        assert.equal(rejected.error, "validation_failed");
+    }
+    assert.deepEqual((await fixture.service.readSnapshot()).builtinAgent.models, models.slice(0, 2));
 });
 
 test("normalizes an omitted docs allowlist flag to false", async () => {
@@ -558,4 +579,62 @@ test("returns config_write_failed when output files cannot be written and leaves
     assert.equal(blockedService.reloads.length, 0);
     assert.equal(await readText(join(fixture.rootDir, "agent-servers.json")), beforeAgentConfig);
     assert.equal(await readText(join(fixture.rootDir, "acp-session-conf.json")), beforeSessionConfig);
+});
+
+
+test("model listing reuses an endpoint-scoped persisted key without saving or reloading", async () => {
+    let calls = 0;
+    const fixture = await createFixture({ modelListFetch: async (url, options) => {
+        calls++;
+        assert.equal(url, "http://127.0.0.1:19099/v1/models");
+        assert.equal(options.headers.authorization, "Bearer stored-test-key");
+        return new Response(JSON.stringify({ data: [{ id: "other-model" }] }));
+    } });
+    try {
+        const path = join(fixture.rootDir, "msinsight-native.json");
+        const config = await readJson(path);
+        await writeJson(path, { ...config, apiKey: fixture.crypto.sealAtRest("stored-test-key", "msinsight-native.json|apiKey") });
+        const before = await readText(path);
+        const input = { provider: "openai-compatible", baseUrl: config.baseUrl, apiKey: SECRET_PLACEHOLDER };
+        const result = await fixture.service.fetchBuiltinModels(input);
+        assert.deepEqual(result.models, [{ id: "other-model", name: "other-model" }]);
+        assert.equal(await readText(path), before);
+        assert.deepEqual(fixture.reloads, []);
+        const failed = await fixture.service.fetchBuiltinModels({ ...input, baseUrl: "https://different.test/v1" });
+        assert.equal(failed.error, "secret_endpoint_changed");
+        assert.equal(calls, 1);
+    } finally { await rm(fixture.rootDir, { recursive: true, force: true }); }
+});
+
+test("unsaved transit key works without a save, and malformed/plaintext keys never reach the provider", async () => {
+    let calls = 0;
+    const fixture = await createFixture({ modelListFetch: async (_url, options) => {
+        calls++;
+        assert.equal(options.headers.authorization, "Bearer unsaved-test-key");
+        return new Response(JSON.stringify({ data: [{ id: "model" }] }));
+    } });
+    try {
+        const path = join(fixture.rootDir, "msinsight-native.json");
+        const before = await readText(path);
+        const input = { provider: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", apiKey: fixture.crypto.sealTransit("unsaved-test-key") };
+        assert.ok((await fixture.service.fetchBuiltinModels(input)).models);
+        for (const apiKey of ["plaintext-test-key", SECRET_PLACEHOLDER, { v: 1 }]) {
+            assert.equal((await fixture.service.fetchBuiltinModels({ ...input, apiKey })).status, 400);
+        }
+        assert.equal(calls, 1);
+        assert.equal(await readText(path), before);
+        assert.deepEqual(fixture.reloads, []);
+    } finally { await rm(fixture.rootDir, { recursive: true, force: true }); }
+});
+
+test("model listing redacts provider transport errors and leaves settings intact", async () => {
+    const fixture = await createFixture({ modelListFetch: async () => { throw new Error("unsaved-test-key https://private.test provider raw error"); } });
+    try {
+        const path = join(fixture.rootDir, "msinsight-native.json");
+        const before = await readText(path);
+        const result = await fixture.service.fetchBuiltinModels({ provider: "openai", baseUrl: "", apiKey: fixture.crypto.sealTransit("unsaved-test-key") });
+        assert.equal(result.error, "model_list_failed");
+        assert.doesNotMatch(JSON.stringify(result), /unsaved-test-key|private.test|provider raw/);
+        assert.equal(await readText(path), before);
+    } finally { await rm(fixture.rootDir, { recursive: true, force: true }); }
 });

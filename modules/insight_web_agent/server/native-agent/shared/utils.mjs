@@ -81,6 +81,7 @@ export const toStoredSession = (session) => ({
     sessionId: session.sessionId,
     title: session.title,
     hostSystemPrompt: session.hostSystemPrompt,
+    modelId: session.modelId,
     primaryAgentId: session.primaryAgentId ?? "general",
     primaryAgentFingerprint: session.primaryAgentFingerprint,
     promptStarted: Boolean(session.promptStarted),

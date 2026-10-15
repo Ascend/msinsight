@@ -41,6 +41,11 @@ export const createAgentConfigController = ({ agentConfigService }) => ({
         return json(res, normalizeBody(result), result.status ?? 200);
     },
 
+    async fetchBuiltinModels(_req, res, body) {
+        const result = await agentConfigService.fetchBuiltinModels(body);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+
     async saveSessionConfig(_req, res, body) {
         const result = await agentConfigService.saveSessionConfig(body);
         return json(res, normalizeBody(result), result.status ?? 200);

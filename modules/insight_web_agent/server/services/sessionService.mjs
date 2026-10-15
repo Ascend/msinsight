@@ -415,14 +415,17 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
                 400,
             );
         }
-        state.preferredModel = value;
         if (!targetSessionId) {
+            state.preferredModel = value;
             setConfigOptionCurrentValue({ eventBus, state }, modelConfig.id, value, null);
             broadcastState();
             console.log(`Preferred model set globally: model=${value}`);
             return { ok: true, configOptions: state.configOptions };
         }
-        return setSessionConfigOption(modelConfig.id, value, targetSessionId);
+        const result = await setSessionConfigOption(modelConfig.id, value, targetSessionId);
+        // A rejected session change must not become the preference for future sessions.
+        if (result.ok) state.preferredModel = value;
+        return result;
     };
 
     const setMode = async (mode, sessionId) => {
