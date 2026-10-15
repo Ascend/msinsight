@@ -592,6 +592,35 @@ def package_linux(dst_file: str, preview_dir: str) -> bool:
     return True
 
 
+def verify_mac_bundled_python_executable(app_path: str) -> bool:
+    """
+    打包后校验内置 Python 解释器仍可执行。
+
+    能力中心（capability-center.json 的 darwin 命令）与服务端 PythonUtil 都以绝对路径调用
+    <app>/Contents/Resources/python/bin/python3；签名后的最小权限回收曾把该文件置为 0440，
+    导致 pt_snap 能力被静默丢弃。这里显式拦住同类回归。
+    """
+    bundled_python = os.path.join(app_path, 'Contents', 'Resources', 'python', 'bin', 'python3')
+    if not os.path.isfile(bundled_python) or not os.access(bundled_python, os.X_OK):
+        logging.error('[%s] Bundled Python interpreter is missing or not executable: %s', 'bin_package', bundled_python)
+        return False
+    return True
+
+
+def restore_mac_bundled_python_permissions(resources_dir: str) -> None:
+    """
+    恢复内置 Python 解释器的可执行位。
+
+    package_mac() 已把解释器从 profiler/server/python 移到 Contents/Resources/python，而签名后的
+    最小权限回收会先把整个 Resources 置为 0440、只把 profiler/server 子树恢复为 0550。能力中心
+    （capability-center.json 的 darwin 命令）与服务端 PythonUtil 都以绝对路径调用该解释器，缺少
+    执行位会让 pt_snap 能力被静默丢弃、集群分析无法运行。
+    """
+    bundled_python_bin_dir = os.path.join(resources_dir, 'python', 'bin')
+    if os.path.isdir(bundled_python_bin_dir):
+        traverse_folder_and_chmod(bundled_python_bin_dir, 0o750, 0o550)
+
+
 def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: str) -> bool:
     system = platform.system()
     bin_file = file_names.get((system, 'bin'), 'MindStudioInsight')
@@ -619,6 +648,8 @@ def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: 
     if "aarch64" in package_name and not resign_mac_app(preview_app):
         return False
     if not chmod_mac_app(preview_app, 'aarch64' if 'aarch64' in package_name else 'x86_64'):
+        return False
+    if not verify_mac_bundled_python_executable(preview_app):
         return False
     if not verify_mac_packaged_rag(preview_app):
         return False
@@ -692,6 +723,8 @@ def resign_mac_app(preview_app: str):
     # 签名后重新设置resources最小权限
     traverse_folder_and_chmod(resources_dir, 0o750, 0o440)
     traverse_folder_and_chmod(server_dir, 0o750, 0o550)
+
+    restore_mac_bundled_python_permissions(resources_dir)
     if not os.path.isdir(msprof_analyze_dir):
         logging.error('msprof_analyze runtime directory not found: %s', msprof_analyze_dir)
         return False
@@ -1419,8 +1452,10 @@ def main():
 
     context = build_context_from_args(args)
     if context.rag is not None:
-        logging.info('RAG dependency build mode: %s; knowledge package and model use configured local inputs.',
-                     'offline' if context.offline else 'online')
+        logging.info(
+            'RAG dependency build mode: %s; knowledge package and model use configured local inputs.',
+            'offline' if context.offline else 'online',
+        )
         context.source_snapshot = capture_source_snapshot(Path(PROJECT_PATH))
         context.rag_facts = preflight_rag_inputs(
             context.rag.pack,
