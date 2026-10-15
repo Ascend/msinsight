@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
 import { strict as assert } from "node:assert";
 import test from "node:test";
+import { build } from "esbuild";
 
 const serverEntry = fileURLToPath(new URL("../../index.mjs", import.meta.url));
 const CAPABILITY_TOKEN = "reload-lifecycle-test-capability";
@@ -127,6 +128,58 @@ lineReader.on("line", (line) => {
     send(message.id, { result: null });
 });
 `;
+
+test("bundled Host listens and serves state while its RAG worker is still initializing", { timeout: 10000 }, async (t) => {
+    const fixture = await createServerFixture();
+    await writeJson(join(fixture.rootDir, "acp-session-conf.json"), { ...sessionConfig(), rag: { enabled: true, failOpen: true } });
+    const entry = join(fixture.rootDir, "index.mjs");
+    await bundleHost(entry);
+    await writeFile(join(fixture.rootDir, "rag-worker.mjs"), `
+        import { parentPort } from 'node:worker_threads';
+        const until = Date.now() + 3000;
+        while (Date.now() < until) {}
+        parentPort.postMessage({ type: 'status', status: { enabled: true, chunks: 2557 } });
+        parentPort.on('message', () => {});
+    `);
+    const server = launchServer(fixture, { autoDiscovery: false, entry });
+    t.after(async () => { await stopProcess(server); await rm(fixture.rootDir, { recursive: true, force: true }); });
+    const state = await waitFor(async () => {
+        const response = await requestJson(fixture.port, "/api/state");
+        return response.status === 200 ? response.body : undefined;
+    }, { timeoutMs: 2000 });
+    assert.equal(state.ragStatus.phase, "initializing");
+    await waitFor(async () => {
+        const response = await requestJson(fixture.port, "/api/state");
+        return response.body.ragStatus.phase === "ready";
+    }, { timeoutMs: 5000 });
+});
+
+test("fail-closed RAG worker failure shuts down the bundled Host and active ACP process", { timeout: 10000 }, async (t) => {
+    const fixture = await createServerFixture();
+    await writeJson(join(fixture.rootDir, "acp-session-conf.json"), { ...sessionConfig(), rag: { enabled: true, failOpen: false } });
+    const entry = join(fixture.rootDir, "index.mjs");
+    await bundleHost(entry);
+    await writeFile(join(fixture.rootDir, "rag-worker.mjs"), `
+        import { parentPort } from 'node:worker_threads';
+        setTimeout(() => { parentPort.postMessage({ type: 'failed', reason: 'checksum_mismatch' }); parentPort.close(); }, 300);
+    `);
+    const server = launchServer(fixture, { autoDiscovery: false, entry });
+    t.after(async () => { await stopProcess(server); await rm(fixture.rootDir, { recursive: true, force: true }); });
+    const [code] = await once(server, "exit");
+    assert.equal(code, 1);
+    await waitFor(async () => /exit:ok:0|stdin_end:ok|signal:ok:SIGTERM/.test(await readText(fixture.logPath)), { timeoutMs: 3000 });
+});
+
+const bundleHost = (outfile) => build({
+    entryPoints: [serverEntry],
+    outfile,
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node22.14",
+    external: ["node:*", "onnxruntime-node", "@huggingface/tokenizers", "@node-rs/jieba", "@node-rs/jieba/dict.js"],
+    banner: { js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);' },
+});
 
 test("workspace Skills are installed before the ACP process starts", async (t) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-index-skill-startup-"));
@@ -485,8 +538,9 @@ const launchServer = ({ rootDir, logPath, port }, {
     capabilityToken = CAPABILITY_TOKEN,
     workspaceDir = join(rootDir, "agent-workspace"),
     autoDiscovery,
+    entry = serverEntry,
 } = {}) => spawn(process.execPath, [
-    serverEntry,
+    entry,
     "--path", rootDir,
     "--resource-path", rootDir,
     "--port", String(port),

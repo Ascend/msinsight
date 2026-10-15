@@ -37,7 +37,7 @@ import { createFileReadService, createPermissionHostHandler } from "./services/f
 import { createFrontendCommandService } from "./services/frontendCommandService.mjs";
 import { createPageContextService } from "./services/pageContextService.mjs";
 import { createPermissionService } from "./services/permissionService.mjs";
-import { createRagService } from "./services/rag/ragService.mjs";
+import { createBackgroundRagService } from "./services/rag/backgroundRagService.mjs";
 import { createSessionManager } from "./services/sessionManager.mjs";
 import { createSessionService } from "./services/sessionService.mjs";
 import { syncPackagedSkills } from "./services/workspaceSkillSync.mjs";
@@ -149,25 +149,35 @@ const createActiveAcpAdapter = (agentServer, sharedWorkspacePath, { autoConnect 
 };
 
 const initializeSharedWorkspace = async () => {
+    const started = performance.now();
     const result = await syncPackagedSkills({
         sourceSkillsDir: bundledResourceDirectory("skills"),
         agentWorkspacePath: config.cwd,
     });
     config.cwd = result.workspaceRoot;
     await syncProjectRules(result.workspaceRoot, config.systemPrompt);
-    console.log(`Packaged Skills synchronized: count=${result.installed.length}`);
+    console.log(`Packaged Skills synchronized: count=${result.installed.length} updated=${result.updated.length} skipped=${result.skipped.length} elapsedMs=${Math.round(performance.now() - started)}`);
     return result.workspaceRoot;
 };
 
 await mkdir(config.cwd, { recursive: true });
 const sharedWorkspacePath = await initializeSharedWorkspace();
 
-const ragService = await createRagService({ config: config.rag });
-
 const state = createRuntimeState();
 const autoDiscoveryEnabled = process.env.ACP_AUTO_DISCOVERY !== "0";
 state.agentDiscoveryLoading = autoDiscoveryEnabled;
 const eventBus = createEventBus(state);
+const ragService = createBackgroundRagService({
+    config: config.rag,
+    // This URL is relative to index.mjs in both source and bundled products.
+    workerUrl: new URL("./rag-worker.mjs", import.meta.url),
+    onStatus(status) {
+        state.ragStatus = status;
+        eventBus.broadcast({ type: "state", state: publicState(state) });
+    },
+    onFatal: () => void shutdown(1),
+});
+state.ragStatus = ragService.getStatus();
 const frontendCommandService = createFrontendCommandService({ eventBus });
 // 两个 Token 都固定于当前 Host 进程且不写盘，分别隔离 MCP 与 Native 内部执行边界。
 const capabilityAccessToken = randomUUID();
@@ -291,8 +301,10 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
         permissionService.resetRuntime();
         resetRuntimeForAgent(state, { agentServers: listedAgentServers(), activeAgentName: nextAgentServer.name });
         state.activeContext = previousState.activeContext;
+        if (shuttingDown) throw new Error("Host is shutting down");
         nextClient.connect();
         await chatService.initialize({ targetAdapter: nextClient, broadcast: false, refreshSessions: false });
+        if (shuttingDown) throw new Error("Host is shutting down");
         if (!state.initialized) throw new Error(state.agentError ?? "ACP agent initialization failed");
         activeAcpMessageBuffer = undefined;
         stagedAcpMessageBuffers.delete(nextClient);
@@ -508,6 +520,7 @@ const shutdown = (exitCode = 0) => {
     shuttingDown = true;
     shutdownPromise = (async () => {
         frontendCommandService.dispose();
+        await ragService.close();
         await httpMcpAdapter.close();
         eventBus.close();
         await new Promise((done) => {
@@ -557,10 +570,13 @@ server.on("error", (error) => {
     void shutdown(1);
 });
 
+if (listening && !shuttingDown) void ragService.start();
+
 if (listening && !shuttingDown && autoDiscoveryEnabled) {
     try {
         const excludedLaunchKeys = new Set(config.configuredAgentServers.map(agentLaunchKey));
         const discovery = await discoverAgents({ cwd: config.cwd, excludedLaunchKeys });
+        if (shuttingDown) throw new Error("Host is shutting down");
         logAgentDiscoveryResults("discovery", discovery.results);
         discoveredAgentServers = discovery.agentServers;
         syncListedAgentServers();
@@ -574,7 +590,7 @@ if (listening && !shuttingDown && autoDiscoveryEnabled) {
         console.log(`ACP agent discovery available configs: ${JSON.stringify(discoveredAgentServers.map(agentConfigForLog))}`);
     } catch (error) {
         console.warn(`ACP agent discovery failed: ${error.message}`);
-        await chatService.initialize({ broadcast: false });
+        if (!shuttingDown) await chatService.initialize({ broadcast: false });
     } finally {
         state.agentDiscoveryLoading = false;
         syncListedAgentServers();

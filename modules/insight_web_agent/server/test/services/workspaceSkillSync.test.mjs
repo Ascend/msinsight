@@ -7,7 +7,7 @@
  * -------------------------------------------------------------------------
  */
 import assert from "node:assert/strict";
-import { lstat, mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -95,4 +95,85 @@ test("syncPackagedSkills rejects overlapping source and workspace roots", async 
         sourceSkillsDir: fixture.sourceSkillsDir,
         agentWorkspacePath: nestedWorkspace,
     }), /must not overlap/);
+});
+
+test("unchanged Skills are skipped without rewriting target files", async (t) => {
+    const fixture = await createFixture(t);
+    await writeSkill(fixture.sourceSkillsDir, "inspect-memory", "instructions");
+    const first = await syncPackagedSkills(fixture);
+    const target = join(first.targetRoot, "inspect-memory", "SKILL.md");
+    await utimes(target, new Date("2000-01-01"), new Date("2000-01-01"));
+    const before = await lstat(target);
+    const second = await syncPackagedSkills(fixture);
+    assert.deepEqual(first.updated, ["inspect-memory"]);
+    assert.deepEqual(second.installed, ["inspect-memory"]);
+    assert.deepEqual(second.updated, []);
+    assert.deepEqual(second.skipped, ["inspect-memory"]);
+    assert.equal((await lstat(target)).mtimeMs, before.mtimeMs);
+});
+
+test("directories without a regular SKILL.md are not installed or counted", async (t) => {
+    const fixture = await createFixture(t);
+    await mkdir(join(fixture.sourceSkillsDir, "tests"));
+    await mkdir(join(fixture.sourceSkillsDir, "invalid", "SKILL.md"), { recursive: true });
+    await writeSkill(fixture.sourceSkillsDir, "real-skill", "instructions");
+    const result = await syncPackagedSkills(fixture);
+    assert.deepEqual(result.installed, ["real-skill"]);
+    await assert.rejects(lstat(join(result.targetRoot, "tests")), { code: "ENOENT" });
+    await assert.rejects(lstat(join(result.targetRoot, "invalid")), { code: "ENOENT" });
+});
+
+test("updates changed contents even with identical size and restores missing target files", async (t) => {
+    const fixture = await createFixture(t);
+    await writeSkill(fixture.sourceSkillsDir, "inspect-memory", "old");
+    const first = await syncPackagedSkills(fixture);
+    const sourceGuide = join(fixture.sourceSkillsDir, "inspect-memory", "references", "guide.txt");
+    const targetGuide = join(first.targetRoot, "inspect-memory", "references", "guide.txt");
+    await writeFile(sourceGuide, "new");
+    assert.deepEqual((await syncPackagedSkills(fixture)).updated, ["inspect-memory"]);
+    assert.equal(await readFile(targetGuide, "utf8"), "new");
+    await rm(targetGuide);
+    assert.deepEqual((await syncPackagedSkills(fixture)).updated, ["inspect-memory"]);
+    assert.equal(await readFile(targetGuide, "utf8"), "new");
+    await writeFile(targetGuide, "bad");
+    assert.deepEqual((await syncPackagedSkills(fixture)).updated, ["inspect-memory"]);
+    assert.equal(await readFile(targetGuide, "utf8"), "new");
+});
+
+test("synchronizes added and removed files while preserving unrelated user Skills", async (t) => {
+    const fixture = await createFixture(t);
+    await writeSkill(fixture.sourceSkillsDir, "inspect-memory", "instructions");
+    const first = await syncPackagedSkills(fixture);
+    await writeSkill(first.targetRoot, "user-skill", "user content");
+    await rm(join(fixture.sourceSkillsDir, "inspect-memory", "references", "guide.txt"));
+    await writeFile(join(fixture.sourceSkillsDir, "inspect-memory", "new.txt"), "added");
+    assert.deepEqual((await syncPackagedSkills(fixture)).updated, ["inspect-memory"]);
+    await assert.rejects(lstat(join(first.targetRoot, "inspect-memory", "references", "guide.txt")), { code: "ENOENT" });
+    assert.equal(await readFile(join(first.targetRoot, "inspect-memory", "new.txt"), "utf8"), "added");
+    assert.equal(await readFile(join(first.targetRoot, "user-skill", "SKILL.md"), "utf8"), "user content");
+});
+
+test("does not follow a target Skill junction outside the workspace", async (t) => {
+    const fixture = await createFixture(t);
+    await writeSkill(fixture.sourceSkillsDir, "inspect-memory", "product content");
+    const first = await syncPackagedSkills(fixture);
+    const external = join(fixture.root, "external");
+    await writeSkill(external, "inspect-memory", "external content");
+    const target = join(first.targetRoot, "inspect-memory");
+    await rm(target, { recursive: true });
+    await symlink(join(external, "inspect-memory"), target, process.platform === "win32" ? "junction" : "dir");
+    await syncPackagedSkills(fixture);
+    assert.equal(await readFile(join(target, "SKILL.md"), "utf8"), "product content");
+    assert.equal(await readFile(join(external, "inspect-memory", "SKILL.md"), "utf8"), "external content");
+});
+
+test("rejects source junctions before first-install copying", async (t) => {
+    const fixture = await createFixture(t);
+    await writeSkill(fixture.sourceSkillsDir, "inspect-memory", "instructions");
+    const external = join(fixture.root, "external");
+    await mkdir(external);
+    await writeFile(join(external, "secret.txt"), "must not be copied");
+    await symlink(external, join(fixture.sourceSkillsDir, "inspect-memory", "linked"), process.platform === "win32" ? "junction" : "dir");
+    await assert.rejects(syncPackagedSkills(fixture), /must not contain symbolic links/);
+    await assert.rejects(lstat(join(fixture.agentWorkspacePath, ".agents", "skills", "inspect-memory")), { code: "ENOENT" });
 });

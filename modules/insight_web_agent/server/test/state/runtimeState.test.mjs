@@ -38,6 +38,17 @@ test("publicState exposes agent availability for the picker", () => {
     ]);
 });
 
+test("knowledge status is Host-global and survives Agent reset and rollback", () => {
+    const state = createRuntimeState();
+    state.ragStatus = { enabled: false, phase: "initializing", reason: "initializing" };
+    const snapshot = snapshotRuntimeState(state);
+    const ready = { enabled: true, phase: "ready" };
+    state.ragStatus = ready;
+    resetRuntimeForAgent(state, { agentServers: [], activeAgentName: "test" });
+    restoreRuntimeState(state, snapshot);
+    assert.deepEqual(publicState(state).ragStatus, ready);
+});
+
 test("publicState exposes only model-visible capability metadata", () => {
     const state = createRuntimeState();
     state.availableCapabilities = [{

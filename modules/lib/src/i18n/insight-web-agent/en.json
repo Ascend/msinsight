@@ -234,6 +234,8 @@
     "failedToReadImage": "failed to read image",
     "defaultAgent": "agent",
     "switchingAgent": "Switching agent...",
+    "ragInitializing": "The knowledge base is loading in the background. Other features remain available.",
+    "ragUnavailable": "The knowledge base is unavailable. Other features remain available.",
     "switchAgent": "Switch Agent",
     "argLabel": "Arg {{index}}",
     "envKeyLabel": "Env key {{index}}",

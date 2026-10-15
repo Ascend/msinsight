@@ -391,8 +391,18 @@ fn format_node_version(version: (u32, u32, u32)) -> String {
     format!("{}.{}.{}", version.0, version.1, version.2)
 }
 
+fn node_version_command() -> Command {
+    let mut command = Command::new("node");
+    command.arg("--version");
+    // The GUI has no console to inherit. Even a piped version probe would
+    // otherwise briefly create a console window on Windows.
+    #[cfg(windows)]
+    command.creation_flags(NO_WINDOW_FLAG);
+    command
+}
+
 fn inspect_node_runtime() -> NodeResolve {
-    let Ok(output) = Command::new("node").arg("--version").output() else {
+    let Ok(output) = node_version_command().output() else {
         eprintln!("Node executable was not found in PATH");
         return NodeResolve::Missing;
     };
@@ -811,7 +821,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     use super::wait_for_child_output;
     use super::{
-        acp_port_ready, parse_node_version, spawn_profiler_server, AcpLaunch,
+        acp_port_ready, node_version_command, parse_node_version,
+        spawn_profiler_server, AcpLaunch,
         MINIMUM_NODE_VERSION,
     };
 
@@ -835,6 +846,13 @@ mod tests {
         assert!(parse_node_version("v22.14.0").unwrap() >= MINIMUM_NODE_VERSION);
         assert!(parse_node_version("v22.13.1").unwrap() < MINIMUM_NODE_VERSION);
         assert_eq!(parse_node_version("not-node"), None);
+    }
+
+    #[test]
+    fn node_probe_runs_the_executable_directly_with_only_the_version_argument() {
+        let command = node_version_command();
+        assert_eq!(command.get_program(), "node");
+        assert_eq!(command.get_args().collect::<Vec<_>>(), ["--version"]);
     }
 
     #[test]

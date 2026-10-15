@@ -31,6 +31,14 @@ const Container = styled.main`
     color: ${(props): string => props.theme.textColorPrimary};
     position: relative;
 
+    .rag-status {
+        padding: 6px 12px;
+        background: ${(props): string => props.theme.bgColorLight};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+
     .agent-loading-mask {
         position: absolute;
         inset: 0;
@@ -47,12 +55,18 @@ const Container = styled.main`
 `;
 
 export const ChatPage = (): JSX.Element => {
-    const { agentDiscoveryLoading, switchingAgent } = useChatState();
+    const { agentDiscoveryLoading, switchingAgent, ragStatus } = useChatState();
     const { t } = useTranslation('insightWebAgent');
     const loading = agentDiscoveryLoading || switchingAgent;
 
     return (
         <Container aria-busy={loading}>
+            {ragStatus?.phase === 'initializing' && (
+                <div className="rag-status" role="status">{t('ragInitializing')}</div>
+            )}
+            {(ragStatus?.phase === 'failed' || (ragStatus?.phase === 'disabled' && ragStatus.reason !== 'disabled')) && (
+                <div className="rag-status" role="status">{t('ragUnavailable')}</div>
+            )}
             <SessionSidebar />
             <ChatPanel />
             {loading && (

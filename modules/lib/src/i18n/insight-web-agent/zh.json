@@ -234,6 +234,8 @@
     "failedToReadImage": "读取图片失败",
     "defaultAgent": "agent",
     "switchingAgent": "正在切换 Agent...",
+    "ragInitializing": "知识库正在后台加载，其他功能可正常使用。",
+    "ragUnavailable": "知识库暂不可用，其他功能可正常使用。",
     "switchAgent": "切换 Agent",
     "argLabel": "参数 {{index}}",
     "envKeyLabel": "环境变量名 {{index}}",

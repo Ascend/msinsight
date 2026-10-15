@@ -43,6 +43,7 @@ test("packaged bundle contains the mandatory fail-closed ONNX and capability smo
 test("packaged server preserves capability resources and contains RAG runtime contracts", () => {
     for (const path of [
         "index.mjs",
+        "rag-worker.mjs",
         "rag-cli.mjs",
         "capability-center.json",
         "rag-runtime/runtime-contract.json",

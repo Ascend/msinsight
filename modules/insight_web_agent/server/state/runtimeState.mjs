@@ -19,6 +19,7 @@ import { publicCapabilities } from "../services/capabilityService.mjs";
 
 export const createRuntimeState = () => ({
     initialized: false,
+    ragStatus: { enabled: false, phase: "disabled", reason: "disabled" },
     agentDiscoveryLoading: false,
     sessions: [],
     sessionContexts: new Map(),
@@ -70,6 +71,7 @@ const publicAgentServers = (agentServers = []) => agentServers.map((agent) => ({
 
 export const publicState = (state) => ({
     initialized: state.initialized,
+    ragStatus: state.ragStatus,
     configOptions: state.configOptions,
     activeAgentName: state.activeAgentName,
     agentServers: publicAgentServers(state.agentServers),

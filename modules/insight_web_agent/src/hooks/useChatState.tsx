@@ -33,9 +33,10 @@ import { downloadSessionExport } from '../sessionExportDownload';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { subscribeEvents } from '../eventStream';
 import { shouldPersistSessionExport } from '../env';
-import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, RagStatus, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
+    ragStatus?: RagStatus;
     configOptions: ConfigOption[];
     configOptionsLoading: boolean;
     agentServers: AgentServerItem[];
@@ -84,6 +85,7 @@ interface ChatStateValue {
 }
 
 interface ChatState {
+    ragStatus?: RagStatus;
     initialized?: boolean;
     activeSessionId?: string;
     isDraftSession: boolean;
@@ -191,6 +193,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => ({
             ...current,
             initialized: nextState.initialized,
+            ragStatus: nextState.ragStatus ?? current.ragStatus,
             configOptions: nextState.configOptions ?? current.configOptions,
             activeAgentName: nextState.activeAgentName ?? current.activeAgentName,
             agentInfo: nextState.agentInfo ?? current.agentInfo,
@@ -299,6 +302,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 const nextState = {
                     ...current,
                     initialized: event.state.initialized ?? current.initialized,
+                    ragStatus: event.state.ragStatus ?? current.ragStatus,
                     configOptions: event.state.configOptions ?? current.configOptions,
                     activeAgentName: event.state.activeAgentName ?? current.activeAgentName,
                     agentInfo: event.state.agentInfo ?? current.agentInfo,
@@ -910,6 +914,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const value = useMemo<ChatStateValue>(() => ({
+        ragStatus: state.ragStatus,
         configOptions: getActiveConfigOptions(state),
         configOptionsLoading: !state.agentError && (state.switchingAgent || state.agentDiscoveryLoading || state.initialized !== true),
         agentServers: state.agentServers,

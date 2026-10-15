@@ -239,8 +239,15 @@ export interface AvailableCapability {
     description?: string;
 }
 
+export interface RagStatus {
+    enabled: boolean;
+    phase: 'initializing' | 'ready' | 'disabled' | 'failed';
+    reason?: string;
+}
+
 export interface AppState {
     initialized?: boolean;
+    ragStatus?: RagStatus;
     agentError?: string;
     agentInfo?: AgentInfo;
     agentCapabilities?: AgentCapabilities;

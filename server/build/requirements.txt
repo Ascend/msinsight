@@ -12,4 +12,4 @@ PyYaml==6.0.3
 colorama==0.4.6
 tqdm==4.67.3
 pt-snap-cli==0.4.1
-msprof_analyze==26.1.0
+msprof_analyze==26.2.0a1
