@@ -72,7 +72,7 @@ export const createRuntime = ({
                     toolChoice: "none",
                     system: `${system}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
                 } : undefined,
-                maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 4096),
+                maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 32768),
                 maxRetries: 2,
                 abortSignal: controller.signal,
                 experimental_context: { sessionId },
