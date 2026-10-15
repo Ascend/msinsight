@@ -204,69 +204,79 @@ const validateInstallBundle = (bundle) => {
 const withInstalledPayload = async (directory, members, manifestSchema) => {
     void manifestSchema;
     const full = new Map(members);
-    const payloadNames = (await readInstalledPayloadNames(directory, ARCHIVE_FILE)).filter((name) =>
-        name.startsWith(PACKAGE_V5_PAYLOAD_PREFIX),
-    );
-    for (const name of payloadNames) {
-        full.set(name, await readInstalledPayloadMember(directory, ARCHIVE_FILE, name));
+    for (const [name, bytes] of await readInstalledBundlePayload(directory)) {
+        full.set(name, bytes);
     }
     return full;
 };
 
 const MAX_INSTALLED_PAYLOAD_BYTES = 512 * 1024 * 1024;
+const MAX_INSTALLED_BUNDLE_BYTES = 1024 * 1024 * 1024;
 
-const readInstalledPayloadNames = (directory, archiveName) => new Promise((resolvePromise, rejectPromise) => {
-    yauzl.open(join(directory, archiveName), { autoClose: true, decodeStrings: true, lazyEntries: true }, (openError, zipFile) => {
+// Traverse the archive once, rather than reopening and rescanning it for each
+// Bundle file. The caller still validates all bytes against the package records.
+export const readInstalledBundlePayload = (directory, openArchive = yauzl.open) => new Promise((resolvePromise, rejectPromise) => {
+    openArchive(join(directory, ARCHIVE_FILE), { autoClose: true, decodeStrings: true, lazyEntries: true }, (openError, zipFile) => {
         if (openError) return rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${openError.message}`));
-        const names = [];
-        zipFile.on("error", (error) => rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${error.message}`)));
-        zipFile.on("entry", (entry) => {
-            names.push(entry.fileName);
-            zipFile.readEntry();
-        });
-        zipFile.on("end", () => {
-            zipFile.close();
-            resolvePromise(names);
-        });
-        zipFile.readEntry();
-    });
-});
-
-const readInstalledPayloadMember = (directory, archiveName, name) => new Promise((resolvePromise, rejectPromise) => {
-    yauzl.open(join(directory, archiveName), { autoClose: true, decodeStrings: true, lazyEntries: true }, (openError, zipFile) => {
-        if (openError) return rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${openError.message}`));
+        const payload = new Map();
         let settled = false;
+        let activeStream;
+        let totalBytes = 0;
         const fail = (error) => {
             if (settled) return;
             settled = true;
+            activeStream?.destroy();
             zipFile.close();
-            rejectPromise(error);
+            rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${error.message}`));
         };
         zipFile.on("error", fail);
+        zipFile.on("close", () => {
+            if (!settled) fail(new Error("archive closed before all Bundle files were read"));
+        });
         zipFile.on("entry", (entry) => {
-            if (entry.fileName !== name) {
+            if (settled) return;
+            const name = entry.fileName;
+            if (!name.startsWith(PACKAGE_V5_PAYLOAD_PREFIX)) {
                 zipFile.readEntry();
                 return;
             }
+            if (payload.has(name)) return fail(new Error(`Duplicate Bundle payload: ${name}`));
+            if (name.endsWith("/") || entry.uncompressedSize > MAX_INSTALLED_PAYLOAD_BYTES) {
+                return fail(new Error(`Invalid or oversized Bundle payload: ${name}`));
+            }
             zipFile.openReadStream(entry, (streamError, stream) => {
-                if (streamError) return fail(codedError("pack_unreadable", `Installed RAG member is unavailable: ${name}`));
+                if (streamError) return fail(streamError);
+                if (settled) return stream.destroy();
+                activeStream = stream;
                 const chunks = [];
                 let length = 0;
                 stream.on("data", (chunk) => {
+                    if (settled) return;
                     length += chunk.length;
-                    if (length > MAX_INSTALLED_PAYLOAD_BYTES) stream.destroy(codedError("pack_unreadable", `Installed RAG member exceeds the size limit: ${name}`));
+                    totalBytes += chunk.length;
+                    if (length > MAX_INSTALLED_PAYLOAD_BYTES || totalBytes > MAX_INSTALLED_BUNDLE_BYTES) {
+                        fail(new Error(`Installed RAG Bundle exceeds the size limit: ${name}`));
+                    }
                     else chunks.push(chunk);
                 });
                 stream.on("error", fail);
                 stream.on("end", () => {
                     if (settled) return;
-                    settled = true;
-                    zipFile.close();
-                    resolvePromise(Buffer.concat(chunks, length));
+                    payload.set(name, Buffer.concat(chunks, length));
+                    activeStream = undefined;
+                    zipFile.readEntry();
+                });
+                stream.on("close", () => {
+                    if (!settled && !stream.readableEnded) fail(new Error(`Bundle stream closed before completion: ${name}`));
                 });
             });
         });
-        zipFile.on("end", () => fail(codedError("pack_unreadable", `Installed RAG member is missing: ${name}`)));
+        zipFile.on("end", () => {
+            if (settled) return;
+            settled = true;
+            zipFile.close();
+            resolvePromise(payload);
+        });
         zipFile.readEntry();
     });
 });

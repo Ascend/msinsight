@@ -92,6 +92,7 @@ async function assembleBundle(target, buildOptions, preflightResult) {
 async function buildEntries(target) {
     const entries = [
         [join(rootDir, "server", "index.mjs"), join(target, "index.mjs")],
+        [join(rootDir, "server", "rag-worker.mjs"), join(target, "rag-worker.mjs")],
         [join(rootDir, "server", "rag-cli.mjs"), join(target, "rag-cli.mjs")],
         [join(rootDir, "server", "rag-required-smoke.mjs"), join(target, "rag-required-smoke.mjs")],
         [join(rootDir, "server", "native-agent", "index.mjs"), join(target, "native-agent", "index.mjs")],
