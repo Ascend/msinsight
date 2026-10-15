@@ -399,19 +399,23 @@ const Container = styled.div`
     }
 
     .send-button.executing {
-        background: ${(props): string => props.theme.bgColorDark};
+        background: ${(props): string => props.theme.mode === 'dark' ? props.theme.bgColorLight : props.theme.bgColorDark};
+        color: ${(props): string => props.theme.mode === 'dark' ? props.theme.textColorPrimary : '#191919'};
         transform: none;
     }
 
     .send-button.executing:hover {
-        background: ${(props): string => props.theme.bgColorLight};
+        background: ${(props): string => props.theme.mode === 'dark' ? props.theme.bgColorLighter : props.theme.bgColorLight};
         transform: none;
     }
 
-    .send-button.executing img {
+    .stop-icon {
         width: 18px;
         height: 18px;
         display: block;
+        background: currentColor;
+        -webkit-mask: url(${stopIcon}) center / contain no-repeat;
+        mask: url(${stopIcon}) center / contain no-repeat;
     }
 
     .send-button:disabled {
@@ -629,7 +633,7 @@ export const Composer = (): JSX.Element => {
                         title={showStop ? t('cancel') : t('send')}
                         type="button"
                     >
-                        {showStop ? <img alt="" aria-hidden="true" src={stopIcon} /> : <ArrowUpOutlined />}
+                        {showStop ? <span className="stop-icon" aria-hidden="true" /> : <ArrowUpOutlined />}
                     </button>
                 </div>
             </div>
