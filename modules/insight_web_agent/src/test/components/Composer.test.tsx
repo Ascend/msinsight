@@ -277,7 +277,7 @@ test.each(['', '   '])('shows the stop icon and cancels while running with empty
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
 
     expect(cancelButton).toHaveClass('executing');
-    expect(cancelButton.querySelector('img')).toHaveAttribute('src', 'stop.svg');
+    expect(cancelButton.querySelector('.stop-icon')).toHaveAttribute('aria-hidden', 'true');
     fireEvent.click(cancelButton);
 
     expect(state.cancelMessage).toHaveBeenCalledTimes(1);
@@ -292,7 +292,7 @@ test.each([
     const sendButton = screen.getByRole('button', { name: 'Send' });
     expect(sendButton).toBeEnabled();
     expect(sendButton).not.toHaveClass('executing');
-    expect(sendButton.querySelector('img[src="stop.svg"]')).not.toBeInTheDocument();
+    expect(sendButton.querySelector('.stop-icon')).not.toBeInTheDocument();
     fireEvent.click(sendButton);
     expect(state.sendMessage).toHaveBeenCalledTimes(1);
     expect(state.cancelMessage).not.toHaveBeenCalled();
