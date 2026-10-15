@@ -103,7 +103,7 @@ fn create_webview(
                 return Response::builder()
                     .header(CONTENT_TYPE, "application/json")
                     .header("cache-control", "no-store")
-                    .body(format!("{{\"status\":\"{status}\"}}").into_bytes())
+                    .body(format!("{{\"status\":\"{status}\"}}").into_bytes().into())
                     .map_err(Into::into);
             }
             let resource_name =
