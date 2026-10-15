@@ -1,0 +1,80 @@
+name: Build MindStudio-CI Job
+
+on:
+  workflow_call:
+    inputs:
+      REMOTE_URL:
+        required: false
+        type: string
+        default: ${{ atomgit.repositoryurl }}
+      pr_id:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.number }}
+      IMAGE_FLAG:
+        required: true
+        type: string
+      TARGET_BRANCH:
+        required: false
+        type: string
+        default: ${{ atomgit.event.pull_request.base.ref }}
+      runs_on_arch:
+        required: true
+        type: string
+      ARTIFACT_NAME:
+        required: true
+        type: string
+
+jobs:
+  JOB_build_mindstudio:
+    name: JOB_build_mindstudio
+    env:
+      ARTIFACT_NAME: ${{ format('{0}-{1}', inputs.ARTIFACT_NAME, atomgit.run_number) }}
+    select: selected_by_default
+    runs-on: [ self-hosted, default, "${{ inputs.runs_on_arch }}", cpu=32 ]
+    container:
+      image: swr.cn-north-4.myhuaweicloud.com/mindstudio-image/${{ inputs.IMAGE_FLAG }}
+      options: --user root
+    steps:
+      - name: build msinsight
+        run: |
+          set -e
+          export LC_ALL=C.UTF-8 && export LANG=C.UTF-8 && export LANGUAGE=C.UTF-8
+
+          export PATH=/opt/rh/node/bin:$PATH
+          export PATH=/root/.cargo/bin:$PATH
+
+          export REMOTE_URL=${{ inputs.REMOTE_URL }}
+          export TARGET_BRANCH=${{ inputs.TARGET_BRANCH }}
+
+          cd ${ATOMGIT_WORKSPACE}
+          git clone -b ${TARGET_BRANCH} ${REMOTE_URL} code
+          cd code
+
+          # 代码检出
+          git config --global user.email "AtlasAccount@noreply.gitcode.com"
+          git config --global user.name "AtlasAccount"
+          git fetch origin
+          git fetch origin refs/merge-requests/${{ inputs.pr_id }}/head:new_${{ inputs.pr_id }}
+          git checkout new_${{ inputs.pr_id }}
+          git merge origin/${TARGET_BRANCH}
+          git diff-tree -r --name-only --no-commit-id origin/${TARGET_BRANCH} HEAD > ../modify_files.txt
+          cat ../modify_files.txt
+
+          export CI=true
+          cd ${ATOMGIT_WORKSPACE}/code/server/build && python3 download_third_party.py && python3 preprocess_third_party.py  
+          sed -i '37,40c\\unsigned minorVersion = std::stoi(std::string(userAgent.substr(posStart, posEnd - posStart)));' ${ATOMGIT_WORKSPACE}/code/server/third_party/uWebSockets/src/App.h
+          sed -i '22d' ${ATOMGIT_WORKSPACE}/code/server/third_party/uWebSockets/src/App.h
+          cd ${ATOMGIT_WORKSPACE}/code/build && python3 build.py
+
+          rm -rf ../out/MindStudio-Insight_huaweicloud_*.zip
+
+          # 将构建产物拷贝到 artifacts 目录，供后续 Upload artifacts 上传
+          mkdir -p ${ATOMGIT_WORKSPACE}/code/artifacts
+          cp ../out/*.zip ${ATOMGIT_WORKSPACE}/code/artifacts/
+
+      - name: Upload artifacts
+        uses: upload-artifact
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: "code/artifacts/*"
