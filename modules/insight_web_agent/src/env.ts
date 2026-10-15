@@ -38,6 +38,10 @@ export const ACP_STATUS = resolveAcpRuntimeStatus(
     process.env.NODE_ENV,
     Boolean(window.__ACP_API_BASE__),
 );
+export const ACP_STARTUP_STATUS_URL = new URL(
+    searchParams.get('acpStartupStatusUrl') || '/acp-startup-status',
+    window.location.href,
+).toString();
 export const resolveCapabilityToken = (
     search: string = window.location.search,
     nodeEnv: string | undefined = process.env.NODE_ENV,

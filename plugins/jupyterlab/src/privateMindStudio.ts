@@ -115,6 +115,8 @@ export function getMindStudioInstanceUrl(
     }
     params.set('port', port);
     params.set('profilerServerId', profilerServerId);
+    const acpStartupStatusUrl = `${URLExt.join(baseUrl, 'mindstudio_insight_jupyterlab/get_acp_status')}?${new URLSearchParams({ profilerServerId }).toString()}`;
+    params.set('acpStartupStatusUrl', acpStartupStatusUrl);
     if (acpStatus) {
         params.set('acpStatus', acpStatus);
     }

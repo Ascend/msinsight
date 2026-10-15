@@ -72,7 +72,7 @@ fn frontend_index_url(
     let mut url = format!(
         "wry://localhost/resources/profiler/frontend/index.html?port={port}&acpStatus={acp_status}"
     );
-    if acp_status == "ready" && acp_port != 0 {
+    if matches!(acp_status, "ready" | "starting") && acp_port != 0 {
         url.push_str(&format!(
             "&acpPort={acp_port}&acpCapabilityToken={capability_token}"
         ));
@@ -98,6 +98,14 @@ fn create_webview(
     WebViewBuilder::new(window)?
         .with_custom_protocol("wry".into(), move |request| {
             let path = request.uri().path();
+            if path == "/acp-startup-status" {
+                let status = crate::default::acp_runtime_status();
+                return Response::builder()
+                    .header(CONTENT_TYPE, "application/json")
+                    .header("cache-control", "no-store")
+                    .body(format!("{{\"status\":\"{status}\"}}").into_bytes())
+                    .map_err(Into::into);
+            }
             let resource_name =
                 resource_name_for_log(path).unwrap_or("<redacted>");
             let resource = match resolve_frontend_resource_path(&resource_path, path) {
@@ -365,6 +373,10 @@ mod tests {
     #[test]
     fn frontend_url_forwards_ready_connection_and_optional_version() {
         assert_eq!(
+            frontend_index_url(9000, 9090, "test-token", "starting", ""),
+            "wry://localhost/resources/profiler/frontend/index.html?port=9000&acpStatus=starting&acpPort=9090&acpCapabilityToken=test-token"
+        );
+        assert_eq!(
             frontend_index_url(9000, 9090, "test-token", "ready", "22.14.0"),
             "wry://localhost/resources/profiler/frontend/index.html?port=9000&acpStatus=ready&acpPort=9090&acpCapabilityToken=test-token&acpNodeVersion=22.14.0"
         );
@@ -381,7 +393,7 @@ mod tests {
             ("missing-node", 9090),
             ("unsupported-node", 9090),
             ("start-failed", 9090),
-            ("starting", 9090),
+            ("starting", 0),
             ("Ready", 9090),
             ("", 9090),
         ] {

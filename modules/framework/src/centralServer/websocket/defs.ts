@@ -56,6 +56,7 @@ export const ACP_PORT: number = acpPort;
 export const ACP_CAPABILITY_TOKEN: string = acpCapabilityToken;
 export const ACP_STATUS: string = acpStatus;
 export const ACP_NODE_VERSION: string = acpNodeVersion;
+export const ACP_STARTUP_STATUS_URL: string = decodeURIComponent(PARAM_MAP.get('acpStartupStatusUrl') ?? '');
 export const JUPYTERLABPROXY: boolean = jupyterlabProxy;
 export const GLOBAL_HOST = { remote: LOCAL_HOST, port: PORT };
 
