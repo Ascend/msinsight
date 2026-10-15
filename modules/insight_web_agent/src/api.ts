@@ -18,9 +18,9 @@
 import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
-import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, capabilityAuthHeaders } from './env';
+import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, ACP_STARTUP_STATUS_URL, capabilityAuthHeaders } from './env';
 import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
-import { canAttemptAcpRequest, type AcpUnavailableReason } from './acpStatus';
+import { canAttemptAcpRequest, type AcpRuntimeStatus, type AcpUnavailableReason } from './acpStatus';
 import { sealEnvSecrets, sealSecretInput } from './secretSeal';
 
 interface PromptResponse {
@@ -85,15 +85,18 @@ export const isBackendUnavailableError = (error: unknown): error is ApiRequestEr
     error instanceof ApiRequestError && error.status === undefined
 );
 
-const CONNECT_RETRY_DELAYS_MS = ACP_STATUS === 'starting' ? [400, 800, 1600, 3000] : [400, 800, 1600];
+const CONNECT_RETRY_DELAYS_MS = [400, 800, 1600];
+const STARTUP_RETRY_DELAY_MS = 1000;
+let runtimeStatus: AcpRuntimeStatus = ACP_STATUS;
+let startupPromise: Promise<void> | undefined;
 
-const shouldRetryConnection = (): boolean => canAttemptAcpRequest(ACP_STATUS);
+const shouldRetryConnection = (): boolean => canAttemptAcpRequest(runtimeStatus);
 
 const connectionFailureStatus = (): AcpUnavailableReason => {
-    if (ACP_STATUS === 'ready') {
+    if (runtimeStatus === 'ready') {
         return 'unreachable';
     }
-    return ACP_STATUS;
+    return runtimeStatus;
 };
 
 const isAbortError = (error: unknown): boolean => (
@@ -105,10 +108,36 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
     setTimeout(resolve, ms);
 });
 
+const waitForStartup = async (): Promise<void> => {
+    while (runtimeStatus === 'starting') {
+        try {
+            const response = await fetch(ACP_STARTUP_STATUS_URL, { cache: 'no-store' });
+            if (response.ok) {
+                const result = await response.json();
+                if (result?.status === 'ready' || result?.status === 'start-failed') {
+                    runtimeStatus = result.status;
+                    return;
+                }
+            }
+        } catch (_error) {
+            // A failed status request does not prove that the Node process failed.
+        }
+        await sleep(STARTUP_RETRY_DELAY_MS);
+    }
+};
+
+const ensureStartupCompleted = async (): Promise<void> => {
+    if (runtimeStatus === 'starting') {
+        if (!startupPromise) {
+            startupPromise = waitForStartup();
+        }
+        await startupPromise;
+    }
+};
+
 const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> => {
     const delays = shouldRetryConnection() ? CONNECT_RETRY_DELAYS_MS : [];
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+    for (let attempt = 0; ; attempt += 1) {
         try {
             return await fetch(url, {
                 ...init,
@@ -119,25 +148,27 @@ const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> 
                 },
             });
         } catch (error) {
-            lastError = error;
-            if (isAbortError(error) || attempt === delays.length) {
+            if (isAbortError(error) || init?.signal?.aborted) {
+                throw error;
+            }
+            if (attempt >= delays.length) {
                 throw error;
             }
             await sleep(delays[attempt]);
         }
     }
-    throw lastError;
 };
 
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     const url = apiUrl(path);
-    if (!canAttemptAcpRequest(ACP_STATUS)) {
+    await ensureStartupCompleted();
+    if (!canAttemptAcpRequest(runtimeStatus)) {
         reportBackendUnavailable({
             url: safeEndpoint(url),
             status: connectionFailureStatus(),
             nodeVersion: ACP_NODE_VERSION,
         });
-        throw new ApiRequestError(`Unable to connect to the Agent backend: ${ACP_STATUS}`, undefined, path);
+        throw new ApiRequestError(`Unable to connect to the Agent backend: ${runtimeStatus}`, undefined, path);
     }
 
     let response: Response;

@@ -31,7 +31,7 @@ import {
 import type { ModuleConfig } from '@/moduleConfig';
 import type { Session } from '@/entity/session';
 import { ACP_SESSION_SRC } from '@/moduleConfig';
-import { ACP_CAPABILITY_TOKEN, ACP_NODE_VERSION, ACP_PORT, ACP_STATUS, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
+import { ACP_CAPABILITY_TOKEN, ACP_NODE_VERSION, ACP_PORT, ACP_STATUS, ACP_STARTUP_STATUS_URL, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
 import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 
 export const ACP_SESSION_MIN_WIDTH = 480;
@@ -56,12 +56,15 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
         const acpSessionParams = new URLSearchParams({
             acpStatus: ACP_STATUS,
         });
-        if (ACP_STATUS === 'ready' && ACP_PORT) {
+        if ((ACP_STATUS === 'ready' || ACP_STATUS === 'starting') && ACP_PORT) {
             acpSessionParams.set('acpPort', String(ACP_PORT));
             acpSessionParams.set('capabilityToken', ACP_CAPABILITY_TOKEN);
         }
         if (ACP_NODE_VERSION) {
             acpSessionParams.set('acpNodeVersion', ACP_NODE_VERSION);
+        }
+        if (ACP_STARTUP_STATUS_URL) {
+            acpSessionParams.set('acpStartupStatusUrl', ACP_STARTUP_STATUS_URL);
         }
         if (JUPYTERLABPROXY) {
             acpSessionParams.set('jupyterlabProxy', 'true');

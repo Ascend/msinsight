@@ -24,6 +24,7 @@ use std::{
     net::{SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
+    sync::Mutex,
     thread,
     time::{Duration, Instant},
 };
@@ -49,7 +50,7 @@ const SERVER_RELATIVE_LIST: [&str; 4] =
 const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "insight_web_agent"];
 const MINIMUM_NODE_VERSION: (u32, u32, u32) = (22, 14, 0);
-const ACP_READY_TIMEOUT: Duration = Duration::from_secs(12);
+static ACP_PROCESS: Mutex<Option<(Child, u16)>> = Mutex::new(None);
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
 const BACKEND_READY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -334,10 +335,10 @@ fn run_acp_server(
     cache_path: &PathBuf,
     port: u16,
     capability_token: &str,
-) -> bool {
+) -> Option<Child> {
     let Some(acp_path) = acp_server_path(root_path) else {
         eprintln!("ACP node server path does not exist");
-        return false;
+        return None;
     };
     let entry_path = acp_path.join("index.mjs");
 
@@ -366,11 +367,11 @@ fn run_acp_server(
     match server_command.spawn() {
         Ok(child) => unsafe {
             ACP_PID = child.id();
-            true
+            Some(child)
         },
         Err(error) => {
             eprintln!("Failed to start ACP node server: {error}");
-            false
+            None
         }
     }
 }
@@ -414,44 +415,36 @@ fn inspect_node_runtime() -> NodeResolve {
     }
 }
 
-fn wait_for_tcp(port: u16, timeout: Duration) -> bool {
+fn acp_port_ready(port: u16) -> bool {
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    let deadline = Instant::now() + timeout;
-    while Instant::now() < deadline {
-        if TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok() {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    false
+    TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
 }
 
-fn kill_pid(pid: u32) {
-    if pid == u32::MAX {
-        return;
+pub(crate) fn acp_runtime_status() -> &'static str {
+    let Ok(mut process) = ACP_PROCESS.lock() else {
+        return "start-failed";
+    };
+    let Some((child, port)) = process.as_mut() else {
+        return "start-failed";
+    };
+    match child.try_wait() {
+        Ok(None) => {}
+        Ok(Some(status)) => {
+            eprintln!("ACP node server exited before readiness: {status}");
+            unsafe {
+                ACP_PID = u32::MAX;
+            }
+            return "start-failed";
+        }
+        Err(error) => {
+            eprintln!("Failed to inspect ACP node server: {error}");
+            return "start-failed";
+        }
     }
-    let pid = pid.to_string();
-    #[cfg(windows)]
-    {
-        let mut command = Command::new("taskkill");
-        command
-            .arg("/f")
-            .arg("/t")
-            .arg("/pid")
-            .arg(&pid)
-            .creation_flags(NO_WINDOW_FLAG)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        let _ = command.output();
-    }
-    #[cfg(unix)]
-    {
-        let _ = Command::new("kill")
-            .arg("-9")
-            .arg(&pid)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+    if acp_port_ready(*port) {
+        "ready"
+    } else {
+        "starting"
     }
 }
 
@@ -478,19 +471,14 @@ fn start_acp_sidecar(
             let Some(token) = generate_capability_token() else {
                 return AcpLaunch::failed("start-failed", node_version);
             };
-            if !run_acp_server(root_path, cache_path, acp_port, &token) {
+            let Some(child) = run_acp_server(root_path, cache_path, acp_port, &token) else {
                 return AcpLaunch::failed("start-failed", node_version);
-            }
-            if !wait_for_tcp(acp_port, ACP_READY_TIMEOUT) {
-                eprintln!("ACP node server did not become ready on port {acp_port}");
-                unsafe {
-                    kill_pid(ACP_PID);
-                    ACP_PID = u32::MAX;
-                }
-                return AcpLaunch::failed("start-failed", node_version);
-            }
+            };
+            *ACP_PROCESS
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some((child, acp_port));
             AcpLaunch {
-                status: "ready",
+                status: "starting",
                 port: acp_port,
                 token,
                 node_version,
@@ -823,7 +811,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     use super::wait_for_child_output;
     use super::{
-        parse_node_version, spawn_profiler_server, wait_for_tcp, AcpLaunch,
+        acp_port_ready, parse_node_version, spawn_profiler_server, AcpLaunch,
         MINIMUM_NODE_VERSION,
     };
 
@@ -850,12 +838,12 @@ mod tests {
     }
 
     #[test]
-    fn wait_for_tcp_detects_listening_port() {
+    fn acp_port_ready_detects_listening_port() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
-        assert!(wait_for_tcp(port, std::time::Duration::from_secs(1)));
+        assert!(acp_port_ready(port));
         drop(listener);
-        assert!(!wait_for_tcp(port, std::time::Duration::from_millis(200)));
+        assert!(!acp_port_ready(port));
     }
 
     #[test]

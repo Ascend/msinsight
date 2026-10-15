@@ -88,3 +88,20 @@ test('ACP runtime status prefers the host query and does not assume a missing No
     expect(resolveAcpRuntimeStatus('', 'production', true)).toBe('ready');
     expect(resolveAcpRuntimeStatus('', 'production', false)).toBe('start-failed');
 });
+
+test('startup status uses the desktop host without requiring the Node backend', () => {
+    jest.resetModules();
+    window.history.replaceState({}, '', '/resources/profiler/frontend/plugins/InsightWebAgent/index.html?acpStatus=starting');
+    const { ACP_STARTUP_STATUS_URL } = require('../env');
+
+    expect(ACP_STARTUP_STATUS_URL).toBe(`${window.location.origin}/acp-startup-status`);
+});
+
+test('startup status preserves the authenticated Jupyter base path and profiler instance', () => {
+    jest.resetModules();
+    const statusPath = '/user/demo/mindstudio_insight_jupyterlab/get_acp_status?profilerServerId=instance-1';
+    window.history.replaceState({}, '', `/?${new URLSearchParams({ acpStatus: 'starting', acpStartupStatusUrl: statusPath }).toString()}`);
+    const { ACP_STARTUP_STATUS_URL } = require('../env');
+
+    expect(ACP_STARTUP_STATUS_URL).toBe(`${window.location.origin}${statusPath}`);
+});

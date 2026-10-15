@@ -31,7 +31,6 @@ import shutil
 import socket
 import subprocess  # nosec B404
 import sys
-import time
 import uuid
 
 import psutil
@@ -52,10 +51,11 @@ acp_available_port = 9001
 profiler_server_id = str(uuid.uuid4())
 login_shell_env = None
 acp_capability_tokens = {}
+acp_endpoints = {}
 
 MINIMUM_NODE_VERSION = (22, 14, 0)
-ACP_READY_TIMEOUT_SECONDS = 12
 ACP_STATUS_READY = 'ready'
+ACP_STATUS_STARTING = 'starting'
 ACP_STATUS_MISSING_NODE = 'missing-node'
 ACP_STATUS_UNSUPPORTED_NODE = 'unsupported-node'
 ACP_STATUS_START_FAILED = 'start-failed'
@@ -225,18 +225,25 @@ def _node_version(node_path, env):
         return None
 
 
-def wait_for_tcp(host, port, timeout=None):
-    if timeout is None:
-        timeout = ACP_READY_TIMEOUT_SECONDS
+def _acp_port_ready(host, port):
     connect_host = '127.0.0.1' if host in ('0.0.0.0', '::', '::0') else host
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            with socket.create_connection((connect_host, port), timeout=0.2):
-                return True
-        except OSError:
-            time.sleep(0.1)
-    return False
+    try:
+        with socket.create_connection((connect_host, port), timeout=0.2):
+            return True
+    except OSError:
+        return False
+
+
+def get_acp_runtime_status(server_id):
+    process = acp_process.get(server_id)
+    endpoint = acp_endpoints.get(server_id)
+    if process is None or endpoint is None:
+        return ACP_STATUS_START_FAILED
+    exit_code = process.poll()
+    if exit_code is not None:
+        logging.error('ACP node service exited with code %s', exit_code)
+        return ACP_STATUS_START_FAILED
+    return ACP_STATUS_READY if _acp_port_ready(*endpoint) else ACP_STATUS_STARTING
 
 
 def start_acp_node_service(allowed_origin):
@@ -298,15 +305,16 @@ def start_acp_node_service(allowed_origin):
         logging.error('Failed to start ACP node service, because %s', error)
         return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
 
-    if not wait_for_tcp(acp_host, selected_port):
-        logging.error('ACP node service did not become ready on port %s', selected_port)
-        _terminate_process(process)
-        return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
-
     acp_process[profiler_server_id] = process
+    acp_endpoints[profiler_server_id] = (acp_host, selected_port)
     acp_capability_tokens[profiler_server_id] = capability_token
     acp_available_port = selected_port
-    return _acp_result(ACP_STATUS_READY, port=selected_port, token=capability_token, node_version=node_version)
+    status = get_acp_runtime_status(profiler_server_id)
+    if status == ACP_STATUS_START_FAILED:
+        stop_acp_node_service(profiler_server_id)
+        acp_available_port = 0
+        return _acp_result(status, node_version=node_version)
+    return _acp_result(status, port=selected_port, token=capability_token, node_version=node_version)
 
 
 def get_process_env():
@@ -415,6 +423,7 @@ def stop_acp_node_service(server_id=None):
     for current_server_id in server_ids:
         process = acp_process.pop(current_server_id, None)
         acp_capability_tokens.pop(current_server_id, None)
+        acp_endpoints.pop(current_server_id, None)
         _terminate_process(process)
 
 
@@ -430,6 +439,14 @@ def shutdown_hook(web_app):
     del web_app
     stop_profiler_server()
     stop_acp_node_service()
+
+
+class AcpStatusHandler(APIHandler):
+    @tornado.web.authenticated
+    def get(self):
+        server_id = self.get_query_argument('profilerServerId')
+        self.set_header('Cache-Control', 'no-store')
+        self.finish(json.dumps({'status': get_acp_runtime_status(server_id)}))
 
 
 class IFrameConfigHandler(APIHandler):
@@ -451,7 +468,7 @@ class IFrameConfigHandler(APIHandler):
         }
         if acp.get('nodeVersion'):
             payload['acpNodeVersion'] = acp['nodeVersion']
-        if acp['status'] == ACP_STATUS_READY:
+        if acp['status'] in (ACP_STATUS_READY, ACP_STATUS_STARTING):
             payload['acpPort'] = acp['port']
             payload['acpCapabilityToken'] = acp['token']
         self.finish(json.dumps(payload))
@@ -503,6 +520,7 @@ def setup_handlers(web_app):
     base_url = web_app.settings['base_url']
     iframe_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/get_iframe_config')
     terminate_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/terminate_profiler_server')
+    acp_status_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/get_acp_status')
     static_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'resources', 'profiler', 'frontend')
     static_route = url_path_join(base_url, '/resources/profiler/frontend/(.*)')
     api_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/get_example')
@@ -511,6 +529,7 @@ def setup_handlers(web_app):
         [
             (iframe_route, IFrameConfigHandler),
             (terminate_route, TerminateProfilerHandler),
+            (acp_status_route, AcpStatusHandler),
             (static_route, IFrameStaticFileHandler, {'path': static_path}),
             (api_route, RouteHandler),
         ],

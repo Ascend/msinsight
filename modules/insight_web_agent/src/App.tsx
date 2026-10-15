@@ -35,7 +35,7 @@ const App = (): JSX.Element => {
     const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'enUS');
 
     useEffect(() => {
-        if (ACP_STATUS !== 'ready') {
+        if (ACP_STATUS !== 'ready' && ACP_STATUS !== 'starting') {
             reportBackendUnavailable({
                 url: apiBase || 'acp',
                 status: ACP_STATUS,
