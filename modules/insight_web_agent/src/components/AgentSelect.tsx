@@ -18,10 +18,11 @@
 import styled from '@emotion/styled';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { AriaAttributes, CSSProperties, FocusEventHandler, KeyboardEvent, ReactNode } from 'react';
+import type { AriaAttributes, CSSProperties, FocusEventHandler, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { createImeCompositionTracker } from '../imeComposition';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import checkIcon from '../icons/check.svg';
+import deleteIcon from '../icons/delete.svg';
 
 export interface AgentSelectOption {
     value: string;
@@ -29,6 +30,7 @@ export interface AgentSelectOption {
     title?: string;
     icon?: ReactNode;
     disabled?: boolean;
+    removal?: { label: string; disabledReason?: string };
 }
 
 interface AgentSelectProps {
@@ -41,6 +43,7 @@ interface AgentSelectProps {
     value?: string;
     options: AgentSelectOption[];
     onChange: (value: string) => void;
+    onRemove?: (value: string) => void;
     title?: ReactNode;
     footer?: ReactNode;
     placeholder?: ReactNode;
@@ -51,6 +54,7 @@ interface AgentSelectProps {
     showArrow?: boolean;
     dropdownWidth?: number;
     search?: { placeholder: string; noResultsText: string };
+    allowCustomValue?: { optionLabel: (value: string) => string };
     placement?: 'top' | 'bottom';
 }
 
@@ -263,9 +267,48 @@ const Container = styled.div`
             : 'rgba(46, 83, 250, 0.12)'};
     }
 
+    .agent-select-option[aria-disabled='true'],
     .agent-select-option:disabled {
         color: ${(props): string => props.theme.textColorDisabled};
         cursor: not-allowed;
+    }
+
+    .agent-select-remove {
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 4px;
+        padding: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorSecondary};
+        cursor: pointer;
+    }
+
+    .agent-select-remove:hover:not(:disabled) {
+        color: ${(props): string => props.theme.dangerColor};
+        background: ${(props): string => props.theme.bgColorDark};
+    }
+
+    .agent-select-remove:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .agent-select-remove:focus-visible,
+    .agent-select-option:focus-visible {
+        outline: 2px solid ${(props): string => props.theme.primaryColor};
+        outline-offset: -2px;
+    }
+
+    .agent-select-remove-icon {
+        width: 16px;
+        height: 16px;
+        background: currentColor;
+        mask: url(${deleteIcon}) center / contain no-repeat;
     }
 
     .agent-select-option-check {
@@ -294,6 +337,7 @@ export const AgentSelect = ({
     value,
     options,
     onChange,
+    onRemove,
     title,
     footer,
     placeholder,
@@ -304,6 +348,7 @@ export const AgentSelect = ({
     showArrow = true,
     dropdownWidth = 240,
     search,
+    allowCustomValue,
     placement = 'bottom',
 }: AgentSelectProps): JSX.Element => {
     const [open, setOpen] = useState(false);
@@ -323,11 +368,17 @@ export const AgentSelect = ({
         ?? (typeof selectedOption?.label === 'string' ? selectedOption.label : undefined);
     const searchable = Boolean(search);
     const positioned = Boolean(dropdownPosition);
-    const visibleOptions = useMemo(() => {
+    const visibleOptions = useMemo<AgentSelectOption[]>(() => {
         const keyword = searchable ? query.trim().toLowerCase() : '';
-        return keyword ? options.filter((option) => [option.value, option.title, typeof option.label === 'string' ? option.label : '']
+        const filtered = keyword ? options.filter((option) => [option.value, option.title, typeof option.label === 'string' ? option.label : '']
             .some((text) => text?.toLowerCase().includes(keyword))) : options;
-    }, [options, query, searchable]);
+        const customValue = query.trim();
+        // IDs are case-sensitive; only an exact value prevents an explicit custom choice.
+        if (searchable && allowCustomValue && customValue && !options.some((option) => option.value === customValue)) {
+            return [{ value: customValue, label: allowCustomValue.optionLabel(customValue) }, ...filtered];
+        }
+        return filtered;
+    }, [allowCustomValue, options, query, searchable]);
 
     useEffect(() => {
         if (!open) {
@@ -342,10 +393,11 @@ export const AgentSelect = ({
 
     useEffect(() => {
         if (!open || !searchable) return;
+        const customIndex = allowCustomValue && query.trim() && !options.some((option) => option.value === query.trim()) ? 0 : -1;
         const selectedIndex = visibleOptions.findIndex((option) => option.value === value && !option.disabled);
-        setFocusedIndex(selectedIndex >= 0 ? selectedIndex : visibleOptions.findIndex((option) => !option.disabled));
+        setFocusedIndex(customIndex >= 0 ? customIndex : selectedIndex >= 0 ? selectedIndex : visibleOptions.findIndex((option) => !option.disabled));
         if (optionsRef.current) optionsRef.current.scrollTop = 0;
-    }, [open, searchable, visibleOptions, value]);
+    }, [allowCustomValue, open, options, query, searchable, visibleOptions, value]);
 
     useEffect(() => {
         if (!open) return;
@@ -469,7 +521,7 @@ export const AgentSelect = ({
             triggerRef.current?.focus({ preventScroll: true });
             return;
         }
-        if (event.key === 'Tab' && event.target === searchRef.current) {
+        if (event.key === 'Tab' && event.target === searchRef.current && !onRemove) {
             setOpen(false);
             triggerRef.current?.focus({ preventScroll: true });
             return;
@@ -521,19 +573,32 @@ export const AgentSelect = ({
                 >
                     {visibleOptions.map((option, index) => {
                         const selected = option.value === value;
+                        // Only removal-enabled selects need a non-button option container.
+                        const Option = onRemove ? 'div' : 'button';
                         return (
-                            <button
+                            <Option
                                 aria-selected={selected}
+                                aria-label={onRemove ? option.title ?? (typeof option.label === 'string' ? option.label : undefined) : undefined}
+                                aria-disabled={onRemove ? Boolean(option.disabled) : undefined}
                                 className={`agent-select-option ${selected ? 'selected' : ''} ${focusedIndex === index ? 'focused' : ''}`}
-                                disabled={option.disabled}
+                                disabled={onRemove ? undefined : option.disabled}
+                                tabIndex={onRemove ? option.disabled ? -1 : 0 : undefined}
                                 id={`${listboxId}-${index}`}
                                 key={option.value}
                                 onClick={() => closeAndSelect(option)}
+                                onFocus={onRemove ? () => setFocusedIndex(index) : undefined}
                                 onMouseEnter={() => setFocusedIndex(index)}
-                                onMouseDown={searchable ? (event) => event.preventDefault() : undefined}
+                                onMouseDown={searchable ? (event: MouseEvent<HTMLElement>) => event.preventDefault() : undefined}
+                                onKeyDown={onRemove ? (event: KeyboardEvent<HTMLElement>) => {
+                                    if (event.target !== event.currentTarget) return;
+                                    if (event.key === ' ' && !ime.shouldIgnoreShortcut(event)) {
+                                        event.preventDefault();
+                                        closeAndSelect(option);
+                                    } else handleKeyDown(event);
+                                } : undefined}
                                 role="option"
                                 title={option.title}
-                                type="button"
+                                type={onRemove ? undefined : 'button'}
                             >
                                 {option.icon ? <span aria-hidden="true" className="agent-select-option-icon">{option.icon}</span> : null}
                                 <span
@@ -543,7 +608,28 @@ export const AgentSelect = ({
                                     {option.label}
                                 </span>
                                 {selected ? <img aria-hidden="true" className="agent-select-option-check" src={checkIcon} /> : null}
-                            </button>
+                                {onRemove && option.removal ? <button
+                                    aria-label={option.removal.label}
+                                    className="agent-select-remove"
+                                    disabled={disabled || option.disabled || Boolean(option.removal.disabledReason)}
+                                    title={option.removal.disabledReason ?? option.removal.label}
+                                    onMouseDown={(event) => event.stopPropagation()}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        if (disabled || option.disabled || option.removal?.disabledReason) return;
+                                        onRemove(option.value);
+                                        // Keep the list open and restore a stable focus after removing this button.
+                                        (searchRef.current ?? triggerRef.current)?.focus({ preventScroll: true });
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
+                                        else handleKeyDown(event);
+                                    }}
+                                    type="button"
+                                >
+                                    <span aria-hidden="true" className="agent-select-remove-icon" />
+                                </button> : null}
+                            </Option>
                         );
                     })}
                 </div>

@@ -653,6 +653,81 @@ test('explicit model fetch uses unsaved settings, preserves default and marks th
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
 });
 
+test.each([false, true])('custom model after failed fetch preserves legacy/catalog entries and saves only explicitly (catalog: %s)', async (hasCatalog) => {
+    const oldModels = hasCatalog
+        ? [{ id: snapshot.builtinAgent.model, name: 'Original' }, { id: 'other', name: 'Other name' }]
+        : [{ id: snapshot.builtinAgent.model, name: snapshot.builtinAgent.model }];
+    mockFetchAgentConfig.mockResolvedValue({ ...snapshot, builtinAgent: {
+        ...snapshot.builtinAgent, ...(hasCatalog ? { models: oldModels } : {}),
+    } });
+    (fetchBuiltinAgentModels as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    expect(fetchBuiltinAgentModels).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch models from service' }));
+    await screen.findByText(/Could not fetch models/);
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(await screen.findByRole('option', { name: oldModels[0].name })).toBeInTheDocument();
+    const input = screen.getByRole('combobox', { name: 'Search or enter an exact model ID' });
+    fireEvent.change(input, { target: { value: '  custom/Exact-ID  ' } });
+    expect(screen.getByLabelText('Model')).toHaveTextContent(oldModels[0].name);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('option', { name: 'Use custom/Exact-ID' }));
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+    expect(mockSaveAgentSessionConfig).not.toHaveBeenCalled();
+    expect(mockUseChatState.mock.results[mockUseChatState.mock.results.length - 1].value.applyAgentConfigSnapshot).not.toHaveBeenCalled();
+
+    const models = [...oldModels, { id: 'custom/Exact-ID', name: 'custom/Exact-ID' }];
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    const editor = await screen.findByRole('textbox', { name: 'Script configuration' });
+    expect(JSON.parse((editor as HTMLTextAreaElement).value)).toEqual(expect.objectContaining({ model: 'custom/Exact-ID', models }));
+    fireEvent.change(editor, { target: { value: (editor as HTMLTextAreaElement).value } });
+    fireEvent.click(screen.getAllByRole('tab').find((tab) => tab.textContent !== 'Script configuration')!);
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(screen.getAllByRole('option')).toHaveLength(models.length);
+    fireEvent.click(screen.getByRole('option', { name: 'custom/Exact-ID' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveBuiltinAgentConfig).toHaveBeenCalledWith(expect.objectContaining({ model: 'custom/Exact-ID', models })));
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+    expect(mockSaveAgentSessionConfig).not.toHaveBeenCalled();
+    expect(fetchBuiltinAgentModels).toHaveBeenCalledTimes(1);
+});
+
+test('refreshing the catalog retains the custom default and its display name without saving', async () => {
+    mockFetchAgentConfig.mockResolvedValue({ ...snapshot, activeAgentName: 'msinsight-native', builtinAgent: {
+        ...snapshot.builtinAgent, model: 'custom-default', models: [{ id: 'custom-default', name: 'Custom display name' }],
+    } });
+    (fetchBuiltinAgentModels as jest.Mock).mockResolvedValueOnce({ models: [{ id: 'remote', name: 'Remote' }], truncated: false });
+    render(<AgentSettingsDialog open />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Fetch models from service' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fetch models from service' })).toBeEnabled());
+    expect(screen.getByLabelText('Model')).toHaveTextContent('Custom display name');
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(await screen.findByRole('option', { name: 'Custom display name' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('option', { name: 'Remote' })).toBeInTheDocument();
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+});
+
+test('model input remains available during fetch and stale results do not overwrite a custom choice', async () => {
+    let finishFetch: (result: unknown) => void = () => {};
+    (fetchBuiltinAgentModels as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finishFetch = resolve; }));
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch models from service' }));
+    expect(screen.getByLabelText('Model')).toBeEnabled();
+    fireEvent.click(screen.getByLabelText('Model'));
+    const input = await screen.findByRole('combobox');
+    fireEvent.change(input, { target: { value: 'during-fetch' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await act(async () => { finishFetch({ models: [{ id: 'remote' }], truncated: false }); });
+    expect(screen.getByLabelText('Model')).toHaveTextContent('during-fetch');
+    fireEvent.click(screen.getByLabelText('Model'));
+    expect(screen.queryByRole('option', { name: 'remote' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: snapshot.builtinAgent.model })).toBeInTheDocument();
+    expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
+});
+
 test('failed model fetch preserves the original list and clean state', async () => {
     (fetchAgentConfig as jest.Mock).mockResolvedValue({ ...snapshot, activeAgentName: 'msinsight-native', builtinAgent: {
         ...snapshot.builtinAgent, models: [{ id: snapshot.builtinAgent.model, name: 'Original' }],
