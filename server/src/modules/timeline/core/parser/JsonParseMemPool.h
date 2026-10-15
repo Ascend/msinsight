@@ -46,6 +46,11 @@ class JsonParseMemPool {
         return memPoolMap[threadId];
     }
 
+    void ReleaseMemBuff(const std::shared_ptr<rapidjson::MemoryPoolAllocator<>> &allocator) {
+        // 调用方必须保证使用该 allocator 的 Document 已先析构，且当前工作线程没有并发解析任务。
+        allocator->Clear();
+    }
+
   private:
     JsonParseMemPool() = default;
     ~JsonParseMemPool() = default;
