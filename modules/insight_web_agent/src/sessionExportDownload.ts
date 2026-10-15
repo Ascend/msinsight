@@ -33,7 +33,10 @@ export const revealExportedFile = (savedPath: string): void => {
 };
 
 export const downloadSessionExport = (document: SessionExportDocument): void => {
-    if (document.savedPath) revealExportedFile(document.savedPath);
+    if (document.savedPath) {
+        revealExportedFile(document.savedPath);
+        return;
+    }
     const blob = new Blob([JSON.stringify(document, null, 2)], { type: 'application/json' });
     const objectUrl = URL.createObjectURL(blob);
     const link = window.document.createElement('a');

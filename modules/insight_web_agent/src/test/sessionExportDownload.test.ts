@@ -18,10 +18,14 @@
 import { downloadSessionExport } from '../sessionExportDownload';
 import type { SessionExportDocument } from '../types';
 
+afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+});
+
 test('downloads the export document as a JSON file', () => {
     jest.useFakeTimers();
-    const click = jest.fn();
-    HTMLAnchorElement.prototype.click = click;
+    const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     const createObjectURL = jest.fn(() => 'blob:export');
     const revokeObjectURL = jest.fn();
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
@@ -47,22 +51,38 @@ test('downloads the export document as a JSON file', () => {
     jest.useRealTimers();
 });
 
-test('reveals a server-saved export through the host explorer IPC', () => {
+test('reveals a server-saved export without downloading a second copy', () => {
+    jest.useFakeTimers();
+    const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const createObjectURL = jest.fn(() => 'blob:export');
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });
     const postMessage = jest.fn();
-    (window as Window & { ipc?: { postMessage: (message: string) => void } }).ipc = { postMessage };
+    const hostWindow = window as Window & { ipc?: { postMessage: (message: string) => void } };
+    const originalIpc = hostWindow.ipc;
+    hostWindow.ipc = { postMessage };
 
-    downloadSessionExport({
-        format: 'msinsight.agent-session.v1',
-        exportedAt: '2026-09-13T06:41:00.000Z',
-        filename: 'insight-session-demo-session-1-2026-09-13-06-41-00.json',
-        markdown: '# demo\n',
-        savedPath: '/Users/test1/Downloads/insight-session-demo-session-1-2026-09-13-06-41-00.json',
-        agent: { name: 'OpenCode', version: '1.18.30' },
-        session: { sessionId: 'session-1', title: 'demo', updatedAt: null },
-        messages: [],
-    });
+    try {
+        downloadSessionExport({
+            format: 'msinsight.agent-session.v1',
+            exportedAt: '2026-09-13T06:41:00.000Z',
+            filename: 'insight-session-demo-session-1-2026-09-13-06-41-00.json',
+            markdown: '# demo\n',
+            savedPath: '/Users/test1/Downloads/insight-session-demo-session-1-2026-09-13-06-41-00.json',
+            agent: { name: 'OpenCode', version: '1.18.30' },
+            session: { sessionId: 'session-1', title: 'demo', updatedAt: null },
+            messages: [],
+        });
 
-    expect(postMessage).toHaveBeenCalledWith(
-        'openProjectInExplorer|/Users/test1/Downloads/insight-session-demo-session-1-2026-09-13-06-41-00.json',
-    );
+        expect(postMessage).toHaveBeenCalledTimes(1);
+        expect(postMessage).toHaveBeenCalledWith(
+            'openProjectInExplorer|/Users/test1/Downloads/insight-session-demo-session-1-2026-09-13-06-41-00.json',
+        );
+        expect(createObjectURL).not.toHaveBeenCalled();
+        expect(click).not.toHaveBeenCalled();
+        expect(document.querySelector('a[download]')).toBeNull();
+    } finally {
+        if (originalIpc === undefined) delete hostWindow.ipc;
+        else hostWindow.ipc = originalIpc;
+    }
 });
