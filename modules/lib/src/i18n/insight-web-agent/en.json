@@ -2,10 +2,15 @@
   "insightWebAgent": {
     "fetchModelsFromService": "Fetch models from service",
     "fetchingModels": "Fetching models…",
-    "modelListTruncated": "Model list limit reached. Add further models manually in JSON.",
-    "modelListFetchFailed": "Could not fetch models. Check settings or enter models in JSON; the existing list is unchanged.",
-    "modelListDraftHint": "Fetches models into this unsaved dropdown, preserving the default model and running sessions. Edit model and models in JSON for manual configuration.",
+    "modelListTruncated": "Model list limit reached. Enter further model IDs in the dropdown.",
+    "modelListFetchFailed": "Could not fetch models. The existing list is unchanged; you can still select a model or enter an exact model ID in the dropdown.",
+    "modelListDraftHint": "Select a model or enter an exact model ID and confirm Use. Any non-default candidate can be deleted from this catalog; this does not affect models on the service. Fetching preserves the default and may restore deleted service candidates. Changes only take effect after Save and do not switch running sessions.",
+    "searchOrEnterModelId": "Search or enter an exact model ID",
+    "useCustomModelId": "Use {{id}}",
     "defaultModelNotInCatalog": "The default model must belong to the models catalog.",
+    "deleteModel": "Delete model: {{id}}",
+    "defaultModelCannotDelete": "The default model cannot be deleted. Select another model first.",
+    "lastModelCannotDelete": "Keep at least one model candidate.",
     "modelCandidates": "Model candidates",
 
     "agentError": "Agent error",

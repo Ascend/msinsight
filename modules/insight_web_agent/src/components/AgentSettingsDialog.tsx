@@ -882,8 +882,46 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         if (builtin?.model && !models.some((item) => item.id === builtin.model)) {
             models.unshift({ id: builtin.model, name: builtin.model });
         }
-        return models.map((item) => ({ value: item.id, label: item.name?.trim() || item.id }));
-    }, [snapshot?.builtinAgent]);
+        return models.map((item) => ({
+            value: item.id,
+            label: item.name?.trim() || item.id,
+            removal: {
+                label: t('deleteModel', { id: item.id }),
+                disabledReason: item.id === builtin?.model ? t('defaultModelCannotDelete')
+                    : models.length === 1 ? t('lastModelCannotDelete') : undefined,
+            },
+        }));
+    }, [snapshot?.builtinAgent, t]);
+
+    const selectBuiltinModel = (value: string): void => {
+        const model = value.trim();
+        if (!model) return;
+        setSnapshot((current) => {
+            if (!current) return current;
+            const builtin = current.builtinAgent;
+            const models = [...builtin.models ?? []];
+            // Materialize the legacy default before replacing it with a custom ID.
+            if (!builtin.models && builtin.model) {
+                models.unshift({ id: builtin.model, name: builtin.model });
+            }
+            if (!models.some((item) => item.id === model)) models.push({ id: model, name: model });
+            return { ...current, builtinAgent: { ...builtin, model, models } };
+        });
+    };
+
+    const removeBuiltinModel = (id: string): void => {
+        if (saving || pendingNavigation) return;
+        setSnapshot((current) => {
+            if (!current) return current;
+            const builtin = current.builtinAgent;
+            if (id === builtin.model || !builtin.models?.some((item) => item.id === id)) return current;
+            const models = builtin.models.filter((item) => item.id !== id);
+            // An invalid/empty default must not turn removal into implicit model selection.
+            if (!models.length) return current;
+            // This is a user-managed candidate catalog, not the service's model inventory.
+            return { ...current, builtinAgent: { ...builtin, models } };
+        });
+    };
 
     const getBuiltinScriptConfig = (): Record<string, unknown> => {
         const { provider = '', model = '', models, baseUrl = '', apiKey = '' } = snapshot?.builtinAgent ?? {};
@@ -1314,7 +1352,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 )}
                 width="100%"
             >
-                <fieldset className="settings-layout" disabled={saving || loading || fetchingModels}>
+                <fieldset className="settings-layout" disabled={saving || loading}>
                     <div className="panel" onScroll={(event) => updatePanelScrollState(event.currentTarget)} ref={panelRef}>
                     {loading ? <div className="hint">{t('loadingSettings')}</div> : null}
                     {pendingPrompt ? (
@@ -1450,10 +1488,13 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             aria-invalid={Boolean(getFieldError('builtin-model'))}
                                             aria-describedby={getFieldError('builtin-model') ? 'builtin-model-error' : undefined}
                                             className="settings-select" id="builtin-model" dropdownZIndex={1050}
-                                            disabled={saving || fetchingModels || Boolean(pendingNavigation)}
+                                            disabled={saving || Boolean(pendingNavigation)}
                                             onBlur={() => setTouchedFields((current) => ({ ...current, 'builtin-model': true }))}
                                             options={builtinModelOptions} value={snapshot.builtinAgent.model}
-                                            onChange={(model) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model } }) : current)}
+                                            search={{ placeholder: t('searchOrEnterModelId'), noResultsText: t('noMatchingModels') }}
+                                            allowCustomValue={{ optionLabel: (id) => t('useCustomModelId', { id }) }}
+                                            onChange={selectBuiltinModel}
+                                            onRemove={removeBuiltinModel}
                                         />
                                         {renderFieldError('builtin-model')}
                                     </div>
