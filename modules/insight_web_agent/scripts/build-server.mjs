@@ -117,9 +117,11 @@ async function copyStaticRuntime(target) {
     for (const name of ["agent-servers.json", "acp-session-conf.json", "msinsight-native.json", "capability-center.json"]) {
         await copyFile(join(rootDir, name), join(target, name));
     }
-    for (const name of ["prompts", "agents"]) {
-        await cp(join(rootDir, name), join(target, name), { recursive: true });
-    }
+    await cp(join(rootDir, "prompts"), join(target, "prompts"), { recursive: true });
+    await cp(join(rootDir, "server", "native-agent", "agents"), join(target, "native-agent", "agents"), {
+        recursive: true,
+        filter: (path) => !path.endsWith(".mjs"),
+    });
     await cp(join(rootDir, "..", "..", "skills"), join(target, "skills"), { recursive: true });
     await cp(join(rootDir, "rag-runtime"), join(target, "rag-runtime"), { recursive: true });
     await copyFile(

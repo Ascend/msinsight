@@ -61,7 +61,7 @@ const createContext = (sessions = new Map()) => {
     };
 };
 
-test("new native sessions default to general and expose Primary Agent options", async () => {
+test("new native sessions default to general without exposing Primary Agent options", async () => {
     const fixture = createContext();
     const service = createNativeSessionService(fixture.context);
 
@@ -71,10 +71,10 @@ test("new native sessions default to general and expose Primary Agent options", 
 
     assert.equal(session.primaryAgentId, "general");
     assert.equal(session.promptStarted, false);
-    assert.equal(option.id, "primaryAgent");
-    assert.equal(option.category, "mode");
-    assert.equal(option.currentValue, "general");
-    assert.deepEqual(option.options.map(({ value }) => value), ["general", "memory-tuning-assistant"]);
+    assert.equal(option.id, "model");
+    assert.equal(result.configOptions.some(({ id }) => id === "primaryAgent"), false);
+    const initialized = await service.handleRequest("initialize", {});
+    assert.equal("msinsight.dev/primaryAgents" in initialized._meta, false);
     assert.equal(fixture.saves.length, 1);
 });
 
@@ -92,7 +92,7 @@ test("Primary Agent can be bound once before prompting and not after prompt star
 
     assert.equal(session.primaryAgentId, "memory-tuning-assistant");
     assert.equal(session.primaryAgentFingerprint, "memory-tuning-assistant-fingerprint");
-    assert.equal(result.configOptions[0].currentValue, "memory-tuning-assistant");
+    assert.equal(result.configOptions.some(({ id }) => id === "primaryAgent"), false);
 
     session.promptStarted = true;
     await assert.rejects(service.handleRequest("session/set_config_option", {
@@ -174,20 +174,7 @@ test("missing bound Agent allows history load but blocks future prompts", async 
     const loaded = await service.handleRequest("session/load", { sessionId: session.sessionId });
 
     assert.equal(loaded.sessionId, session.sessionId);
-    assert.deepEqual(loaded.configOptions[0].options.find(({ value }) => value === "removed-agent"), {
-        value: "removed-agent",
-        name: "Removed Agent [Unavailable]",
-        description: "Primary Agent is unavailable: removed-agent",
-        _meta: {
-            "msinsight.dev/source": { id: "missing", kind: "bundled" },
-            "msinsight.dev/available": false,
-            "msinsight.dev/diagnostics": [{
-                code: "AGENT_MISSING",
-                message: "Primary Agent is unavailable: removed-agent",
-                resourceId: "removed-agent",
-            }],
-        },
-    });
+    assert.equal(loaded.configOptions.some(({ id }) => id === "primaryAgent"), false);
     assert.equal(fixture.restoreCalls.length, 1);
     assert.deepEqual(fixture.replayed[0], [session.sessionId, "user_message_chunk", "previous question"]);
     await assert.rejects(service.handleRequest("session/prompt", {
@@ -202,19 +189,19 @@ test("models default, switch with history, load, reject busy and never reset run
     const service = createNativeSessionService(context);
     const first = await service.handleRequest("session/new", {});
     const second = await service.handleRequest("session/new", {});
-    assert.equal(first.configOptions[1].currentValue, "model-a");
-    assert.deepEqual(first.configOptions[1].options, [{ value: "model-a", name: "Model A" }, { value: "model-b", name: "Model B" }]);
+    assert.equal(first.configOptions[0].currentValue, "model-a");
+    assert.deepEqual(first.configOptions[0].options, [{ value: "model-a", name: "Model A" }, { value: "model-b", name: "Model B" }]);
     const session = context.sessions.get(first.sessionId);
     const history = [{ role: "user", content: [] }];
     session.messages = history;
     session.promptStarted = true;
     session.runtimeSession = { retained: true };
     const switched = await service.handleRequest("session/set_config_option", { sessionId: first.sessionId, configId: "model", value: "model-b" });
-    assert.equal(switched.configOptions[1].currentValue, "model-b");
+    assert.equal(switched.configOptions[0].currentValue, "model-b");
     assert.equal(session.messages, history);
     assert.equal(session.runtimeSession.retained, true);
     assert.equal(context.sessions.get(second.sessionId).modelId, "model-a");
-    assert.equal((await service.handleRequest("session/load", { sessionId: first.sessionId })).configOptions[1].currentValue, "model-b");
+    assert.equal((await service.handleRequest("session/load", { sessionId: first.sessionId })).configOptions[0].currentValue, "model-b");
     context.running.set(first.sessionId, {});
     await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: first.sessionId, configId: "model", value: "model-a" }), /while a prompt is running/);
     assert.equal(session.modelId, "model-b");
@@ -230,7 +217,7 @@ test("old session migrates only missing model IDs; deleted IDs fail load and pro
     const { sessionId } = await service.handleRequest("session/new", {});
     const session = context.sessions.get(sessionId);
     delete session.modelId;
-    assert.equal((await service.handleRequest("session/load", { sessionId })).configOptions[1].currentValue, "model-a");
+    assert.equal((await service.handleRequest("session/load", { sessionId })).configOptions[0].currentValue, "model-a");
     session.modelId = "removed";
     for (const method of ["session/load", "session/prompt"]) {
         await assert.rejects(service.handleRequest(method, { sessionId, prompt: [] }), /Model is unavailable: removed/);

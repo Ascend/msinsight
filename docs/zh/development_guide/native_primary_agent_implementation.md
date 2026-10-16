@@ -22,20 +22,20 @@
 - 不使用 `agent`、`assistant` 之外的产品 Runtime 名称充当 ID；
 - 不覆盖已有 ID，除非明确进行开发环境调试。
 
-`general` 是内置默认助手的保留 ID。新增专项助手应使用其他 ID。
+`general` 是 Native 内部默认助手的保留 ID。新会话默认绑定 `general`；当前不通过 ACP 公开 Primary Agent 列表或配置选项，前端不展示 Native 助手选择器，模型选择不受影响。定义仅存放在 Native 自身资源目录，打包到 `native-agent/agents/`，不复制到 `agent-workspace`。下文的专项助手格式和绑定机制作为内部扩展保留，不表示前端已开放选择。
 
 ## 2. 新增内置助手
 
 在以下目录新增 Markdown 文件：
 
 ```text
-modules/insight_web_agent/agents/<assistant-id>.md
+modules/insight_web_agent/server/native-agent/agents/<assistant-id>.md
 ```
 
 例如：
 
 ```text
-modules/insight_web_agent/agents/memory-leak-analyzer.md
+modules/insight_web_agent/server/native-agent/agents/memory-leak-analyzer.md
 ```
 
 参考模板：
@@ -238,7 +238,7 @@ modules/insight_web_agent/skills/<skill-name>/SKILL.md
 
 ## 9. 欢迎页内存分析入口与对话交互
 
-欢迎页的内存分析、快慢卡分析和领域知识库卡片会填入对应提示词，并将焦点移到输入框；用户确认后再发送。仅内存分析入口设置 `promptPreset: "memory-tuning-assistant"`，服务端从资源目录的 `prompts/memory-tuning-assistant.md` 读取补充指令，与系统提示词一起作为隐藏上下文发送，聊天记录中只展示用户输入。
+欢迎页卡片填入对应提示词，并将焦点移到输入框；用户确认后再发送。内存分析与慢卡分析分别设置 `memory-tuning-assistant`、`slow-card-analysis-assistant` 预设，服务端读取对应内置 Markdown，仅随选中后的这一条消息通过 `insight-assistant-preset://project` 发送。发送或入队即消费选择，后续追问不再附带预设；再次主动选择卡片可重新发送一次。Host 不再每轮传输基础 `system.md`，基础规则仍在启动时写入工作区 `AGENTS.md`/`CLAUDE.md`，由 Agent 加载。Native 将预设作为该轮用户上下文写入运行时历史，不追加到持久 system 指令；后续依靠会话历史延续。外部 ACP Agent 需支持工作区规则与嵌入文本资源加载。聊天界面只展示用户输入。
 
 该入口使用提示词预设，不注册新的 Native 分析助手。修改输入内容会保留预设；清空输入、切换卡片或会话后清除。消息进入队列时保存自己的预设，避免影响后续普通消息。未知预设返回 HTTP 400，内存分析模板缺失或为空时返回 HTTP 503。新增预设时需要同步扩展前后端白名单，不能由客户端指定任意文件路径。
 

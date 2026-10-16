@@ -735,7 +735,7 @@ const getModelConfig = (configOptions: ConfigOption[]): ConfigOption | undefined
 
 const getModeConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {
     return configOptions.find((option) => option.category === 'mode')
-        ?? configOptions.find((option) => option.id.toLowerCase().includes('mode'));
+        ?? configOptions.find((option) => option.id.toLowerCase() === 'mode');
 };
 
 const flattenConfigValues = (options: ConfigOptionValue[]): ConfigOptionValue[] => {
