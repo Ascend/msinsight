@@ -58,11 +58,11 @@ const createFilesystemPolicyValue = ({ configured, defaults, developmentRoots })
 const sessions = new Map();
 const running = new Map();
 const entryDirectory = dirname(fileURLToPath(import.meta.url));
-const defaultResourceDir = basename(entryDirectory) === "native-agent" && existsSync(join(dirname(entryDirectory), "agents"))
+const defaultResourceDir = basename(dirname(entryDirectory)) === "dist-server"
     ? dirname(entryDirectory)
     : resolve(entryDirectory, "..", "..");
 const packagedResources = basename(defaultResourceDir) === "dist-server";
-const defaultBundledAgentsDir = join(defaultResourceDir, "agents");
+const defaultBundledAgentsDir = join(entryDirectory, "agents");
 const defaultBundledDocsDir = packagedResources
     ? join(defaultResourceDir, "docs")
     : resolve(defaultResourceDir, "..", "..", "docs");

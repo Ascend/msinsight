@@ -103,9 +103,9 @@ test("createPromptContent injects system prompt as the leading resource block", 
         {
             type: "resource",
             resource: {
-                uri: "insight-system-prompt://project",
+                uri: "insight-assistant-preset://project",
                 mimeType: "text/plain",
-                text: '<context ref="insight-system-prompt://project"/>\n你是一个 Ascend 调优助手',
+                text: '<context ref="insight-assistant-preset://project"/>\n你是一个 Ascend 调优助手',
             },
         },
         { type: "text", text: "hello" },
@@ -219,15 +219,15 @@ test("prompt applies requested mode to a new session before sending", async () =
     assert.deepEqual(calls.map((call) => call.method), ["session/set_config_option", "session/prompt"]);
 });
 
-test("prompt sends the configured Host System Prompt as an ACP resource", async () => {
+test("ordinary prompt does not copy configured base rules into ACP resources", async () => {
     const { service, calls } = createPromptTestService("Host system instructions");
 
     await service.prompt("analyze", { sessionId: "session-1" });
     await waitForPromptCall(calls, 1);
 
     const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
-    assert.equal(prompt[0].resource.uri, "insight-system-prompt://project");
-    assert.match(prompt[0].resource.text, /Host system instructions/);
+    assert.equal(prompt.some((block) => block.resource?.uri === "insight-system-prompt://project"), false);
+    assert.equal(JSON.stringify(prompt).includes("Host system instructions"), false);
 });
 
 test("prompt includes the prompt-scoped page observation in hidden context", async () => {
@@ -389,8 +389,9 @@ for (const promptPreset of ["memory-tuning-assistant", "slow-card-analysis-assis
         await waitForPromptCompletion(state);
 
         const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
-        assert.equal(prompt[0].resource.uri, "insight-system-prompt://project");
-        assert.equal(prompt[0].resource.text, `<context ref="insight-system-prompt://project"/>\nHost instructions\n\n${assistantPrompt}`);
+        assert.equal(prompt[0].resource.uri, "insight-assistant-preset://project");
+        assert.equal(prompt[0].resource.text, `<context ref="insight-assistant-preset://project"/>\n${assistantPrompt}`);
+        assert.equal(JSON.stringify(prompt).includes("Host instructions"), false);
         assert.equal(prompt[1].resource.uri, "insight-hidden-context://project");
         assert.deepEqual(prompt.filter((block) => block.type === "text"), [{ type: "text", text }]);
         const user = events.find((event) => event.type === "message_added" && event.message.role === "user").message;
@@ -403,7 +404,8 @@ for (const promptPreset of ["memory-tuning-assistant", "slow-card-analysis-assis
         await service.prompt("ordinary follow-up", { sessionId: "session-1" });
         await waitForPromptCompletion(state);
         const next = calls.filter((call) => call.method === "session/prompt")[1].params.prompt;
-        assert.equal(next[0].resource.text, '<context ref="insight-system-prompt://project"/>\nHost instructions');
+        assert.equal(next.some((block) => ["insight-system-prompt://project", "insight-assistant-preset://project"].includes(block.resource?.uri)), false);
+        assert.equal(JSON.stringify(next).includes("Host instructions"), false);
     });
 }
 

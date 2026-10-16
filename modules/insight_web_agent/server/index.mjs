@@ -77,7 +77,9 @@ const withHostEnv = (agentServer) => ({
         ...(agentServer.env ?? {}),
         INSIGHT_WEB_AGENT_BASE_URL: insightWebAgentBaseUrl(),
         INSIGHT_WEB_AGENT_RESOURCE_DIR: config.resourceDir,
-        MSINSIGHT_NATIVE_BUNDLED_AGENTS_DIR: bundledResourceDirectory("agents"),
+        MSINSIGHT_NATIVE_BUNDLED_AGENTS_DIR: sourceResourceRoot
+            ? join(config.resourceDir, "server", "native-agent", "agents")
+            : join(config.resourceDir, "native-agent", "agents"),
         MSINSIGHT_NATIVE_BUNDLED_SKILLS_DIR: bundledResourceDirectory("skills"),
         INSIGHT_WEB_AGENT_FILESYSTEM_POLICY: JSON.stringify(nativeFilesystemPolicy()),
         ...(agentServer.name === "msinsight-native"

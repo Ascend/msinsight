@@ -469,7 +469,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
 
     const getModeConfigFromOptions = (configOptions = []) => {
         return configOptions.find((option) => option?.category === "mode")
-            ?? configOptions.find((option) => String(option?.id ?? "").toLowerCase().includes("mode"));
+            ?? configOptions.find((option) => String(option?.id ?? "").toLowerCase() === "mode");
     };
 
     const localSessions = () => {

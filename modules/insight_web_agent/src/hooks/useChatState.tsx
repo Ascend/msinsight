@@ -660,8 +660,11 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         const promptImages = images;
         if (!text && !promptImages.length) return;
         setScrollToLatestRequest((current) => current + 1);
+        const promptPreset = draft.promptPreset;
+        // Consume the explicit welcome selection even when the message is queued.
+        setDraft({ text: '' });
         if (activePendingPrompt(state)) {
-            queuePrompt({ text, images: promptImages, promptPreset: draft.promptPreset });
+            queuePrompt({ text, images: promptImages, promptPreset });
             setInput('');
             setImages([]);
             return;
@@ -669,7 +672,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
         setInput('');
         setImages([]);
-        await sendPromptNow({ text, images: promptImages, mode: state.isDraftSession ? state.draftMode : undefined, promptPreset: draft.promptPreset }, state.isDraftSession, state.activeSessionId);
+        await sendPromptNow({ text, images: promptImages, mode: state.isDraftSession ? state.draftMode : undefined, promptPreset }, state.isDraftSession, state.activeSessionId);
     };
 
     const queuePrompt = (prompt: QueuedPrompt): void => {
@@ -1035,7 +1038,7 @@ const getActiveConfigOptions = (state: ChatState): ConfigOption[] => {
 
 const getModeConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {
     return configOptions.find((option) => option.category === 'mode')
-        ?? configOptions.find((option) => option.id.toLowerCase().includes('mode'));
+        ?? configOptions.find((option) => option.id.toLowerCase() === 'mode');
 };
 
 const updateConfigCurrentValue = (configOptions: ConfigOption[], configId: string | undefined, value: string): ConfigOption[] => {

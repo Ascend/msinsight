@@ -62,11 +62,22 @@ const renderComposer = (overrides: Record<string, unknown> = {}) => {
     };
     mockUseChatState.mockReturnValue(state);
     const view = render(<Composer />);
-    return { ...state, rerender: view.rerender };
+    return { ...state, rerender: view.rerender, container: view.container };
 };
 
 afterEach(() => {
     jest.clearAllMocks();
+});
+
+test('model-only native config does not also render an assistant picker', () => {
+    const { container } = renderComposer({
+        configOptions: [{
+            id: 'model', name: 'Model', category: 'model', type: 'select', currentValue: 'test-model',
+            options: [{ value: 'test-model', name: 'Test Model' }],
+        }],
+    });
+    // One wrapper is always reserved for the model; no preceding mode wrapper.
+    expect(container.querySelectorAll('.model-picker')).toHaveLength(1);
 });
 
 test('grows with the draft up to eight lines and shrinks after clearing it', () => {

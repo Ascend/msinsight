@@ -98,14 +98,16 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     assert.deepEqual(await runtime.runPrompt({
         session,
         sessionId: session.sessionId,
-        userText: "find leaks",
+        userText: "Hidden assistant preset\nfind leaks",
+        visibleUserText: "find leaks",
         pageObservation: { collectedAt: 1, blocks: [1] },
         controller,
     }), { ok: true });
 
     assert.equal(capturedOptions.messages.length, 1);
     assert.equal(capturedOptions.messages[0].role, "user");
-    assert.match(capturedOptions.messages[0].content, /<current_user_message>\nfind leaks/);
+    assert.match(capturedOptions.messages[0].content, /<current_user_message>\nHidden assistant preset\nfind leaks/);
+    assert.equal(session.messages[0].content[0].text, "find leaks");
     assert.equal(capturedOptions.system.includes("Use Read, Glob, and Grep"), false);
     assert.equal(await capturedOptions.stopWhen({ steps: Array.from({ length: 8 }) }), true);
     assert.equal(capturedOptions.prepareStep({ stepNumber: 6 }), undefined);
@@ -209,7 +211,8 @@ test("AI SDK runtime persists interrupted UI output without adding partial model
     assert.deepEqual(await runtime.runPrompt({
         session,
         sessionId: session.sessionId,
-        userText: "cancel me",
+        userText: "Hidden assistant preset\ncancel me",
+        visibleUserText: "cancel me",
         controller,
     }), { ok: false, reason: "AI SDK runtime was cancelled" });
 
@@ -249,6 +252,34 @@ test("each turn uses the session model and retains independent histories and sha
     a.modelId = "removed";
     assert.match((await run(a)).reason, /Model is unavailable: removed/);
     assert.equal(created.length, 3);
+});
+
+test("rate-limited replies persist only visible user text", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-preset-rate-limit-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    t.mock.method(globalThis, "fetch", async () => new Response("rate limited", { status: 429 }));
+    let modelFetch;
+    const runtime = createRuntime({
+        aiSdkStoragePath: root,
+        notifier: createNotifier(), toolRegistry: { list: () => [] },
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
+        createModel: (_, fetch) => { modelFetch = fetch; return {}; },
+        streamTextImpl: () => ({
+            fullStream: asAsyncStream(async function* () {
+                await modelFetch("https://example.invalid");
+                throw new Error("rate limited");
+            }),
+        }),
+    });
+    const session = createSession();
+    assert.deepEqual(await runtime.runPrompt({
+        session, sessionId: session.sessionId,
+        userText: "Hidden preset\nVisible request", visibleUserText: "Visible request",
+        controller: new AbortController(),
+    }), { ok: true });
+    const restoredSession = createSession();
+    await runtime.restoreSession(restoredSession);
+    assert.equal(restoredSession.messages[0].content[0].text, "Visible request");
 });
 
 test("AI SDK runtime reports unsupported providers before making a request", () => {

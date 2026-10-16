@@ -39,7 +39,7 @@ export const createRuntime = ({
 }) => {
     const sessionStateDir = join(aiSdkStoragePath, "sessions");
 
-    const runPrompt = async ({ session, sessionId, userText, pageObservation, controller }) => {
+    const runPrompt = async ({ session, sessionId, userText, visibleUserText = userText, pageObservation, controller }) => {
         let model;
         const rateLimit = createRateLimitObserver({ sessionId, notifier });
         try {
@@ -93,8 +93,10 @@ export const createRuntime = ({
                 responseMessages.push({ role: "assistant", content: text });
             }
             state.modelMessages.push(userMessage, ...responseMessages);
+            // Model history retains one-shot context; replayable UI history must
+            // contain only the original user input, including after a restart.
             state.uiMessages.push(
-                createUserMessage(userText),
+                createUserMessage(visibleUserText),
                 { id: randomUUID(), role: "assistant", content: streamState.content },
             );
             session.messages = state.uiMessages;
@@ -104,12 +106,12 @@ export const createRuntime = ({
             return { ok: true };
         } catch (error) {
             if (controller.signal.aborted) {
-                await saveInterruptedReply({ session, state, userText, content: streamState.content, saveSessionState });
+                await saveInterruptedReply({ session, state, userText: visibleUserText, content: streamState.content, saveSessionState });
                 return { ok: false, reason: "AI SDK runtime was cancelled" };
             }
             const latestRateLimit = rateLimit.latest();
             if (latestRateLimit) {
-                await saveRateLimitReply({ session, state, sessionId, userText, rateLimit: latestRateLimit, notifier, saveSessionState });
+                await saveRateLimitReply({ session, state, sessionId, userText: visibleUserText, rateLimit: latestRateLimit, notifier, saveSessionState });
                 return { ok: true };
             }
             return { ok: false, reason: `AI SDK runtime failed: ${error.message}` };

@@ -20,7 +20,7 @@ import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "", memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -75,7 +75,9 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         if (preset && !assistantPrompt) {
             return errorResult("prompt_preset_unavailable", `The ${preset.label} assistant prompt is unavailable`, 503);
         }
-        const hostPrompt = [systemPrompt, assistantPrompt].filter(Boolean).join("\n\n");
+        // Base rules are loaded from workspace AGENTS.md, not copied into each turn.
+        // Only an explicit assistant selection contributes a one-shot prompt resource.
+        const hostPrompt = assistantPrompt;
         if (!promptText && !images.length) {
             console.warn("Prompt rejected: message is empty");
             return errorResult("empty_prompt", "Enter a message or attach an image before sending", 400);
@@ -326,9 +328,9 @@ const normalizeHiddenContext = (value) => {
 const createSystemPromptBlock = (systemPrompt) => ({
     type: "resource",
     resource: {
-        uri: "insight-system-prompt://project",
+        uri: "insight-assistant-preset://project",
         mimeType: "text/plain",
-        text: wrapContextText("insight-system-prompt://project", systemPrompt),
+        text: wrapContextText("insight-assistant-preset://project", systemPrompt),
     },
 });
 

@@ -52,7 +52,6 @@ const createInitializeResult = ({ agentRegistry, skillRegistry }) => ({
         sessionCapabilities: { list: {}, delete: {}, resume: {} },
     },
     _meta: {
-        "msinsight.dev/primaryAgents": agentRegistry.list(),
         "msinsight.dev/skills": skillRegistry.list(),
         "msinsight.dev/diagnostics": [...agentRegistry.diagnostics(), ...skillRegistry.diagnostics()],
         "msinsight.dev/setConfigOption": true,
@@ -153,9 +152,9 @@ const runPrompt = async (context, { sessionId, prompt }) => {
     context.running.set(id, { controller, completion });
     try {
         if (controller.signal.aborted) return { stopReason: "cancelled" };
-        const { userText, pageObservation } = await prepareUserPrompt(context, session, prompt);
+        const { userText, visibleUserText, pageObservation } = await prepareUserPrompt(context, session, prompt);
         try {
-            const result = await context.aiRuntime.runPrompt({ session, sessionId: id, userText, pageObservation, controller });
+            const result = await context.aiRuntime.runPrompt({ session, sessionId: id, userText, visibleUserText, pageObservation, controller });
             if (!result.ok && !controller.signal.aborted) throw new Error(result.reason);
         } catch (error) {
             if (!controller.signal.aborted) throw error;
@@ -172,12 +171,16 @@ const runPrompt = async (context, { sessionId, prompt }) => {
 /** 功能：提取用户 prompt 元数据，更新 Host System Prompt、文件根、标题和用户消息。 */
 const prepareUserPrompt = async ({ filesystem }, session, prompt) => {
     const hostSystemPrompt = await resolveHostSystemPrompt(prompt);
-    if (hostSystemPrompt) session.hostSystemPrompt = hostSystemPrompt;
+    session.hostSystemPrompt = hostSystemPrompt;
     await filesystem.updateSessionFilesystemRoots(session, extractPromptProjectRoot(prompt));
     const userText = extractPromptText(prompt);
-    if (userText && session.title === "New session") session.title = userText.slice(0, 80);
+    const visibleText = (Array.isArray(prompt) ? prompt : [prompt])
+        .filter((block) => block?.type === "text")
+        .map((block) => String(block.text ?? ""))
+        .join("\n").trim();
+    if (visibleText && session.title === "New session") session.title = visibleText.slice(0, 80);
     session.updatedAt = Date.now();
-    return { userText, pageObservation: extractPromptPageObservation(prompt) };
+    return { userText, visibleUserText: visibleText, pageObservation: extractPromptPageObservation(prompt) };
 };
 
 /** 功能：在首次 Prompt 前绑定 Primary Agent，并持久化不可变会话配置。 */
@@ -240,17 +243,8 @@ const resolveSessionPrimaryAgent = ({ agentRegistry }, session) => {
     return changed;
 };
 
-/** 功能：把当前可选 Primary Agents 转换为标准 ACP select config option。 */
-const createConfigOptions = (agentRegistry, session, modelCatalog) => [{
-    id: "primaryAgent",
-    name: "Primary Agent",
-    description: "Select the analysis role for this native session.",
-    category: "mode",
-    type: "select",
-    currentValue: session.primaryAgentId ?? "general",
-    options: createPrimaryAgentOptions(agentRegistry, session.primaryAgentId),
-    _meta: session.primaryAgentError ? { "msinsight.dev/error": session.primaryAgentError } : undefined,
-}, {
+/** 功能：仅公开模型配置；Primary Agent 保持 Native 内部默认绑定。 */
+const createConfigOptions = (_agentRegistry, session, modelCatalog) => [{
     id: "model",
     name: "Model",
     category: "model",
@@ -258,63 +252,6 @@ const createConfigOptions = (agentRegistry, session, modelCatalog) => [{
     currentValue: session.modelId,
     options: modelCatalog.models.map(({ id, name }) => ({ value: id, name })),
 }];
-
-const createPrimaryAgentOptions = (agentRegistry, currentAgentId) => {
-    const agents = agentRegistry.list();
-    const definedIds = new Set(agents.map((agent) => agent.id));
-    const validOptions = agents
-        .filter((agent) => agent.mode === "primary" || agent.mode === "all")
-        .map((agent) => ({
-            value: agent.id,
-            name: agent.source.kind === "development" ? `${agent.name || displayAgentName(agent.id)} [Development]` : agent.name || displayAgentName(agent.id),
-            description: agent.description,
-            _meta: createAgentOptionMetadata(agent.source, true, agent.diagnostics),
-        }));
-    const selectableIds = new Set(validOptions.map((option) => option.value));
-    const invalidOptions = uniqueUnavailableAgents(agentRegistry.diagnostics(), definedIds);
-    const currentMissing = currentAgentId && !selectableIds.has(currentAgentId) && !invalidOptions.some((option) => option.value === currentAgentId)
-        ? [{
-            value: currentAgentId,
-            name: `${displayAgentName(currentAgentId)} [Unavailable]`,
-            description: `Primary Agent is unavailable: ${currentAgentId}`,
-            _meta: createAgentOptionMetadata(
-                { id: "missing", kind: "bundled" },
-                false,
-                [{ code: "AGENT_MISSING", message: `Primary Agent is unavailable: ${currentAgentId}`, resourceId: currentAgentId }],
-            ),
-        }]
-        : [];
-    return [...validOptions, ...invalidOptions, ...currentMissing];
-};
-
-const createAgentOptionMetadata = (source, available, diagnostics) => ({
-    "msinsight.dev/source": source,
-    "msinsight.dev/available": available,
-    "msinsight.dev/diagnostics": diagnostics,
-});
-
-const uniqueUnavailableAgents = (diagnostics, validIds) => {
-    const options = new Map();
-    for (const diagnostic of diagnostics) {
-        if (diagnostic.code !== "AGENT_INVALID" || !diagnostic.resourceId || validIds.has(diagnostic.resourceId)) continue;
-        const previous = options.get(diagnostic.resourceId);
-        const sourceKind = String(diagnostic.sourceId ?? "").startsWith("development:") ? "development" : "bundled";
-        const previousDiagnostics = previous?._meta?.["msinsight.dev/diagnostics"] ?? [];
-        options.set(diagnostic.resourceId, {
-            value: diagnostic.resourceId,
-            name: `${displayAgentName(diagnostic.resourceId)} [Unavailable]`,
-            description: diagnostic.message,
-            _meta: createAgentOptionMetadata(
-                { id: diagnostic.sourceId, kind: sourceKind },
-                false,
-                [...previousDiagnostics, diagnostic],
-            ),
-        });
-    }
-    return [...options.values()];
-};
-
-const displayAgentName = (id) => String(id).split("-").map((word) => word ? `${word[0].toUpperCase()}${word.slice(1)}` : word).join(" ");
 
 /** 功能：校验会话标识并返回对应运行时会话，不存在时抛出明确错误。 */
 const ensureSession = ({ sessions }, sessionId) => {
@@ -344,8 +281,16 @@ const replaySessionHistory = ({ notifier }, session) => {
 const extractPromptText = (prompt = []) => {
     const blocks = Array.isArray(prompt) ? prompt : [prompt];
     return blocks
-        .filter((block) => block?.type === "text")
-        .map((block) => String(block.text ?? ""))
+        .map((block) => {
+            if (block?.type === "text") return String(block.text ?? "");
+            // Explicit assistant selections belong to this user turn's history,
+            // not to the persistent system prompt used by every subsequent turn.
+            if (block?.type === "resource" && block.resource?.uri === "insight-assistant-preset://project") {
+                return unwrapContextText(block.resource.text, "insight-assistant-preset://project");
+            }
+            return "";
+        })
+        .filter(Boolean)
         .join("\n")
         .trim();
 };
