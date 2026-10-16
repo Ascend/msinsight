@@ -185,6 +185,17 @@ const PopoverContainer = styled.div`
         );
         mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
         -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 0);
+        animation: session-working-spin 1s linear infinite;
+    }
+
+    @keyframes session-working-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .history-row.working .session-state {
+            animation: none;
+        }
     }
 
     .history-row.error .session-state {
