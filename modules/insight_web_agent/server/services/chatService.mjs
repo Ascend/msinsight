@@ -20,7 +20,7 @@ import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "", memoryTuningPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "", memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -62,12 +62,18 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
     const prompt = async (text, options = {}) => {
         const promptText = String(text ?? "").trim();
         const images = normalizeImages(options.images);
-        if (options.promptPreset !== undefined && options.promptPreset !== "memory-tuning-assistant") {
+        // Presets select only bundled host instructions for this turn, never a client-supplied path.
+        const promptPresets = new Map([
+            ["memory-tuning-assistant", { prompt: memoryTuningPrompt, label: "memory analysis" }],
+            ["slow-card-analysis-assistant", { prompt: slowCardAnalysisPrompt, label: "slow card analysis" }],
+        ]);
+        if (options.promptPreset !== undefined && !promptPresets.has(options.promptPreset)) {
             return errorResult("invalid_prompt_preset", "Unknown prompt preset", 400);
         }
-        const assistantPrompt = options.promptPreset === "memory-tuning-assistant" ? memoryTuningPrompt.trim() : "";
-        if (options.promptPreset && !assistantPrompt) {
-            return errorResult("prompt_preset_unavailable", "The memory analysis assistant prompt is unavailable", 503);
+        const preset = promptPresets.get(options.promptPreset);
+        const assistantPrompt = preset?.prompt.trim() ?? "";
+        if (preset && !assistantPrompt) {
+            return errorResult("prompt_preset_unavailable", `The ${preset.label} assistant prompt is unavailable`, 503);
         }
         const hostPrompt = [systemPrompt, assistantPrompt].filter(Boolean).join("\n\n");
         if (!promptText && !images.length) {

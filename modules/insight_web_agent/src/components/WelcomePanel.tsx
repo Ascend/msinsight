@@ -166,7 +166,7 @@ const Container = styled.section`
 
 const guides = [
     { icon: guideOne, title: 'memoryGuideTitle', description: 'memoryGuideDescription', prompt: 'memoryGuidePrompt', promptPreset: 'memory-tuning-assistant' },
-    { icon: guideTwo, title: 'slowGuideTitle', description: 'slowGuideDescription', prompt: 'slowGuidePrompt', promptPreset: undefined },
+    { icon: guideTwo, title: 'slowGuideTitle', description: 'slowGuideDescription', prompt: 'slowGuidePrompt', promptPreset: 'slow-card-analysis-assistant' },
     { icon: guideThree, title: 'ragGuideTitle', description: 'ragGuideDescription', prompt: 'ragGuidePrompt', promptPreset: undefined },
 ] as const;
 

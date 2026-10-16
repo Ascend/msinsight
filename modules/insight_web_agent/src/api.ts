@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
+import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, PromptPreset, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
 import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, ACP_STARTUP_STATUS_URL, capabilityAuthHeaders } from './env';
@@ -298,7 +298,7 @@ export const sendPrompt = (
     images: ImageAttachment[] = [],
     mode?: string,
     pageObservation?: Record<string, unknown>,
-    promptPreset?: 'memory-tuning-assistant',
+    promptPreset?: PromptPreset,
 ): Promise<PromptResponse> => {
     return requestJson<PromptResponse>('/api/prompt', {
         method: 'POST',

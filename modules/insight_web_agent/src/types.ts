@@ -301,11 +301,13 @@ export interface SessionConfigUpdateResult {
     error?: string;
 }
 
+export type PromptPreset = 'memory-tuning-assistant' | 'slow-card-analysis-assistant';
+
 export interface QueuedPrompt {
     text: string;
     images: ImageAttachment[];
     mode?: string;
-    promptPreset?: 'memory-tuning-assistant';
+    promptPreset?: PromptPreset;
 }
 
 export type ServerEvent =

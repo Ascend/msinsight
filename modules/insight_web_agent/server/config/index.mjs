@@ -396,6 +396,7 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         memoryTuningPrompt: renderMemoryTuningPrompt(loadPrompt(resourceDir, "memory-tuning-assistant.md"), {
             capabilities: configuredCapabilities,
         }),
+        slowCardAnalysisPrompt: loadPrompt(resourceDir, "slow-card-analysis-assistant.md"),
         requestTimeoutMs,
         promptRequestTimeoutMs,
         permissionRequestTimeoutMs,

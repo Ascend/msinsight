@@ -94,13 +94,16 @@ test.each([
     expect(mockSendPrompt).not.toHaveBeenCalled();
 });
 
-test('sends the memory preset with edited input and clears it for the next message', async () => {
+test.each([
+    ['内存优化助手', 'memory-tuning-assistant'],
+    ['快慢卡分析助手', 'slow-card-analysis-assistant'],
+])('sends the %s preset with edited input and clears it for the next message', async (title, preset) => {
     await renderWelcome();
-    clickGuide('内存优化助手');
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '使用内存分析助手帮我分析当前数据，关注峰值' } });
+    clickGuide(title);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'edited analysis request' } });
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledWith(
-        '使用内存分析助手帮我分析当前数据，关注峰值', true, undefined, [], undefined, undefined, 'memory-tuning-assistant',
+        'edited analysis request', true, undefined, [], undefined, undefined, preset,
     ));
 
     act(() => eventSource.onmessage?.({ data: JSON.stringify({ type: 'prompt_status', sessionId: 'session-1', pendingPrompt: false }) }));
@@ -111,18 +114,21 @@ test('sends the memory preset with edited input and clears it for the next messa
     ));
 });
 
-test.each(['快慢卡分析助手', '咨询领域知识'])('replaces the memory preset when selecting %s', async (title) => {
+test.each([
+    ['快慢卡分析助手', 'slow-card-analysis-assistant'],
+    ['咨询领域知识', undefined],
+])('replaces the memory preset when selecting %s', async (title, preset) => {
     await renderWelcome();
     clickGuide('内存优化助手');
     clickGuide(title);
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt.mock.calls[0][6]).toBeUndefined();
+    expect(mockSendPrompt.mock.calls[0][6]).toBe(preset);
 });
 
-test('clearing the input removes the memory preset', async () => {
+test.each(['内存优化助手', '快慢卡分析助手'])('clearing the input removes the %s preset', async (title) => {
     await renderWelcome();
-    clickGuide('内存优化助手');
+    clickGuide(title);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } });
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'ordinary question' } });
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
@@ -130,9 +136,9 @@ test('clearing the input removes the memory preset', async () => {
     expect(mockSendPrompt.mock.calls[0][6]).toBeUndefined();
 });
 
-test('starting a new draft removes the memory preset', async () => {
+test.each(['内存优化助手', '快慢卡分析助手'])('starting a new draft removes the %s preset', async (title) => {
     await renderWelcome();
-    clickGuide('内存优化助手');
+    clickGuide(title);
     fireEvent.click(screen.getByRole('button', { name: 'New draft' }));
     expect(screen.getByRole('textbox')).toHaveValue('');
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'new draft question' } });
@@ -141,22 +147,25 @@ test('starting a new draft removes the memory preset', async () => {
     expect(mockSendPrompt.mock.calls[0][6]).toBeUndefined();
 });
 
-test('keeps the selected preset when a prompt is queued', async () => {
+test.each([
+    ['内存优化助手', '使用内存分析助手帮我分析当前数据', 'memory-tuning-assistant'],
+    ['快慢卡分析助手', '使用快慢卡分析助手帮我分析当前集群数据', 'slow-card-analysis-assistant'],
+])('keeps the %s preset when a prompt is queued', async (title, prompt, preset) => {
     await renderWelcome();
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'first question' } });
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
     await screen.findByRole('button', { name: 'New session' });
-    clickGuide('内存优化助手');
+    clickGuide(title);
     expect(screen.getByRole('button', { name: '发送' })).toBeEnabled();
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } });
     expect(screen.getByRole('button', { name: '取消' })).toBeVisible();
-    clickGuide('内存优化助手');
+    clickGuide(title);
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
     expect(screen.getByRole('textbox')).toHaveValue('');
     expect(screen.getByRole('button', { name: '取消' })).toBeVisible();
     expect(mockSendPrompt).toHaveBeenCalledTimes(1);
     act(() => eventSource.onmessage?.({ data: JSON.stringify({ type: 'prompt_status', sessionId: 'session-1', pendingPrompt: false }) }));
     await waitFor(() => expect(mockSendPrompt).toHaveBeenLastCalledWith(
-        '使用内存分析助手帮我分析当前数据', false, 'session-1', [], undefined, undefined, 'memory-tuning-assistant',
+        prompt, false, 'session-1', [], undefined, undefined, preset,
     ));
 });
