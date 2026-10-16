@@ -141,6 +141,35 @@ test("native Bash asks the ACP host before executing unmatched commands", async 
     assert.equal(approvals[0].params.title, "Run Bash command");
 });
 
+test("Full Access skips asks but retains explicit denies and returns to approval", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-full-access-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const session = await createSession(root, [{ pattern: "*", behavior: "ask" }]);
+    session.permissionMode = "full-access";
+    let approvals = 0;
+    let spawned = 0;
+    const [bash] = createBashTools({
+        sessions: new Map([[session.sessionId, session]]), cwd: root, shellRuntime: bashRuntime,
+        hostClient: { request: async () => { approvals += 1; return { outcome: { optionId: "allow_once" } }; } },
+        spawnProcess: () => {
+            spawned += 1;
+            const child = createChild();
+            queueMicrotask(() => child.emit("close", 0, null));
+            return child;
+        },
+    });
+    await bash.execute({ command: "python -V" }, { sessionId: session.sessionId });
+    assert.equal(approvals, 0);
+    await assert.rejects(bash.execute({ command: "sudo reboot" }, { sessionId: session.sessionId }), /denied/);
+    session.primaryAgentBashRules = [{ pattern: "*", behavior: "deny" }];
+    await assert.rejects(bash.execute({ command: "python -V" }, { sessionId: session.sessionId }), /denied/);
+    assert.equal(spawned, 1);
+    session.primaryAgentBashRules = [{ pattern: "*", behavior: "ask" }];
+    session.permissionMode = "ask";
+    await bash.execute({ command: "python -V" }, { sessionId: session.sessionId });
+    assert.equal(approvals, 1);
+});
+
 test("native Bash compatibility tool identifies PowerShell in approval requests", async (t) => {
     const root = await mkdtemp(join(tmpdir(), "msinsight-native-powershell-"));
     t.after(() => rm(root, { recursive: true, force: true }));

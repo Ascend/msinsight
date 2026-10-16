@@ -71,6 +71,7 @@ const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry
         messages: [],
         runtimeSession: undefined,
         hostSystemPrompt: "",
+        permissionMode: "ask",
         primaryAgentId: primaryAgent.id,
         primaryAgentFingerprint: primaryAgent.fingerprint,
         primaryAgentBody: primaryAgent.body,
@@ -141,6 +142,7 @@ const runPrompt = async (context, { sessionId, prompt }) => {
     resolveSessionPrimaryAgent(context, session);
     if (session.primaryAgentError) throw new Error(session.primaryAgentError);
     if (session.modelChangePending) throw new Error("Session model change is still being saved");
+    if (session.permissionChangePending) throw new Error("Permission change is still being saved");
     if (context.running.has(id)) throw new Error(`session already has a running prompt: ${id}`);
     session.promptStarted = true;
     session.updatedAt = Date.now();
@@ -186,6 +188,27 @@ const prepareUserPrompt = async ({ filesystem }, session, prompt) => {
 /** 功能：在首次 Prompt 前绑定 Primary Agent，并持久化不可变会话配置。 */
 const setConfigOption = async (context, { sessionId, configId, value }) => {
     const session = ensureSession(context, sessionId);
+    if (configId === "mode") {
+        if (!["ask", "full-access"].includes(value)) throw new Error(`Unsupported permission mode: ${value}`);
+        if (context.running.has(session.sessionId) || session.permissionChangePending) {
+            throw new Error("Permissions cannot be changed while a prompt or permission change is running");
+        }
+        const previous = session.permissionMode;
+        const previousUpdatedAt = session.updatedAt;
+        session.permissionChangePending = true;
+        session.permissionMode = value;
+        session.updatedAt = Date.now();
+        try {
+            await context.sessionStore.save();
+        } catch (error) {
+            session.permissionMode = previous;
+            session.updatedAt = previousUpdatedAt;
+            throw error;
+        } finally {
+            session.permissionChangePending = false;
+        }
+        return { configOptions: createConfigOptions(context.agentRegistry, session, context.modelCatalog) };
+    }
     if (configId === "model") {
         // No await before the busy check and assignment: prompt start cannot interleave here.
         if (context.running.has(session.sessionId)) throw new Error("Model cannot be changed while a prompt is running");
@@ -251,6 +274,16 @@ const createConfigOptions = (_agentRegistry, session, modelCatalog) => [{
     type: "select",
     currentValue: session.modelId,
     options: modelCatalog.models.map(({ id, name }) => ({ value: id, name })),
+}, {
+    id: "mode",
+    name: "Permissions",
+    category: "mode",
+    type: "select",
+    currentValue: session.permissionMode === "full-access" ? "full-access" : "ask",
+    options: [
+        { value: "ask", name: "Ask for Approval" },
+        { value: "full-access", name: "Full Access" },
+    ],
 }];
 
 /** 功能：校验会话标识并返回对应运行时会话，不存在时抛出明确错误。 */

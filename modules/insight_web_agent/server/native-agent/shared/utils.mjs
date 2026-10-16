@@ -82,6 +82,7 @@ export const toStoredSession = (session) => ({
     title: session.title,
     hostSystemPrompt: session.hostSystemPrompt,
     modelId: session.modelId,
+    permissionMode: session.permissionMode === "full-access" ? "full-access" : "ask",
     primaryAgentId: session.primaryAgentId ?? "general",
     primaryAgentFingerprint: session.primaryAgentFingerprint,
     promptStarted: Boolean(session.promptStarted),

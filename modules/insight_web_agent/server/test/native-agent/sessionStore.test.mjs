@@ -28,6 +28,7 @@ test("session store persists only Insight metadata", async (t) => {
         sessionId: "session-1",
         title: "Metadata",
         modelId: "model-b",
+        permissionMode: "full-access",
         messages: [{ id: "assistant-1", role: "assistant", content: [{ id: "text-1", type: "text", text: "not persisted" }] }],
         primaryAgentId: "general",
         projectRoot: "D:/project",
@@ -48,16 +49,19 @@ test("session store persists only Insight metadata", async (t) => {
     await restoredStore.load();
     assert.deepEqual(restored.get("session-1").messages, []);
     assert.equal(restored.get("session-1").modelId, "model-b");
+    assert.equal(restored.get("session-1").permissionMode, "full-access");
     restored.get("session-1").modelId = "removed";
     await restoredStore.save();
     const invalid = new Map();
     await createStore(invalid, storeDir).load();
     assert.equal(invalid.get("session-1").modelId, "removed");
     delete restored.get("session-1").modelId;
+    delete restored.get("session-1").permissionMode;
     await restoredStore.save();
     const legacy = new Map();
     await createStore(legacy, storeDir).load();
     assert.equal(legacy.get("session-1").modelId, undefined);
+    assert.equal(legacy.get("session-1").permissionMode, "ask");
 
     restored.delete("session-1");
     await restoredStore.save();
