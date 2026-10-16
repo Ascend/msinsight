@@ -16,7 +16,7 @@ NUMA（Non-Uniform Memory Access，非一致内存访问）分析用于展示CPU
 
 请使用支持NUMA指标采集的性能分析工具采集数据，并将采集结果导入MindStudio Insight。数据导入操作请参见[导入数据](./basic_operations.md#导入数据)。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - NUMA分析依赖主性能数据库中的NUMA指标数据，通常为采集结果目录下的 `ascend_pytorch_profiler.db`。
 > - 当前不再支持单独导入独立NUMA数据库文件。请导入完整的Profiling结果目录，或导入包含NUMA指标的主数据库结果。
@@ -33,7 +33,7 @@ NUMA分析主要依赖数据库中的NUMA拓扑与指标采样数据。不同采
 | `ascend_pytorch_profiler.db` | `NUMA_TITLES_NAMES`、`NUMA_LEVELS_HIERARCHY_NAMES`、`NUMA_METRICS`等NUMA相关表 | NUMA高层架构图、系统汇总指标、Socket指标、NUMA节点指标、DRAM读写指标、通信链路指标 | 数据库中需包含NUMA层级、指标名称和采样值。                                                                                  |
 | Timeline解析结果               | Platform Metric、Thread State、LLC Hit/Miss等数据                                    | 时间线（Timeline）中的NUMA相关泳道                                                 | Thread State依赖线程维度的Active Time、Wait Time、Preemption Time和Unknown Time指标；仅在采集数据包含对应事件或指标时展示。 |
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - NUMA指标值按所选时间范围内的采样数据进行统计展示。对于带宽类指标，时间范围内需包含至少两个不同时间戳的采样点，才能计算流量总量；不足时对应指标显示为“未采集到数据”。
 > - 页面中的带宽类指标在NUMA高层架构图中以所选时间范围内的流量总量展示，例如源数据单位为 `GB/s` 时，页面展示单位为 `GB`。
@@ -67,7 +67,7 @@ NUMA高层架构图界面主要包含系统指标、拓扑图操作区、NUMA拓
 5. 如需查看链路上的指标值，开启“显示连线指标”。
 6. 如需调整拓扑图视图，可使用工具栏中的放大、缩小、重置缩放按钮；也可以按住 `Ctrl` 键并滚动鼠标滚轮进行缩放。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > 如果已在时间线（Timeline）中选择分析时间范围分析，NUMA高层架构图会优先展示该时间范围内的统计结果；如果未选择分析时间范围，则展示数据中的完整时间范围统计结果。
 
@@ -93,7 +93,7 @@ NUMA高层架构图中的指标用于描述所选时间范围内不同层级的�
 | Source To Target Traffic        | Socket间通信链路                             | GB或GOps | 所选时间范围内数据库Outgoing/Incoming字段明确记录的从起点Socket到终点Socket的通信流量总量。 | 用于判断Socket间方向性流量是否不均衡。                                              |
 | Target To Source Traffic        | Socket间通信链路                             | GB或GOps | 所选时间范围内数据库Outgoing/Incoming字段明确记录的从终点Socket到起点Socket的通信流量总量。 | 可与Source To Target Traffic对比，识别反向链路压力。                                |
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 页面显示的指标名称为流量类名称，例如 `Cross Socket Read Traffic`。源数据库中的采样指标可能为带宽类名称，例如 `Cross Socket Read Bandwidth`。
 > - 当指标显示为“未采集到数据”时，表示当前时间范围内没有可用于该指标统计的采样数据；对于带宽类指标，至少两个不同时间戳的采样点才可计算流量总量；采样点不足时也会显示该提示，并不表示指标值一定为0。
@@ -148,7 +148,7 @@ Thread State泳道按线程展示采集周期内不同运行状态所占的比�
 
 例如，某个聚合时间段内Active、Sync Wait、Preemption和Unknown的持续时间分别为70 ms、20 ms、10 ms和0 ms，则对应占比分别为70%、20%、10%和0%。将鼠标悬停在该数据点上，可同时查看各状态的持续时间和占比。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - Thread State数据按线程展示，不代表整个进程或系统的汇总状态。
 > - 只有同一聚合时间段内同时包含Active Time、Wait Time、Preemption Time和Unknown Time四类有效数据，且各值非负、总时长大于0时，Timeline才会展示该数据点。
@@ -179,7 +179,7 @@ LLC Cache泳道位于对应的Thread节点下，按线程展示采集周期内�
 
 例如，某个聚合时间段内命中900次、未命中100次，则总访问次数为1000次，命中率为90.0%，未命中率为10.0%。将鼠标悬停在该柱形上，可查看聚合时间范围、聚合间隔、总访问次数，以及命中和未命中的次数与占比。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - LLC Cache数据按线程展示，不代表整个进程或系统的汇总结果，也不同于NUMA高层架构图中以流量展示的LLC Traffic。
 > - 柱高表示绝对计数，不是固定为100%的百分比。高度会随当前可见数据范围自动缩放，跨线程或缩放前后比较时，应以悬浮提示中的计数为准。

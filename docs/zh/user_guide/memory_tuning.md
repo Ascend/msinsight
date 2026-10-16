@@ -12,7 +12,7 @@ MindStudio Insight工具以图形化形式呈现device侧内存详细分配情�
 
 基于内存申请释放生命周期可视化，结合**内存池分配状态**进行内存碎片问题的定位及调优。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >PyTorch Snapshot功能，下文简称为内存快照功能。
 
@@ -54,7 +54,7 @@ pip install msmemscope
 | Python接口采集 | 需要自定义采集范围和参数项 | 参见[msMemScope Python接口采集](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#python接口采集功能介绍) | memscope_dump_{timestamp}.db |
 | mstx打点采集 | 结合mstx打点能力 | 参见[msMemScope mstx打点采集](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#mstx打点采集功能介绍) | memscope_dump_{timestamp}.db |
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - `--events` 参数取值需至少包含 `alloc`、`free` 事件，否则无法生成内存块生命周期图。
 > - `--analysis` 参数取值包含 `decompose` 时，才会生成内存详情拆解图。
@@ -149,7 +149,7 @@ PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记�
 
   - 内存峰值优化：模型训练过程中，针对内存峰值，需要拆解分析，确定是哪些算子/tensor导致的内存峰值。并分析是否可以通过调整tensor申请顺序、算子执行顺序等方式，来削减内存峰值。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >以上常见内存问题，是在采集Profiling数据后，系统调优-内存页签可视化时发生。
 
@@ -167,7 +167,7 @@ PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记�
 
 - 区域一：调用栈火焰图，通过选择线程ID，展示对应的Python调用栈图；在“搜索”输入框中输入要搜索的函数名，或单击下拉框选择函数名，可选多个函数名进行搜索，调用栈图中会高亮显示搜索的函数，如[**图 1** 调用栈火焰图](#调用栈火焰图)所示。
 
-  > [!NOTE] 说明
+  > [!NOTE]
   >
   > 该区域视图默认勾选“允许压缩”，该状态下，工具在不影响整体数据的情况下，压缩数据展示，增加工具使用流畅度。
 
@@ -214,7 +214,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
 
     MindStudio Insight 的趋势图缩放条所在背景呈现的是在整体时间范围下内存使用（Operator Allocated）情况的趋势图，直观地呈现选定时间范围内整个内存的使用情况趋势。
 
-    > [!NOTE] 说明
+    > [!NOTE]
     >
     >Operator Allocated（算子分配）曲线表示算子在申请或释放内存时采集到的已分配内存的变化趋势，代表所有算子总的分配内存。
 
@@ -252,7 +252,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
 
     ![](./figures/memory_tuning/pta_framework_memory_breakdown_1.png "PTA框架内存详情拆解图")
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > “内存详情拆解图”支持左右上下拖拽和缩放展示。
 >
@@ -264,7 +264,8 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
 **内存详情展示**
 
 在内存详情表区域，通过“内存块视图”和“内存事件视图”分别展示内存的详细信息，默认展示所有内存相关信息。
-> [!NOTE] 说明
+
+> [!NOTE]
 >
 > - 系统默认隐藏内存详情展示。如需查看，需要点击上拉按键，将内存详情展示信息上拉展示。如无需查看内存详情信息，点击下拉按键，隐藏内存详情信息。
 > - “内存块视图”中的“内存块大小”、“申请时间”和“释放时间”字段，“内存事件视图”中的“时间戳\(ns\)”字段，单击![](./figures/memory_tuning/zh-cn_image_0000002532040401.png)，支持筛选，可输入最小值和最大值进行区间筛选，只能输入整数，输入的数值最小为0，最大为当前展示的对应字段的最大值。
@@ -296,7 +297,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
     |最大访问时间间隔(ns)|Max Access Interval(ns)|访问事件的最大间隔时间。|
     |特有属性|Attr|扩展属性，包含以下信息：<br> - allocation_id：内存块所属的申请/访问/释放序列id，唯一标识一组内存事件。<br> - lazy_used：提前申请场景，取值为true或者false，true表示已识别到该场景。<br> - delayed_free：延迟释放场景，取值为true或者false，true表示已识别到该场景。<br> - long_idle：超长闲置场景，取值为true或者false，true表示已识别到该场景。|
 
-  > [!NOTE] 说明
+  > [!NOTE]
   >
   > - 如果导入的数据是使用MindStudio 8.2.RC1之前版本的msMemScope工具采集的，或者数据中没采集到访问事件，那么allocation\_id显示为0，首次访问时间\(ns\)、末次访问时间\(ns\)显示为-1，最大访问时间间隔\(ns\)显示为0。
   > - 由于msMemScope工具当前仅支持采集ATB和Ascend for PyTorch算子场景的内存访问事件，则首次访问时间\(ns\)、末次访问时间\(ns\)和最大访问间隔\(ns\)也仅支持展示对应场景的详情，其余场景下，首次访问时间\(ns\)、末次访问时间\(ns\)显示为-1，最大访问时间间隔\(ns\)显示为0。
@@ -325,7 +326,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
     |调用栈(Python)|Call Stack(Python)|Python调用栈。仅当数据中采集到该信息时，则显示该字段。|
     |调用栈(C)|Call Stack(C)|C调用栈。仅当数据中采集到该信息时，则显示该字段。|
 
-    > [!NOTE] 说明
+    > [!NOTE]
     >
     > 事件类型、事件子类型和名称字段的取值可参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”章节的msmemscope\_dump\_\{timestamp\}.csv结果文件说明。
 
@@ -353,7 +354,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
   - 区间未释放最大块：在缩放条区间内**申请，但未释放**的**最大**内存块大小。
   - 区间未释放最小块：在缩放条区间内**申请，但未释放**的**最小**内存块大小。
 
-  > [!NOTE] 说明
+  > [!NOTE]
   >
   >1. 数据分窗栏按固定事件数将每个 device 的快照拆分为多个分窗，当前默认每窗最多包含 500000 个原始 trace event。解析按事件 ID 从右向左倒序生成分窗，使最接近快照时刻的窗口优先可用。
   >2. reserved折线图：PTA缓存池总大小（Operator Reserved）情况的趋势图，表示PTA Caching缓存池总大小的变化趋势，直观呈现实际PTA从驱动处申请及管理的缓存池大小，为任意时刻所有segment大小的总和。
@@ -398,7 +399,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     MindStudio Insight 的内存快照趋势图缩放条所在背景呈现的是在整体时间范围下内存使用（Operator Allocated）情况的趋势图，直观地呈现选定时间范围内整个内存的使用情况趋势。
 
-    > [!NOTE] 说明
+    > [!NOTE]
     >
     >Operator Allocated（算子分配）曲线表示算子在申请或释放内存时采集到的已分配内存的变化趋势，代表所有算子总的分配内存。
 
@@ -438,7 +439,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
 当鼠标置于“内存块生命周期图”中，在“内存块生命周期图”区域，单击内存色块，则会在“内存块生命周期图”下方展示对应时间点的事件总览以及内存池状态图。也可以通过搜索对应的地址精准定位事件详情，支持按照具体事件类型筛选数据，如[**图 5** 内存池状态图](#内存池状态图)所示。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 >若点击内存色块后内存池状态未更新，则说明该内存色块在生命周期中未被采集到申请事件。
 
@@ -451,7 +452,8 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 **内存快照详情展示**
 
 内存详情包含选中详情和系统视图两部分，其中选中详情展示该事件对应事件点的详情信息，系统视图下，通过“内存块视图”和“内存事件视图”分别展示内存的详细信息，默认展示所有内存相关信息。
-> [!NOTE] 说明
+
+> [!NOTE]
 >
 > - 系统默认隐藏内存详情展示。如需查看，需要点击上拉按键，将内存详情信息上拉展示。如无需查看内存详情信息，点击下拉按键，隐藏内存详情信息。
 > - “内存块视图”中的“内存大小（KB）”和“分配事件需求大小（KB）”字段，“内存事件视图”中的“内存大小（KB）”、“总二次分配内存（KB）”、“总活跃内存（KB）”和“总预留内存（KB）”字段，单击![](./figures/memory_tuning/zh-cn_image_0000002532040401.png)，可输入最小值和最大值进行区间筛选。
@@ -514,7 +516,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |Reserved(KB)|必选|事件发生后的PTA内存池总保留内存大小，单位为 KB 。|浮点数|12.5|其值为所有内存段Segment的大小总和。反映事件发生时刻，PTA内存池中实际从驱动申请，预留的内存大小。|
     |Call Stack|可选|内存事件调用栈。|字符串|`/home/xxx/test/demo.py: 60 main`|内存事件的调用栈，展示了内存事件发生时的触发调用栈，若为空可能是以下几种情况之一：<br><ul><li>_record_memory_history时未启用stacks。</li><br><li>该事件发生在反向backward时的autograd中，可能无调用栈信息。</li></ul>|
 
-    > [!NOTE] 说明
+    > [!NOTE]
     >
     > 事件类型、事件子类型和名称字段的取值可参见《msMemScope内存采集》的“[命令行采集功能介绍](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)”章节的memscope\_dump\_\{timestamp\}.csv结果文件说明。
 

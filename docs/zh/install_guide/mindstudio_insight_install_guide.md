@@ -14,65 +14,13 @@ MindStudio Insight可在如下场景使用：
 
 ### 软件包下载
 
-**MindStudio Insight 26.1.0 现已发布**
-
-您可以根据操作系统选择对应的软件包进行下载。下载本软件即表示您同意[华为企业业务最终用户许可协议（EULA）](https://e.huawei.com/cn/about/eula)的条款和条件。
-
-### 根据平台获取软件包
-
-<details>
-<summary>下载 Windows 版</summary>
-
-[下载 MindStudio Insight Windows 版本](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_win.exe)
-
-</details>
-
-<details>
-<summary>下载 Linux 版</summary>
-
-[下载 MindStudio Insight Linux 版本 (x86_64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_linux_x86_64.zip)
-
-[下载 MindStudio Insight Linux 版本 (aarch64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_linux_aarch64.zip)
-
-</details>
-
-<details>
-<summary>下载 macOS 版</summary>
-
-[下载 MindStudio Insight macOS 版本 (arm64 Apple Silicon)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_macos_aarch64.dmg)
-
-[下载 MindStudio Insight macOS 版本 (x86_64 Intel Chip)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_macos_x86_64.dmg)
-
-</details>
-
-<details>
-<summary>下载 JupyterLab 插件</summary>
-
-[下载 MindStudio Insight JupyterLab 扩展 (x86_64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_x86_64.whl)
-
-[下载 MindStudio Insight JupyterLab 扩展 (aarch64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_aarch64.whl)
-
-</details>
-
-<details>
-<summary>下载 镜像</summary>
-
-[下载 MindStudio Insight 镜像（ubuntu_x86_64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_x86_64.tar)
-
-[下载 MindStudio Insight 镜像（ubuntu_aarch64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_aarch64.tar)
-
-[下载 MindStudio Insight 镜像（openEuler_x86_64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_x86_64.tar)
-
-[下载 MindStudio Insight 镜像（openEuler_aarch64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_aarch64.tar)
-
-</details>
-
-### 详细软件包清单
+您可以根据操作系统选择对应的软件包进行下载。下载二进制软件即表示您同意《[软件许可协议2.0](https://www.hiascend.com/legal/softlicense)》的条款和条件。
 
 单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)，确认版本信息后获取如[**表 1**  软件包清单](#软件包清单)所示软件包。
 
-> [!NOTE] 说明
-> 表中软件包名称中的 `{version}` 为版本号占位符，实际下载时请替换为当前发布版本号，版本号获取请参见[版本发布说明](../release_notes/release_notes.md)。
+> [!NOTE]
+>
+> 表中软件包名称中的 `{version}` 为版本号占位符，实际下载时请替换为当前发布版本号，版本号获取请参见[版本发布说明](https://gitcode.com/Ascend/msinsight/releases)。
 
 **表 1**  软件包清单<a id="软件包清单"></a>
 
@@ -153,7 +101,8 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
     **图 3**  选择安装路径<a id="选择安装路径"></a>
     ![](./figures/install_guide/select_installation_path_1.png "选择安装路径")
 
-    > [!NOTE] 说明
+    > [!NOTE]
+    >
     > 默认安装目录为“C:\\Program Files \(x86\)\\MindStudio Insight”。如果选择安装到其他目录，为避免其他用户修改运行文件，需要取消普通用户的修改权限，可在所选文件夹右键选择“属性 \> 安全”，在“安全”页签下修改用户的权限。
 
 5. 选择安装组件MindStudio Insight，单击“Install”，如[**图 4**  选择安装组件](#选择安装组件)所示。
@@ -171,7 +120,8 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
     - 如果在[6](#6)中，勾选了“Run MindStudio Insight”，单击“Finish”后会自动启动MindStudio Insight。
     - 如果未勾选“Run MindStudio Insight”，安装完成后，双击桌面的“MindStudio Insight”快捷方式图标，或安装目录下的“MindStudio-Insight.exe”，即可启动MindStudio Insight工具。
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > 安装完成后，运行MindStudio Insight工具时，如果出现Missing Dependencies报错弹窗，请参见[运行MindStudio Insight工具时出现Missing Dependencies报错弹窗](../support/faq.md#faq-missing-dependencies)解决。
 
 </details>
@@ -195,7 +145,8 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 
 本文档主要介绍X11和VNC两种转发方式，开发者可根据实际情况选择其中一种转发方式，可参见[**表 1**  转发方式说明](#转发方式说明)进行选择。通过转发方式安装使用MindStudio Insight，首先需要安装转发方式和软件依赖，安装操作请参见[安装依赖](#安装依赖)章节。
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > 推荐使用VNC转发方式，可获得更为流畅的使用体验。
 
 **表 1**  转发方式说明<a id="转发方式说明"></a>
@@ -217,7 +168,8 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 |系统要求|- glibc版本应大于或等于2.27<br> - 操作系统自带GUI桌面或具有X11或VNC转发功能|
 |支持的操作系统|以apt作为包管理软件类型的操作系统：<br> - Ubuntu 18.04-x86_64/aarch64<br> - Ubuntu 20.04-x86_64/aarch64<br> - Ubuntu 22.04-x86_64/aarch64<br> - CentOS 8.2-x86_64/aarch64<br> - Debian 10.0<br> - Debian 10.8<br> 以yum/dnf作为包管理软件类型的操作系统：<br> - EulerOS 2.8-aarch64<br> - EulerOS 2.12-aarch64<br> - OpenEuler 20.03-x86_64/aarch64<br> - OpenEuler 22.03 LTS-x86_64/aarch64<br> - OpenEuler 22.03 LTS<br> - OpenEuler 22.03 LTS SP4<br> - HCE 2.0<br> - CUlinux 3.0<br> - Kylin V10 SP3<br> - EulerOS 2.13-aarch64<br> - HCE 2.0.2503-x86<br> - Tlinux 3.1-内核版本5.4<br> - BClinux 21.10 U4<br> - TencentOS Server 4.4-x86|
 
-> [!NOTE]  说明
+> [!NOTE]
+>
 > 在直通虚拟机velinux 5.15系统上安装和使用MindStudio Insight工具时，推荐使用JupyterLab插件的安装方式使用MindStudio Insight工具，JupyterLab插件安装请参见[安装操作（JupyterLab插件）](#安装操作jupyterlab插件)章节进行操作。
 
 <a id="安装依赖"></a>
@@ -277,7 +229,7 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 
 如果通过VNC转发方式启动MindStudio Insight，可获得更为流畅的体验，所以推荐使用VNC转发方式使用MindStudio Insight工具。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - EulerOS 2.12系统不支持使用VNC方式启动MindStudio Insight工具。
 > - 本章节内容仅供参考，VNC的具体安装步骤请参见[VNC官方文档](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/6/html/deployment_guide/chap-tigervnc#s2-starting-vncserver)。
@@ -321,7 +273,8 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 
             其中`dependency_name`为依赖文件名称，可参考回显信息确定。例如，如上回显信息所示，如果回显信息中存在webkit2gtk3-devel，则此处的依赖文件名称为webkit2gtk3-devel；如果回显信息中不存在webkit2gtk3-devel，则需要找到webkit2gtk3，此处的依赖文件名称为webkit2gtk3。
 
-        > [!NOTE] 说明
+        > [!NOTE]
+        >
         > EulerOS 2.12操作系统是基于OpenEuler 22.03 LTS SP1开发，需要先配置OpenEuler 22.03 LTS SP1的源，再执行安装命令。配置OpenEuler的源具体操作请参见[OpenEuler软件源配置](https://mirrors.huaweicloud.com/mirrorDetail/5ebe3408c8ac54047fe607f0?mirrorName=openeuler&catalog=os)。
 
 2. 使用root用户，执行以下命令，安装MindStudio Insight通过VNC转发的桌面依赖。
@@ -410,7 +363,8 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
     vncserver -kill :x
     ```
 
-    > [!NOTE] 说明
+    > [!NOTE]
+    >
     > 此处的`x`值与[3](#3)中首行回显的`x`值一致。
 
 5. 执行`vi ~/.vnc/xstartup`，打开xstartup启动脚本，并在脚本最后新增一行文本，配置脚本，需要增加的文本内容请参见[**表 1**  文本内容](#文本内容)。
@@ -432,7 +386,7 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 vncserver -localhost -geometry 1920x1080
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - **localhost**：是启动本地主机的VNC服务，需要与[端口转发](#端口转发)配合使用。如果是安全的网络环境下，也可以不使用localhost，同时也不采用[端口转发](#端口转发)，可直接执行[本地连接VNC Server](#本地连接VNC)步骤（不推荐此方式）。
 > - **geometry 1920x1080**：配置VNC桌面的分辨率为1920x1080，也可以根据用户显示器的分辨率自行配置。
@@ -473,7 +427,7 @@ vncserver -localhost -geometry 1920x1080
 1. 在MobaXterm工具首页，单击“Session”，进入Session settings页面。
 2. 单击“VNC”，根据实际情况配置“Remote hostname or IP address”和“Port”。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 如果使用了端口转发功能，“Remote hostname or IP address”为127.0.0.1，“Port”为端口转发中的Forwarded port。
 > - 如果未使用端口转发，“Remote hostname or IP address”为实际远端Linux的IP，“Port”为5900加设置VNC Server中的`x`（显示序号）值。
@@ -504,7 +458,8 @@ vncserver -localhost -geometry 1920x1080
     yum makecache
     ```
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > 如果OpenEuler及其衍生操作系统，在安装过程中提示找不到相关依赖，可能原因是系统配置的源没有相关依赖，可参见[配置源](https://www.hiascend.com/forum/thread-02101178181671140059-1-1.html)配置新的源，并重新安装对应依赖。
 
 **操作步骤**
@@ -546,7 +501,8 @@ vncserver -localhost -geometry 1920x1080
 
             其中`dependency_name`为依赖文件名称，可参考回显信息确定。例如，如上回显信息所示，如果回显信息中存在webkit2gtk3-devel，则此处的依赖文件名称为webkit2gtk3-devel；如果回显信息中不存在webkit2gtk3-devel，则需要找到webkit2gtk3，此处的依赖文件名称为webkit2gtk3。
 
-        > [!NOTE] 说明
+        > [!NOTE]
+        >
         > EulerOS 2.12操作系统是基于OpenEuler 22.03 LTS SP1开发，需要先配置OpenEuler 22.03 LTS SP1的源，再执行安装命令。配置OpenEuler的源具体操作请参见[OpenEuler软件源配置](https://mirrors.huaweicloud.com/mirrorDetail/5ebe3408c8ac54047fe607f0?mirrorName=openeuler&catalog=os)。
 
 2. 执行以下命令，安装MindStudio Insight通过X11转发的依赖文件。
@@ -585,7 +541,7 @@ vncserver -localhost -geometry 1920x1080
     ./MindStudio-Insight
     ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 如果在EulerOS系统上运行MindStudio Insight，单击界面左上方工具栏中的![](./figures/install_guide/zh-cn_image_0000002485304398.png)，无法弹出导入选择框，解决方法可参见[EulerOS等系统上运行MindStudio Insight工具无法弹出数据导入选择框](../support/faq.md#faq-euleros-import-dialog)。
 > - 在X11转发方式下运行MindStudio Insight时，如果出现输入框信息粘贴不符合预期，造成输入信息错误的情况，具体解决方法可参见[通过X11转发方式运行MindStudio Insight工具时，输入框信息粘贴有误](../support/faq.md#faq-x11-paste-error)。
@@ -607,7 +563,8 @@ vncserver -localhost -geometry 1920x1080
 
 3. 确保客户端能够访问服务器上用于MindStudio Insight的映射端口。
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > 镜像中的操作系统和Python运行环境已经预置，无需在服务器上另行安装MindStudio Insight的运行依赖。如果需要自行构建镜像，请参见[MindStudio Insight镜像说明](../../../docker/OVERVIEW.zh.md#本地构建)。
 
 **获取镜像**
@@ -627,7 +584,8 @@ vncserver -localhost -geometry 1920x1080
 
 2. 在镜像页面对应Tag的操作栏中单击“立即下载”，按照页面显示的操作步骤复制并执行镜像拉取命令。
 
-    > [!NOTE] 说明
+    > [!NOTE]
+    >
     > AscendHub镜像仓库中的镜像地址和拉取命令可能随仓库配置变化，请以镜像页面实时显示的信息为准。
 
 3. 执行以下命令，确认镜像已拉取成功：
@@ -687,7 +645,8 @@ vncserver -localhost -geometry 1920x1080
             ca.crt
             ```
 
-            > [!NOTE] 说明
+            > [!NOTE]
+            >
             > 请妥善设置证书目录及私钥文件的访问权限，防止证书或私钥泄露。客户端还需配置由该CA签发的客户端证书，以完成mTLS双向认证。
 
         2. 执行以下命令，启动容器。
@@ -802,7 +761,7 @@ docker ps --filter name=msinsight
 docker logs msinsight
 ```
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - `{host_ip}`为运行容器的服务器IP地址。请确保客户端与服务器网络连通，且服务器防火墙已放通相应的映射端口。
 > - 挂载到`/opt/insight/data`的服务器目录可在MindStudio Insight中用于访问待分析性能数据。
@@ -833,7 +792,7 @@ docker logs msinsight
 
 3. 在应用程序中双击MindStudio Insight应用，即可打开MindStudio Insight工具。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 当前适用于macOS系统的MindStudio Insight应用程序，在部分macOS系统上运行时，可能会出现无法打开“MindStudio Insight”的情况。<br> 当运行MindStudio Insight时，如果出现无法打开“MindStudio Insight”的弹窗，需单击弹窗信息中的“好”，然后在“系统设置 \> 隐私与安全性 \> 安全性”中选择“App Store和被认可的开发者”，在出现的“已阻止使用MindStudio Insight”信息中单击“仍要打开”，授予执行权限，再次双击MindStudio Insight应用，出现无法打开“MindStudio Insight”弹窗时，单击弹窗中的“打开”，即可正常打开MindStudio Insight工具。
 > - 如果需要在macOS系统上同时打开多个MindStudio Insight工具，可在cmd窗口中，执行`open -n /Applications/MindStudio Insight.app`命令。但是不建议在两个MindStudio Insight窗口中同时打开同一份数据，以免出现数据解析问题。
@@ -866,7 +825,8 @@ docker logs msinsight
     pip install jupyterlab
     ```
 
-    > [!NOTE] 说明
+    > [!NOTE]
+    >
     >如果需要打开集群场景数据，则需要参见[安装依赖](#安装依赖)章节中的内容安装Python依赖。
 
     **表 2**  环境要求<a id="环境要求"></a>
@@ -900,7 +860,8 @@ docker logs msinsight
     pip install mindstudio_insight_jupyterlab-{version}-py3-none-{platform}.whl
     ```
 
-    > [!NOTE] 说明
+    > [!NOTE]
+    >
     > 在安装插件包前，请先确认当前用户的umask设置，推荐设置为“0027”，具体建议请参见[安全声明](../legal/security_statement.md)。
 
 2. 查看MindStudio Insight是否安装成功。
@@ -931,7 +892,8 @@ docker logs msinsight
         jupyter lab --allow-root
         ```
 
-    > [!NOTE] 说明
+    > [!NOTE]
+    >
     > 建议使用非root用户执行命令。如果实际需要使用root用户启动，请严格执行root用户的命令，否则会存在安全风险。
 
     启用后，使用浏览器，输入http://\{_your\_server\_ip_\}:\{_your\_server\_port_\}/lab地址，打开JupyterLab环境首页，如[**图 1**  JupyterLab环境首页](#JupyterLab环境首页)所示，单击MindStudio Insight图标，即可打开MindStudio Insight工具（端口号可在终端实时查看，端口号port默认值为“8888”）。
@@ -1032,7 +994,8 @@ MindStudio Insight工具支持插件开发功能，为开发者提供自主开�
 3. 插件包中包含的文件个数不能超过1000个，单个文件大小不能超过200MB。
 4. 插件包需具有当前用户属主，具有可读可写权限，不支持链接文件和包含链接的文件。
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > MindStudio Insight工具支持通过".so"形式加载任何插件，请务必对所需插件包进行完整性校验，保证其来源安全可信，从而有效避免社区投毒、恶意代码注入等潜在安全风险。
 
 **安装插件**
@@ -1153,7 +1116,7 @@ python resources/profiler/plugin_install.py install --path="plugin package path"
 
     其中，`{image_name}:{image_tag}`为加载镜像时记录的镜像名称和Tag，可通过`docker images`查询。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 删除容器和镜像不会删除通过`-v`挂载的服务器数据目录。如果确认不再需要其中的性能数据，请根据实际挂载路径手动清理。
 > - 如果`docker rmi`提示镜像正在使用，请先根据回显信息确认并删除关联容器，再重新执行镜像删除命令。不要在未确认容器用途的情况下强制删除镜像。

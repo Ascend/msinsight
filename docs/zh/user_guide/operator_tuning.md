@@ -30,7 +30,7 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 |上板采集（msopprof）|需要真实硬件性能数据，分析实际运行耗时、内存带宽、Cache行为等。|`msopprof --output=./output_dir ./op_executable`|visualize_data.bin|
 |仿真采集（msopprof simulator）|无真实硬件或需要指令级详细分析，如指令流水追踪、代码热点定位等。|`msopprof simulator --soc-version=Ascendxxxyy --output=./output_dir ./op_executable`|trace.json、visualize_data.bin|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 上板采集需要真实NPU环境，仿真采集无需NPU但需指定芯片型号（`--soc-version`），可通过 `python3 -c "import acl; print(acl.get_soc_name())"` 获取。
 > - 两种模式互补，建议结合使用：上板采集获取真实性能数据，仿真采集获取指令级详细数据。
@@ -56,7 +56,8 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 |源码（Source）|visualize_data.bin|仿真热点函数等信息可视化呈现文件。|上板+仿真模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)和[msopprof simulator模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_simulator_user_guide.md)。|
 |缓存（Cache）|visualize_data.bin|用户程序Kernel函数内的L2 Cache访问信息可视化呈现文件。|仅上板模式。参见[msopprof模式用户指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/user_guide/msopprof_user_guide.md)。|
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > 同一个`visualize_data.bin`文件可同时包含多种可视化数据，导入后MindStudio Insight会自动识别并在对应界面展示。不同界面展示的数据内容取决于采集时使用的msopprof模式和参数。
 
 **约束**

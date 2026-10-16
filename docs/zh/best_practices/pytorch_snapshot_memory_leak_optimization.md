@@ -25,7 +25,7 @@ Tensor、模型输出或中间特征到全局容器的情况相同。
 2. 不记录 Snapshot，连续训练 800 个 Step，用于验证泄漏版最终 OOM、修复版能够
    稳定完成。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > PyTorch Snapshot 记录 PyTorch 缓存分配器管理的内存。本案例分析的是 Python
 > 引用导致的 Device Tensor 泄漏；如果需要分析框架外内存，请使用 msMemScope
@@ -333,7 +333,7 @@ history.append(monitor_tensor.mean().item())
 3. 原 Tensor 在本 Step 结束后失去最后一个 Python 引用，对应 Block 可以释放并
    在后续 Step 中复用。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > `.item()` 会等待 Device 计算完成并把标量传回 Host，频繁调用可能引入同步开销。
 > 性能敏感场景可降低监控采样频率、在 Device 侧累计后批量取值，或使用异步落盘
