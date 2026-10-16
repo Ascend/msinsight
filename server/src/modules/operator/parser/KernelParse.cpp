@@ -157,6 +157,9 @@ bool KernelParse::InitParser(const std::vector<std::string> &filePathList, const
     if (filePathList.empty()) {
         return false;
     }
+    // Device ranks share one database; protect the entire check/parse/publish sequence.
+    auto parseMutex = Instance().GetFileParseMutex(fileId);
+    std::lock_guard parseLock(*parseMutex);
     if (!Timeline::ParserStatusManager::Instance().SetRunningStatus(KERNEL_PREFIX + rankId)) {
         ServerLog::Info("Pre task skip this kernel file.");
         return false;
@@ -523,6 +526,7 @@ void KernelParse::Reset() {
     if (threadPool != nullptr) {
         threadPool->Reset();
     }
+    ClearFileParseMutexes();
     ServerLog::Info("Summary task completed.");
     auto databaseList = Timeline::DataBaseManager::Instance().GetAllSummaryDatabase();
     for (auto &db : databaseList) {

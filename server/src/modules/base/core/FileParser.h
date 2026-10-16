@@ -24,6 +24,7 @@
 #include <map>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include "ValidateUtil.h"
 
 namespace Dic {
@@ -77,10 +78,18 @@ class FileParser {
     inline bool HasCallbackFuncSet() const { return parseEndCallback && parseProgressCallback; }
 
   protected:
+    std::shared_ptr<std::mutex> GetFileParseMutex(const std::string &fileId);
+    // Call only after all parser workers have stopped using the file locks.
+    void ClearFileParseMutexes();
+
     std::string error;
     std::function<void(const std::string, const std::string, bool result, const std::string)> parseEndCallback;
     std::function<void(const std::string, uint64_t parsedSize, uint64_t totalSize, int progress)> parseProgressCallback;
     std::map<std::string, std::unique_ptr<FileProgress>> fileProgressMap;
+
+  private:
+    std::mutex fileParseMutexesMutex;
+    std::map<std::string, std::shared_ptr<std::mutex>> fileParseMutexes;
 };
 } // end of namespace Module
 } // end of namespace Dic

@@ -17,7 +17,16 @@
  */
 
 #include <gtest/gtest.h>
+#include <filesystem>
+#include "pch.h"
+#include "SummaryDef.h"
+#include "ThreadPool.h"
+#include "TextSummaryDataBase.h"
+#include "FileParser.h"
+#include "ConstantDefs.h"
+#define private public
 #include "KernelParse.h"
+#undef private
 #include "DataBaseManager.h"
 #include "TestSuit.h"
 #include "FileUtil.h"
@@ -94,6 +103,100 @@ TEST_F(KernelParseTest, GetPyTorchKernelFilesSuccess) {
     auto result = KernelParse::GetKernelFiles(paths);
     EXPECT_EQ(result.size(), 1);
     EXPECT_EQ(result.at(0), Dic::FileUtil::SplicePath(paths[0], "ASCEND_PROFILER_OUTPUT", "kernel_details.csv"));
+}
+
+class KernelParseConcurrencyEnvironment : public ::testing::Environment {
+  public:
+    void TearDown() override {
+        const auto *tests = ::testing::UnitTest::GetInstance();
+        for (int i = 0; i < tests->total_test_suite_count(); ++i) {
+            const auto *suite = tests->GetTestSuite(i);
+            if (suite->should_run() && std::string(suite->name()) == "KernelParseConcurrencyTest") {
+                KernelParse::Instance().threadPool->ShutDown();
+                return;
+            }
+        }
+    }
+};
+
+[[maybe_unused]] const auto kernelParseConcurrencyEnvironment =
+    ::testing::AddGlobalTestEnvironment(new KernelParseConcurrencyEnvironment);
+
+TEST(KernelParseConcurrencyTest, ConcurrentDeviceRanksReuseOneParsedDatabase) {
+    const auto folder = std::filesystem::path(::testing::TempDir()) / "kernel_shared_device_parse";
+    std::filesystem::create_directories(folder);
+    const auto csvPath = folder / "kernel_details.csv";
+    const auto dbPath = folder / "mindstudio_insight_data.db";
+    for (const std::string suffix : {"", "-wal", "-shm"}) {
+        std::filesystem::remove(dbPath.string() + suffix);
+    }
+    {
+        std::ofstream csv(csvPath);
+        csv << "Device_id,Name,Type,Accelerator Core,Start Time(us),Duration(us),Wait Time(us),Block Dim\n";
+        for (int device = 0; device < 4; ++device) {
+            csv << device << ",Add,Add,AI_CORE,100,1,0,1\n";
+        }
+    }
+    auto &manager = DataBaseManager::Instance();
+    manager.SetDataType(DataType::TEXT, dbPath.string());
+    auto &parser = KernelParse::Instance();
+    std::mutex callbacksMutex;
+    std::vector<std::string> completed;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&](const std::string rank, const std::string file, bool result, const std::string) {
+            std::lock_guard lock(callbacksMutex);
+            EXPECT_TRUE(result);
+            EXPECT_EQ(file, dbPath.string());
+            completed.push_back(rank);
+        };
+    parser.SetParseEndCallBack(callback);
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        completed.clear();
+        std::promise<void> start;
+        auto ready = start.get_future().share();
+        std::vector<std::future<bool>> tasks;
+        for (int device = 0; device < 4; ++device) {
+            const std::string rank = "kernel_shared_device_" + std::to_string(device);
+            manager.UpdateRankIdToDeviceId(dbPath.string(), rank, std::to_string(device));
+            ParserStatusManager::Instance().SetParserStatus(KERNEL_PREFIX + rank, ParserStatus::INIT);
+            tasks.emplace_back(parser.threadPool->AddTask(
+                [&, ready, rank] {
+                    ready.wait();
+                    std::string message;
+                    return KernelParse::InitParser({csvPath.string()}, rank, dbPath.string(), message);
+                },
+                ""));
+        }
+        start.set_value();
+        for (auto &task : tasks) {
+            EXPECT_TRUE(task.get());
+        }
+        // Both cold parsing and cache reuse must notify every associated rank.
+        for (int device = 0; device < 4; ++device) {
+            const std::string rank = "kernel_shared_device_" + std::to_string(device);
+            for (int csvDevice = 0; csvDevice < 4; ++csvDevice) {
+                EXPECT_EQ(std::count(
+                              completed.begin(), completed.end(), "[MSPROF]" + rank + "__" + std::to_string(csvDevice)),
+                    1);
+            }
+            EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(KERNEL_PREFIX + rank), ParserStatus::FINISH);
+        }
+        auto database = manager.GetSummaryDataBaseByFileId(dbPath.string());
+        ASSERT_NE(database, nullptr);
+        auto statement = database->CreatPreparedStatement("SELECT COUNT(*) AS row_count FROM kernel_detail");
+        ASSERT_NE(statement, nullptr);
+        auto rows = statement->ExecuteQuery();
+        ASSERT_NE(rows, nullptr);
+        ASSERT_TRUE(rows->Next());
+        EXPECT_EQ(rows->GetInt64("row_count"), 4);
+    }
+    callback = nullptr;
+    parser.SetParseEndCallBack(callback);
+    parser.Reset();
+    ParserStatusManager::Instance().ClearAllParserStatus();
+    std::filesystem::remove(csvPath);
+    std::filesystem::remove(dbPath);
+    std::filesystem::remove(folder);
 }
 
 TEST_F(KernelParseTest, GetMsProfKernelFilesSuccess) {

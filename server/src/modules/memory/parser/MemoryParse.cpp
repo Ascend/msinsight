@@ -429,6 +429,7 @@ void MemoryParse::Reset() {
     ParseEndCallBack("", "", true, "");
     curveContainer.Clear();
     threadPool->Reset();
+    ClearFileParseMutexes();
     ranks.clear();
     ServerLog::Info("Memory task completed.");
     auto databaseList = Timeline::DataBaseManager::Instance().GetAllMemoryDatabase();
@@ -627,12 +628,15 @@ bool MemoryParse::InitParser(const MemoryFilePairs &filePair, const std::string 
     if (filePair.recordFiles.empty()) {
         return false;
     }
+    std::string dbPath = FileUtil::GetDbPath(*(filePair.recordFiles.begin()), fileId);
+    // Wait for the shared database to finish before reusing it for another rank.
+    auto parseMutex = Instance().GetFileParseMutex(dbPath);
+    std::lock_guard parseLock(*parseMutex);
     if (!Timeline::ParserStatusManager::Instance().SetRunningStatus(MEMORY_PREFIX + fileId)) {
         message = "Failed to set run memory status for file ";
         // 如果文件解析信息不存在或状态不为INIT则返回false
         return false;
     }
-    std::string dbPath = FileUtil::GetDbPath(*(filePair.recordFiles.begin()), fileId);
     auto db = std::dynamic_pointer_cast<TextMemoryDataBase, VirtualMemoryDataBase>(
         Timeline::DataBaseManager::Instance().CreateMemoryDataBase(fileId, dbPath));
     if (!db->IsOpen() && !db->OpenDb(dbPath, false)) {
