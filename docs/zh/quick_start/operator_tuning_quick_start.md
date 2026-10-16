@@ -15,6 +15,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 3. 根据热点行为定位可能导致性能瓶颈的用户代码位置。
 
 > [!NOTE]
+>
 > 本文使用已准备好的样例数据演示分析路径，不展开 msOpProf 数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning.md) 中的数据说明和 msOpProf 工具文档。
 
 ### 1.2 开始前检查
@@ -22,7 +23,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 | 检查项 | 要求 |
 | --- | --- |
 | 工具安装 | 已完成 MindStudio Insight 安装，安装方法请参见 [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)。 |
-| 版本配套 | MindStudio Insight、CANN 与采集工具版本需匹配，版本关系请参见 [版本发布说明](../release_notes/release_notes.md)。 |
+| 版本配套 | MindStudio Insight、CANN 与采集工具版本需匹配，版本关系请参见 [版本发布说明](https://gitcode.com/Ascend/msinsight/releases)。 |
 | 样例数据 | 已下载本文提供的算子样例数据，并能在本地访问。 |
 | 数据来源 | 样例数据由 [msOpProf](https://gitcode.com/Ascend/msopprof) 采集，包含上板数据和仿真数据。 |
 | 适用场景 | 适用于 Ascend 算子性能分析入门，尤其适合学习 Details、Timeline、Source 页签之间的定位关系。 |
@@ -78,6 +79,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 根据该样例的先验基准，在 Ascend 910 上计算 FP16 的小矩阵（`1024 × 1024 × 1024`），`matmul_leakyrelu` 算子的预期用时通常在 **16~30 μs** 范围内。当前样例约 **90+ μs**，明显高于预期，因此可以初步判断该算子存在优化空间。
 
 > [!NOTE]
+>
 > 预期耗时会受硬件型号、CANN / msOpProf 版本、算子实现和输入规模影响。本文中的数值用于说明分析方法，真实业务中应以同环境基线或优化目标作为判断依据。
 
 **下一步：** 继续查看流水占比，判断耗时是否集中在不符合预期的计算单元上。
@@ -115,6 +117,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 ```
 
 > [!NOTE]
+>
 > 实际路径会随样例代码存放位置不同而变化。分析时请优先关注路径中的用户源码文件和行号，而不是工具链内部文件路径。
 
 **操作：** 切换到 Source（源码）页签，打开之前找到的用户代码。

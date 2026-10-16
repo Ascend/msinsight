@@ -74,7 +74,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 |ProfilerLevel.Level1|Level0全部文件 + communication.json、communication_matrix.json、kernel_details.csv（含AI Core性能指标，需配合aic_metrics参数）|Level0全部 + 概览（Summary）、通信（Communication）|中等采集级别，额外采集通信数据和AI Core性能指标。|
 |ProfilerLevel.Level2|Level1全部文件 + 内存拷贝数据|Level1全部 + 内存拷贝总览（Memcpy Overall）|完整采集级别，包含内存拷贝数据。|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 当导入单卡场景数据时，即使采集等级为Level1或Level2，也不展示概览（Summary）和通信（Communication）界面。
 > - kernel_details.csv中的AI Core性能指标（如aicore_time、aic_mac_ratio等）需要同时配置`aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization`且采集等级为Level1及以上才会采集。
@@ -148,7 +148,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 |通信（Communication）|通信矩阵|profiler_level >= Level1，需存在communication.json或communication_matrix.json|
 |通信（Communication）|通信耗时分析|profiler_level >= Level1，需存在通信数据|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 当导入单卡场景数据时，概览（Summary）和通信（Communication）界面不展示，即使采集等级为Level1或Level2。
 > - 当采集数据时task-time配置为l0（对应ProfilerLevel.Level0），Input Shapes、Input Data Types等字段不采集，显示为N/A。
@@ -286,7 +286,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
    - TEXT格式：将cluster_step_trace_time.csv、cluster_communication_matrix.json、cluster_communication.json、communication_group.json文件与各Rank原始数据放在同一目录下导入。
    - DB格式：将cluster_analysis.db文件与各Rank原始数据放在同一目录下导入。
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 在大型集群场景下，建议使用filter_db模式生成精简数据后再导入，以减少数据量和解析耗时。
 > - 集群分析数据必须与各Rank原始数据在同一目录下，否则MindStudio Insight无法正确关联集群数据。
@@ -331,7 +331,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 |aiv_icache_miss_rate|AI Vector iCache未命中率|向量指令缓存未命中率。|
 |cube_utilization(%)|Cube利用率|矩阵乘单元利用率百分比，反映Cube单元的使用效率。|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - AI Core性能指标适用于Accelerator Core为AI_CORE的算子，AI Vector Core性能指标适用于Accelerator Core为AI_VECTOR_CORE或MIX_AIV的算子。
 > - 当aic_metrics设置为AiCoreNone（默认值）时，上述字段不会采集，在MindStudio Insight中显示为N/A。
@@ -444,7 +444,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 |数据解析速度|数据量较小时解析较快|数据量大时解析效率更高|
 |推荐场景|单卡场景、数据量较小的场景|多卡/集群场景、需要完整数据信息的场景|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - 当export_type同时包含Text和Db时，MindStudio Insight优先解析DB格式数据。
 > - DB格式中的数据表（如PYTORCH_API、CANN_API、TASK等）为内部数据结构，用户无需直接操作，MindStudio Insight会自动解析并展示。
@@ -472,6 +472,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 通过观察时间线视图各个层级上的耗时长短、间隙等判断对应组件和算子是否存在性能问题，如算子下发是否存在瓶颈、是否存在高耗时的kernel以及是否存在冗余的转换类算子。
 
 > [!NOTE]
+>
 > 时间线（Timeline）界面默认最大展示三分钟的数据。如果导入的数据时间长度超过三分钟，则不支持缩小展示，仅可放大展示，通过左右平移查看其它时间数据。
 
 ### 界面介绍
@@ -1667,7 +1668,8 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
 
 - 内存拷贝总览
 
-  > [!NOTE] 说明
+  > [!NOTE]
+  >
   > 当“profiler_level”参数设置为“Level2”时，才能采集到内存拷贝数据，具体使用方法请参见[Ascend PyTorch调优工具数据采集](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/zh/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#%E9%87%87%E9%9B%86%E5%92%8C%E8%87%AA%E5%8A%A8%E8%A7%A3%E6%9E%90)。
 
   内存拷贝总览（Memcpy Overall）展示内存拷贝算子的详情，如[**图 6** 内存拷贝总览](#内存拷贝总览)所示，字段解释如[**表 5** 内存拷贝总览字段说明](#内存拷贝总览字段说明)所示，当选择任意一个类别时，可单击“详情”区域任意一个内存拷贝算子，会跳转到该算子在时间线视图中的具体位置。
@@ -2154,7 +2156,8 @@ MindStudio Insight支持卡间内存性能对比，设置对比数据请参见[�
 |输出数据类型|Output Data Types|算子输出数据类型。|
 |输出格式|Output Formats|算子输出数据格式。|
 
-> [!NOTE] 说明
+> [!NOTE]
+>
 > 如果采集配置中设置了`aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization`且profiler_level为Level1及以上，计算算子详情中会展示AI Core和AI Vector Core性能指标字段，详细字段说明请参见[AI Core/AI Vector Core性能指标字段说明](#ai-core性能指标字段说明)。
 
 **计算算子类型（Computing Operator Type）**
@@ -2616,6 +2619,7 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 |链路方式|Transport Type|链路方式。|
 |SDMA|SDMA|SDMA链路（节点内Device间通信链路），包括HCCS、PCIE和SIO三种类型。|
 |RDMA|RDMA|RDMA链路（跨节点Device间通信链路）。|
+|UB|UB|UB链路（超节点内Device间通信链路）。|
 |传输大小（MB）|Transit Size(MB)|一次通信包的大小。|
 |传输时长(ms)|Transit Time(ms)|一次通信的时长。|
 |带宽(GB/s)|Bandwidth(GB/s)|带宽。带宽一般为通信量除以通信时间。经验带宽参考值分别为RDMA_Bandwidth = 12.5，HCCS_Bandwidth = 18，PCIe_Bandwidth = 20。|
@@ -2662,8 +2666,9 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 |PCIe|Peripheral Component Interconnect Express|SDMA的子类型，基于PCIe总线的节点内通信链路。|同一服务器内通过PCIe连接的NPU间通信。|20|
 |SIO|Serial Input/Output|SDMA的子类型，基于串行输入输出的节点内通信链路。|特定硬件拓扑下的节点内通信。|-|
 |RDMA|Remote Direct Memory Access|跨节点Device间通信链路，即不同服务器间NPU的直接内存访问。|多机多卡场景，跨服务器的NPU间通信。|12.5|
+|UB|Unified Bus|昇腾超节点专用高速互联链路，用于同一超节点内Device间通信。|同一超节点内通过UB互联的NPU间通信。|-|
 
-> [!NOTE] 说明
+> [!NOTE]
 >
 > - SDMA包含HCCS、PCIe和SIO三种子类型，MindStudio Insight工具会根据实际硬件拓扑自动识别使用的子类型。
 > - 经验带宽参考值为理论峰值带宽的典型值，实际带宽受硬件配置、网络拓扑和通信模式等因素影响，仅供参考。
