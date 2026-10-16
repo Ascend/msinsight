@@ -59,6 +59,63 @@ test("loads the memory assistant prompt from the runtime resource directory", as
     assert.equal(JSON.parse(stdout.trim()).memoryTuningPrompt, "Memory assistant instructions");
 });
 
+test("strips leading YAML frontmatter from the memory assistant prompt", async (t) => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-user-"));
+    const resourceDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-resource-"));
+    t.after(() => Promise.all([rootDir, resourceDir].map((path) => rm(path, { recursive: true, force: true }))));
+    await mkdir(join(resourceDir, "prompts"));
+    await writeFile(
+        join(resourceDir, "prompts", "memory-tuning-assistant.md"),
+        "\ufeff---\r\ndescription: test\r\npermission:\r\n  bash:\r\n    \"*\": ask\r\n---\r\n\r\nMemory body\r\n\r\n---\r\n\r\nTail\r\n",
+        "utf8",
+    );
+    const { stdout } = await loadConfigInChild(rootDir, {}, resourceDir);
+    assert.equal(JSON.parse(stdout.trim()).memoryTuningPrompt, "Memory body\r\n\r\n---\r\n\r\nTail");
+});
+
+test("bundled memory assistant prompt uses pt-snap 0.4.1 command syntax", async (t) => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-bundled-"));
+    t.after(() => rm(rootDir, { recursive: true, force: true }));
+    const { stdout } = await loadConfigInChild(rootDir);
+    const prompt = JSON.parse(stdout.trim()).memoryTuningPrompt;
+    assert.ok(prompt.length > 0);
+    assert.equal(prompt.startsWith("---"), false);
+    assert.equal(prompt.includes("permission:"), false);
+    assert.equal(/--db\b/.test(prompt.replace("不存在 `--db` 选项", "")), false);
+    assert.ok(prompt.includes("pt_snap"));
+    assert.ok(prompt.includes("pt-snap 必须从 MindStudio Insight 能力中心指定的内置环境加载"));
+    assert.equal(prompt.includes("{{PT_SNAP_COMMAND}}"), false);
+    assert.equal(prompt.includes("必须且只能"), false);
+    assert.equal(prompt.includes("pt-snap-fragmentation-forensics"), false);
+});
+
+test("injects the capability-center pt-snap command into the memory assistant prompt", async (t) => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-user-"));
+    const resourceDir = await mkdtemp(join(tmpdir(), "insight memory prompt resource "));
+    t.after(() => Promise.all([rootDir, resourceDir].map((path) => rm(path, { recursive: true, force: true }))));
+    const pythonName = process.platform === "win32" ? "python.exe" : "python3";
+    const python = join(resourceDir, "python dir", pythonName);
+    await mkdir(join(resourceDir, "prompts"));
+    await mkdir(dirname(python));
+    await writeFile(python, "fake", "utf8");
+    if (process.platform !== "win32") await chmod(python, 0o700);
+    await writeFile(join(resourceDir, "capability-center.json"), `${JSON.stringify({
+        schemaVersion: 1,
+        capabilities: [{
+            type: "cli",
+            name: "pt_snap",
+            command: { default: [{ executable: `./python dir/${pythonName}`, argsPrefix: ["-m", "pt_snap_cli.cli"] }] },
+        }],
+    })}\n`, "utf8");
+    await writeFile(join(resourceDir, "prompts", "memory-tuning-assistant.md"), "Env:\n\n{{PT_SNAP_COMMAND}}\n", "utf8");
+
+    const { stdout } = await loadConfigInChild(rootDir, {}, resourceDir);
+    const prompt = JSON.parse(stdout.trim()).memoryTuningPrompt;
+    const quote = process.platform === "win32" ? "\"" : "'";
+    assert.ok(prompt.includes(`${quote}${python}${quote} -m pt_snap_cli.cli`));
+    assert.equal(prompt.includes("{{PT_SNAP_COMMAND}}"), false);
+});
+
 test("Node startup resolves configured CLI capabilities from PATH", async (t) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-runtime-config-cli-"));
     const resourceDir = await mkdtemp(join(tmpdir(), "insight-runtime-resource-"));

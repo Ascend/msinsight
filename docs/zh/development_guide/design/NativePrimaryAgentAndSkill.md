@@ -110,9 +110,11 @@ agents/
 skills/
 ├── pt-snap-setup/
 │   └── SKILL.md
-└── pt-snap-fragmentation-forensics/
+└── pt-snap-memory-fragmentation/
     └── SKILL.md
 ```
+
+> 当前实现说明：内存优化助手的提示词位于 `modules/insight_web_agent/prompts/memory-tuning-assistant.md`，由欢迎页 `promptPreset: "memory-tuning-assistant"` 注入（加载时剥离 YAML frontmatter），尚未作为 `agents/*.md` 提供；`pt-snap-setup`、`pt-snap-memory-fragmentation` 是 pt-snap-cli 0.4.1 自带 Skill 的名称，产品 `skills/` 目录目前未内置这两个 Skill。提示词中的 `{{PT_SNAP_COMMAND}}` 在加载时替换为能力中心为 `pt_snap` 解析出的内置命令（Windows/macOS 为内置 Python 的 `-m pt_snap_cli.cli`，其他平台为 PATH 中的 `pt-snap` 绝对路径；未解析到时注入“不可用”说明）。助手优先使用 `pt_snap` 工具，在 Shell 中只能使用该内置命令，Skill 中的 `pt-snap ...` 命令也替换为它。
 
 `general.md` 是必需资源。当前 Native 通用分析行为迁移到该文件。缺失或无效时属于产品资源错误。Agent 文件名是稳定 ID，frontmatter 中可选的 `name` 是下拉框显示名；新增 `agents/*.md` 后会由 Registry 自动发现，无需修改代码中的 Agent 列表。
 
@@ -206,7 +208,7 @@ Skill 使用 OpenCode 核心格式：
 
 ```yaml
 ---
-name: pt-snap-fragmentation-forensics
+name: pt-snap-memory-fragmentation
 description: 分析 Snapshot 碎片、reserved-active gap 和 segment 行为
 license: MulanPSL-2.0
 compatibility: Requires Python and pt-snap
