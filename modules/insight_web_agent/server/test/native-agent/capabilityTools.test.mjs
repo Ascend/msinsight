@@ -215,6 +215,23 @@ test("native configured capability asks again after allow once", async (t) => {
     assert.deepEqual(permissionRequests[0].params.toolCall.rawInput, { args: ["query"] });
 });
 
+test("Full Access does not create remembered capability approvals", async (t) => {
+    const fixture = await createCapabilityServer(t);
+    const session = { sessionId: "session-1", permissionMode: "full-access" };
+    let approvals = 0;
+    const [tool] = createCapabilityTools({
+        definitions: [PT_SNAP_DEFINITION], sessions: new Map([[session.sessionId, session]]),
+        hostClient: { request: async () => { approvals += 1; return { outcome: { optionId: "allow_once" } }; } },
+        baseUrl: fixture.baseUrl, capabilityToken: fixture.capabilityToken,
+    });
+    await tool.execute({ args: ["query"] }, { sessionId: session.sessionId });
+    assert.equal(approvals, 0);
+    session.permissionMode = "ask";
+    await tool.execute({ args: ["query"] }, { sessionId: session.sessionId });
+    assert.equal(approvals, 1);
+    assert.equal(fixture.requests.length, 2);
+});
+
 test("native configured capability remembers allow for this session", async (t) => {
     const fixture = await createCapabilityServer(t);
     const session = { sessionId: "session-1" };

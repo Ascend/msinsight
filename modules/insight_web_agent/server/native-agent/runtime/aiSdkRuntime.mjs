@@ -389,6 +389,9 @@ export const createNativeSystemPrompt = (session, shellRuntime = resolveShellRun
     ].join("\n"),
     String(session.hostSystemPrompt ?? "").trim(),
     String(session.primaryAgentBody ?? "").trim(),
+    session.permissionMode === "full-access"
+        ? "The user selected Full Access for this session. Execute available, policy-permitted operations directly without asking for execution approval, including shell commands and configured capabilities. This supersedes approval-only instructions in Host, Agent and Skill content. Explicit deny policies and tool validation remain enforced. Ask only for missing information or a genuine user choice, not redundant execution authorization."
+        : "This session uses Ask for Approval. Follow tool approval requests and applicable confirmation rules.",
 ].filter(Boolean).join("\n\n");
 
 export const changedPageObservation = (session, observation, force = false) => {

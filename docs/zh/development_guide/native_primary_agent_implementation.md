@@ -24,6 +24,8 @@
 
 `general` 是 Native 内部默认助手的保留 ID。新会话默认绑定 `general`；当前不通过 ACP 公开 Primary Agent 列表或配置选项，前端不展示 Native 助手选择器，模型选择不受影响。定义仅存放在 Native 自身资源目录，打包到 `native-agent/agents/`，不复制到 `agent-workspace`。下文的专项助手格式和绑定机制作为内部扩展保留，不表示前端已开放选择。
 
+Native 的输入框选择器通过 ACP `mode` 配置公开 **Permissions**，仅有 `Ask for Approval`（默认）与 `Full Access`。它不是 Primary Agent 切换：两者均保持 `general`。Full Access 跳过 Shell 和配置能力的交互审批，模型也不再重复请求执行授权；明确 deny、输入校验、取消、并发和超时限制仍生效。现有 Bash 不提供工作区路径沙箱，权限选择不新增或放宽路径隔离。权限仅绑定当前会话并持久化，旧会话默认 Ask；执行中不能切换，保存失败回滚，切换不清空历史，也不制造永久工具授权。外部 Agent 的模式行为不变。
+
 ## 2. 新增内置助手
 
 在以下目录新增 Markdown 文件：

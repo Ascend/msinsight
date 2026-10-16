@@ -92,7 +92,7 @@ export const createCapabilityTools = ({
 }));
 
 const authorizeCapability = async ({ definition, input, session, signal, hostClient }) => {
-    if (session[SESSION_APPROVALS]?.has(definition.name)) return;
+    if (session.permissionMode === "full-access" || session[SESSION_APPROVALS]?.has(definition.name)) return;
     const result = await hostClient.request("session/request_permission", {
         sessionId: session.sessionId,
         kind: "tool",

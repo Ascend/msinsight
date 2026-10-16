@@ -16,6 +16,13 @@ const session = {
     primaryAgentBody: "Agent guidance",
 };
 
+test("native permission guidance follows the session selection", () => {
+    assert.match(createNativeSystemPrompt(session), /Ask for Approval/);
+    const prompt = createNativeSystemPrompt({ ...session, permissionMode: "full-access" });
+    assert.match(prompt, /without asking for execution approval/);
+    assert.match(prompt, /Explicit deny policies and tool validation remain enforced/);
+});
+
 test("native system prompt instructs Windows agents to use PowerShell syntax", () => {
     const prompt = createNativeSystemPrompt(session, resolveShellRuntime({ platform: "win32", env: {} }));
 

@@ -67,7 +67,8 @@ const authorizeBash = async ({ input, session, signal, cwd, hostClient, shellRun
         shellKind: shellRuntime.kind,
     });
     if (policy.behavior === "deny") throw new Error(policy.message);
-    if (policy.behavior === "allow") return normalized;
+    // Full Access skips interactive approval, never explicit product/Agent denies.
+    if (policy.behavior === "allow" || session.permissionMode === "full-access") return normalized;
     const result = await hostClient.request("session/request_permission", {
         sessionId: session.sessionId,
         kind: "bash",

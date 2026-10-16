@@ -78,6 +78,32 @@ test("new native sessions default to general without exposing Primary Agent opti
     assert.equal(fixture.saves.length, 1);
 });
 
+test("permission selection defaults to approval and persists without resetting history", async () => {
+    const { context } = createContext();
+    const service = createNativeSessionService(context);
+    const created = await service.handleRequest("session/new", {});
+    const permission = created.configOptions.find(({ id }) => id === "mode");
+    assert.equal(permission.name, "Permissions");
+    assert.equal(permission.currentValue, "ask");
+    assert.deepEqual(permission.options, [
+        { value: "ask", name: "Ask for Approval" },
+        { value: "full-access", name: "Full Access" },
+    ]);
+    const session = context.sessions.get(created.sessionId);
+    session.messages = [{ role: "user", content: [] }];
+    context.aiRuntime.deleteSession = () => assert.fail("permission switch must retain history");
+    await service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "full-access" });
+    assert.equal(session.permissionMode, "full-access");
+    assert.equal((await service.handleRequest("session/load", { sessionId: session.sessionId })).configOptions.find(({ id }) => id === "mode").currentValue, "full-access");
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "invalid" }), /Unsupported permission mode/);
+    context.running.set(session.sessionId, {});
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "ask" }), /Permissions cannot be changed/);
+    context.running.clear();
+    context.sessionStore.save = async () => { throw new Error("disk failure"); };
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "ask" }), /disk failure/);
+    assert.equal(session.permissionMode, "full-access");
+});
+
 test("Primary Agent can be bound once before prompting and not after prompt start", async () => {
     const fixture = createContext();
     const service = createNativeSessionService(fixture.context);
