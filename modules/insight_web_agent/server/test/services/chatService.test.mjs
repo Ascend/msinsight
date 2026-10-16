@@ -318,7 +318,7 @@ const modeConfig = (currentValue) => ({
     ],
 });
 
-const createPromptTestService = (systemPrompt = "", promptRequest, ragService, memoryTuningPrompt = "") => {
+const createPromptTestService = (systemPrompt = "", promptRequest, ragService, memoryTuningPrompt = "", slowCardAnalysisPrompt = "") => {
     const calls = [];
     const events = [];
     const state = createRuntimeState();
@@ -354,6 +354,7 @@ const createPromptTestService = (systemPrompt = "", promptRequest, ragService, m
         ragService,
         systemPrompt,
         memoryTuningPrompt,
+        slowCardAnalysisPrompt,
     });
 
     return { service, calls, events, state };
@@ -373,37 +374,46 @@ const waitForPromptCall = async (calls, count) => {
     }
 };
 
-test("memory preset attaches the Markdown to hidden system context without exposing it in messages", async () => {
-    const memoryPrompt = readFileSync(new URL("../../../prompts/memory-tuning-assistant.md", import.meta.url), "utf8").trim();
-    const { service, calls, events, state } = createPromptTestService("Host instructions", undefined, undefined, memoryPrompt);
-    const text = "使用内存分析助手帮我分析当前数据";
+for (const promptPreset of ["memory-tuning-assistant", "slow-card-analysis-assistant"]) {
+    test(`${promptPreset} attaches the Markdown to hidden system context without exposing it in messages`, async () => {
+        const assistantPrompt = readFileSync(new URL(`../../../prompts/${promptPreset}.md`, import.meta.url), "utf8").trim();
+        const { service, calls, events, state } = createPromptTestService(
+            "Host instructions", undefined, undefined,
+            promptPreset === "memory-tuning-assistant" ? assistantPrompt : "Other preset instructions",
+            promptPreset === "slow-card-analysis-assistant" ? assistantPrompt : "Other preset instructions",
+        );
+        const text = "分析当前数据";
 
-    const result = await service.prompt(text, { sessionId: "session-1", promptPreset: "memory-tuning-assistant" });
-    assert.equal(result.ok, true);
-    await waitForPromptCompletion(state);
+        const result = await service.prompt(text, { sessionId: "session-1", promptPreset });
+        assert.equal(result.ok, true);
+        await waitForPromptCompletion(state);
 
-    const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
-    assert.equal(prompt[0].resource.uri, "insight-system-prompt://project");
-    assert.equal(prompt[0].resource.text, `<context ref="insight-system-prompt://project"/>\nHost instructions\n\n${memoryPrompt}`);
-    assert.equal(prompt[1].resource.uri, "insight-hidden-context://project");
-    assert.deepEqual(prompt.filter((block) => block.type === "text"), [{ type: "text", text }]);
-    const user = events.find((event) => event.type === "message_added" && event.message.role === "user").message;
-    assert.equal(user.content.length, 1);
-    assert.equal(user.content[0].text, text);
-    assert.equal(JSON.stringify(events).includes("pt-snap"), false);
-    assert.equal(JSON.stringify(state.sessionContexts.get("session-1").messages).includes("pt-snap"), false);
+        const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
+        assert.equal(prompt[0].resource.uri, "insight-system-prompt://project");
+        assert.equal(prompt[0].resource.text, `<context ref="insight-system-prompt://project"/>\nHost instructions\n\n${assistantPrompt}`);
+        assert.equal(prompt[1].resource.uri, "insight-hidden-context://project");
+        assert.deepEqual(prompt.filter((block) => block.type === "text"), [{ type: "text", text }]);
+        const user = events.find((event) => event.type === "message_added" && event.message.role === "user").message;
+        assert.equal(user.content.length, 1);
+        assert.equal(user.content[0].text, text);
+        assert.equal(JSON.stringify(events).includes(JSON.stringify(assistantPrompt).slice(1, -1)), false);
+        assert.equal(JSON.stringify(state.sessionContexts.get("session-1").messages).includes(JSON.stringify(assistantPrompt).slice(1, -1)), false);
+        assert.equal(prompt[0].resource.text.includes("Other preset instructions"), false);
 
-    await service.prompt("ordinary follow-up", { sessionId: "session-1" });
-    await waitForPromptCompletion(state);
-    const next = calls.filter((call) => call.method === "session/prompt")[1].params.prompt;
-    assert.equal(next[0].resource.text, '<context ref="insight-system-prompt://project"/>\nHost instructions');
-});
+        await service.prompt("ordinary follow-up", { sessionId: "session-1" });
+        await waitForPromptCompletion(state);
+        const next = calls.filter((call) => call.method === "session/prompt")[1].params.prompt;
+        assert.equal(next[0].resource.text, '<context ref="insight-system-prompt://project"/>\nHost instructions');
+    });
+}
 
-test("rejects unknown presets and missing memory instructions before sending a prompt", async () => {
+test("rejects unknown presets and missing assistant instructions before sending a prompt", async () => {
     const { service, calls, events } = createPromptTestService();
-    for (const promptPreset of ["../../private", "memory-tuning-assistant"]) {
+    for (const promptPreset of ["../../private", "toString", "memory-tuning-assistant", "slow-card-analysis-assistant"]) {
         const result = await service.prompt("analyze", { sessionId: "session-1", promptPreset });
-        assert.equal(result.status, promptPreset === "memory-tuning-assistant" ? 503 : 400);
+        const missing = ["memory-tuning-assistant", "slow-card-analysis-assistant"].includes(promptPreset);
+        assert.equal(result.status, missing ? 503 : 400);
+        assert.equal(result.error, missing ? "prompt_preset_unavailable" : "invalid_prompt_preset");
     }
     assert.equal(calls.length, 0);
     assert.equal(events.length, 0);

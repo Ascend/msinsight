@@ -22,7 +22,7 @@ const configModuleUrl = new URL("../../config/index.mjs", import.meta.url).href;
 const loadConfigInChild = (rootDir, env = {}, resourceDir = moduleRoot) => execFileAsync(process.execPath, [
     "--input-type=module",
     "--eval",
-    "const { config } = await import(process.env.TEST_CONFIG_MODULE_URL); process.stdout.write(JSON.stringify({ activeAgentName: config.activeAgentName, configuredCapabilities: config.configuredCapabilities, memoryTuningPrompt: config.memoryTuningPrompt }));",
+    "const { config } = await import(process.env.TEST_CONFIG_MODULE_URL); process.stdout.write(JSON.stringify({ activeAgentName: config.activeAgentName, configuredCapabilities: config.configuredCapabilities, memoryTuningPrompt: config.memoryTuningPrompt, slowCardAnalysisPrompt: config.slowCardAnalysisPrompt }));",
 ], {
     cwd: dirname(fileURLToPath(import.meta.url)),
     env: {
@@ -37,26 +37,32 @@ const loadConfigInChild = (rootDir, env = {}, resourceDir = moduleRoot) => execF
 
 test("Node startup creates missing ACP configuration files", async (t) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-runtime-config-"));
-    t.after(() => rm(rootDir, { recursive: true, force: true }));
+    const resourceDir = await mkdtemp(join(tmpdir(), "insight-runtime-config-resource-"));
+    t.after(() => Promise.all([rootDir, resourceDir].map((path) => rm(path, { recursive: true, force: true }))));
+    // A resource fixture must not copy credentials encrypted for the developer's workspace.
+    const bundledNativeConfig = { schemaVersion: 1, provider: "openai-compatible", model: "fixture-model", baseUrl: "https://example.invalid/v1", apiKey: "" };
+    await writeFile(join(resourceDir, "msinsight-native.json"), JSON.stringify(bundledNativeConfig), "utf8");
 
-    await loadConfigInChild(rootDir);
+    await loadConfigInChild(rootDir, {}, resourceDir);
 
     const agentConfig = JSON.parse(await readFile(join(rootDir, "agent-servers.json"), "utf8"));
     const nativeConfig = JSON.parse(await readFile(join(rootDir, "msinsight-native.json"), "utf8"));
     assert.deepEqual(agentConfig, { agentServers: [] });
     assert.equal(nativeConfig.name, undefined);
-    const bundledNativeConfig = JSON.parse(await readFile(join(moduleRoot, "msinsight-native.json"), "utf8"));
     assert.equal(nativeConfig.model, bundledNativeConfig.model);
 });
 
-test("loads the memory assistant prompt from the runtime resource directory", async (t) => {
+test("loads assistant prompts from the runtime resource directory", async (t) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-user-"));
     const resourceDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-resource-"));
     t.after(() => Promise.all([rootDir, resourceDir].map((path) => rm(path, { recursive: true, force: true }))));
     await mkdir(join(resourceDir, "prompts"));
     await writeFile(join(resourceDir, "prompts", "memory-tuning-assistant.md"), "\ufeffMemory assistant instructions\r\n", "utf8");
+    await writeFile(join(resourceDir, "prompts", "slow-card-analysis-assistant.md"), "﻿Slow card assistant instructions\r\n", "utf8");
     const { stdout } = await loadConfigInChild(rootDir, {}, resourceDir);
-    assert.equal(JSON.parse(stdout.trim()).memoryTuningPrompt, "Memory assistant instructions");
+    const loaded = JSON.parse(stdout.trim());
+    assert.equal(loaded.memoryTuningPrompt, "Memory assistant instructions");
+    assert.equal(loaded.slowCardAnalysisPrompt, "Slow card assistant instructions");
 });
 
 test("strips leading YAML frontmatter from the memory assistant prompt", async (t) => {
@@ -142,11 +148,12 @@ test("Node startup resolves configured CLI capabilities from PATH", async (t) =>
 
 test("Node startup never overwrites existing ACP configuration", async (t) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-runtime-config-existing-"));
-    t.after(() => rm(rootDir, { recursive: true, force: true }));
+    const resourceDir = await mkdtemp(join(tmpdir(), "insight-runtime-existing-resource-"));
+    t.after(() => Promise.all([rootDir, resourceDir].map((path) => rm(path, { recursive: true, force: true }))));
     const existing = { activeAgent: "Custom", agentServers: [{ name: "Custom", command: "custom-acp", args: [], env: {} }] };
     await writeFile(join(rootDir, "agent-servers.json"), `${JSON.stringify(existing)}\n`, "utf8");
 
-    await loadConfigInChild(rootDir);
+    await loadConfigInChild(rootDir, {}, resourceDir);
 
     assert.deepEqual(JSON.parse(await readFile(join(rootDir, "agent-servers.json"), "utf8")), existing);
 });

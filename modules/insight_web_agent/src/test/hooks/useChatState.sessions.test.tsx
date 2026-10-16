@@ -270,11 +270,11 @@ test('cancelling a queued creation still waits for its real ID after the failed 
     expect(mockSendPrompt).toHaveBeenCalledTimes(2);
 });
 
-test('queued messages follow their original session even when SSE completes before its acknowledgement', async () => {
+test.each(['memory-tuning-assistant', 'slow-card-analysis-assistant'] as const)('queued %s messages follow their original session even when SSE completes before its acknowledgement', async (preset) => {
     const first = deferred();
     mockSendPrompt.mockReturnValueOnce(first.promise);
     await send('first');
-    act(() => chat.selectWelcomePrompt('queued', 'memory-tuning-assistant'));
+    act(() => chat.selectWelcomePrompt('queued', preset));
     await act(async () => { await chat.sendMessage(); });
     expect(chat.queuedCount).toBe(1);
     await act(async () => { await chat.createSession(); });
@@ -283,7 +283,7 @@ test('queued messages follow their original session even when SSE completes befo
     expect(mockSendPrompt).toHaveBeenCalledTimes(1);
     await act(async () => first.resolve({ sessionId: 'session-a' }));
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(2));
-    expect(mockSendPrompt).toHaveBeenLastCalledWith('queued', false, 'session-a', [], undefined, undefined, 'memory-tuning-assistant');
+    expect(mockSendPrompt).toHaveBeenLastCalledWith('queued', false, 'session-a', [], undefined, undefined, preset);
     expect(chat.isDraftSession).toBe(true);
     expect(chat.queuedCount).toBe(0);
     await select('session-a');

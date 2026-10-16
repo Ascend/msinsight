@@ -261,6 +261,7 @@ chatService = createChatService({
     permissionService,
     systemPrompt: config.systemPrompt,
     memoryTuningPrompt: config.memoryTuningPrompt,
+    slowCardAnalysisPrompt: config.slowCardAnalysisPrompt,
 });
 
 const cloneRuntimeConfig = () => ({
