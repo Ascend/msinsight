@@ -206,7 +206,7 @@ modules/insight_web_agent/skills/<skill-name>/SKILL.md
 
 ```markdown
 - 当需要安装或验证 pt-snap 时，加载 `pt-snap-setup`。
-- 当需要分析 allocator gap 时，加载 `pt-snap-fragmentation-forensics`。
+- 当需要分析 allocator gap 时，加载 `pt-snap-memory-fragmentation`。
 ```
 
 模型通过 Native `skill` Tool 按需加载正文。Skill 中要求用户确认或停止的步骤必须保留，助手不能用替代分析绕过。

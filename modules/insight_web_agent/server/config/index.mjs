@@ -23,6 +23,7 @@ import { presentRunnableAgentServers, resolveAgentServer } from "../services/age
 import { fixedRagPaths } from "../services/rag/runtimePaths.mjs";
 import { initLogger } from "../utils/logger.mjs";
 import { loadCapabilityCenterConfig } from "./capabilityCenterConfig.mjs";
+import { renderMemoryTuningPrompt } from "./memoryTuningPrompt.mjs";
 import { createSecretCrypto, decryptEnv, migratePersistedSecrets, nativeApiKeyAad } from "../security/secretCrypto.mjs";
 
 const NATIVE_CONFIG_FILE = "msinsight-native.json";
@@ -246,11 +247,16 @@ const loadRuntimeConfigBundle = (rootDir, env) => {
 
 const readRuntimeConfigBundle = (rootDir, env) => loadRuntimeConfigBundle(rootDir, env);
 
+// Prompt 文件可携带 OpenCode 风格的 YAML frontmatter 元数据；注入会话的只应是正文。
+const PROMPT_FRONTMATTER_PATTERN = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
+
+const stripLeadingFrontmatter = (text) => text.replace(PROMPT_FRONTMATTER_PATTERN, "");
+
 const loadPrompt = (resourceDir, fileName) => {
     const filePath = join(resourceDir, "prompts", fileName);
     if (!existsSync(filePath)) return "";
     try {
-        return readFileSync(filePath, "utf8").replace(/^﻿/, "").trim();
+        return stripLeadingFrontmatter(readFileSync(filePath, "utf8").replace(/^﻿/, "")).trim();
     } catch (error) {
         console.warn(`Failed to load prompt ${filePath}: ${error.message}`);
         return "";
@@ -387,7 +393,9 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         debug: env.ACP_DEBUG === "1",
         defaultModel: env.ACP_MODEL,
         systemPrompt: loadPrompt(resourceDir, "system.md"),
-        memoryTuningPrompt: loadPrompt(resourceDir, "memory-tuning-assistant.md"),
+        memoryTuningPrompt: renderMemoryTuningPrompt(loadPrompt(resourceDir, "memory-tuning-assistant.md"), {
+            capabilities: configuredCapabilities,
+        }),
         requestTimeoutMs,
         promptRequestTimeoutMs,
         permissionRequestTimeoutMs,
