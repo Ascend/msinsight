@@ -19,6 +19,20 @@
 
 namespace Dic {
 namespace Module {
+std::shared_ptr<std::mutex> FileParser::GetFileParseMutex(const std::string &fileId) {
+    std::lock_guard lock(fileParseMutexesMutex);
+    auto &parseMutex = fileParseMutexes[fileId];
+    if (parseMutex == nullptr) {
+        parseMutex = std::make_shared<std::mutex>();
+    }
+    return parseMutex;
+}
+
+void FileParser::ClearFileParseMutexes() {
+    std::lock_guard lock(fileParseMutexesMutex);
+    fileParseMutexes.clear();
+}
+
 std::string FileParser::GetError() { return error; }
 
 void FileParser::SetParseEndCallBack(

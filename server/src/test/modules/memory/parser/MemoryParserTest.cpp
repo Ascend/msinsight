@@ -226,6 +226,81 @@ TEST_F(MemoryParserTest, ParseTaskCompletesAndReusesFinishedDatabase) {
     std::filesystem::remove_all(folder);
 }
 
+TEST_F(MemoryParserTest, ConcurrentDeviceRanksReuseOneParsedDatabase) {
+    const auto folder = std::filesystem::path(::testing::TempDir()) / "memory_shared_device_parse";
+    std::filesystem::create_directories(folder);
+    const auto csvPath = folder / "memory_record.csv";
+    const auto dbPath = FileUtil::GetDbPath(csvPath.string());
+    for (const std::string suffix : {"", "-wal", "-shm"}) {
+        std::filesystem::remove(dbPath + suffix);
+    }
+    {
+        std::ofstream csv(csvPath);
+        csv << "Component,Timestamp(us),Total Allocated(MB),Total Reserved(MB),Device Type\n";
+        for (int device = 0; device < 4; ++device) {
+            csv << "APP,100,1,2,NPU:" << device << "\n";
+        }
+    }
+    auto &manager = DataBaseManager::Instance();
+    manager.SetDataType(DataType::TEXT, dbPath);
+    auto &parser = MemoryParse::Instance();
+    std::mutex callbacksMutex;
+    std::vector<std::string> completed;
+    std::function<void(const std::string, const std::string, bool, const std::string)> callback =
+        [&](const std::string rank, const std::string file, bool result, const std::string) {
+            std::lock_guard lock(callbacksMutex);
+            EXPECT_TRUE(result);
+            EXPECT_EQ(file, dbPath);
+            completed.push_back(rank);
+        };
+    parser.SetParseEndCallBack(callback);
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        completed.clear();
+        std::promise<void> start;
+        auto ready = start.get_future().share();
+        std::vector<std::future<bool>> tasks;
+        for (int device = 0; device < 4; ++device) {
+            const std::string rank = "memory_shared_device_" + std::to_string(device);
+            parser.GetMemoryFiles({folder.string()}, rank, dbPath);
+            ParserStatusManager::Instance().SetParserStatus(MEMORY_PREFIX + rank, ParserStatus::INIT);
+            tasks.emplace_back(parser.threadPool->AddTask(
+                [&, ready, rank] {
+                    ready.wait();
+                    MemoryFilePairs files;
+                    files.recordFiles.insert(csvPath.string());
+                    std::string message;
+                    return MemoryParse::InitParser(files, rank, message);
+                },
+                ""));
+        }
+        start.set_value();
+        for (auto &task : tasks) {
+            EXPECT_TRUE(task.get());
+        }
+        for (int device = 0; device < 4; ++device) {
+            const std::string rank = "memory_shared_device_" + std::to_string(device);
+            EXPECT_EQ(std::count(completed.begin(), completed.end(), rank), 1);
+            EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(MEMORY_PREFIX + rank), ParserStatus::FINISH);
+            EXPECT_TRUE(parser.ranks.at(rank).parseSuccess);
+        }
+        auto database = manager.GetMemoryDatabaseByRankId("memory_shared_device_0");
+        ASSERT_NE(database, nullptr);
+        auto statement = database->CreatPreparedStatement("SELECT COUNT(*) AS row_count FROM record");
+        ASSERT_NE(statement, nullptr);
+        auto rows = statement->ExecuteQuery();
+        ASSERT_NE(rows, nullptr);
+        ASSERT_TRUE(rows->Next());
+        EXPECT_EQ(rows->GetInt64("row_count"), 4);
+    }
+    callback = nullptr;
+    parser.SetParseEndCallBack(callback);
+    parser.Reset();
+    ParserStatusManager::Instance().ClearAllParserStatus();
+    std::filesystem::remove(csvPath);
+    std::filesystem::remove(dbPath);
+    std::filesystem::remove(folder);
+}
+
 TEST_F(MemoryParserTest, OperatorParseNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
