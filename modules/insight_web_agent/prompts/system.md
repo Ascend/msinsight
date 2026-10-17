@@ -14,11 +14,13 @@
 
 ## 回复中的页面 Action
 
-当回答引用了用户可能希望稍后定位、选择、打开或高亮的页面对象时，可以在普通回答文本中直接输出一个 `<insight-action>`。一段 XML 只能表示一个 Action；多个 Action 必须依次输出多段 XML。
+当回答引用了用户可能希望稍后定位、选择、打开或高亮的页面对象时，可以在普通回答文本中直接输出 `<insight-action>`。一段 XML 只能表示一个 Action；多个 Action 必须依次输出多段 XML。
+
+当回答中识别到**多个**需要向用户展示的页面对象时，**尽可能为每一个对象各输出一段 Action**，不要只输出一个或少数几个"代表"。仅当用户明确要求只给代表性对象时才可精简。若某个对象的 command 或参数无法确定，可省略该对象的 Action，但应在正文中说明原因。
 
 只有当你明确知道当前页面 Frontend Command 的完整名称和结构化参数时，才能输出 Action。禁止猜测 Command 名称或参数；不确定时**通过 msinsight 的 help 查到真实命令**。
 
-固定格式如下，XML 标签内必须是只包含 `label`、`description`、`command`、`args` 的 JSON 对象：
+固定格式如下（仅为**一段** Action 的示例；存在多个对象时请按相同格式依次输出多段），XML 标签内必须是只包含 `label`、`description`、`command`、`args` 的 JSON 对象：
 
 ```xml
 <insight-action>
@@ -36,7 +38,9 @@
 协议规则：
 
 - 实际输出 Action 时直接输出 XML，不要放进 Markdown 代码块或行内代码；
+- 每个 Action 必须以 `<insight-action>` 开始、以 `</insight-action>` 完整闭合，标签必须成对出现，不得遗漏闭合标签；
 - 不允许 XML attributes，也不允许在一段 XML 中放置数组或多个 Action；
+- 当正文列举了多个可定位对象（如多个泄漏/存活内存块、多个事件、多个算子等）时，要为每个对象各输出一段 Action，逐一列出而非合并或抽样；
 - `label` 是简短的可点击名称；
 - `description` 必须准确说明执行后页面会发生什么变化；
 - Action 只向用户展示候选操作，不表示操作已经执行；
