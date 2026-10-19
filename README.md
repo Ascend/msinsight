@@ -112,10 +112,5 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时
 
 ## 🙏 致谢
 
-MindStudio Insight 由华为公司的下列部门联合贡献：<br>
-🔹 计算产品线 <br>
-🔹 2012 实验室
-
-感谢来自社区的每一个 PR，欢迎贡献 MindStudio Insight！
-
-华为 MindStudio 全流程开发工具链团队致力于提供端到端的昇腾 AI 应用开发解决方案，使能开发者高效完成训练开发、推理开发和算子开发。
+本工具由华为技术有限公司与开发者联合贡献。
+感谢来自社区的每一个PR，欢迎贡献。
