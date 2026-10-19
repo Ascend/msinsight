@@ -118,11 +118,134 @@ python trace_convert.py \
   --profiling_data=result_dir/ctl_1418857_20251025030529768_ascend_pt
 ```
 
+## Host Bound 常见定位流程
+
+拿到 ftrace 和对应的 Profiling 数据后，先从 Device 空泡回溯 Host 下发，再结合关键线程的调度状态和实际调用缩小范围。分析主线是：**对齐数据 → 找到下发停顿 → 按现象选择排查方向 → 对照验证。**
+
+### 1. 对齐数据，选定分析时间窗
+
+按前文的 [ftrace 数据转换](#ftrace-数据转换) 方法完成时间轴和容器 PID 映射，将同一次业务运行的 ftrace 与 Profiling 导入同一个 Insight 工程。确认采集范围覆盖目标线程实际运行的 CPU、需要分析的 Step 或请求，相关调度和中断事件完整。
+
+选择一个有代表性的稳定运行时间窗，避开模型初始化、编译和结束收尾；有正常 Step 或同配置基线时，将其作为参照。
+
+### 2. 从 Device 空泡回溯 Host 下发
+
+在 Profiling 的 Overlap Analysis 和 Ascend Hardware 泳道中寻找明显或反复出现的空泡，再放大同一时间窗，观察 Python/框架、ACL/Runtime 等 Host 泳道。
+
+重点判断：**Device 等待期间，后续任务是否因为 Host 没有及时下发而无法开始执行？** Host 与 Device 异步执行，Host 停顿后可能先消耗已排队任务，随后才出现空泡，两者不一定同时开始。
+
+- 如果空泡伴随 Host API 或任务下发间隔拉长，沿下发连线回溯到实际调用，继续分析关键线程。具体操作见 [单卡 Top-Down 算子下发瓶颈分析](./Single_Card_Top_Down_Dispatch_Analysis.md)。
+- 如果任务已经及时提交，主要在等待通信或 Device 依赖，应沿相应依赖继续分析；多卡间节奏不一致可参考 [集群快慢卡分析](./Cluster_Slow_Rank_Analysis.md)。
+- 如果空泡只是正常的请求间隔或没有业务可执行，先确认负载情况。
+
+确定实际下发线程的 PID/TID 后，在 ftrace 中找到它的 Process Scheduling 泳道，并对照其所在 CPU 的 CPU Scheduling 泳道。必要时置顶这些泳道，始终围绕同一个异常时间窗观察。实际下发者可能是框架工作线程或 Worker 进程。
+
+### 3. 按常见现象进入具体案例
+
+先看关键线程在下发停顿期间是等待 CPU、阻塞等待，还是仍处于 Running，再结合 CPU 上的其他活动和 Profiling 中的 API 判断。
+
+| 在异常时间窗中看到的现象 | 可能的问题及下一步 | 案例入口 |
+| --- | --- | --- |
+| 下发线程出现较长 `Runnable`，其可运行的 CPU 同期被其他任务占用 | **CPU 调度竞争**。查看换出状态、同核竞争任务和亲和性，确认等待 CPU 是否拖慢下发。若 CPU 并不繁忙，再核对绑核范围、容器 CPU 配额等配置。 | [CPU 竞争导致的 Host Bound](#联合分析案例定位-cpu-竞争导致的-host-bound) |
+| 下发线程显示 `Running`，但所在 CPU 有密集或耗时较长的 IRQ/SoftIRQ，与下发停顿对应 | **中断处理占用 CPU**。展开 CPU 泳道，核对中断类型、执行区间及其与目标线程的重叠情况。 | [网络 SoftIRQ 导致的 Host Bound](#联合分析案例定位网络-softirq-导致的-host-bound) |
+| 下发线程出现较长 `Sleeping`，同时能关联到锁获取、条件等待或其他线程的持锁区间 | **共享锁或线程间同步等待**。确认等待对象和解除等待的条件，检查耗时工作是否被放进临界区。 | [共享锁等待导致的 Host Bound](#联合分析案例定位共享锁等待导致的-host-bound) |
+| 新批次或 Step 开始前下发停顿，伴随数据读取、预处理耗时，或消费者等待生产者 | **输入数据供给不足**。沿数据准备链检查 DataLoader、预处理线程和队列；同步日志或文件 I/O 阻塞业务线程时，也应沿实际调用确认。生产者忙于计算和消费者 Sleeping 都可能出现。 | 数据加载与预处理案例；同步日志与 I/O 阻塞案例 |
+| 同步 API、取标量或数据拷贝反复穿插，后续任务无法连续下发 | **频繁同步或数据搬运打断流水**。回溯相关 API，确认是否存在不必要的取值、同步等待或重复拷贝。 | [同步与数据搬运的下发链路分析](./Single_Card_Top_Down_Dispatch_Analysis.md#步骤四使用-async_npu-下发连线追溯-python-api) |
+| 关键线程持续 `Running`，没有明显中断覆盖，但 Host 处理时间长，或大量短小算子逐个下发 | **Host 计算或下发开销偏大**。结合 CPU 区间和已有调用栈，检查 Python 处理、框架调度、Runtime 调用以及算子粒度。 | 可先参考 [下发链路分析](./Single_Card_Top_Down_Dispatch_Analysis.md) |
+
+调度状态是线索，需要与具体调用和 Device 空泡关联起来。例如长停顿几乎都在 Sleeping，而同窗 Runnable 和中断覆盖很短，应优先沿阻塞等待继续排查，再通过锁获取、I/O 或同步调用确认等待原因。统计和结论都应围绕同一个异常窗口；事件缺失时，应先补齐采集再判断。
+
+> 部分案例入口将持续更新
+
+### 4. 用相同工作量验证判断
+
+根据所选方向做针对性调整，例如分离竞争任务的 CPU、缩短临界区、改善数据供给或减少不必要的同步，再采集对应数据。
+
+对比时保持模型、输入、请求数或 Step 数等业务工作量一致，并在相同时间尺度下观察：原先的 Host 停顿是否缩短，对应 Device 空泡是否减少，端到端耗时或吞吐是否改善。若只改变了线程状态而没有改善关键路径，应继续检查其他等待或开销。
+
+下面的案例分别展示 CPU 竞争、网络 SoftIRQ 和共享锁等待的定位与验证过程。
+
 ## 联合分析案例：定位 CPU 竞争导致的 Host Bound
 
-本案例展示 CPU 密集型计算任务 `hb_hog*` 与 vLLM 关键任务同核运行时的调度竞争场景。问题数据（下文简称 Fault）记录了 vLLM 关键任务因同核竞争产生调度延迟的现象；优化数据（下文简称 Fixed）通过分离两类任务的 CPU 亲和性验证优化效果。
+本例运行单卡 vLLM 推理，模型为 `Qwen/Qwen3-0.6B`，观察周期性 CPU 密集型任务对模型下发的影响。
 
-### 1. 场景与数据采集
+### 1. 场景设置
+
+问题数据中，vLLM 与 32 个 `hb_hog*` 任务共用 CPU 120～127。`hb_hog*` 周期性执行整数计算，形成与 vLLM 竞争 CPU 的负载。下面从已有的 Profiling 和 ftrace 数据定位这类调度竞争。
+
+故障构造脚本为 [`host_bound_fault_lab.py`](../../../scripts/ftrace_tools/examples/host_bound_fault_lab.py)，详细参数与采集命令见本案例末尾的 [CPU 竞争案例复现](#6-cpu-竞争案例复现)。
+
+### 2. 导入数据并定位目标任务
+
+导入前，先使用 `trace_convert.py` 转换本轮 ftrace 数据，并通过 `--profiling_data` 将 ftrace 时间戳对齐到对应的 Profiling 时间轴；容器内外 PID 命名空间不同时，还需要在转换时传入 `--pid_mapping`。然后在 MindStudio Insight 的同一工程中分别导入 Profiling 数据和转换后的 ftrace 数据。
+
+![导入 Profiling 与 ftrace 数据后的联合时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-import-profiling-and-ftrace.png)
+
+在 Profiling 数据中确认待分析任务的 ID。本例的目标任务 ID 为 3169；完成容器 PID 映射后，可以在 ftrace 的 Process Scheduling 中定位到 `VLLM::EngineCor:3169`。
+
+![根据 Profiling ID 定位 vLLM 调度任务及其置顶图标](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-locate-vllm-task-lane.png)
+
+将鼠标移到目标 Process Scheduling 泳道，单击泳道名称右侧的置顶图标，将该泳道固定到顶部。置顶后，即使继续滚动或展开其他泳道，也能始终以该任务为基准对照 Profiling 与 CPU Scheduling。
+
+![置顶目标 vLLM 调度任务泳道](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-pin-vllm-task-lane.png)
+
+### 3. 关联 Runnable 等待与 Host/Device 间隙
+
+Process Scheduling 中的 `Runnable` 表示任务已经具备运行条件，但尚未获得 CPU，是定位问题的重要线索之一。
+
+展开 Profiling 中的 Process、Ascend Hardware 和 Overlap Analysis，以及 ftrace 中的 CPU Scheduling。先在较大时间范围内找到目标任务中连续的 `Runnable` 片段，再以该区域为中心放大；所有泳道会沿同一时间轴同步缩放。
+
+缩放前：
+
+![问题数据（Fault）的联合时间线概览](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-timeline-overview.png)
+
+缩放后：
+
+![放大目标任务的 Runnable 等待区间](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-runnable-wait-detail.png)
+
+不过 `Runnable` 既可能是唤醒后的排队，也可能是任务仍可运行时被换出，不能单凭 `Runnable` 就断言发生了抢占。
+
+我们进一步在同一时间窗中可以看到，目标任务较长的 `Runnable` 区间与 Profiling 中 Host 下发活动的间断、Overlap Analysis 的 Computing 间隙及较长 Free 区间在时间上对应。
+
+![Runnable 等待与 Profiling 间隙的时间对应关系](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-runnable-and-profiling-gaps.png)
+
+这一步建立了时间相关性：Host 下发延迟和 Device 侧间隙与目标任务等待 CPU 同时出现。要判断根因，还需要继续确认这些时间段内相应 CPU 的调度情况。
+
+### 4. 分析 CPU 调度情况
+
+方便起见，使用时间线的搜索功能输入 `VLLM`（或更详细的 `VLLM::EngineCor:3169`），可以高亮名称匹配的 vLLM 调度切片，并淡化其他切片，从复杂的 CPU Scheduling 数据中缩小观察范围。
+
+![搜索 vLLM 相关调度任务](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-search-vllm-scheduling.png)
+
+![高亮 vLLM 相关 CPU 调度切片](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-highlight-vllm-cpu-scheduling.png)
+
+本例确认图中高亮切片均属于同一个 `VLLM::EngineCor:3169`；该任务的 Running 切片在所示时间窗内先后出现在不同 CPU 泳道，因此可以确认它在这些 CPU 之间发生了多次迁移。
+
+![同一 vLLM 任务在不同 CPU 泳道间迁移](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cross-cpu-migration.png)
+
+核间迁移本身不一定是性能故障，因此是否构成 Host Bound，仍需结合目标任务的 `Runnable` 状态和相应 CPU 上实际运行的任务继续判断。
+
+可以观察到目标任务处于长 `Runnable` 的时间段内，对应 CPU 在 `hb_hog*` 的忙碌周期中被这些 CPU 密集型任务占用。若某段状态从 `Running` 直接转为 `Runnable`，说明该任务被换出时仍处于可运行状态；结合随后由 `hb_hog*` 占用同一 CPU，可以确认存在直接的同核调度竞争。
+
+![目标任务 Runnable 时段内的 CPU 调度竞争](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cpu-contention.png)
+
+进一步放大后，可以看到在 `hb_hog*` 的忙碌周期内，多个 `hb_hog*` 任务频繁获得 CPU，而目标 vLLM 任务只能间歇运行。这解释了目标任务为何长时间处于 `Runnable`。
+
+![hb_hog 任务与 vLLM 任务的同核竞争细节](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cpu-contention-detail.png)
+
+由此可以形成完整证据链：`hb_hog*` 与 vLLM 进程树使用重叠的 CPU 集合；目标任务被换出后仍保持可运行，并出现较长 `Runnable`，相应 CPU 同期由 `hb_hog*` 占用；这些等待区间又与 Host 下发间断及 Device 侧 Computing 间隙、Free 区间在时间上对应。期间还观察到目标任务多次发生核间迁移，但迁移本身不作为判断根因的充分条件。综合判断，本例的主要瓶颈是 CPU 同核竞争导致的 Host Bound。
+
+### 5. 优化并验证结果
+
+保持 `--workload-cpus 120-127` 不变，仅将 `--hog-cpus` 从 `120-127` 调整为 `128-135`，使两类任务使用互不重叠的 CPU 集合。Fixed 轮次中，Python 主进程仍调用 `os.sched_setaffinity(0, set(workload_cpus))`，每个 `hb_hog*` 则调用 `os.sched_setaffinity(0, set(hog_cpus))` 将自身限制到 CPU 128～135。随后保持其他推理和负载配置不变，重新采集并导入 Profiling 与 ftrace 数据。
+
+重新采集后，同角色关键任务的 ID 变为 3823，这是进程重新创建后的正常变化。在截图所示的代表性时间窗内，目标任务的异常长 `Runnable` 显著减少，vLLM 与 `hb_hog*` 的 Running 切片位于不同 CPU 集合，Host 下发和 Device 计算也更加连续。
+
+![CPU 亲和性分离后的联合分析结果](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fixed-cpu-isolation.png)
+
+同核竞争造成的异常长 `Runnable` 及其对应的大段 Host/Device 间隙已经不再出现或显著减弱。但是 CPU 亲和性只消除了 vLLM 与 `hb_hog*` 之间的直接同核竞争，并不意味着 CPU 已被独占。实际业务中仍应结合运行环境检查其他进程、cgroup/cpuset、NUMA 和中断亲和性，并在优化后重新采集 Profiling 与 ftrace 数据验证效果。
+
+### 6. CPU 竞争案例复现
 
 本次实验运行 vLLM 推理，并启动 32 个名为 `hb_hog00`～`hb_hog31` 的周期性 CPU 密集型任务。每个 `hb_hog*` 以 500 ms 为一个周期，其中约 400 ms 执行整数计算、约 100 ms 等待，从而形成重复的 CPU 忙碌区间。完整的 Fault/Fixed 构造、vLLM Profiling 启停、PID/TID 元数据记录和 `trace_marker` 标记逻辑，请参见 [`host_bound_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/examples/host_bound_fault_lab.py)。
 
@@ -222,81 +345,59 @@ python trace_convert.py \
 
 如果采集和推理使用同一 PID 命名空间，转换时同样可以省略 `--pid_mapping`。本文截图沿用实验时生成的 JSON 数据；重新采集时推荐按上述命令转换为 SQLite DB，两种格式的调度分析方法相同。
 
-### 2. 导入数据并定位目标任务
-
-导入前，先使用 `trace_convert.py` 转换本轮 ftrace 数据，并通过 `--profiling_data` 将 ftrace 时间戳对齐到对应的 Profiling 时间轴；容器内外 PID 命名空间不同时，还需要在转换时传入 `--pid_mapping`。然后在 MindStudio Insight 的同一工程中分别导入 Profiling 数据和转换后的 ftrace 数据。
-
-![导入 Profiling 与 ftrace 数据后的联合时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-import-profiling-and-ftrace.png)
-
-在 Profiling 数据中确认待分析任务的 ID。本例的目标任务 ID 为 3169；完成容器 PID 映射后，可以在 ftrace 的 Process Scheduling 中定位到 `VLLM::EngineCor:3169`。
-
-![根据 Profiling ID 定位 vLLM 调度任务及其置顶图标](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-locate-vllm-task-lane.png)
-
-将鼠标移到目标 Process Scheduling 泳道，单击泳道名称右侧的置顶图标，将该泳道固定到顶部。置顶后，即使继续滚动或展开其他泳道，也能始终以该任务为基准对照 Profiling 与 CPU Scheduling。
-
-![置顶目标 vLLM 调度任务泳道](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-pin-vllm-task-lane.png)
-
-### 3. 关联 Runnable 等待与 Host/Device 间隙
-
-Process Scheduling 中的 `Runnable` 表示任务已经具备运行条件，但尚未获得 CPU，是定位问题的重要线索之一。
-
-展开 Profiling 中的 Process、Ascend Hardware 和 Overlap Analysis，以及 ftrace 中的 CPU Scheduling。先在较大时间范围内找到目标任务中连续的 `Runnable` 片段，再以该区域为中心放大；所有泳道会沿同一时间轴同步缩放。
-
-缩放前：
-
-![问题数据（Fault）的联合时间线概览](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-timeline-overview.png)
-
-缩放后：
-
-![放大目标任务的 Runnable 等待区间](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-runnable-wait-detail.png)
-
-不过 `Runnable` 既可能是唤醒后的排队，也可能是任务仍可运行时被换出，不能单凭 `Runnable` 就断言发生了抢占。
-
-我们进一步在同一时间窗中可以看到，目标任务较长的 `Runnable` 区间与 Profiling 中 Host 下发活动的间断、Overlap Analysis 的 Computing 间隙及较长 Free 区间在时间上对应。
-
-![Runnable 等待与 Profiling 间隙的时间对应关系](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-runnable-and-profiling-gaps.png)
-
-这一步建立了时间相关性：Host 下发延迟和 Device 侧间隙与目标任务等待 CPU 同时出现。要判断根因，还需要继续确认这些时间段内相应 CPU 的调度情况。
-
-### 4. 分析 CPU 调度情况
-
-方便起见，使用时间线的搜索功能输入 `VLLM`（或更详细的 `VLLM::EngineCor:3169`），可以高亮名称匹配的 vLLM 调度切片，并淡化其他切片，从复杂的 CPU Scheduling 数据中缩小观察范围。
-
-![搜索 vLLM 相关调度任务](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-search-vllm-scheduling.png)
-
-![高亮 vLLM 相关 CPU 调度切片](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-highlight-vllm-cpu-scheduling.png)
-
-本例确认图中高亮切片均属于同一个 `VLLM::EngineCor:3169`；该任务的 Running 切片在所示时间窗内先后出现在不同 CPU 泳道，因此可以确认它在这些 CPU 之间发生了多次迁移。
-
-![同一 vLLM 任务在不同 CPU 泳道间迁移](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cross-cpu-migration.png)
-
-核间迁移本身不一定是性能故障，因此是否构成 Host Bound，仍需结合目标任务的 `Runnable` 状态和相应 CPU 上实际运行的任务继续判断。
-
-可以观察到目标任务处于长 `Runnable` 的时间段内，对应 CPU 在 `hb_hog*` 的忙碌周期中被这些 CPU 密集型任务占用。若某段状态从 `Running` 直接转为 `Runnable`，说明该任务被换出时仍处于可运行状态；结合随后由 `hb_hog*` 占用同一 CPU，可以确认存在直接的同核调度竞争。
-
-![目标任务 Runnable 时段内的 CPU 调度竞争](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cpu-contention.png)
-
-进一步放大后，可以看到在 `hb_hog*` 的忙碌周期内，多个 `hb_hog*` 任务频繁获得 CPU，而目标 vLLM 任务只能间歇运行。这解释了目标任务为何长时间处于 `Runnable`。
-
-![hb_hog 任务与 vLLM 任务的同核竞争细节](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cpu-contention-detail.png)
-
-由此可以形成完整证据链：`hb_hog*` 与 vLLM 进程树使用重叠的 CPU 集合；目标任务被换出后仍保持可运行，并出现较长 `Runnable`，相应 CPU 同期由 `hb_hog*` 占用；这些等待区间又与 Host 下发间断及 Device 侧 Computing 间隙、Free 区间在时间上对应。期间还观察到目标任务多次发生核间迁移，但迁移本身不作为判断根因的充分条件。综合判断，本例的主要瓶颈是 CPU 同核竞争导致的 Host Bound。
-
-### 5. 优化并验证结果
-
-保持 `--workload-cpus 120-127` 不变，仅将 `--hog-cpus` 从 `120-127` 调整为 `128-135`，使两类任务使用互不重叠的 CPU 集合。Fixed 轮次中，Python 主进程仍调用 `os.sched_setaffinity(0, set(workload_cpus))`，每个 `hb_hog*` 则调用 `os.sched_setaffinity(0, set(hog_cpus))` 将自身限制到 CPU 128～135。随后保持其他推理和负载配置不变，重新采集并导入 Profiling 与 ftrace 数据。
-
-重新采集后，同角色关键任务的 ID 变为 3823，这是进程重新创建后的正常变化。在截图所示的代表性时间窗内，目标任务的异常长 `Runnable` 显著减少，vLLM 与 `hb_hog*` 的 Running 切片位于不同 CPU 集合，Host 下发和 Device 计算也更加连续。
-
-![CPU 亲和性分离后的联合分析结果](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fixed-cpu-isolation.png)
-
-同核竞争造成的异常长 `Runnable` 及其对应的大段 Host/Device 间隙已经不再出现或显著减弱。但是 CPU 亲和性只消除了 vLLM 与 `hb_hog*` 之间的直接同核竞争，并不意味着 CPU 已被独占。实际业务中仍应结合运行环境检查其他进程、cgroup/cpuset、NUMA 和中断亲和性，并在优化后重新采集 Profiling 与 ftrace 数据验证效果。
-
 ## 联合分析案例：定位网络 SoftIRQ 导致的 Host Bound
 
-本案例将构造即使用户态进程与 vLLM 工作核隔离，其引发的 `NET_RX` SoftIRQ 与 vLLM 关键任务共享 CPU 的场景，用于展示 SoftIRQ 直接占用 vLLM 工作核时较为隐蔽的 Host Bound。完整的 Fault/Fixed 构造、RPS 配置与恢复、vLLM Profiling 启停、SoftIRQ 统计和 `trace_marker` 标记逻辑，请参见 [`vllm_softirq_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py)。
+本例运行 vLLM 推理，同时使用本机 UDP 流量构造网络接收负载，观察 `NET_RX` SoftIRQ 对模型下发的影响。
 
-### 1. 场景与数据采集
+### 1. 场景设置
+
+vLLM 工作核为 CPU 144～151，用户态流量进程 `sir_tx*`、`sir_rx*` 使用 CPU 160～167。两类用户态任务已经隔离，但 RPS 将 `NET_RX` 接收处理定向到 vLLM 工作核。下面结合调度与中断泳道，检查这种情况下的 Host Bound。
+
+故障构造脚本为 [`vllm_softirq_fault_lab.py`](../../../scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py)，详细参数与采集命令见本案例末尾的 [网络 SoftIRQ 案例复现](#6-网络-softirq-案例复现)。
+
+### 2. 仅观察任务状态容易遗漏问题
+
+导入 Fault 的 Profiling 与 ftrace 数据后，先定位并置顶目标 `VLLM::EngineCor` 任务。Process Scheduling 中该任务以 `Running` 为主，没有出现前一个案例中明显的长 `Runnable` 区间。若只沿用“通过 `Runnable` 寻找用户态调度竞争”的方法，容易误以为目标任务一直正常执行。
+
+![Fault 中目标 vLLM 任务的 Process Scheduling 以 Running 为主](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-process-scheduling.png)
+
+在 CPU Scheduling 中搜索 vLLM 后，同样可以看到目标任务较长且较为连续的 Running 调度切片。这里的 `VLLM::EngineCor:<TID>` 表示 Linux 调度任务，并不代表某个具体算子，也不能仅凭调度切片连续就判断算子下发没有受到影响。
+
+![Fault 中目标 vLLM 任务的 CPU Scheduling 切片](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-vllm-running-slices.png)
+
+单独观察 Fault 的 Profiling 时间线时，可以看到周期性间隙，但在缺少同配置基线的情况下，这些间隙也可能被误认为正常的推理解码节奏。因此，还需要检查 CPU Scheduling 中与调度切片嵌套的中断事件，并结合 Fixed 数据进行对比。
+
+### 3. 在 CPU Scheduling 中确认 SoftIRQ
+
+展开目标 CPU 的 CPU Scheduling 泳道后，可以在 vLLM 调度切片下方看到密集的 SoftIRQ 执行区间。图中的短事件片段由 `softirq_entry` 和 `softirq_exit` 配对得到，悬浮提示中的名称为 `softirq`。分析时还需要在事件详情中核对 `action=NET_RX`，事件中的 `task=VLLM...` 表示进入 SoftIRQ 时的当前任务，不表示 SoftIRQ 属于 vLLM 线程。同时还应结合脚本生成的 RPS 探测和 SoftIRQ 统计结果，排除 `TIMER`、`RCU` 等其他 SoftIRQ。`softirq_entry`/`softirq_exit` 的含义可参见 [Linux Kernel Tracepoint API](https://docs.kernel.org/core-api/tracepoint.html)。
+
+![Fault 中目标 CPU 泳道上的密集 SoftIRQ 事件](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-softirq-events.png)
+
+SoftIRQ 在当前任务上下文中执行时通常不会触发 `sched_switch`。因此，调度器视角下 vLLM 仍是该 CPU 的当前任务，Process Scheduling 可以持续显示 `Running`，CPU Scheduling 中的 vLLM 调度切片也可以保持连续；但在每个 SoftIRQ 执行区间内，CPU 实际正在运行内核网络协议栈，vLLM 用户态代码并未向前执行。这里的 `Running` 只表示调度状态，不等同于 vLLM 连续占用全部 CPU 执行时间。
+
+### 4. 优化并对比验证
+
+Fixed 仅将 `--softirq-cpus` 从 `144-151` 调整为 `152-159`；`--workload-cpus 144-151`、`--traffic-worker-cpus 160-167`、vLLM 配置和 UDP 流量参数均保持不变。CPU 152～159 只是 Fixed 的 `NET_RX` RPS 目标集合，并不因此成为系统独占 CPU。重新采集后，将两轮 Profiling 数据**按相同时间尺度**展开。下面两图依次为 Fault 和 Fixed：Fault 在相同时间范围内完成的重复推理片段更少，PyTorch、ACL 和 Ascend Hardware 的算子切片整体更稀疏，相邻片段之间的间隔也更长，而 Fixed 的任务下发与 Device 计算节奏更紧凑。这说明 Fault 的 Host 侧下发节奏受到拖延。
+
+![Fault 中较为稀疏的 Profiling 时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-profiling.png)
+
+![Fixed 中更为紧凑的 Profiling 时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fixed-profiling.png)
+
+再分别置顶 Fault 和 Fixed 中对应的 vLLM 任务所在 CPU 泳道。下图上方为 Fault，下方为 Fixed。在截图所示的代表性时间窗内，Fault 的 vLLM 调度切片下方存在密集的 SoftIRQ 事件；Fixed 的 vLLM 工作核上不再出现同样的密集 SoftIRQ，只有少量 IRQ 事件。需要注意，Fixed 并未消除网络 SoftIRQ，而是将相同流量参数产生的 `NET_RX` 处理迁移到了 CPU 152～159。图中的少量 IRQ 可能来自 RPS 使用的核间中断或其他系统活动，并不代表产生了物理网卡硬中断。
+
+![Fault 与 Fixed 中目标任务所在 CPU 泳道的中断事件对比](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-fixed-cpu-lane-comparison.png)
+
+不同轮次重新创建进程后，目标任务的 PID/TID 可能发生变化。对比时应通过任务角色、Profiling 数据和 PID 映射确认两条泳道均属于对应轮次的 `VLLM::EngineCor`，不能仅按数值 ID 直接匹配。
+
+### 5. 原理与结论
+
+本例的证据链为：用户态流量进程始终与 vLLM 工作核隔离，排除了 `sir_tx*`、`sir_rx*` 与 vLLM 的直接同核竞争；Fault 中，RPS 将 `NET_RX` 定向到 vLLM 工作核，密集 SoftIRQ 在 vLLM 当前上下文中执行；这些 SoftIRQ 执行没有改变目标任务的 `Running` 状态，却占用了原本可供 Host 侧执行和任务下发的 CPU 时间；Profiling 中随之表现为任务下发和 Device 计算间隔增大。将 `NET_RX` 迁移到独立 CPU 后，构造流量产生的密集 `NET_RX` SoftIRQ 不再集中出现在 vLLM 工作核上，Profiling 中的下发与计算节奏也相应改善。综合判断，本例是网络 SoftIRQ 占用 vLLM 工作核所导致的 Host Bound。
+
+这个案例的隐蔽性在于仅观察由任务切换推导出的 Process Scheduling 和 CPU Scheduling 调度切片，无法区分连续的用户态执行与其中嵌套的 SoftIRQ 执行。将 SoftIRQ 事件详情与 Profiling 的下发间隔对齐，再通过仅调整 RPS 目标 CPU 的 Fault/Fixed 对比，观察到 Host 侧执行和下发的稀疏程度才可形成完整的定位与验证闭环。
+
+> 如果网络处理积压并转移到 `ksoftirqd/<CPU>`，目标 vLLM 任务可能被换出并进入 `Runnable`，此时问题会表现为更常见的内核线程调度竞争。本案例通过检查 `time_squeeze`、控制流量速率，并确认 `NET_RX` 事件发生时的当前任务为目标 vLLM，重点复现 SoftIRQ 在当前任务上下文中直接执行的情形。
+
+### 6. 网络 SoftIRQ 案例复现
 
 实验脚本通过多组本机 UDP 流量构造网络接收负载。与前一案例相同，下列参数接受 `144-151` 或 `144-147,152-155` 等 Linux CPU-list 写法。本例同时使用三组 CPU 参数，但它们的作用对象和设置方式不同：
 
@@ -357,44 +458,97 @@ python3 scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py \
 
 ftrace 的采集和转换流程沿用前文，并继续显式指定 `--backend=trace-cmd`。为覆盖两轮实验中的 vLLM 工作核、RPS 目标 CPU 和流量进程，两轮均使用 `trace_record.py --cpu=144-167` 采集 CPU 144～167。该参数仍只是 ftrace 采集过滤范围，取 `workload_cpus`、两轮 RPS 目标 CPU 和 `traffic_worker_cpus` 的并集，不会设置任务亲和性或 RPS。Fault 和 Fixed 的 ftrace、PID 映射文件不能重名，Profiling 和状态输出目录在实验前应为空。启动脚本后，应在 `[ARMED]` 倒计时结束前开始 ftrace 采集；如果实际推理时间超过 30 秒，需要相应增加 `--record_time`。两轮还应保持 UDP 流数量、单流发包速率、报文长度、流量周期和生成 Token 数等参数一致。由于两轮推理时长可能不同，校验流量时应优先比较单位时间内的收发速率和 SoftIRQ 增量，而不是只比较累计包数。
 
-### 2. 仅观察任务状态容易遗漏问题
+## 联合分析案例：定位共享锁等待导致的 Host Bound
 
-导入 Fault 的 Profiling 与 ftrace 数据后，先定位并置顶目标 `VLLM::EngineCor` 任务。Process Scheduling 中该任务以 `Running` 为主，没有出现前一个案例中明显的长 `Runnable` 区间。若只沿用“通过 `Runnable` 寻找用户态调度竞争”的方法，容易误以为目标任务一直正常执行。
+本例从一份构造的故障数据开始分析。实验环境为单卡 Ascend NPU（A2）、vLLM Ascend 0.23、`Qwen/Qwen3-0.6B`，采用 eager 执行，已在同一工程导入 Profiling 和对应的 ftrace 数据。下面沿 Device 空泡、Host 调用和线程调度逐步排查。构造脚本及启动方式见本案例末尾的 [共享锁等待案例复现](#5-共享锁等待案例复现)。
 
-![Fault 中目标 vLLM 任务的 Process Scheduling 以 Running 为主](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-process-scheduling.png)
+### 1. 从 Device 空泡回溯 Host 等待
 
-在 CPU Scheduling 中搜索 vLLM 后，同样可以看到目标任务较长且较为连续的 Running 调度切片。这里的 `VLLM::EngineCor:<TID>` 表示 Linux 调度任务，并不代表某个具体算子，也不能仅凭调度切片连续就判断算子下发没有受到影响。
+在 Overlap Analysis 和 Ascend Hardware 泳道查看稳定推理阶段，找到一段持续 **167.866880 ms** 的 `Free` 区间，位于约 **2516.7–2684.6 ms**。放大后对照 Host 泳道，可以看到其中也存在后续模型执行停顿。
 
-![Fault 中目标 vLLM 任务的 CPU Scheduling 切片](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-vllm-running-slices.png)
+![设备活动间隙与 Host 停顿的对应关系](../../../scripts/ftrace_tools/assets/vllm_lock_fault/fault_device_gap.png)
 
-单独观察 Fault 的 Profiling 时间线时，可以看到周期性间隙，但在缺少同配置基线的情况下，这些间隙也可能被误认为正常的推理解码节奏。因此，还需要检查 CPU Scheduling 中与调度切片嵌套的中断事件，并结合 Fixed 数据进行对比。
+沿 Host 调用继续查看实际执行模型的 Worker，在 PyTorch 泳道搜索 `LOCK_LAB::lock_wait`。第 32 次模型执行前，这段等待长达 **164672.980 µs**，结束后才进入 `LOCK_LAB::host_submit`。排查范围由设备空泡收敛到了模型执行前的等待。
 
-### 3. 在 CPU Scheduling 中确认 SoftIRQ
+![长 lock_wait 结束后才恢复模型执行](../../../scripts/ftrace_tools/assets/vllm_lock_fault/fault_lock_wait.png)
 
-展开目标 CPU 的 CPU Scheduling 泳道后，可以在 vLLM 调度切片下方看到密集的 SoftIRQ 执行区间。图中的短事件片段由 `softirq_entry` 和 `softirq_exit` 配对得到，悬浮提示中的名称为 `softirq`。分析时还需要在事件详情中核对 `action=NET_RX`，事件中的 `task=VLLM...` 表示进入 SoftIRQ 时的当前任务，不表示 SoftIRQ 属于 vLLM 线程。同时还应结合脚本生成的 RPS 探测和 SoftIRQ 统计结果，排除 `TIMER`、`RCU` 等其他 SoftIRQ。`softirq_entry`/`softirq_exit` 的含义可参见 [Linux Kernel Tracepoint API](https://docs.kernel.org/core-api/tracepoint.html)。
+这里的 `LOCK_LAB::host_submit` 包围模型执行入口 `execute_model`，用于观察模型执行何时恢复；每条设备 API 的具体下发仍应结合 CANN 泳道查看。
 
-![Fault 中目标 CPU 泳道上的密集 SoftIRQ 事件](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-softirq-events.png)
+### 2. 用调度状态区分等待 CPU 与阻塞等待
 
-SoftIRQ 在当前任务上下文中执行时通常不会触发 `sched_switch`。因此，调度器视角下 vLLM 仍是该 CPU 的当前任务，Process Scheduling 可以持续显示 `Running`，CPU Scheduling 中的 vLLM 调度切片也可以保持连续；但在每个 SoftIRQ 执行区间内，CPU 实际正在运行内核网络协议栈，vLLM 用户态代码并未向前执行。这里的 `Running` 只表示调度状态，不等同于 vLLM 连续占用全部 CPU 执行时间。
+在 Process Scheduling 中找到关键线程 `VLLM::EngineCor:352`，对齐刚才的异常窗口。它主要处于 `Sleeping`，该长 Sleeping 片段持续 **164.535 ms**，对应调度记录位于 CPU 60。
 
-### 4. 优化并对比验证
+![关键线程长 Sleeping 与后台线程运行的对照](../../../scripts/ftrace_tools/assets/vllm_lock_fault/fault_thread_state.png)
 
-Fixed 仅将 `--softirq-cpus` 从 `144-151` 调整为 `152-159`；`--workload-cpus 144-151`、`--traffic-worker-cpus 160-167`、vLLM 配置和 UDP 流量参数均保持不变。CPU 152～159 只是 Fixed 的 `NET_RX` RPS 目标集合，并不因此成为系统独占 CPU。重新采集后，将两轮 Profiling 数据**按相同时间尺度**展开。下面两图依次为 Fault 和 Fixed：Fault 在相同时间范围内完成的重复推理片段更少，PyTorch、ACL 和 Ascend Hardware 的算子切片整体更稀疏，相邻片段之间的间隔也更长，而 Fixed 的任务下发与 Device 计算节奏更紧凑。这说明 Fault 的 Host 侧下发节奏受到拖延。
+继续按一般流程检查 CPU 调度和中断：该等待窗口内，关键线程的 Runnable 仅 **0.004 ms**；CPU 60 没有 SoftIRQ，IRQ 合计 **0.006 ms**。这与前面两个案例中长时间等待 CPU 或被密集 SoftIRQ 打断的表现不同，约 165 ms 的停顿主要来自阻塞等待。
 
-![Fault 中较为稀疏的 Profiling 时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-profiling.png)
+Sleeping 提示关键线程正在阻塞，接下来需要确认它等待的对象，以及能够解除等待的线程。
 
-![Fixed 中更为紧凑的 Profiling 时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fixed-profiling.png)
+### 3. 检查持锁方，定位耗时临界区
 
-再分别置顶 Fault 和 Fixed 中对应的 vLLM 任务所在 CPU 泳道。下图上方为 Fault，下方为 Fixed。在截图所示的代表性时间窗内，Fault 的 vLLM 调度切片下方存在密集的 SoftIRQ 事件；Fixed 的 vLLM 工作核上不再出现同样的密集 SoftIRQ，只有少量 IRQ 事件。需要注意，Fixed 并未消除网络 SoftIRQ，而是将相同流量参数产生的 `NET_RX` 处理迁移到了 CPU 152～159。图中的少量 IRQ 可能来自 RPS 使用的核间中断或其他系统活动，并不代表产生了物理网卡硬中断。
+结合锁获取位置和后台线程代码，可以确认关键线程与 `hb_lock_helper:672` 使用同一把共享统计锁。把后台线程泳道也置顶后，可以看到它在 CPU 62 上主要处于 Running，与关键线程的长 Sleeping 区间重合。
 
-![Fault 与 Fixed 中目标任务所在 CPU 泳道的中断事件对比](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-fixed-cpu-lane-comparison.png)
+后台持锁打点显示，后台线程约从 **2518.216 ms** 持锁到 **2683.110 ms**，其中哈希计算持续约 **164.522 ms**。这段计算与关键线程的长阻塞几乎重合；计算完成、共享锁释放后，关键线程被唤醒，后续模型执行和设备活动恢复。
 
-不同轮次重新创建进程后，目标任务的 PID/TID 可能发生变化。对比时应通过任务角色、Profiling 数据和 PID 映射确认两条泳道均属于对应轮次的 `VLLM::EngineCor`，不能仅按数值 ID 直接匹配。
+因此，本例的原因是：**后台线程把耗时计算放进了共享锁临界区，关键模型执行线程获取同一把锁时被阻塞，后续任务无法及时下发，形成 Device 空泡。**
 
-### 5. 原理与结论
+### 4. 缩短临界区并验证优化结果
 
-本例的证据链为：用户态流量进程始终与 vLLM 工作核隔离，排除了 `sir_tx*`、`sir_rx*` 与 vLLM 的直接同核竞争；Fault 中，RPS 将 `NET_RX` 定向到 vLLM 工作核，密集 SoftIRQ 在 vLLM 当前上下文中执行；这些 SoftIRQ 执行没有改变目标任务的 `Running` 状态，却占用了原本可供 Host 侧执行和任务下发的 CPU 时间；Profiling 中随之表现为任务下发和 Device 计算间隔增大。将 `NET_RX` 迁移到独立 CPU 后，构造流量产生的密集 `NET_RX` SoftIRQ 不再集中出现在 vLLM 工作核上，Profiling 中的下发与计算节奏也相应改善。综合判断，本例是网络 SoftIRQ 占用 vLLM 工作核所导致的 Host Bound。
+调整锁的保护范围，只在锁内读取需要一致性的共享状态，将不依赖可变共享状态的计算移到锁外。简化后的改动如下：
 
-这个案例的隐蔽性在于仅观察由任务切换推导出的 Process Scheduling 和 CPU Scheduling 调度切片，无法区分连续的用户态执行与其中嵌套的 SoftIRQ 执行。将 SoftIRQ 事件详情与 Profiling 的下发间隔对齐，再通过仅调整 RPS 目标 CPU 的 Fault/Fixed 对比，观察到 Host 侧执行和下发的稀疏程度才可形成完整的定位与验证闭环。
+```python
+# 优化前：耗时计算也占用共享锁
+with shared_lock:
+    snapshot_counter = counter
+    hash_payload(immutable_payload)
 
-> 如果网络处理积压并转移到 `ksoftirqd/<CPU>`，目标 vLLM 任务可能被换出并进入 `Runnable`，此时问题会表现为更常见的内核线程调度竞争。本案例通过检查 `time_squeeze`、控制流量速率，并确认 `NET_RX` 事件发生时的当前任务为目标 vLLM，重点复现 SoftIRQ 在当前任务上下文中直接执行的情形。
+# 优化后：锁只保护共享状态读取
+with shared_lock:
+    snapshot_counter = counter
+hash_payload(immutable_payload)
+```
+
+重新采集并查看对应位置，`LOCK_LAB::lock_wait` 缩短到 **91.150 µs**，随后便进入 `LOCK_LAB::host_submit`，不再先等待约 165 ms。
+
+![优化后的短锁等待与随后的模型执行](../../../scripts/ftrace_tools/assets/vllm_lock_fault/fixed_lock_wait.png)
+
+再把窗口扩大到后台哈希的完整区间，约 **2554.024–2720.530 ms**。此时关键线程为 `VLLM::EngineCor:1000`，后台线程为 `hb_lock_helper:1090`。后台计算仍持续约 166.506 ms，但关键线程已经能够继续运行，原先伴随后台计算出现的长 Sleeping 消失，后续模型执行不再被这段临界区推迟。
+
+![优化后后台计算与关键线程同时推进](../../../scripts/ftrace_tools/assets/vllm_lock_fault/fixed_thread_state.png)
+
+局部等待和整轮推理耗时的对比如下：
+
+| 指标 | 优化前 | 优化后 |
+| --- | ---: | ---: |
+| 第 32 次 `lock_wait` 标签时长 | 164672.980 µs | 91.150 µs |
+| 同一步后台哈希期间的关键线程 Sleeping | 164.522 ms | 0.302 ms |
+| 两次 `generate` 调用总耗时 | 21.980 s | 21.098 s |
+
+缩短临界区后，后台计算与模型执行能够并行推进，共享锁引起的长阻塞消除，后续下发和设备计算恢复。
+
+### 5. 共享锁等待案例复现
+
+[`vllm_lock_fault_lab.py`](../../../scripts/ftrace_tools/examples/vllm_lock_fault_lab.py) 在 vLLM Worker 的模型执行入口构造共享锁竞争，并采集 Profiling。故障模式下，后台线程持有共享锁执行哈希计算，关键模型执行线程获取同一把锁时被阻塞。
+
+从仓库根目录执行以下命令。CPU 54～61 用于推理，CPU 62 用于后台计算，实际运行时按环境调整；`--model` 也可替换为本地模型目录。
+
+```bash
+# Fault：后台线程在共享锁内执行哈希计算
+OMP_NUM_THREADS=4 python3 scripts/ftrace_tools/examples/vllm_lock_fault_lab.py \
+  --mode fault \
+  --model Qwen/Qwen3-0.6B \
+  --workload-cpus 54-61 \
+  --helper-cpus 62 \
+  --batch-size 2 \
+  --max-tokens 128 \
+  --rounds 2 \
+  --inject-every 32 \
+  --hash-mib 8 \
+  --hash-rounds 32 \
+  --profile-dir profiling_lock_fault \
+  --state-dir lock_state_fault
+```
+
+脚本完成模型预热后打印 `[ARMED]`，默认倒计时 30 秒，然后启动 Profiling 并执行推理。
+
+复现优化场景时，将 `--mode fault` 改为 `--mode fixed`，同时将输出目录改为 `--profile-dir profiling_lock_fixed --state-dir lock_state_fixed`。`fixed` 模式只在锁内读取共享状态快照，释放锁后再执行相同的哈希计算，使关键模型执行线程能够继续下发任务。两轮保持模型、输入、CPU 配置和哈希工作量一致。

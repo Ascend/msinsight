@@ -230,6 +230,7 @@ python trace_analyze.py --input ftrace_data.db --output ftrace_report.xlsx
 
 ## 7. 完整样例
 
+- 已有 ftrace 和 Profiling 数据时，可先阅读 [Host Bound 定位流程](../../docs/zh/best_practices/Host_Bound_Analysis_with_Linux_Kernel_Trace.md#host-bound-常见定位流程)，按常见现象选择排查方向和具体案例。
 - vllm-ascend 容器场景下，宿主机采集 ftrace、容器内采集 Profiling、再导入 Insight 联合分析的完整样例见 [docs/vllm_ascend_example.zh-CN.md](docs/vllm_ascend_example.zh-CN.md)。
 
 ## 8. 常见问题

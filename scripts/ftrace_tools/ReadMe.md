@@ -236,6 +236,7 @@ For details about output sheets, metrics, and charts, see [trace_analyze_README.
 
 ## 7. Complete Example
 
+- If you already have ftrace and Profiling data, start with the [Host Bound troubleshooting workflow (Chinese)](../../docs/zh/best_practices/Host_Bound_Analysis_with_Linux_Kernel_Trace.md#host-bound-常见定位流程) to choose an investigation direction and case study based on common symptoms.
 - For a complete vllm-ascend container example that collects ftrace on the host, collects Profiling data in the container, and imports both into MindStudio Insight for joint analysis, see [docs/vllm_ascend_example.md](docs/vllm_ascend_example.md).
 
 ## 8. FAQ
