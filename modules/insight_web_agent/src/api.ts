@@ -270,10 +270,10 @@ export const setSessionMode = (mode: string, sessionId?: string): Promise<Sessio
     });
 };
 
-export const loadSession = (sessionId: string): Promise<LoadSessionResponse> => {
+export const loadSession = (sessionId: string, options?: { refreshConfigOnly: boolean }): Promise<LoadSessionResponse> => {
     return requestJson<LoadSessionResponse>('/api/sessions/load', {
         method: 'POST',
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, ...options }),
     });
 };
 

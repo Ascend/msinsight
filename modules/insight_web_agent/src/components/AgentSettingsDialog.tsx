@@ -779,6 +779,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [fetchingModels, setFetchingModels] = useState(false);
+    const [customModelOpen, setCustomModelOpen] = useState(false);
+    const [customModelId, setCustomModelId] = useState('');
     const modelRequestRef = useRef(0);
     const savingRef = useRef(false);
     const [snapshot, setSnapshot] = useState<AgentConfigSnapshot | null>(null);
@@ -811,6 +813,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     };
 
     useEffect(() => {
+        setCustomModelOpen(false);
+        setCustomModelId('');
         if (!open) return;
         modelRequestRef.current += 1;
         setFetchingModels(false);
@@ -907,6 +911,14 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             if (!models.some((item) => item.id === model)) models.push({ id: model, name: model });
             return { ...current, builtinAgent: { ...builtin, model, models } };
         });
+    };
+
+    /** 功能：自定义模型只在独立弹窗确认后加入草稿，不从搜索文本隐式创建。 */
+    const confirmCustomModel = (): void => {
+        if (!customModelId.trim() || saving) return;
+        selectBuiltinModel(customModelId);
+        setCustomModelOpen(false);
+        setCustomModelId('');
     };
 
     const removeBuiltinModel = (id: string): void => {
@@ -1029,6 +1041,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         modelRequestRef.current += 1;
         setFetchingModels(false);
         setPendingNavigation(null);
+        setCustomModelOpen(false);
+        setCustomModelId('');
         setError(null);
         setValidationAttempted(false);
         setTouchedFields({});
@@ -1315,6 +1329,32 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     return (
         <Container>
             {trigger ? <span className="settings-trigger" onClick={() => setOpen(true)}>{trigger}</span> : null}
+            {open && customModelOpen && <Modal
+                className="settings-confirm"
+                footer={[
+                    <Button key="cancel" onClick={() => setCustomModelOpen(false)} size="small">{t('cancel')}</Button>,
+                    <Button disabled={!customModelId.trim() || saving} key="confirm" onClick={confirmCustomModel} size="small" type="primary">{t('confirmCustomModel')}</Button>,
+                ]}
+                getContainer={false}
+                maskClosable={false}
+                onCancel={() => setCustomModelOpen(false)}
+                open
+                title={t('configureCustomModel')}
+                zIndex={1100}
+            >
+                <div className="row">
+                    <label htmlFor="custom-model-id">{t('customModelId')}</label>
+                    <Input
+                        aria-describedby="custom-model-id-hint"
+                        autoFocus
+                        className="settings-input"
+                        id="custom-model-id"
+                        onChange={(event) => setCustomModelId(event.target.value)}
+                        value={customModelId}
+                    />
+                    <div className="hint" id="custom-model-id-hint">{t('customModelIdHint')}</div>
+                </div>
+            </Modal>}
             {pendingNavigation && <Modal
                 className="settings-confirm"
                 footer={[
@@ -1336,9 +1376,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 className={`settings-drawer${panelScrollState.hasContentAbove ? ' content-scrolled' : ''}`}
                 closable={false}
                 getContainer={false}
-                keyboard={!saving && !pendingNavigation}
+                keyboard={!saving && !pendingNavigation && !customModelOpen}
                 mask
-                maskClosable={!saving && !pendingNavigation}
+                maskClosable={!saving && !pendingNavigation && !customModelOpen}
                 onClose={() => requestNavigation({ type: 'close' })}
                 open={open}
                 placement="right"
@@ -1478,7 +1518,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 </div>
                                 <div className="row">
                                     <div className="model-field-header">
-                                        <label htmlFor="builtin-model">{t('model')}</label>
+                                        <label htmlFor="builtin-model">{t('defaultModel')}</label>
                                         <Button disabled={fetchingModels || saving} onClick={() => { void handleFetchModels(); }} size="small">
                                             {fetchingModels ? t('fetchingModels') : t('fetchModelsFromService')}
                                         </Button>
@@ -1491,8 +1531,11 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             disabled={saving || Boolean(pendingNavigation)}
                                             onBlur={() => setTouchedFields((current) => ({ ...current, 'builtin-model': true }))}
                                             options={builtinModelOptions} value={snapshot.builtinAgent.model}
-                                            search={{ placeholder: t('searchOrEnterModelId'), noResultsText: t('noMatchingModels') }}
-                                            allowCustomValue={{ optionLabel: (id) => t('useCustomModelId', { id }) }}
+                                            search={{ placeholder: t('searchModels'), noResultsText: t('noMatchingModels') }}
+                                            topAction={{ label: t('configureCustomModel'), onClick: () => {
+                                                setCustomModelId('');
+                                                setCustomModelOpen(true);
+                                            } }}
                                             onChange={selectBuiltinModel}
                                             onRemove={removeBuiltinModel}
                                         />

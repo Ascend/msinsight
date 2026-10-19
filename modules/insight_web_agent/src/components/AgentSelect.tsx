@@ -54,7 +54,7 @@ interface AgentSelectProps {
     showArrow?: boolean;
     dropdownWidth?: number;
     search?: { placeholder: string; noResultsText: string };
-    allowCustomValue?: { optionLabel: (value: string) => string };
+    topAction?: { label: string; onClick: () => void };
     placement?: 'top' | 'bottom';
 }
 
@@ -187,6 +187,28 @@ const Container = styled.div`
         color: ${(props): string => props.theme.textColorSecondary};
         font-size: 12px;
         line-height: 20px;
+    }
+
+    .agent-select-top-action {
+        margin: 0 4px 8px;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 8px;
+        background: ${(props): string => props.theme.bgColorDark};
+        color: ${(props): string => props.theme.primaryColor};
+        font: inherit;
+        font-size: 13px;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .agent-select-top-action:hover {
+        background: ${(props): string => props.theme.agentWelcomeCardBackgroundColor};
+    }
+
+    .agent-select-top-action:focus-visible {
+        outline: 2px solid ${(props): string => props.theme.primaryColor};
+        outline-offset: -2px;
     }
 
     .agent-select-search {
@@ -348,7 +370,7 @@ export const AgentSelect = ({
     showArrow = true,
     dropdownWidth = 240,
     search,
-    allowCustomValue,
+    topAction,
     placement = 'bottom',
 }: AgentSelectProps): JSX.Element => {
     const [open, setOpen] = useState(false);
@@ -372,13 +394,8 @@ export const AgentSelect = ({
         const keyword = searchable ? query.trim().toLowerCase() : '';
         const filtered = keyword ? options.filter((option) => [option.value, option.title, typeof option.label === 'string' ? option.label : '']
             .some((text) => text?.toLowerCase().includes(keyword))) : options;
-        const customValue = query.trim();
-        // IDs are case-sensitive; only an exact value prevents an explicit custom choice.
-        if (searchable && allowCustomValue && customValue && !options.some((option) => option.value === customValue)) {
-            return [{ value: customValue, label: allowCustomValue.optionLabel(customValue) }, ...filtered];
-        }
         return filtered;
-    }, [allowCustomValue, options, query, searchable]);
+    }, [options, query, searchable]);
 
     useEffect(() => {
         if (!open) {
@@ -393,11 +410,10 @@ export const AgentSelect = ({
 
     useEffect(() => {
         if (!open || !searchable) return;
-        const customIndex = allowCustomValue && query.trim() && !options.some((option) => option.value === query.trim()) ? 0 : -1;
         const selectedIndex = visibleOptions.findIndex((option) => option.value === value && !option.disabled);
-        setFocusedIndex(customIndex >= 0 ? customIndex : selectedIndex >= 0 ? selectedIndex : visibleOptions.findIndex((option) => !option.disabled));
+        setFocusedIndex(selectedIndex >= 0 ? selectedIndex : visibleOptions.findIndex((option) => !option.disabled));
         if (optionsRef.current) optionsRef.current.scrollTop = 0;
-    }, [allowCustomValue, open, options, query, searchable, visibleOptions, value]);
+    }, [open, options, query, searchable, visibleOptions, value]);
 
     useEffect(() => {
         if (!open) return;
@@ -469,7 +485,7 @@ export const AgentSelect = ({
             window.removeEventListener('scroll', updatePosition, true);
             resizeObserver?.disconnect();
         };
-    }, [footer, open, visibleOptions.length, placement, title, dropdownWidth, searchable]);
+    }, [footer, open, visibleOptions.length, placement, title, dropdownWidth, searchable, topAction?.label]);
 
     useEffect(() => {
         if (!open || !dropdownPosition) return;
@@ -521,7 +537,7 @@ export const AgentSelect = ({
             triggerRef.current?.focus({ preventScroll: true });
             return;
         }
-        if (event.key === 'Tab' && event.target === searchRef.current && !onRemove) {
+        if (event.key === 'Tab' && event.target === searchRef.current && !onRemove && !topAction) {
             setOpen(false);
             triggerRef.current?.focus({ preventScroll: true });
             return;
@@ -546,6 +562,14 @@ export const AgentSelect = ({
         <Container>
             <div className="agent-select-dropdown" ref={dropdownRef} style={{ ...dropdownStyle, width: dropdownWidth, zIndex: dropdownZIndex }}>
                 {title ? <div className="agent-select-title">{title}</div> : null}
+                {topAction ? <button
+                    className="agent-select-top-action"
+                    onClick={() => {
+                        setOpen(false);
+                        topAction.onClick();
+                    }}
+                    type="button"
+                ><span aria-hidden="true">+ </span>{topAction.label}</button> : null}
                 {search ? <input
                     aria-label={search.placeholder}
                     aria-controls={listboxId}

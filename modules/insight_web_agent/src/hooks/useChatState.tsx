@@ -885,7 +885,40 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
+    /** 功能：配置重载后回读会话选项，保留消息及各会话独立的模型、模式选择。 */
+    const refreshSessionConfigOptions = async (agentName: string): Promise<void> => {
+        const nextState = await refreshInitialState();
+        if (nextState.activeAgentName && nextState.activeAgentName !== agentName) return;
+        const capabilities = nextState.agentCapabilities ?? stateRef.current.agentCapabilities;
+        if (!capabilities?.loadSession && !capabilities?.session?.resume) return;
+        const sessionIds = Object.values(stateRef.current.sessionRecords)
+            .filter((record) => record.loaded && !record.pendingPrompt)
+            .map((record) => record.sessionId);
+        // 重新打开同一会话以获取 ACP 权威选项；不替换本地消息，也不将全局默认值复制到会话。
+        for (const sessionId of sessionIds) {
+            if (stateRef.current.activeAgentName !== agentName) return;
+            try {
+                const response = await loadSession(sessionId, { refreshConfigOnly: true });
+                setState((current) => {
+                    const record = current.sessionRecords[sessionId];
+                    if (current.activeAgentName !== agentName || !record || !response.configOptions) return current;
+                    return {
+                        ...current,
+                        sessionRecords: {
+                            ...current.sessionRecords,
+                            [sessionId]: { ...record, configOptions: response.configOptions },
+                        },
+                    };
+                });
+            } catch (error) {
+                // 单个历史会话失效不能中断其他会话同步，也不能把已持久化的配置报告为保存失败。
+                showError(error);
+            }
+        }
+    };
+
     const applyAgentConfigSnapshot = async (snapshot: AgentConfigSnapshot): Promise<void> => {
+        const previousAgentName = stateRef.current.activeAgentName;
         const agents = await fetchAgents();
         setState((current) => {
             const { effectiveAgentName, changed: activeAgentChanged } = resolveAppliedAgentChange(
@@ -914,6 +947,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 sessionRecords: {},
             };
         });
+        const { effectiveAgentName, changed } = resolveAppliedAgentChange(previousAgentName, snapshot.activeAgentName, agents.activeAgentName);
+        if (!changed) await refreshSessionConfigOptions(effectiveAgentName);
     };
 
     const value = useMemo<ChatStateValue>(() => ({

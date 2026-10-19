@@ -10,7 +10,7 @@ import React from 'react';
 import * as testingLibrary from '@testing-library/react';
 import * as api from '../../api';
 import { ChatStateProvider, useChatState } from '../../hooks/useChatState';
-import type { ServerEvent } from '../../types';
+import type { AgentConfigSnapshot, ConfigOption, ServerEvent } from '../../types';
 
 const { act, render, waitFor } = testingLibrary;
 
@@ -87,6 +87,83 @@ beforeEach(async () => {
 
 afterEach(() => {
     globalThis.EventSource = originalEventSource;
+});
+
+const modelOptions = (currentValue: string, ids: string[]): ConfigOption[] => [{
+    id: 'model', name: 'Model', category: 'model', type: 'select', currentValue,
+    options: ids.map((value) => ({ value, name: value })),
+}];
+const savedConfig = { activeAgentName: 'agent-a' } as AgentConfigSnapshot;
+
+test('saving the same agent refreshes draft and cached session models without replacing conversations', async () => {
+    emit({ type: 'state', state: { configOptions: modelOptions('old', ['old']) } });
+    await send('first');
+    emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false });
+    emit({ type: 'message_added', sessionId: 'session-a', message: { id: 'reply-a', role: 'assistant', content: [] } });
+    await act(async () => { await chat.createSession(); });
+    mockSendPrompt.mockResolvedValueOnce({ sessionId: 'session-b' });
+    await send('second');
+    emit({ type: 'prompt_status', sessionId: 'session-b', pendingPrompt: false });
+    emit({ type: 'message_added', sessionId: 'session-b', message: { id: 'reply-b', role: 'assistant', content: [] } });
+    const messages = chat.messages;
+    const refreshed = modelOptions('new-default', ['new-default', 'session-choice']);
+    (api.fetchState as jest.Mock).mockResolvedValue({
+        initialized: true, activeAgentName: 'agent-a', configOptions: refreshed, agentCapabilities: { loadSession: true },
+    });
+    (api.loadSession as jest.Mock).mockImplementation(async (sessionId: string) => ({
+        sessionId, messages: [], configOptions: modelOptions(sessionId === 'session-a' ? 'session-choice' : 'new-default', ['new-default', 'session-choice']),
+    }));
+
+    await act(async () => { await chat.applyAgentConfigSnapshot(savedConfig); });
+
+    expect(api.loadSession).toHaveBeenCalledWith('session-a', { refreshConfigOnly: true });
+    expect(api.loadSession).toHaveBeenCalledWith('session-b', { refreshConfigOnly: true });
+    expect(chat.currentSessionId).toBe('session-b');
+    expect(chat.messages).toEqual(messages);
+    expect(chat.configOptions).toEqual(refreshed);
+    await select('session-a');
+    expect(chat.configOptions[0].currentValue).toBe('session-choice');
+    expect(chat.configOptions[0].options.map((option) => option.value)).toEqual(['new-default', 'session-choice']);
+    expect(chat.messages.map((message) => message.id)).toContain('reply-a');
+    await act(async () => { await chat.createSession(); });
+    expect(chat.configOptions).toEqual(refreshed);
+});
+
+test('saving an agent without session loading still refreshes draft options', async () => {
+    const refreshed = modelOptions('new', ['new']);
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-a', configOptions: refreshed });
+    await act(async () => { await chat.applyAgentConfigSnapshot(savedConfig); });
+    expect(chat.configOptions).toEqual(refreshed);
+    expect(api.loadSession).not.toHaveBeenCalled();
+});
+
+test('a failed options refresh preserves history and does not block other sessions', async () => {
+    await send('first');
+    emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false });
+    await act(async () => { await chat.createSession(); });
+    mockSendPrompt.mockResolvedValueOnce({ sessionId: 'session-b' });
+    await send('second');
+    emit({ type: 'prompt_status', sessionId: 'session-b', pendingPrompt: false });
+    emit({ type: 'message_added', sessionId: 'session-b', message: { id: 'reply-b', role: 'assistant', content: [] } });
+    const messages = chat.messages;
+    const refreshed = modelOptions('new', ['new']);
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-a', agentCapabilities: { loadSession: true } });
+    (api.loadSession as jest.Mock).mockRejectedValueOnce(new Error('reload failed')).mockResolvedValueOnce({ configOptions: refreshed });
+    await act(async () => { await chat.applyAgentConfigSnapshot(savedConfig); });
+    expect(api.loadSession).toHaveBeenCalledTimes(2);
+    expect(chat.currentSessionId).toBe('session-b');
+    expect(chat.messages).toEqual(messages);
+    expect(chat.configOptions).toEqual(refreshed);
+});
+
+test('saving a different active agent does not reopen the previous agent sessions', async () => {
+    await send('first');
+    emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false });
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers: [] });
+    await act(async () => { await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' }); });
+    expect(api.loadSession).not.toHaveBeenCalled();
+    expect(chat.sessions).toEqual([]);
+    expect(chat.isDraftSession).toBe(true);
 });
 
 test('preserves sent and replayed image blocks when switching sessions', async () => {
