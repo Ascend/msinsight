@@ -21,6 +21,7 @@ import { test } from "node:test";
 import { createChatService, createPromptContent } from "../../services/chatService.mjs";
 import { createContextAssembler } from "../../services/contextAssembler.mjs";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
+import { getNativeConfigurationError } from "../../native-agent/config/modelConfiguration.mjs";
 
 test("createPromptContent serializes pasted images as ACP image blocks", () => {
     const content = createPromptContent("分析这个图片", [{
@@ -318,7 +319,7 @@ const modeConfig = (currentValue) => ({
     ],
 });
 
-const createPromptTestService = (systemPrompt = "", promptRequest, ragService, memoryTuningPrompt = "", slowCardAnalysisPrompt = "") => {
+const createPromptTestService = (systemPrompt = "", promptRequest, ragService, memoryTuningPrompt = "", slowCardAnalysisPrompt = "", serviceOptions = {}) => {
     const calls = [];
     const events = [];
     const state = createRuntimeState();
@@ -355,6 +356,7 @@ const createPromptTestService = (systemPrompt = "", promptRequest, ragService, m
         systemPrompt,
         memoryTuningPrompt,
         slowCardAnalysisPrompt,
+        ...serviceOptions,
     });
 
     return { service, calls, events, state };
@@ -436,6 +438,30 @@ test("immediate runtime configuration errors end the prompt and clear agent acti
     assert.equal(assistant.completionStatus, "failed");
     assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).completionStatus, "failed");
     assert.deepEqual(events.filter((event) => event.type === "prompt_status").map((event) => event.pendingPrompt), [true, false]);
+});
+
+test("missing native credentials reject new and existing prompts before creating messages or sessions", async () => {
+    let env = { MSINSIGHT_NATIVE_PROVIDER: "openai", MSINSIGHT_NATIVE_API_KEY: "" };
+    const { service, calls, events, state } = createPromptTestService("", undefined, undefined, "", "", {
+        getPromptConfigurationError: () => getNativeConfigurationError(env),
+    });
+    for (const options of [{ newSession: true }, { sessionId: "session-1" }]) {
+        const result = await service.prompt("analyze", options);
+        assert.equal(result.status, 400);
+        assert.equal(result.error, "agent_not_configured");
+        assert.match(result.message, /API key.*Agent Settings/);
+        assert.equal(result.details, undefined);
+    }
+    assert.equal(calls.length, 0);
+    assert.equal(events.length, 0);
+    assert.equal(state.sessionContexts.size, 1);
+    assert.equal(state.sessionContexts.get("session-1").pendingPrompt, false);
+    assert.deepEqual(state.sessionContexts.get("session-1").messages, []);
+
+    env = { ...env, MSINSIGHT_NATIVE_API_KEY: "newly-configured-key" };
+    assert.equal((await service.prompt("retry", { sessionId: "session-1" })).ok, true);
+    await waitForPromptCompletion(state);
+    assert.equal(calls.filter(({ method }) => method === "session/prompt").length, 1);
 });
 
 test("cancelling a turn preserves its stopped state when the old request finishes during a new turn", async () => {

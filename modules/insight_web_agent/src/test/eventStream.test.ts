@@ -14,7 +14,7 @@ jest.mock('../env', () => ({
 }));
 
 test('streams SSE with a Bearer header and closes without reconnecting', async () => {
-    const encoded = new TextEncoder().encode('data: {"type":"state"}\n\n');
+    const encoded = new TextEncoder().encode(': heartbeat\n\ndata: {"type":"state"}\n\n: heartbeat\n\n');
     const releaseLock = jest.fn();
     const read = jest.fn()
         .mockResolvedValueOnce({ value: encoded, done: false })
