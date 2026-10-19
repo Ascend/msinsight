@@ -37,6 +37,10 @@ Tag 遵循以下格式：
 
 默认镜像以多架构 manifest 形式发布，同一 Tag 支持 `x86_64` 和 `aarch64`，Docker 会根据运行环境自动拉取匹配架构的镜像。
 
+### 最新版本 MindStudio Insight 26.2.0
+
+如下所示是 MindStudio Insight 最新发布的 26.2.0 版本的所有镜像，历史版本所有的 Tag 请参考 [Supported Tags](https://gitcode.com/Ascend/msinsight/blob/master/docker/supported_tags.md)
+
 | Tag | 操作系统 | 内置Python版本 | Dockerfile |
 | ------ | ------ | ------ | ------ |
 | `26.2.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
