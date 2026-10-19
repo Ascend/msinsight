@@ -128,14 +128,27 @@ TEST_F(ParserFactoryTest, GetImportTypeStandardDbFileWithoutHostCoreTables) {
 
 class PlatformParseSuccessEventTest : public ::testing::Test {
   protected:
+    class EventSession : public Timeline::Test::CapturingTimelineSession {
+      public:
+        void OnEvent(std::unique_ptr<Protocol::Event> value) override { event = std::move(value); }
+        std::unique_ptr<Protocol::Event> event;
+    };
+
     class TestableProjectParserBase : public ProjectParserBase {
       public:
         using ProjectParserBase::SendPlatformParseSuccessEvent;
     };
 
     void SetUp() override {
-        databasePath = FileUtil::SplicePath(::testing::TempDir(), "platform-parse-success-event.db");
-        std::remove(databasePath.c_str());
+        capture = std::make_shared<EventSession>();
+        {
+            auto &sessions = Server::WsSessionManager::Instance();
+            std::lock_guard<std::mutex> lock(sessions.sessionMutex);
+            previousSession = std::exchange(sessions.session, capture);
+        }
+        databasePath = FileUtil::SplicePath(::testing::TempDir(),
+            "platform-parse-success-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+                ".db");
         sqlite3 *database = nullptr;
         ASSERT_EQ(sqlite3_open(databasePath.c_str(), &database), SQLITE_OK);
         ASSERT_EQ(sqlite3_exec(database,
@@ -165,19 +178,155 @@ class PlatformParseSuccessEventTest : public ::testing::Test {
     void TearDown() override {
         Timeline::DataBaseManager::Instance().Clear();
         Timeline::TraceTime::Instance().Reset();
-        std::remove(databasePath.c_str());
+        for (const auto &suffix : {"", "-wal", "-shm"}) {
+            std::remove((databasePath + suffix).c_str());
+        }
+        auto &sessions = Server::WsSessionManager::Instance();
+        std::lock_guard<std::mutex> lock(sessions.sessionMutex);
+        sessions.session = std::move(previousSession);
+    }
+
+    bool ExecuteSql(const std::string &sql) {
+        auto database = Timeline::DataBaseManager::Instance().GetPlatformDatabaseByRankId(rankId);
+        return database != nullptr && database->ExecSql(sql);
+    }
+
+    const Protocol::ParseSuccessEvent *SendEvent() {
+        TestableProjectParserBase::SendPlatformParseSuccessEvent(rankId, databasePath);
+        return dynamic_cast<const Protocol::ParseSuccessEvent *>(capture->event.get());
+    }
+
+    void ExpectCounter(const Protocol::UnitTrack &track, const std::string &levelId, const std::string &name,
+        const std::string &description, const std::string &unit, double maxValue) {
+        EXPECT_EQ(track.type, "counter");
+        EXPECT_EQ(track.metaData.cardId, rankId);
+        EXPECT_EQ(track.metaData.threadId, levelId);
+        EXPECT_EQ(track.metaData.threadName, name);
+        EXPECT_EQ(track.metaData.headerTooltip, description);
+        EXPECT_EQ(track.metaData.dataType, (std::vector<std::string>{unit}));
+        EXPECT_DOUBLE_EQ(track.metaData.maxValue, maxValue);
+        EXPECT_TRUE(track.children.empty());
     }
 
     const std::string rankId = "trace-rank#platform";
     std::string databasePath;
+    std::shared_ptr<EventSession> capture;
+    std::shared_ptr<Server::WsSession> previousSession;
 };
 
 TEST_F(PlatformParseSuccessEventTest, DoesNotApplyNumaClockToGlobalTraceTime) {
-    PlatformParseSuccessEventTest::TestableProjectParserBase::SendPlatformParseSuccessEvent(rankId, databasePath);
+    const auto *event = SendEvent();
+    ASSERT_NE(event, nullptr);
+    EXPECT_TRUE(event->result);
+    EXPECT_EQ(event->moduleName, MODULE_TIMELINE);
+    EXPECT_EQ(event->body.fileId, databasePath);
+    EXPECT_TRUE(event->body.isFullDb);
+    EXPECT_FALSE(event->body.startTimeUpdated);
+    EXPECT_EQ(event->body.startTime, 10000U);
+    EXPECT_EQ(event->body.maxTimeStamp, 10000U);
+    EXPECT_EQ(event->body.offset, 0U);
+    EXPECT_EQ(event->body.unit.type, "card");
+    EXPECT_EQ(event->body.unit.metadata.cardId, rankId);
+    EXPECT_EQ(event->body.unit.metadata.cardAlias, "Platform Metrics");
+    ASSERT_EQ(event->body.unit.children.size(), 1U);
+    const auto &wrapper = *event->body.unit.children.front();
+    EXPECT_EQ(wrapper.type, "process");
+    EXPECT_EQ(wrapper.metaData.processId, "PLATFORM_METRICS");
+    EXPECT_EQ(wrapper.metaData.processName, "Platform Metrics");
+    ASSERT_EQ(wrapper.children.size(), 1U);
+    ExpectCounter(*wrapper.children.front(), "1", "Metric", "desc", "Ratio", 100.0);
 
     EXPECT_EQ(Timeline::TraceTime::Instance().GetStartTime(), 10000U);
     EXPECT_EQ(Timeline::TraceTime::Instance().GetDuration(), 10000U);
 }
+
+TEST_F(PlatformParseSuccessEventTest, BuildsTwoAndThreeLevelTreesWithSharedParents) {
+    ASSERT_TRUE(
+        ExecuteSql("INSERT INTO NUMA_TITLES_NAMES VALUES ('CPU', '', 0, '', 10), ('Load', 'load desc', 1, '%', 11),"
+                   "('NUMA', '', 0, '', 20), ('Node', '', 0, '', 21), ('Read', 'read desc', 1, 'GB/s', 22),"
+                   "('Write', 'write desc', 1, '', 23);"
+                   "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (10, 11, 0), (20, 21, 22), (20, 21, 23);"
+                   "INSERT INTO NUMA_SCALING_VALUES VALUES (2, 2, 200.0), (3, 3, 300.0);"));
+
+    const auto *event = SendEvent();
+    ASSERT_NE(event, nullptr);
+    ASSERT_EQ(event->body.unit.children.size(), 1U);
+    const auto &roots = event->body.unit.children.front()->children;
+    ASSERT_EQ(roots.size(), 3U);
+    ExpectCounter(*roots[0], "1", "Metric", "desc", "Ratio", 100.0);
+    EXPECT_EQ(roots[1]->type, "process");
+    EXPECT_EQ(roots[1]->metaData.processId, "10");
+    EXPECT_EQ(roots[1]->metaData.processName, "CPU");
+    ASSERT_EQ(roots[1]->children.size(), 1U);
+    ExpectCounter(*roots[1]->children[0], "2", "Load", "load desc", "%", 200.0);
+    EXPECT_EQ(roots[2]->type, "process");
+    EXPECT_EQ(roots[2]->metaData.processId, "20");
+    EXPECT_EQ(roots[2]->metaData.processName, "NUMA");
+    ASSERT_EQ(roots[2]->children.size(), 1U);
+    const auto &node = *roots[2]->children[0];
+    EXPECT_EQ(node.type, "process");
+    EXPECT_EQ(node.metaData.processId, "21");
+    EXPECT_EQ(node.metaData.processName, "Node");
+    ASSERT_EQ(node.children.size(), 2U);
+    ExpectCounter(*node.children[0], "3", "Read", "read desc", "GB/s", 300.0);
+    ExpectCounter(*node.children[1], "4", "Write", "write desc", "Value", 0.0);
+}
+
+TEST_F(PlatformParseSuccessEventTest, MissingTitlesAndScalingUseDefaultsAtEveryDepth) {
+    ASSERT_TRUE(ExecuteSql("DELETE FROM NUMA_LEVELS_HIERARCHY_NAMES;"
+                           "DELETE FROM NUMA_SCALING_VALUES;"
+                           "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (40, 0, 0), (50, 51, 0), (60, 61, 62);"
+                           "INSERT INTO NUMA_SCALING_VALUES VALUES (999, 999, 1.0);"));
+
+    const auto *event = SendEvent();
+    ASSERT_NE(event, nullptr);
+    ASSERT_EQ(event->body.unit.children.size(), 1U);
+    const auto &roots = event->body.unit.children.front()->children;
+    ASSERT_EQ(roots.size(), 3U);
+    ExpectCounter(*roots[0], "1", "", "", "Value", 0.0);
+    EXPECT_TRUE(roots[1]->metaData.processName.empty());
+    ASSERT_EQ(roots[1]->children.size(), 1U);
+    ExpectCounter(*roots[1]->children[0], "2", "", "", "Value", 0.0);
+    EXPECT_TRUE(roots[2]->metaData.processName.empty());
+    ASSERT_EQ(roots[2]->children.size(), 1U);
+    EXPECT_TRUE(roots[2]->children[0]->metaData.processName.empty());
+    ASSERT_EQ(roots[2]->children[0]->children.size(), 1U);
+    ExpectCounter(*roots[2]->children[0]->children[0], "3", "", "", "Value", 0.0);
+}
+
+TEST_F(PlatformParseSuccessEventTest, MissingDatabaseStillSendsCardWithoutTracks) {
+    Timeline::DataBaseManager::Instance().Clear();
+    const auto *event = SendEvent();
+    ASSERT_NE(event, nullptr);
+    EXPECT_TRUE(event->result);
+    EXPECT_EQ(event->body.fileId, databasePath);
+    EXPECT_EQ(event->body.unit.metadata.cardId, rankId);
+    EXPECT_TRUE(event->body.unit.children.empty());
+}
+
+class PlatformParseMissingDataTest : public PlatformParseSuccessEventTest,
+                                     public testing::WithParamInterface<std::string> {};
+
+TEST_P(PlatformParseMissingDataTest, EmptyTableSendsCardWithoutTracks) {
+    ASSERT_TRUE(ExecuteSql("DELETE FROM " + GetParam()));
+    const auto *event = SendEvent();
+    ASSERT_NE(event, nullptr);
+    EXPECT_TRUE(event->result);
+    EXPECT_EQ(event->body.unit.metadata.cardId, rankId);
+    EXPECT_TRUE(event->body.unit.children.empty());
+}
+
+TEST_P(PlatformParseMissingDataTest, QueryFailureSendsCardWithoutTracks) {
+    ASSERT_TRUE(ExecuteSql("DROP TABLE " + GetParam()));
+    const auto *event = SendEvent();
+    ASSERT_NE(event, nullptr);
+    EXPECT_TRUE(event->result);
+    EXPECT_EQ(event->body.unit.metadata.cardId, rankId);
+    EXPECT_TRUE(event->body.unit.children.empty());
+}
+
+INSTANTIATE_TEST_SUITE_P(PlatformTables, PlatformParseMissingDataTest,
+    testing::Values("NUMA_LEVELS_HIERARCHY_NAMES", "NUMA_TITLES_NAMES", "NUMA_SCALING_VALUES", "NUMA_METRICS"));
 
 class SearchGroupedAscendHardwareThreadsTest : public ::testing::Test {
   protected:
