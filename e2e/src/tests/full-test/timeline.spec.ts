@@ -621,7 +621,8 @@ test.describe('Timeline', () => {
         const boundingBox = await chart.boundingBox();
         const { x: startX, y: startY } = boundingBox;
         await page.mouse.move(startX + 50, startY + 50);
-        await expect(timelineFrame.locator('#main-container > div > div > div > p > kbd')).toHaveText('K');
+        const createFlagShortcut = timelineFrame.locator('#main-container kbd').filter({ hasText: /^K$/ });
+        await expect(createFlagShortcut).toBeVisible();
         await page.keyboard.press('k');
         await page.waitForTimeout(1000);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-k-flag.png', { maxDiffPixels:100 });
