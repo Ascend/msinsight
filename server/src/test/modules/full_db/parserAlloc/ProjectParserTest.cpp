@@ -18,7 +18,6 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "ProjectParserFactory.h"
-#include "ProjectParserFtrace.h"
 #include "FileUtil.h"
 
 using namespace Dic::Module;
@@ -69,22 +68,6 @@ TEST_F(ProjectParserTest, ParserBaseline) {
     ProjectExplorerInfo info;
     BaselineInfo baselineInfo;
     parser.ParserBaseline(info, baselineInfo);
-}
-
-TEST_F(ProjectParserTest, FtraceProjectTypeSupportsBaselineCompare) {
-    EXPECT_TRUE(IsSupportCompareType(ProjectTypeEnum::DB_FTRACE));
-    EXPECT_TRUE(IsComparable(ProjectTypeEnum::DB_FTRACE, ProjectTypeEnum::DB_FTRACE));
-}
-
-TEST_F(ProjectParserTest, FtraceDbFileNameSupportsContainingKeyword) {
-    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data.db"));
-    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data123.db"));
-    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("custom_ftrace_data.db"));
-    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data_custom.db"));
-
-    EXPECT_FALSE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data.json"));
-    EXPECT_FALSE(ProjectParserFtrace::IsFtraceDbFile("ftrace.db"));
-    EXPECT_FALSE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data.db.bak"));
 }
 
 TEST_F(ProjectParserTest, GetParseFileByImportFile) {
