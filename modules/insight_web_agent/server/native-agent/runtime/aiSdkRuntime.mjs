@@ -25,6 +25,7 @@ import { join } from "node:path";
 import { limitedToolValue, parseRetryAfterSeconds } from "../shared/utils.mjs";
 import { resolveShellRuntime } from "../tools/shellRuntime.mjs";
 import { normalizeModelCatalog, resolveSessionModel } from "../config/modelCatalog.mjs";
+import { getNativeConfigurationError } from "../config/modelConfiguration.mjs";
 
 const STATE_VERSION = 1;
 
@@ -180,12 +181,14 @@ export const createAiSdkModel = (env, fetch) => {
     const apiKey = env.MSINSIGHT_NATIVE_API_KEY;
     const baseURL = env.MSINSIGHT_NATIVE_BASE_URL;
     const modelId = String(env.MSINSIGHT_NATIVE_MODEL ?? "gpt-4o-mini").trim();
-    if (!providerType) return undefined;
-    if (!apiKey || !modelId) return undefined;
+    const configurationError = getNativeConfigurationError(env);
+    if (configurationError) {
+        if (configurationError.field === "provider" && providerType) throw new Error(`unsupported_provider:${providerType}`);
+        return undefined;
+    }
     if (providerType === "openai") return createOpenAI({ apiKey, baseURL, fetch })(modelId);
     if (providerType === "anthropic") return createAnthropic({ apiKey, baseURL, fetch })(modelId);
     if (providerType === "openai-compatible") {
-        if (!baseURL) return undefined;
         return createOpenAICompatible({ name: "openai-compatible", apiKey, baseURL, fetch })(modelId);
     }
     throw new Error(`unsupported_provider:${providerType}`);

@@ -20,7 +20,7 @@ import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, getPromptConfigurationError, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -90,6 +90,10 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 503,
                 state.agentError ? { cause: state.agentError } : undefined,
             );
+        }
+        const configurationError = getPromptConfigurationError?.();
+        if (configurationError) {
+            return errorResult("agent_not_configured", configurationError.message, 400);
         }
         try {
             let sessionId = String(options.sessionId ?? "").trim() || undefined;

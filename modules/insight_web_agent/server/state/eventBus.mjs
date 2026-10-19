@@ -19,6 +19,11 @@ import { publicState } from "./runtimeState.mjs";
 
 export const createEventBus = (state) => {
     const connectListeners = new Set();
+    let heartbeat;
+    const stopHeartbeat = () => {
+        clearInterval(heartbeat);
+        heartbeat = undefined;
+    };
     const send = (client, event) => client.write(`data: ${JSON.stringify(event)}\n\n`);
     const broadcast = (event) => {
         for (const client of state.clients) send(client, event);
@@ -33,9 +38,21 @@ export const createEventBus = (state) => {
         });
         res.flushHeaders?.();
         state.clients.add(res);
+        res.once("close", () => {
+            state.clients.delete(res);
+            if (!state.clients.size) stopHeartbeat();
+        });
+        if (!heartbeat) {
+            // WebKit can hold the last fetch-stream chunks until more data arrives.
+            heartbeat = setInterval(() => {
+                for (const client of state.clients) {
+                    if (!client.destroyed && !client.writableEnded) client.write(": heartbeat\n\n");
+                }
+            }, 1000);
+            heartbeat.unref?.();
+        }
         send(res, { type: "state", state: publicState(state) });
         connectListeners.forEach((listener) => listener((event) => send(res, event)));
-        req.on("close", () => state.clients.delete(res));
     };
 
     const onConnect = (listener) => {
@@ -44,6 +61,7 @@ export const createEventBus = (state) => {
     };
 
     const close = () => {
+        stopHeartbeat();
         for (const client of state.clients) client.end();
         state.clients.clear();
         connectListeners.clear();

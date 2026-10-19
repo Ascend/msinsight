@@ -31,6 +31,7 @@ import { createAgentConfigService } from "./services/agentConfigService.mjs";
 import { agentConfigForLog, discoverAgents, presentListedAgentServers, presentRunnableAgentServers, resolveAgentServer, sameAgentLaunch } from "./services/agentDiscoveryService.mjs";
 import { agentLaunchKey } from "./services/agentIdentityService.mjs";
 import { createChatService } from "./services/chatService.mjs";
+import { getNativeConfigurationError } from "./native-agent/config/modelConfiguration.mjs";
 import { createContextAssembler } from "./services/contextAssembler.mjs";
 import { errorCause, errorResult } from "./services/errorResult.mjs";
 import { createFileReadService, createPermissionHostHandler } from "./services/fileReadService.mjs";
@@ -261,6 +262,10 @@ chatService = createChatService({
     contextAssembler,
     frontendCommandService,
     permissionService,
+    // Use the active runtime's decrypted configuration, including after a successful reload.
+    getPromptConfigurationError: () => activeAgentServer.name === "msinsight-native"
+        ? getNativeConfigurationError({ ...process.env, ...activeAgentServer.env })
+        : undefined,
     systemPrompt: config.systemPrompt,
     memoryTuningPrompt: config.memoryTuningPrompt,
     slowCardAnalysisPrompt: config.slowCardAnalysisPrompt,
