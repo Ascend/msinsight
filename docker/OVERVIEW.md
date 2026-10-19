@@ -37,6 +37,10 @@ Tags follow this format:
 
 By default, images are published as multi-architecture manifests. The same tag supports both `x86_64` and `aarch64`, and Docker automatically pulls the image matching the runtime platform.
 
+### LATEST MindStudio Insight 26.2.0
+
+For tags associated with historical versions, please refer to [Supported Tags](https://gitcode.com/Ascend/msinsight/blob/master/docker/supported_tags.md).
+
 | Tag | Operating System | Built-in Python Version | Dockerfile |
 | ------ | ------ | ------ | ------ |
 | `26.2.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
