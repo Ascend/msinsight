@@ -16,6 +16,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 4. 在 Timeline（时间线）页签进一步确认空闲与计算分布。
 
 > [!NOTE]
+>
 > 本文使用已准备好的样例数据演示分析路径，不展开 msProf 数据采集命令。若需要采集真实系统数据，请参考 [MindStudio Insight 系统调优](../user_guide/system_tuning.md) 中的数据说明和 msProf 工具文档。
 
 ### 1.2 开始前检查
@@ -23,7 +24,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 | 检查项 | 要求 |
 | --- | --- |
 | 工具安装 | 已完成 MindStudio Insight 安装，安装方法请参见 [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)。 |
-| 版本配套 | MindStudio Insight、CANN 与采集工具版本需匹配，版本关系请参见 [版本发布说明](../release_notes/release_notes.md)。 |
+| 版本配套 | MindStudio Insight、CANN 与采集工具版本需匹配，版本关系请参见 [版本发布说明](https://gitcode.com/Ascend/msinsight/releases)。 |
 | 样例数据 | 已下载本文提供的系统性能样例数据，并能在本地访问。 |
 | 数据来源 | 样例数据由 [msProf](https://gitcode.com/Ascend/msprof) 采集，包含 Summary、Communication、Timeline 所需信息。 |
 | 适用场景 | 适用于多卡训练或推理场景的系统性能入门分析，尤其适合学习快慢卡、通信耗时和空闲时间分析。 |
