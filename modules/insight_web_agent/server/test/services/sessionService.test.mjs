@@ -209,6 +209,34 @@ test("loadSessionById injects the global capability MCP server", async () => {
     assert.deepEqual(calls[0].params.mcpServers, mcpServers);
 });
 
+for (const fails of [false, true]) {
+    test(`config-only session refresh clears replay flags after failure=${fails}`, async () => {
+        const state = createRuntimeState();
+        state.agentCapabilities = { loadSession: true };
+        const events = [];
+        let context;
+        const configOptions = [{ id: "model", currentValue: "new-model", options: [] }];
+        const service = createSessionService({
+            acpClient: { async request() {
+                context = state.sessionContexts.get("session-1");
+                assert.equal(context.replayingHistory, true);
+                assert.equal(context.refreshingConfigOnly, true);
+                if (fails) throw new Error("load failed");
+                return { configOptions };
+            } },
+            config: { cwd: "/tmp" }, eventBus: { broadcast: (event) => events.push(event) }, state,
+        });
+        const result = await service.loadSessionById("session-1", { refreshConfigOnly: true });
+        assert.equal(context.replayingHistory, false);
+        assert.equal(context.refreshingConfigOnly, false);
+        if (fails) assert.equal(result.error, "session_load_failed");
+        else {
+            assert.deepEqual(result.configOptions, configOptions);
+            assert.ok(events.some((event) => event.type === "config_options" && event.sessionId === "session-1"));
+        }
+    });
+}
+
 test("exportSessionById uses cached messages without calling session/load", async () => {
     await withExportDir(async (sessionExportDir) => {
         const calls = [];

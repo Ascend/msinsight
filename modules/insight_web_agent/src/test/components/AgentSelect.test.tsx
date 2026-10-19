@@ -90,57 +90,26 @@ const modelOptions = [
     { value: 'other/beta-pro', label: 'Beta Pro' },
 ];
 const modelSearch = { placeholder: 'Search models', noResultsText: 'No matching models' };
-const customValue = { optionLabel: (value: string) => `Use ${value}` };
-
-test.each(['click', 'Enter'])('explicitly selects a trimmed custom ID by %s only when enabled', async (method) => {
+test('pinned custom configuration action stays outside filtered options and closes the dropdown', async () => {
     const onChange = jest.fn();
-    const { rerender } = render(<AgentSelect onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
+    const onClick = jest.fn();
+    render(<AgentSelect topAction={{ label: 'Configure custom model', onClick }} onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
     fireEvent.click(screen.getByRole('button', { name: 'Alpha' }));
     const input = await screen.findByRole('combobox');
-    fireEvent.change(input, { target: { value: '  exact/Model-ID  ' } });
-    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    const action = screen.getByRole('button', { name: 'Configure custom model' });
+    expect(action.closest('[role="listbox"]')).toBeNull();
+    expect(action.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(input, { target: { value: 'exact/Model-ID' } });
     fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
-
-    rerender(<AgentSelect allowCustomValue={customValue} onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
-    const custom = screen.getByRole('option', { name: 'Use exact/Model-ID' });
+    expect(action).toBeVisible();
+    action.focus();
+    expect(action).toHaveFocus();
+    fireEvent.click(action);
+    expect(onClick).toHaveBeenCalledTimes(1);
     expect(onChange).not.toHaveBeenCalled();
-    if (method === 'click') fireEvent.click(custom);
-    else fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenCalledWith('exact/Model-ID');
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-});
-
-test('custom choices reject whitespace and do not duplicate an existing exact ID', async () => {
-    const onChange = jest.fn();
-    render(<AgentSelect allowCustomValue={customValue} onChange={onChange} options={[]} search={modelSearch} placeholder="Model" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Model' }));
-    const input = await screen.findByRole('combobox');
-    fireEvent.change(input, { target: { value: '   ' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(screen.queryByRole('option')).not.toBeInTheDocument();
-    expect(onChange).not.toHaveBeenCalled();
-});
-
-test('existing values use the ordinary option and custom creation respects IME suppression', async () => {
-    const onChange = jest.fn();
-    render(<AgentSelect allowCustomValue={customValue} onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
-    fireEvent.click(screen.getByRole('button', { name: 'Alpha' }));
-    const input = await screen.findByRole('combobox');
-    fireEvent.change(input, { target: { value: ' provider/alpha ' } });
-    expect(screen.getAllByRole('option')).toHaveLength(1);
-    expect(screen.getByRole('option', { name: 'Alpha' })).toBeInTheDocument();
-    fireEvent.change(input, { target: { value: 'custom-id' } });
-    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
-    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229, which: 229 });
-    fireEvent.compositionStart(input);
-    fireEvent.keyDown(input, { key: 'Enter' });
-    fireEvent.compositionEnd(input);
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onChange).not.toHaveBeenCalled();
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onChange).toHaveBeenCalledWith('custom-id');
 });
 
 test('searches model labels and identifiers and selects from filtered enabled options', async () => {

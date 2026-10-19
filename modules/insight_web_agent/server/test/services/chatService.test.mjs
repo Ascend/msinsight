@@ -264,6 +264,22 @@ test("prompt reads raw hidden context from the context assembler", async () => {
     assert.match(promptCalls[1].params.prompt[0].resource.text, /"contentRefs":\{"profileId":"profile-1","activeModule":"Timeline"\}/);
 });
 
+for (const refreshingConfigOnly of [true, false]) {
+    test(`session history replay preserves server messages with quiet config refresh=${refreshingConfigOnly}`, () => {
+        const { service, state, events } = createPromptTestService();
+        const context = state.sessionContexts.get("session-1");
+        context.replayingHistory = true;
+        context.refreshingConfigOnly = refreshingConfigOnly;
+        for (const kind of ["user_message_chunk", "agent_message_chunk"]) {
+            service.handleAcpNotification({ method: "session/update", params: {
+                sessionId: "session-1", update: { kind, content: { type: "text", text: kind } },
+            } });
+        }
+        assert.deepEqual(context.messages.map((message) => message.content[0].text), ["user_message_chunk", "agent_message_chunk"]);
+        assert.equal(events.some((event) => event.type.startsWith("message_")), !refreshingConfigOnly);
+    });
+}
+
 test("prompt completion clears the current agent activity", async () => {
     let finishPrompt;
     const promptResult = new Promise((resolve) => {

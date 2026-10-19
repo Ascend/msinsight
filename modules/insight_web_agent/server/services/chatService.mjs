@@ -260,15 +260,18 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
 
         const sessionContext = getSessionContext(state, sessionId);
         if (!sessionContext.pendingPrompt && !sessionContext.replayingHistory) return;
+        // 静默恢复只写入服务端历史；会话选项仍通过上面的 config_option_update 正常发布。
+        const contentContext = sessionContext.refreshingConfigOnly
+            ? { state, eventBus: { broadcast: () => {} } } : serviceContext;
 
         if (kind === "tool_call" || kind === "tool_call_update") {
             const toolCall = normalizeToolCall(update);
-            if (toolCall) upsertToolCall(serviceContext, sessionId, toolCall);
+            if (toolCall) upsertToolCall(contentContext, sessionId, toolCall);
             return;
         }
 
         if (kind === "agent_status_update") {
-            setAgentActivity(serviceContext, sessionId, normalizeAgentActivity(update.activity));
+            setAgentActivity(contentContext, sessionId, normalizeAgentActivity(update.activity));
             return;
         }
 
@@ -276,16 +279,16 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         if (!content.length) return;
 
         if (kind === "user_message_chunk") {
-            for (const block of content) appendContentBlock(serviceContext, sessionId, "user", block);
+            for (const block of content) appendContentBlock(contentContext, sessionId, "user", block);
             return;
         }
 
         if (kind === "agent_thought_chunk") {
-            for (const block of content) appendContentBlock(serviceContext, sessionId, "assistant", block, "thinking");
+            for (const block of content) appendContentBlock(contentContext, sessionId, "assistant", block, "thinking");
             return;
         }
 
-        for (const block of content) appendContentBlock(serviceContext, sessionId, "assistant", block);
+        for (const block of content) appendContentBlock(contentContext, sessionId, "assistant", block);
     };
 
     return { cancel, handleAcpNotification, initialize, prompt };

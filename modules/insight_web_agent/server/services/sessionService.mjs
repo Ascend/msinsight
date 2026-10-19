@@ -173,7 +173,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         }
     };
 
-    const loadSessionById = async (sessionId) => {
+    const loadSessionById = async (sessionId, { refreshConfigOnly = false } = {}) => {
         const targetSessionId = String(sessionId ?? "").trim();
         if (!targetSessionId) {
             console.warn("Load session rejected: sessionId is required");
@@ -192,6 +192,8 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         const context = getOrCreateSessionContext(targetSessionId);
         context.messages = [];
         context.replayingHistory = true;
+        // 配置回读仍恢复 Agent 的会话历史，但不向任意浏览器重播为新消息。
+        context.refreshingConfigOnly = refreshConfigOnly;
         state.sessionContexts.set(targetSessionId, context);
 
         let response;
@@ -218,6 +220,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             );
         } finally {
             context.replayingHistory = false;
+            context.refreshingConfigOnly = false;
         }
         const configOptions = response?.configOptions ?? [];
         setConfigOptions({ eventBus, state }, configOptions, targetSessionId);

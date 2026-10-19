@@ -44,7 +44,7 @@ export const createSessionController = ({ sessionService }) => ({
 
     async load(_req, res, body) {
         console.log(`Load session requested: sessionId=${String(body?.sessionId ?? "")}`);
-        const result = await sessionService.loadSessionById(body?.sessionId);
+        const result = await sessionService.loadSessionById(body?.sessionId, { refreshConfigOnly: body?.refreshConfigOnly === true });
         if (result.error) console.warn(`Load session failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
         else console.log(`Load session completed: sessionId=${result.sessionId}, messages=${result.messages.length}`);
         return json(res, normalizeBody(result), result.status ?? 200);
