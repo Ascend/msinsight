@@ -21,6 +21,9 @@ import { TimelinePage, SystemView, CommunicationPage } from '@/page-object';
 import { clearAllData, dragSelect, importData, observeWebSocketRequests, setupWebSocketListener, waitForWebSocketEvent } from '@/utils';
 import { InputHelpers, SelectHelpers } from '@/components';
 
+// 视窗变化后固定预留数据返回和 Canvas 重绘的时间，再进行截图比较。
+const TIMELINE_SCREENSHOT_DELAY_MS = 3000;
+
 interface TestFixtures {
     timelinePage: TimelinePage;
     ws: Promise<WebSocket>;
@@ -323,6 +326,7 @@ test.describe('Timeline', () => {
             }
         }
         await page.mouse.move(0, 0);
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(mainContainer).toHaveScreenshot('zoom-out-unit.png', { maxDiffPixels: 100 });
 
         for (let i = 0; i < 3; i++) {
@@ -332,10 +336,12 @@ test.describe('Timeline', () => {
             }
         }
         await page.mouse.move(0, 0);
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(mainContainer).toHaveScreenshot('zoom-in-unit.png', { maxDiffPixels: 100 });
 
         await resetBtn.click();
         await page.mouse.move(0, 0);
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(mainContainer).toHaveScreenshot('reset-unit.png', { maxDiffPixels: 100 });
     });
 
@@ -548,37 +554,49 @@ test.describe('Timeline', () => {
 
     // 快捷键 - 键盘 W、S、A、D、方向键
     test('test_keyword', async ({ timelinePage, page }) => {
+        // 多次截图的固定等待最多增加 30 秒，为原有操作保留超时预算。
+        test.setTimeout(90_000);
         const { timelineFrame, zoomOutBtn, resetBtn } = timelinePage;
         const secondUnitInfo = timelineFrame.locator('.unit-info').nth(1);
         await secondUnitInfo.click();
         await page.mouse.move(0, 0);
         await page.keyboard.press('w');
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-w.png', { maxDiffPixels: 100 });
         await page.keyboard.press('d');
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-d.png', { maxDiffPixels: 100 });
         await page.keyboard.press('a');
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-a.png', { maxDiffPixels: 100 });
         await page.keyboard.press('s');
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-s.png', { maxDiffPixels: 100 });
         await page.keyboard.press('ArrowDown');
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-ArrowDown.png', { maxDiffPixels: 100 });
         await page.keyboard.press('ArrowUp');
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-ArrowUp.png', { maxDiffPixels: 100 });
         await resetBtn.click();
         await zoomOutBtn.click();
         await page.mouse.move(0, 0);
         await page.keyboard.press('ArrowRight');
         try {
+            await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
             await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-ArrowRight.png', { maxDiffPixels: 100 });
         } catch (e) {
             await page.keyboard.press('ArrowRight');
+            await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
             await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-ArrowRight.png', { maxDiffPixels: 100 });
         }
         await page.keyboard.press('ArrowLeft');
         try {
+            await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
             await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-ArrowLeft.png', { maxDiffPixels: 100 });
         } catch (e) {
             await page.keyboard.press('ArrowLeft');
+            await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
             await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test-keyword-ArrowLeft.png', { maxDiffPixels: 100 });
         }
     });
@@ -722,14 +740,17 @@ test.describe('Timeline', () => {
         await page.keyboard.up('Alt');
 
         await waitForZoomHistory(2);
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Alt.png', { maxDiffPixels: 100 });
 
         await pressTimelineKeyOnce('Backspace', 'Backspace');
         await waitForZoomHistory(1);
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
 
         await page.keyboard.press('Control+0');
         await waitForZoomHistory(0);
+        await page.waitForTimeout(TIMELINE_SCREENSHOT_DELAY_MS);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Ctrl_0_reset.png', { maxDiffPixels: 100 });
     });
 
