@@ -60,7 +60,7 @@ export function sendStatus(): void {
 }
 
 export function sendLanguage(to?: string): void {
-    const lang = localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? Language.EN;
+    const lang = localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? Language.ZH;
     connector.send({
         event: 'switchLanguage',
         to,

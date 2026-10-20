@@ -35,7 +35,7 @@ const IconWrapper = styled.div`
 `;
 
 const useThemeState = (): [ThemeName, (val: ThemeName) => void] => {
-    const [theme, setTheme] = useState(localStorageService.getItem(LocalStorageKey.THEME) ?? ThemeName.DARK);
+    const [theme, setTheme] = useState(localStorageService.getItem(LocalStorageKey.THEME) ?? ThemeName.LIGHT);
 
     useEffect(() => {
         window.setTheme(theme === ThemeName.DARK);

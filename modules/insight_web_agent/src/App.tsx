@@ -32,7 +32,7 @@ type Locale = 'zhCN' | 'enUS';
 
 const App = (): JSX.Element => {
     const [themeName, setThemeName] = useState(themeInstance.getCurrentTheme());
-    const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'enUS');
+    const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'zhCN');
 
     useEffect(() => {
         if (ACP_STATUS !== 'ready' && ACP_STATUS !== 'starting') {

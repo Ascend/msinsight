@@ -434,7 +434,7 @@ export const Composer = (): JSX.Element => {
     const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
     const [queueExpanded, setQueueExpanded] = useState(true);
     const { t } = useTranslation('insightWebAgent');
-    const { addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, composerRef, configOptions, configOptionsLoading, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
+    const { activeAgentName, addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, composerRef, configOptions, configOptionsLoading, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     useLayoutEffect(() => {
         const textarea = composerRef?.current;
         if (!textarea) return undefined;
@@ -459,7 +459,16 @@ export const Composer = (): JSX.Element => {
     const modelConfig = getModelConfig(configOptions);
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
     const modeConfig = getModeConfig(configOptions);
-    const modeOptions = flattenConfigValues(modeConfig?.options ?? []);
+    const modeOptionTitles: Record<string, string> = activeAgentName === 'msinsight-native'
+        ? {
+            ask: t('permissionAskDescription'),
+            'full-access': t('permissionFullAccessDescription'),
+        }
+        : {};
+    const modeOptions = flattenConfigValues(modeConfig?.options ?? []).map((option) => ({
+        ...option,
+        title: modeOptionTitles[option.value],
+    }));
     const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt || configOptionsLoading, setModel, modelIcon, {
         placeholder: t('searchModels'), noResultsText: t('noMatchingModels'),
     });
@@ -702,7 +711,7 @@ const readImageFile = (file: File): Promise<{ id: string; name: string; mimeType
 
 const createConfigPicker = (
     config: ConfigOption | undefined,
-    options: ConfigOptionValue[],
+    options: Array<ConfigOptionValue & { title?: string }>,
     disabled: boolean,
     onChange: (value: string) => Promise<void>,
     icon: string,
@@ -717,7 +726,7 @@ const createConfigPicker = (
             onChange={(value) => {
                 onChange(value);
             }}
-            options={options.map((option) => ({ value: option.value, label: option.name || option.value }))}
+            options={options.map((option) => ({ value: option.value, label: option.name || option.value, title: option.title }))}
             placement="top"
             triggerIcon={<span className="config-picker-icon" style={{ maskImage: `url(${icon})`, WebkitMaskImage: `url(${icon})` }} />}
             showArrow={false}
