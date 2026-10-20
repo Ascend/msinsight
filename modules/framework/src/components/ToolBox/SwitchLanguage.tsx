@@ -24,7 +24,7 @@ import { LangEnIcon, LangZhIcon } from '@insight/lib/icon';
 import { Language } from '@/utils/enum';
 
 const useLanguage = (): [Language, (val: Language) => void] => {
-    const [lang, setLang] = useState(localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? Language.EN);
+    const [lang, setLang] = useState(localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? Language.ZH);
     useEffect(() => {
         i18n.changeLanguage(lang);
         localStorageService.setItem(LocalStorageKey.LANGUAGE, lang);

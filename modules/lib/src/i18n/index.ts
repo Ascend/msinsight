@@ -92,7 +92,7 @@ export const resources = {
 
 i18n.use(initReactI18next).init({
     resources,
-    lng: localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? 'enUS',
+    lng: localStorageService.getItem(LocalStorageKey.LANGUAGE) ?? 'zhCN',
     interpolation: {
         escapeValue: false, // react already safes from xss
     },
