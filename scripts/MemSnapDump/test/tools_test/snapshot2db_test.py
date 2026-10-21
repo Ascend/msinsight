@@ -20,12 +20,15 @@ import os
 import json
 import sqlite3
 import shutil
+import subprocess
+import sys
 import unittest
 from contextlib import closing
 from pathlib import Path
 from unittest import mock
 from util.file_util import load_pickle_to_dict
 from util.logger import suppress_logs, restore_logs
+from util.snapshot_cache import source_hashes
 from base import Block, TraceEntry, DeviceSnapshot, BlockState
 from tools.adaptors import snapshot2db
 from simulate import SimulateDeviceSnapshot, SimulateHooker
@@ -133,6 +136,7 @@ class Snapshot2DbTest(unittest.TestCase):
     def testFailedRedumpLeavesBuildingManifest(self):
         dest = self.cache_dir / "failed_redump"
         self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        (dest / snapshot2db.MANIFEST_FILE_NAME).unlink()
         original_replay = SimulateDeviceSnapshot.replay_until
 
         def fail_replay(self, _min_event_idx, _on_event_processed=None):
@@ -145,6 +149,115 @@ class Snapshot2DbTest(unittest.TestCase):
             SimulateDeviceSnapshot.replay_until = original_replay
         manifest = json.loads((dest / snapshot2db.MANIFEST_FILE_NAME).read_text(encoding="utf-8"))
         self.assertEqual(manifest["status"], "building")
+
+    def testCacheHitSkipsPickleAndPreservesConsumerTables(self):
+        dest = self.cache_dir / "cache_hit"
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        db = self.get_slice_db(dest, 0)
+        with closing(sqlite3.connect(db)) as conn:
+            conn.execute("CREATE TABLE consumer_cache(value TEXT)")
+            conn.execute("INSERT INTO consumer_cache VALUES ('keep')")
+            conn.commit()
+        with mock.patch.object(snapshot2db, "load_pickle_to_dict", side_effect=AssertionError("cache miss")):
+            self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        with closing(sqlite3.connect(db)) as conn:
+            self.assertEqual(conn.execute("SELECT value FROM consumer_cache").fetchall(), [('keep',)])
+
+    def testMissingSliceRebuildsWholeArtifact(self):
+        dest = self.cache_dir / "missing_slice"
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        self.get_slice_db(dest, 0).unlink()
+        with mock.patch.object(snapshot2db, "load_pickle_to_dict", wraps=snapshot2db.load_pickle_to_dict) as loader:
+            self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+            loader.assert_called_once()
+
+    def testActiveWriterPreventsRebuildEvenWithMissingManifest(self):
+        dest = self.cache_dir / 'active_writer'
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        db = self.get_slice_db(dest, 0)
+        script = (
+            'import sqlite3, sys; '
+            'conn=sqlite3.connect(sys.argv[1]); '
+            'conn.execute("PRAGMA journal_mode=DELETE"); '
+            'conn.execute("BEGIN EXCLUSIVE"); '
+            'conn.execute("UPDATE trace_entry_0 SET size=size+1"); '
+            'print("ready", flush=True); '
+            'sys.stdin.readline(); conn.rollback(); conn.close()'
+        )
+        with subprocess.Popen(
+            [sys.executable, '-c', script, str(db)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ) as writer:
+            try:
+                self.assertEqual(writer.stdout.readline().strip(), 'ready')
+                self.assertTrue(Path(str(db) + '-journal').exists())
+                for missing_manifest in (False, True):
+                    if missing_manifest:
+                        (dest / snapshot2db.MANIFEST_FILE_NAME).unlink()
+                    self.assertFalse(snapshot2db.dump(self.snapshot_path, dest, 0))
+                    self.assertTrue(db.exists())
+            finally:
+                writer.communicate('\n', timeout=15)
+            self.assertEqual(writer.returncode, 0)
+
+    def testDeepManifestRebuilds(self):
+        dest = self.cache_dir / 'deep_manifest'
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        (dest / snapshot2db.MANIFEST_FILE_NAME).write_text('[' * 200000 + '0' + ']' * 200000)
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+
+    def testLegacyMissingDictionaryRebuilds(self):
+        dest = self.cache_dir / 'legacy_dictionary'
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        manifest_path = dest / snapshot2db.MANIFEST_FILE_NAME
+        manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+        del manifest['parserCache']
+        manifest_path.write_text(json.dumps(manifest), encoding='utf-8')
+        with closing(sqlite3.connect(self.get_slice_db(dest, 0))) as conn:
+            conn.execute('DELETE FROM dictionary')
+            conn.commit()
+        with mock.patch.object(snapshot2db, 'load_pickle_to_dict', wraps=snapshot2db.load_pickle_to_dict) as loader:
+            self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+            loader.assert_called_once()
+
+    def testPrepareErrorReturnsFalseWithoutTraceback(self):
+        dest = self.cache_dir / 'prepare_error'
+        with mock.patch.object(snapshot2db, '_prepare_output_directory', side_effect=ValueError('symlink')):
+            with mock.patch.object(snapshot2db.dump_logger, 'error') as error:
+                self.assertFalse(snapshot2db.dump(self.snapshot_path, dest, 0))
+                self.assertIn('Failed to prepare artifact directory', error.call_args.args[0])
+
+    def testDeviceSymlinkDoesNotRemoveTarget(self):
+        dest = self.cache_dir / 'symlink_output'
+        target = self.cache_dir / 'symlink_target'
+        dest.mkdir()
+        target.mkdir()
+        sentinel = target / 'keep.txt'
+        sentinel.write_text('keep')
+        link = dest / 'device_0'
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError as error:
+            self.skipTest(f'Symlink creation is unavailable: {error}')
+        self.assertFalse(snapshot2db.dump(self.snapshot_path, dest, 0))
+        self.assertEqual(sentinel.read_text(), 'keep')
+
+    def testCorruptIndexRebuilds(self):
+        dest = self.cache_dir / 'corrupt_index'
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        db = self.get_slice_db(dest, 0)
+        with closing(sqlite3.connect(db)) as conn:
+            page_size = conn.execute('PRAGMA page_size').fetchone()[0]
+            root = conn.execute("SELECT rootpage FROM sqlite_master WHERE type='index' LIMIT 1").fetchone()[0]
+        with db.open('r+b') as file:
+            file.seek((root - 1) * page_size)
+            file.write(b'\xff' * page_size)
+        with mock.patch.object(snapshot2db, 'load_pickle_to_dict', wraps=snapshot2db.load_pickle_to_dict) as loader:
+            self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+            loader.assert_called_once()
 
     def testDatabaseInitializationFailureCleansTemporaryFile(self):
         dest = self.cache_dir / "database_init_failure"
@@ -176,7 +289,7 @@ class Snapshot2DbTest(unittest.TestCase):
         manifest = json.loads((output_dir / snapshot2db.MANIFEST_FILE_NAME).read_text(encoding='utf-8'))
         device = manifest['devices']['0']
         self.assertEqual(manifest['status'], 'complete')
-        self.assertEqual(manifest['cacheHash'], 'hash-v1')
+        self.assertEqual(manifest['cacheHash'], source_hashes(snapshot_path)[1])
         self.assertEqual(device['sliceCount'], 5)
         self.assertEqual(device['readySlices'], [0, 1, 2, 3, 4])
         self.assertEqual(

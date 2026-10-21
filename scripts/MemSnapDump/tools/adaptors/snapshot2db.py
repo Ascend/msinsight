@@ -21,6 +21,7 @@ import sys
 import argparse
 import json
 import math
+import re
 import shutil
 import sqlite3
 import time
@@ -32,6 +33,13 @@ from tools.adaptors.database import SnapshotDb, block2record, event2record
 from util.file_util import check_dir_valid, load_pickle_to_dict
 from util.logger import get_logger, set_global_log_file
 from util.timer import timer
+from util.snapshot_cache import (
+    source_hashes,
+    validate_cache,
+    seal_manifest,
+    ensure_cache_not_busy,
+    SnapshotCacheBusyError,
+)
 
 dump_logger = get_logger("DatabaseDump")
 DEFAULT_EVENTS_PER_SLICE = 500_000
@@ -385,7 +393,14 @@ class SnapshotSliceManifest:
 
 def _prepare_output_directory(output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir.is_symlink():
+        raise ValueError("Artifact directory must not be a symlink")
+    ensure_cache_not_busy(output_dir)
     for stale_device_dir in output_dir.glob("device_*"):
+        if re.fullmatch(r"device_[0-9]+", stale_device_dir.name) is None:
+            continue
+        if stale_device_dir.is_symlink():
+            raise ValueError("Snapshot device directory must not be a symlink")
         if stale_device_dir.is_dir():
             shutil.rmtree(stale_device_dir)
     (output_dir / MANIFEST_FILE_NAME).unlink(missing_ok=True)
@@ -414,6 +429,25 @@ def dump(
     events_per_slice: int = DEFAULT_EVENTS_PER_SLICE,
     cache_hash: str = "",
 ) -> bool:
+    # 兼容旧调用参数，但缓存身份必须由脚本计算，不能信任调用方传入的值。
+    try:
+        dump_logger.info("Snapshot cache validating: %s", pickle_file)
+        _, cache_hash = source_hashes(Path(pickle_file))
+        artifact_dir = Path(output_dir)
+        try:
+            cached = validate_cache(artifact_dir, cache_hash, device)
+        except SnapshotCacheBusyError as error:
+            dump_logger.error("Failed to validate snapshot cache: %s", error)
+            return False
+        except (OSError, ValueError, TypeError, KeyError, sqlite3.Error):
+            cached = None
+        if cached is not None:
+            dump_logger.info("Snapshot cache validated: %s", cache_hash)
+            dump_logger.info("Successfully dump the snapshot to database for devices %s.", list(cached["devices"]))
+            return True
+    except (OSError, ValueError) as error:
+        dump_logger.error("Failed to validate snapshot source: %s", error)
+        return False
     try:
         data = load_pickle_to_dict(Path(pickle_file))
     except Exception as e:
@@ -435,8 +469,12 @@ def dump(
     if events_per_slice <= 0:
         dump_logger.error("Events per slice must be greater than 0.")
         return False
-    artifact_dir = Path(output_dir)
-    _prepare_output_directory(artifact_dir)
+    try:
+        _prepare_output_directory(artifact_dir)
+    except (OSError, ValueError, sqlite3.Error, SnapshotCacheBusyError) as error:
+        dump_logger.error("Failed to prepare artifact directory: %s", error)
+        return False
+    dump_logger.info("Snapshot cache rebuild: %s", cache_hash)
     manifest = SnapshotSliceManifest(
         artifact_dir,
         pickle_file,
@@ -507,6 +545,11 @@ def dump(
                 )
                 return False
             dump_logger.info("Finished dump the snapshot to database for device %s.", dev)
+        if source_hashes(Path(pickle_file))[1] != cache_hash:
+            raise ValueError("Snapshot source changed during parsing")
+        # 基础表逻辑摘要在最终反插完成后生成，调用方新增派生表不会使缓存失效。
+        manifest.data["status"] = "complete"
+        seal_manifest(artifact_dir, manifest.data, device)
         manifest.mark_complete()
         dump_logger.info("Successfully dump the snapshot to database for devices %s.", need_dump_devices)
         return True
@@ -555,7 +598,7 @@ def get_args():
         "--cache_hash",
         type=str,
         default="",
-        help="Salted source hash used by the server to validate parsed artifacts.",
+        help="Deprecated compatibility argument; ignored. The parser calculates the source hash.",
     )
     args = parser.parse_args()
     snapshot_path = Path(args.snapshot_file)

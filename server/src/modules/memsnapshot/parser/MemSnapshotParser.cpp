@@ -20,7 +20,6 @@
 #include "PythonUtil.h"
 #include "SafeFile.h"
 #include "DataBaseManager.h"
-#include "HashUtil.h"
 #include "MemSnapshotParser.h"
 #include "MemSnapshotDatabase.h"
 #include "MemSnapshotSliceService.h"
@@ -40,7 +39,6 @@
 namespace Dic::Module {
 using namespace Dic::Module::Timeline;
 using Dic::OpenReadFileSafely;
-constexpr std::string_view MEM_SNAPSHOT_PARSER_HASH_SALT = "mem_snapshot_parser_v2";
 constexpr int MEM_SNAPSHOT_EVENTS_PER_SLICE = 500000;
 
 void MemSnapshotParserContext::Reset(
@@ -74,7 +72,15 @@ std::string MemSnapshotParserContext::GetLogPath() const { return logPath; }
 
 std::string MemSnapshotParserContext::GetOutputDbPath() const { return outputDbPath; }
 
-std::string MemSnapshotParserContext::GetFileHash() const { return fileHash; }
+std::string MemSnapshotParserContext::GetFileHash() const {
+    std::shared_lock<std::shared_mutex> lock(_mutex);
+    return fileHash;
+}
+
+void MemSnapshotParserContext::SetFileHash(std::string hash) {
+    std::unique_lock<std::shared_mutex> lock(_mutex);
+    fileHash = std::move(hash);
+}
 
 bool MemSnapshotParserContext::IsInitialSuccessSent() const {
     std::shared_lock<std::shared_mutex> lock(_mutex);
@@ -154,20 +160,12 @@ void MemSnapshotParser::Reset() {
     MemSnapshotDatabase::Reset();
 }
 
-std::string MemSnapshotParser::CalculateFileHash(const std::string &filePath) {
-    const std::string hash = HashUtil::CalculateFileSha256(filePath, MEM_SNAPSHOT_PARSER_HASH_SALT);
-    if (hash.empty()) {
-        Server::ServerLog::Error("[Snapshot] Failed to open pickle file for hashing: %.", filePath);
-    }
-    return hash;
-}
-
 void MemSnapshotParser::AsyncParseMemSnapshotPickle(const std::string &pickleFilePath) {
     const std::string realPicklePath = FileUtil::GetRealPath(pickleFilePath);
     const std::string &snapshotPath = realPicklePath.empty() ? pickleFilePath : realPicklePath;
     const std::string outputPath = MemSnapshotSliceService::GetArtifactDirectory(snapshotPath);
     const std::string logPath = MemSnapshotSliceService::GetLogPath(snapshotPath);
-    parseContext.Reset(snapshotPath, logPath, outputPath, CalculateFileHash(snapshotPath));
+    parseContext.Reset(snapshotPath, logPath, outputPath);
     auto traceId = TraceIdManager::GenerateTraceId();
     Server::ServerLog::Info("[Snapshot] Parsing pickle file: %, log file: %, output db file: %.",
         parseContext.GetPicklePath(), parseContext.GetLogPath(), parseContext.GetOutputDbPath());
@@ -176,62 +174,6 @@ void MemSnapshotParser::AsyncParseMemSnapshotPickle(const std::string &pickleFil
 }
 
 MemSnapshotParserContext &MemSnapshotParser::GetParseContext() { return parseContext; }
-
-/***
- * 在满足以下任意条件之一（按顺序检查）时，需要重新解析pickle文件：
- * 1. 数据库连接打开失败或db初始化失败
- * 2. 通过2的校验，但数据库版本与当前版本不一致
- *
- * @brief 检查是否需要解析或重新解析pickle文件
- * @return true 需要解析或重新解析，此时会关闭已打开的连接并清空DatabaseManager纳管实例。
- * @return false 不需要解析或重新解析。此时将不会清空DatabaseManager及纳管实例，可以不需要重复打开。
- */
-bool MemSnapshotParser::CheckIfParsingNeed(const MemSnapshotParserContext &context) {
-    const auto manifest = MemSnapshotSliceService::LoadManifest(context.GetPicklePath());
-    if (!manifest.has_value() || !manifest->IsComplete()) {
-        Server::ServerLog::Info("[Snapshot] Slice manifest is missing or incomplete; the file needs to re-parse.");
-        MemSnapshotDatabase::Reset();
-        return true;
-    }
-    const std::string snapshotCacheHash = context.GetFileHash();
-    const std::string &cachedSnapshotHash = manifest->cacheHash;
-    if (snapshotCacheHash.empty() || cachedSnapshotHash.empty() || snapshotCacheHash != cachedSnapshotHash) {
-        Server::ServerLog::Info(
-            "[Snapshot] Snapshot cache hash changed or is unavailable. The file needs to re-parse.");
-        MemSnapshotDatabase::Reset();
-        return true;
-    }
-    for (const auto &[deviceId, device] : manifest->devices) {
-        for (const auto &slice : device.slices) {
-            const auto dbPath = MemSnapshotSliceService::ResolveSliceDbPath(context.GetPicklePath(), slice);
-            if (!slice.ready || dbPath.empty() || !FileUtil::IsFilePathExist(dbPath)) {
-                Server::ServerLog::Info(
-                    "[Snapshot] Slice artifact is missing for device %, slice %; the file needs to re-parse.", deviceId,
-                    slice.index);
-                MemSnapshotDatabase::Reset();
-                return true;
-            }
-            std::recursive_mutex validationMutex;
-            FullDb::MemSnapshotDatabase validationDatabase(validationMutex);
-            if (!validationDatabase.OpenDbReadOnly(dbPath) || !validationDatabase.IsDeviceIdValid(deviceId)) {
-                Server::ServerLog::Info(
-                    "[Snapshot] Slice database is incomplete for device %, slice %; the file needs to re-parse.",
-                    deviceId, slice.index);
-                MemSnapshotDatabase::Reset();
-                return true;
-            }
-            if (!FullDb::MemSnapshotDatabase::HasMemoryAllocationCache(dbPath, deviceId) &&
-                !FullDb::MemSnapshotDatabase::BuildMemoryAllocationCache(dbPath, deviceId)) {
-                Server::ServerLog::Info(
-                    "[Snapshot] Allocation cache is missing for device %, slice %; the file needs to re-parse.",
-                    deviceId, slice.index);
-                MemSnapshotDatabase::Reset();
-                return true;
-            }
-        }
-    }
-    return false;
-}
 
 MemSnapshotParser::MemSnapshotParser() {
     // MemSnapshot解析snapshot解析至少需要双线程
@@ -242,28 +184,19 @@ MemSnapshotParser::~MemSnapshotParser() { _threadPool->ShutDown(); }
 
 void MemSnapshotParser::ParseMemSnapshotTask() {
     Server::ServerLog::Info("[Snapshot] Parse snapshot thread started.");
-    if (!CheckIfParsingNeed(Instance().parseContext)) {
-        Server::ServerLog::Info("[Snapshot] Parsing pickle file: %, artifact directory: % is up-to-date.",
-            Instance().parseContext.GetPicklePath(), Instance().parseContext.GetOutputDbPath());
-        Instance().parseContext.SetProgress(100);
-        Instance().parseContext.SetState(ParserState::UP_TO_DATE);
+    // 缓存校验、旧解析产物清理由脚本统一负责；这里只清理本次进度日志。
+    MemSnapshotDatabase::Reset();
+    const auto logPath = Instance().parseContext.GetLogPath();
+    if (FileUtil::IsFilePathExist(logPath) && !FileUtil::RemoveFile(logPath)) {
+        Server::ServerLog::Error("[Snapshot] Failed to remove stale parsing log: %.", logPath);
+        Instance().parseContext.SetState(ParserState::FINISH_FAILURE);
         return;
-    }
-    // 需要首次解析或重新解析的场景
-    const std::vector<std::string> staleStateFiles = {
-        Instance().parseContext.GetLogPath(),
-        MemSnapshotSliceService::GetManifestPath(Instance().parseContext.GetPicklePath()),
-    };
-    for (const auto &path : staleStateFiles) {
-        if (FileUtil::IsFilePathExist(path) && !FileUtil::RemoveFile(path)) {
-            Server::ServerLog::Warn("[Snapshot] Failed to remove stale parsing state file: %.", path);
-        }
     }
     const std::string memSnapDumpScriptsPath = FileUtil::SplicePath("mem_snap_dump", "tools", "dump2db.py");
     Server::ServerLog::Info("[Snapshot] Start parsing.");
     std::vector<std::string> arguments{Instance().parseContext.GetPicklePath(), "--dump_dir",
-        Instance().parseContext.GetOutputDbPath(), "--log", Instance().parseContext.GetLogPath(), "--cache_hash",
-        Instance().parseContext.GetFileHash(), "--events_per_slice", std::to_string(MEM_SNAPSHOT_EVENTS_PER_SLICE)};
+        Instance().parseContext.GetOutputDbPath(), "--log", Instance().parseContext.GetLogPath(), "--events_per_slice",
+        std::to_string(MEM_SNAPSHOT_EVENTS_PER_SLICE)};
     Instance().parseContext.SetState(ParserState::Processing);
     try {
         Server::ServerLog::Info(
@@ -281,6 +214,7 @@ int ReadProgressInLogFile(std::ifstream &file, std::string &err) {
     // 读取最新进展
     const std::regex progressReg(R"((\d+(?:\.\d+)?)% of entries have been processed)");
     const std::string parseFailedKeyWord = "Failed to dump the snapshot to database.";
+    const std::regex cacheReadyReg(R"(Snapshot cache (?:validated|rebuild): ([0-9a-f]{64}))");
     std::string line;
     std::string lastProgressLine;
     while (std::getline(file, line)) {
@@ -290,6 +224,10 @@ int ReadProgressInLogFile(std::ifstream &file, std::string &err) {
         if (StringUtil::Contains(line, parseFailedKeyWord)) {
             err = line;
             return -1;
+        }
+        std::smatch cacheMatch;
+        if (std::regex_search(line, cacheMatch, cacheReadyReg)) {
+            MemSnapshotParser::Instance().GetParseContext().SetFileHash(cacheMatch[1].str());
         }
         if (std::regex_search(line, progressReg)) {
             lastProgressLine = line;
@@ -346,7 +284,8 @@ void MemSnapshotParser::ParseDaemonTask() {
         const auto manifestPath = MemSnapshotSliceService::GetManifestPath(Instance().parseContext.GetPicklePath());
         std::uintmax_t manifestSize = 0;
         uint64_t currentManifestWriteTime = 0;
-        if (MemSnapshotSliceService::GetFileFingerprint(manifestPath, manifestSize, currentManifestWriteTime)) {
+        if (!Instance().parseContext.GetFileHash().empty() &&
+            MemSnapshotSliceService::GetFileFingerprint(manifestPath, manifestSize, currentManifestWriteTime)) {
             const bool manifestChanged =
                 !manifestWriteTime.has_value() || manifestWriteTime.value() != currentManifestWriteTime;
             if (manifestChanged) {
@@ -379,12 +318,22 @@ void MemSnapshotParser::ParseDaemonTask() {
         Instance().parseContext.SetProgress(std::min(newProgress, 99));
         SLEEP(100);
     }
-    SendReadySliceEvents(notifiedSlices);
     if (Instance().parseContext.GetState() == ParserState::FINISH_SUCCESS) {
         std::ifstream file = OpenReadFileSafely(Instance().parseContext.GetLogPath());
-        if (DoubleCheckSuccessInLogFile(file) && Instance().TryOpenParsingResultDbAndSetVersion()) {
-            Instance().parseContext.SetProgress(100);
-            Server::ServerLog::Info("Parse thread has successfully finished with double check.");
+        const auto manifest = MemSnapshotSliceService::LoadManifest(Instance().parseContext.GetPicklePath());
+        if (DoubleCheckSuccessInLogFile(file) && manifest.has_value() && manifest->IsComplete()) {
+            Instance().parseContext.SetFileHash(manifest->cacheHash);
+            SendReadySliceEvents(notifiedSlices);
+            size_t sliceCount = 0;
+            for (const auto &[deviceId, device] : manifest->devices) {
+                sliceCount += device.slices.size();
+            }
+            if (notifiedSlices.size() != sliceCount) {
+                Instance().parseContext.SetState(ParserState::FINISH_FAILURE);
+            } else {
+                Instance().parseContext.SetProgress(100);
+                Server::ServerLog::Info("Parse thread has successfully finished with double check.");
+            }
         } else {
             Server::ServerLog::Warn("The parsing thread returned a success response, but we did not find a "
                                     "corresponding success event confirmed in the logs.");
@@ -469,8 +418,6 @@ void MemSnapshotParser::ParseCallBack() {
     }
     SendEvent(std::move(event));
 }
-
-bool MemSnapshotParser::TryOpenParsingResultDbAndSetVersion() const { return !CheckIfParsingNeed(parseContext); }
 
 std::unique_ptr<MemScopeParseSuccessEvent> MemSnapshotParser::BuildParseSuccessEventFromContext(
     const std::unordered_set<std::string> *preparedSlices) const {
