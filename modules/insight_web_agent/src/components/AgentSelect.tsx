@@ -30,6 +30,7 @@ export interface AgentSelectOption {
     title?: string;
     icon?: ReactNode;
     disabled?: boolean;
+    warning?: boolean;
     removal?: { label: string; disabledReason?: string };
 }
 
@@ -287,6 +288,11 @@ const Container = styled.div`
         background: ${(props): string => props.theme.mode === 'dark'
             ? 'rgba(82, 145, 255, 0.16)'
             : 'rgba(46, 83, 250, 0.12)'};
+    }
+
+    .agent-select-trigger.warning,
+    .agent-select-option.warning {
+        color: ${(props): string => props.theme.colorPalette?.coral ?? '#ED6F21'};
     }
 
     .agent-select-option[aria-disabled='true'],
@@ -604,7 +610,7 @@ export const AgentSelect = ({
                                 aria-selected={selected}
                                 aria-label={onRemove ? option.title ?? (typeof option.label === 'string' ? option.label : undefined) : undefined}
                                 aria-disabled={onRemove ? Boolean(option.disabled) : undefined}
-                                className={`agent-select-option ${selected ? 'selected' : ''} ${focusedIndex === index ? 'focused' : ''}`}
+                                className={`agent-select-option ${selected ? 'selected' : ''} ${focusedIndex === index ? 'focused' : ''} ${option.warning ? 'warning' : ''}`}
                                 disabled={onRemove ? undefined : option.disabled}
                                 tabIndex={onRemove ? option.disabled ? -1 : 0 : undefined}
                                 id={`${listboxId}-${index}`}
@@ -675,7 +681,7 @@ export const AgentSelect = ({
                 aria-controls={open ? listboxId : undefined}
                 aria-expanded={open}
                 aria-haspopup="listbox"
-                className={`agent-select-trigger ${compact ? 'compact' : ''} ${open ? 'expanded' : ''}`}
+                className={`agent-select-trigger ${compact ? 'compact' : ''} ${open ? 'expanded' : ''} ${selectedOption?.warning ? 'warning' : ''}`}
                 disabled={disabled}
                 onClick={() => {
                     setDropdownPosition(null);

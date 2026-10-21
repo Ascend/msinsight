@@ -27,6 +27,8 @@ import { resolveShellRuntime } from "../tools/shellRuntime.mjs";
 import { normalizeModelCatalog, resolveSessionModel } from "../config/modelCatalog.mjs";
 import { getNativeConfigurationError } from "../config/modelConfiguration.mjs";
 
+import { createInterruptedHistory } from "./interruptedHistory.mjs";
+
 const STATE_VERSION = 1;
 
 export const createRuntime = ({
@@ -61,6 +63,7 @@ export const createRuntime = ({
         const modelInput = createPageContextPrompt(userText, observationContext);
         const userMessage = { role: "user", content: modelInput || "Please analyze the current Insight page." };
         const streamState = createStreamState();
+        let historyCommitted = false;
         const maxSteps = readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 100);
         const system = createNativeSystemPrompt(session);
         session.runtimeSession.activeController = controller;
@@ -72,18 +75,25 @@ export const createRuntime = ({
                 tools: createAiSdkTools(toolRegistry),
                 stopWhen: stepCountIs(maxSteps),
                 // Reserve the last step for a summary, rather than ending immediately after a tool changes the page.
-                prepareStep: ({ stepNumber }) => stepNumber >= maxSteps - 1 ? {
-                    toolChoice: "none",
-                    system: `${system}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
-                } : undefined,
+                prepareStep: ({ stepNumber }) => {
+                    const currentSystem = createNativeSystemPrompt(session);
+                    return stepNumber >= maxSteps - 1 ? {
+                        toolChoice: "none",
+                        system: `${currentSystem}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
+                    } : { system: currentSystem };
+                },
                 maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 100000),
                 maxRetries: 2,
                 abortSignal: controller.signal,
                 experimental_context: { sessionId },
                 ...optionalTemperature(env.MSINSIGHT_NATIVE_TEMPERATURE),
             });
+            // Observe rejection immediately even when cancellation skips awaiting the final response.
+            const responsePromise = Promise.resolve(result.response);
+            void responsePromise.catch(() => {});
             await collectAiSdkStream({ result, streamState, sessionId, controller, notifier });
-            const response = await result.response;
+            const response = await responsePromise;
+            controller.signal.throwIfAborted();
             const responseMessages = [...response.messages];
             const lastToolIndex = streamState.content.findLastIndex((block) => block.type === "tool");
             if (!streamState.content.slice(lastToolIndex + 1).some((block) => block.type === "text" && block.text.trim())) {
@@ -93,6 +103,8 @@ export const createRuntime = ({
                 notifier.sendSessionChunk(sessionId, text);
                 responseMessages.push({ role: "assistant", content: text });
             }
+            // Once committed in memory, a late abort or persistence failure must not append the turn again.
+            historyCommitted = true;
             state.modelMessages.push(userMessage, ...responseMessages);
             // Model history retains one-shot context; replayable UI history must
             // contain only the original user input, including after a restart.
@@ -106,7 +118,16 @@ export const createRuntime = ({
             rateLimit.clear();
             return { ok: true };
         } catch (error) {
+            if (historyCommitted) return { ok: false, reason: `AI SDK runtime failed: ${error.message}` };
             if (controller.signal.aborted) {
+                state.modelMessages.push(userMessage, ...streamState.interruptedHistory.finish(), {
+                    role: "user",
+                    content: controller.signal.reason?.code === "USER_CANCEL"
+                        ? "[Request interrupted by user]"
+                        : "[Request interrupted]",
+                });
+                // This synthetic user event is model-only: never add it to replay/UI messages.
+                if (observationContext) session.lastPageObservationFingerprint = observationContext.fingerprint;
                 await saveInterruptedReply({ session, state, userText: visibleUserText, content: streamState.content, saveSessionState });
                 return { ok: false, reason: "AI SDK runtime was cancelled" };
             }
@@ -135,8 +156,8 @@ export const createRuntime = ({
         });
     };
 
-    const abortSession = (session) => {
-        session.runtimeSession?.activeController?.abort();
+    const abortSession = (session, reason) => {
+        session.runtimeSession?.activeController?.abort(reason);
     };
 
     const stateFilePath = (sessionId) => join(sessionStateDir, `${sessionId}.json`);
@@ -208,6 +229,7 @@ const createAiSdkTools = (toolRegistry) => Object.fromEntries(toolRegistry.list(
 
 const createStreamState = () => ({
     content: [],
+    interruptedHistory: createInterruptedHistory(),
     activeToolCalls: new Set(),
     toolStartedAt: new Map(),
     inferredActivity: undefined,
@@ -217,9 +239,12 @@ const collectAiSdkStream = async ({ result, streamState, sessionId, controller, 
     const context = { state: streamState, sessionId, notifier };
     try {
         for await (const event of result.fullStream) {
-            if (controller.signal.aborted) throw new Error("AI SDK stream was cancelled");
+            // Drain already-produced events after abort so completed tool results aren't lost.
+            // The SDK abort signal stops production; never execute tools from these history events.
+            streamState.interruptedHistory.event(event);
             handleStreamEvent(context, event);
         }
+        controller.signal.throwIfAborted();
         if (streamState.activeToolCalls.size) throw new Error("AI SDK runtime completed with unfinished tool calls");
     } catch (error) {
         failActiveToolCalls(context, error);
@@ -392,7 +417,7 @@ export const createNativeSystemPrompt = (session, shellRuntime = resolveShellRun
     ].join("\n"),
     String(session.hostSystemPrompt ?? "").trim(),
     String(session.primaryAgentBody ?? "").trim(),
-    session.permissionMode === "full-access"
+    (session.permissionModeDuringSave ?? session.permissionMode) === "full-access"
         ? "The user selected Full Access for this session. Execute available, policy-permitted operations directly without asking for execution approval, including shell commands and configured capabilities. This supersedes approval-only instructions in Host, Agent and Skill content. Explicit deny policies and tool validation remain enforced. Ask only for missing information or a genuine user choice, not redundant execution authorization."
         : "This session uses Ask for Approval. Follow tool approval requests and applicable confirmation rules.",
 ].filter(Boolean).join("\n\n");

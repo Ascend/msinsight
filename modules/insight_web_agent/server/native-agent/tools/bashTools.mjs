@@ -68,10 +68,11 @@ const authorizeBash = async ({ input, session, signal, cwd, hostClient, shellRun
     });
     if (policy.behavior === "deny") throw new Error(policy.message);
     // Full Access skips interactive approval, never explicit product/Agent denies.
-    if (policy.behavior === "allow" || session.permissionMode === "full-access") return normalized;
+    if (policy.behavior === "allow" || (session.permissionModeDuringSave ?? session.permissionMode) === "full-access") return normalized;
     const result = await hostClient.request("session/request_permission", {
         sessionId: session.sessionId,
         kind: "bash",
+        _meta: { msinsightNativePermission: true },
         title: `Run ${shellRuntime.displayName} command`,
         target: normalized.command,
         rememberKey: `bash:${session.primaryAgentId}:${policy.normalizedRule}`,

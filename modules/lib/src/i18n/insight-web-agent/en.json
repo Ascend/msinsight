@@ -72,7 +72,7 @@
     "builtinAgentCardName": "MS Insight_Native",
     "systemAgentBadge": "System",
     "builtinAgentHint": "The tool includes a built-in system agent that is ready to use once you configure a model service. You can also switch to an installed third-party agent and connect it via ACP.",
-    "provider": "Provider",
+    "provider": "API Format",
     "model": "Model",
     "defaultModel": "Default model",
     "modelSwitched": "Switched model: {{model}}",

@@ -80,6 +80,23 @@ test('model-only native config does not also render an assistant picker', () => 
     expect(container.querySelectorAll('.model-picker')).toHaveLength(1);
 });
 
+test('permissions remain enabled during a reply while Full Access uses warning styling', async () => {
+    const state = renderComposer({ pendingPrompt: true, configOptions: [
+        { id: 'model', category: 'model', currentValue: 'test', options: [{ value: 'test', name: 'Test Model' }] },
+        { id: 'mode', category: 'mode', currentValue: 'full-access', options: [
+            { value: 'ask', name: 'Ask for Approval' }, { value: 'full-access', name: 'Full Access' },
+        ] },
+    ] });
+    expect(screen.getByRole('button', { name: 'Test Model' })).toBeDisabled();
+    const permissions = screen.getByRole('button', { name: 'Full Access' });
+    expect(permissions).toBeEnabled();
+    expect(permissions).toHaveClass('warning');
+    fireEvent.click(permissions);
+    expect(await screen.findByRole('option', { name: 'Full Access' })).toHaveClass('warning');
+    fireEvent.click(screen.getByRole('option', { name: 'Ask for Approval' }));
+    expect(state.setMode).toHaveBeenCalledWith('ask');
+});
+
 test('grows with the draft up to eight lines and shrinks after clearing it', () => {
     const state = renderComposer({ input: '' });
     const textarea = screen.getByRole('textbox');

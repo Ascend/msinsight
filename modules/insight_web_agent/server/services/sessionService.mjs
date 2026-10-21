@@ -21,7 +21,7 @@ import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setCo
 import { errorCause, errorResult } from "./errorResult.mjs";
 import { buildSessionExport, writeSessionExport } from "./sessionExport.mjs";
 
-export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration }) => {
+export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration, permissionService }) => {
     let mutationQueue = Promise.resolve();
     const configSessionIds = new Set();
 
@@ -363,12 +363,26 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
 
             try {
                 console.log(`Setting session config option: sessionId=${sessionId}, configId=${configId}`);
+                // 收紧权限时先停止 Host 的自动放行，防止保存期间新审批沿用旧 Full Access。
+                if (state.activeAgentName === "msinsight-native" && configId === "mode" && value === "ask") {
+                    permissionService?.setNativePermissionMode(sessionId, "ask");
+                }
                 const result = await acpClient.request("session/set_config_option", {
                     sessionId,
                     configId,
                     value,
                 });
-                setConfigOptions({ eventBus, state }, result?.configOptions ?? result?.config_options ?? [], sessionId);
+                const options = result?.configOptions ?? result?.config_options ?? [];
+                setConfigOptions({ eventBus, state }, options, sessionId);
+                if (state.activeAgentName === "msinsight-native") {
+                    const selectedMode = getModeConfigFromOptions(options);
+                    if (selectedMode?.id === configId) {
+                        permissionService?.setNativePermissionMode(sessionId, selectedMode.currentValue);
+                        // Only the new-chat default changes; existing sessions remain independent.
+                        const defaults = [...state.configOptions.filter((option) => option.id !== selectedMode.id), selectedMode];
+                        setConfigOptions({ eventBus, state }, defaults, null);
+                    }
+                }
                 broadcastState();
                 console.log(`Session config option set: sessionId=${sessionId}, configId=${configId}`);
                 return { ok: true, configOptions: state.sessionContexts.get(sessionId)?.configOptions ?? state.configOptions };

@@ -98,6 +98,7 @@ interface ChatState {
     agentError?: string;
     agentCapabilities?: AgentCapabilities;
     draftMode?: string;
+    preferredMode?: string;
     availableCommands: AvailableCommand[];
     availableSkills: AvailableSkill[];
     availableCapabilities: AvailableCapability[];
@@ -244,6 +245,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     activeSessionId: undefined,
                     isDraftSession: false,
                     draftMode: undefined,
+                    preferredMode: undefined,
                     draftMessages: [],
                     draftPendingPrompt: false,
                     draftQueuedPrompts: [],
@@ -319,6 +321,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     activeSessionId: undefined,
                     isDraftSession: true,
                     draftMode: undefined,
+                    preferredMode: undefined,
                     draftMessages: activeMessages(current),
                     draftPendingPrompt: false,
                     draftQueuedPrompts: [],
@@ -571,7 +574,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             ...current,
             activeSessionId: undefined,
             isDraftSession: true,
-            draftMode: undefined,
+            draftMode: current.activeAgentName === 'msinsight-native' ? undefined : current.preferredMode,
             draftMessages: [],
             draftPendingPrompt: false,
             draftQueuedPrompts: [],
@@ -791,23 +794,28 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const updateMode = async (mode: string, sessionId?: string): Promise<void> => {
         const targetSessionId = sessionId ?? state.activeSessionId;
-        if (!mode || activePendingPrompt(state)) return;
+        if (!mode) return;
         if (!targetSessionId) {
             setState((current) => ({
                 ...current,
+                preferredMode: mode,
                 draftMode: mode,
             }));
             return;
         }
         try {
+            const agentName = state.activeAgentName;
             const response = await setSessionMode(mode, targetSessionId);
             setState((current) => {
+                if (current.activeAgentName !== agentName) return current;
                 const record = {
                     ...getSessionRecord(current, targetSessionId),
                     configOptions: response.configOptions ?? getActiveConfigOptions(current),
                 };
                 return {
                     ...current,
+                    preferredMode: mode,
+                    draftMode: current.isDraftSession ? mode : current.draftMode,
                     sessionRecords: { ...current.sessionRecords, [targetSessionId]: record },
                 };
             });
@@ -831,6 +839,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 activeSessionId: undefined,
                 isDraftSession: false,
                 draftMode: undefined,
+                preferredMode: undefined,
                 draftMessages: [],
                 draftPendingPrompt: false,
                 draftQueuedPrompts: [],
@@ -939,6 +948,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 activeSessionId: undefined,
                 isDraftSession: true,
                 draftMode: undefined,
+                preferredMode: undefined,
                 draftMessages: activeMessages(current),
                 draftPendingPrompt: false,
                 draftQueuedPrompts: [],

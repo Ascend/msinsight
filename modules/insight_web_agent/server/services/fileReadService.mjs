@@ -71,7 +71,8 @@ export const createPermissionHostHandler = ({ permissionService, cwd }) => async
         target: kind === "tool" ? target.toolName : params.target ?? target.value,
         details: permissionDetails(params, kind, target.toolName),
         rememberKey: params.rememberKey,
-        source: "session/request_permission",
+        source: params._meta?.msinsightNativePermission === true && kind !== "filesystem"
+            ? "native/tool_permission" : "session/request_permission",
         options: requestOptions,
     });
     if (result.allowed) return selectedOutcome(requestOptions, result.state);

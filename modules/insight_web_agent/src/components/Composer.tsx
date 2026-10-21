@@ -472,7 +472,7 @@ export const Composer = (): JSX.Element => {
     const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt || configOptionsLoading, setModel, modelIcon, {
         placeholder: t('searchModels'), noResultsText: t('noMatchingModels'),
     });
-    const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt || configOptionsLoading, setMode, agentIcon);
+    const modePicker = createConfigPicker(modeConfig, modeOptions, configOptionsLoading, setMode, agentIcon);
     const commandQuery = getCommandQuery(input);
     const commandMatches = getCompletionMatches(availableCommands, availableSkills, commandQuery);
     const showCommandMenu = commandQuery !== undefined && commandMatches.length > 0;
@@ -726,7 +726,12 @@ const createConfigPicker = (
             onChange={(value) => {
                 onChange(value);
             }}
-            options={options.map((option) => ({ value: option.value, label: option.name || option.value, title: option.title }))}
+            options={options.map((option) => ({
+                value: option.value,
+                label: option.name || option.value,
+                title: option.title,
+                warning: config.category === 'mode' && option.value === 'full-access',
+            }))}
             placement="top"
             triggerIcon={<span className="config-picker-icon" style={{ maskImage: `url(${icon})`, WebkitMaskImage: `url(${icon})` }} />}
             showArrow={false}

@@ -184,6 +184,23 @@ test("setMode sends the session mode config option to ACP", async () => {
     assert.equal(state.sessionContexts.get("session-1").configOptions[0].currentValue, "bypass");
 });
 
+test("Native live mode switch releases approvals only after ACP confirms success", async () => {
+    const state = createRuntimeState();
+    state.activeAgentName = "msinsight-native";
+    state.sessionContexts.set("session-1", { sessionId: "session-1", pendingPrompt: true, configOptions: [modeConfig("ask")] });
+    const applied = [];
+    const service = createSessionService({
+        acpClient: { async request(_method, params) {
+            if (params.value === "full-access") assert.deepEqual(applied, []);
+            return { configOptions: [modeConfig(params.value)] };
+        } },
+        permissionService: { setNativePermissionMode: (...args) => applied.push(args) },
+        config: {}, state, eventBus: { broadcast: () => {} },
+    });
+    assert.equal((await service.setMode("full-access", "session-1")).ok, true);
+    assert.deepEqual(applied, [["session-1", "full-access"]]);
+});
+
 test("loadSessionById injects the global capability MCP server", async () => {
     const calls = [];
     const state = createRuntimeState();

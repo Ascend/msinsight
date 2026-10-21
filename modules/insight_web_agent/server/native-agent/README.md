@@ -76,6 +76,10 @@ Native 的有效 System Prompt 由三部分组成：
 
 产品基础规则由 `runtime/aiSdkRuntime.mjs` 固定生成；Web Server 每轮通过 `insight-system-prompt://project` resource 发送 Host Prompt，resource 缺失时 Native 兼容读取 workspace 的 `AGENTS.md` / `CLAUDE.md`；通用专项行为来自当前 Agent。Session 通过 `session/set_config_option(primaryAgent)` 在首次 Prompt 前绑定 Agent，Prompt 开始后不可切换。AI SDK runtime 在每轮调用时组合当前 Host Prompt 和 Agent 正文。
 
+## 会话权限默认值
+
+Ask for Approval / Full Access 保持每个会话独立保存；修改一个会话不会影响其他已有会话。最近一次成功修改的权限选择作为新对话默认值，通过会话 metadata 的 `permissionModeUpdatedAt` 恢复，重启后继续使用；没有选择记录时默认 Ask。仅加载旧会话不会改变新对话默认值。
+
 ## Runtime 行为
 
 native agent 使用 Vercel AI SDK 的 `streamText` 完成多步 tool loop，暴露当前 Native Tool Registry 中的 `msinsight`、`Bash` 和 `skill`。Runtime 初始化或模型调用失败会明确返回错误。
