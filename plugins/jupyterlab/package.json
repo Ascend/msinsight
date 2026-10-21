@@ -56,7 +56,7 @@
     "@jupyterlab/services": "7.3.5"
   },
   "devDependencies": {
-    "@jupyterlab/builder": "^4.3.5",
+    "@jupyterlab/builder": "^4.5.9",
     "@types/json-schema": "^7.0.11",
     "@types/react": "^18.0.26",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
