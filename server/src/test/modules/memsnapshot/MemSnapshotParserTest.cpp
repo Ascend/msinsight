@@ -15,14 +15,10 @@
  * ------------------------------------------------------------------------- */
 
 #include <fstream>
-#include <chrono>
-#include <thread>
 #include <gtest/gtest.h>
 #include "FileUtil.h"
 #include "MemSnapshotParser.h"
-#include "MemSnapshotDatabase.h"
 #include "MemSnapshotSliceService.h"
-#include "sqlite3.h"
 
 using namespace Dic::Module;
 using namespace Dic;
@@ -37,7 +33,7 @@ class MemSnapshotParserTest : public ::testing::Test {
     static void SetUpTestSuite() {
         testPicklePath = FileUtil::SplicePath(::testing::TempDir(), "mem_snapshot_parser_test.pkl");
         testLogPath = FileUtil::SplicePath(::testing::TempDir(), "mem_snapshot_parser_test.log");
-        testOutputDbPath = MemSnapshotSliceService::GetArtifactDirectory(testPicklePath);
+        testOutputDbPath = Dic::Module::MemSnapshot::MemSnapshotSliceService::GetArtifactDirectory(testPicklePath);
 
         std::ofstream pickleFile(testPicklePath);
         pickleFile.close();
@@ -105,6 +101,23 @@ TEST_F(MemSnapshotParserTest, ConfirmsSuccessKeywordInLog) {
     FileUtil::RemoveFile(testLogPath);
 }
 
+TEST_F(MemSnapshotParserTest, ReadsScriptCacheIdentityBeforePublishingSlices) {
+    const std::string hash(64, 'a');
+    for (const auto &action : {"validated", "rebuild"}) {
+        parser->GetParseContext().SetFileHash("");
+        {
+            std::ofstream output(testLogPath, std::ios::trunc);
+            output << "Snapshot cache " << action << ": " << hash << "\n";
+            output << "1% of entries have been processed\n";
+        }
+        std::ifstream log(testLogPath);
+        std::string error;
+        EXPECT_EQ(ReadProgressInLogFile(log, error), 1);
+        EXPECT_EQ(parser->GetParseContext().GetFileHash(), hash);
+    }
+    FileUtil::RemoveFile(testLogPath);
+}
+
 // 测试解析器重置功能
 TEST_F(MemSnapshotParserTest, Reset) {
     // 先设置一些状态
@@ -168,112 +181,11 @@ TEST_F(MemSnapshotParserTest, ParseContextManagement) {
     EXPECT_TRUE(parser->GetParseContext().IsFinished());
 }
 
-// 测试是否需要解析的检查逻辑
-TEST_F(MemSnapshotParserTest, CheckIfParsingNeed) {
-    // 重置解析器
-    parser->Reset();
-
-    // 设置测试上下文
-    const std::string fileHash = parser->CalculateFileHash(testPicklePath);
-    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, fileHash);
-
-    // 由于输出数据库文件不存在，应该需要解析
-    bool needParse = parser->CheckIfParsingNeed(parser->GetParseContext());
-    EXPECT_TRUE(needParse);
-
-    const auto deviceDir = fs::path(testOutputDbPath) / "device_0";
-    fs::create_directories(deviceDir);
-    const auto sliceDbPath = deviceDir / "slice_00000.db";
-    sqlite3 *sliceDb = nullptr;
-    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
-    ASSERT_EQ(sqlite3_exec(sliceDb,
-                  "CREATE TABLE dictionary (`table` TEXT, `column` TEXT, `key` TEXT, `value` TEXT);"
-                  "CREATE TABLE block_0 (`id` INTEGER PRIMARY KEY, `address` INTEGER, `size` INTEGER, "
-                  "`requestedSize` INTEGER, `state` INTEGER DEFAULT 99, `allocEventId` INTEGER, `freeEventId` INTEGER);"
-                  "CREATE TABLE trace_entry_0 (`id` INTEGER PRIMARY KEY, `action` INTEGER, `address` INTEGER, `size` "
-                  "INTEGER, `stream` INTEGER, `allocated` INTEGER, `active` INTEGER, `reserved` INTEGER, `callstack` "
-                  "TEXT);"
-                  "INSERT INTO trace_entry_0 VALUES (0, 0, 0, 0, 0, 10, 10, 20, '');",
-                  nullptr, nullptr, nullptr),
-        SQLITE_OK);
-    sqlite3_close(sliceDb);
-    ASSERT_TRUE(Dic::Module::FullDb::MemSnapshotDatabase::BuildMemoryAllocationCache(sliceDbPath.string(), "0"));
-    std::ofstream manifest(MemSnapshotSliceService::GetManifestPath(testPicklePath), std::ios::trunc);
-    manifest << R"({"schemaVersion":1,"status":"complete","sourceFile":"snapshot_invalid.pkl","cacheHash":")"
-             << fileHash
-             << R"(","eventsPerSlice":100,"devices":{"0":{"eventCount":1,"sliceCount":1,)"
-                R"("readySlices":[0],"slices":[{"index":0,"startEventId":0,"endEventId":0,)"
-                R"("file":"device_0/slice_00000.db","ready":true}]}}})";
-    manifest.close();
-
-    EXPECT_FALSE(parser->CheckIfParsingNeed(parser->GetParseContext()));
-
-    // Exercise the asynchronous cache-hit path without launching a pickle subprocess.
-    parser->AsyncParseMemSnapshotPickle(testPicklePath);
-    for (int attempt = 0; attempt < 100 && parser->GetParseContext().GetState() != ParserState::UP_TO_DATE; ++attempt) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-    EXPECT_EQ(parser->GetParseContext().GetState(), ParserState::UP_TO_DATE);
-    EXPECT_EQ(parser->GetParseContext().GetProgress(), 100);
-    parser->Reset();
-    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, fileHash);
-
-    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
-    ASSERT_EQ(sqlite3_exec(sliceDb, "DROP TABLE memory_allocation_cache_v1_0", nullptr, nullptr, nullptr), SQLITE_OK);
-    sqlite3_close(sliceDb);
-    // 缺 cache 时可从源表现场重建，无需重新解析 pickle
-    EXPECT_FALSE(parser->CheckIfParsingNeed(parser->GetParseContext()));
-    ASSERT_TRUE(Dic::Module::FullDb::MemSnapshotDatabase::HasMemoryAllocationCache(sliceDbPath.string(), "0"));
-
-    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
-    ASSERT_EQ(sqlite3_exec(sliceDb, "DROP TABLE block_0", nullptr, nullptr, nullptr), SQLITE_OK);
-    sqlite3_close(sliceDb);
-    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
-    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
-    ASSERT_EQ(
-        sqlite3_exec(sliceDb, "CREATE TABLE block_0 (id INTEGER PRIMARY KEY)", nullptr, nullptr, nullptr), SQLITE_OK);
-    sqlite3_close(sliceDb);
-
-    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, "changed-hash");
-    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
-
-    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, fileHash);
-    fs::remove(sliceDbPath);
-    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
-
-    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
-    sqlite3_close(sliceDb);
-    std::ofstream invalidManifest(MemSnapshotSliceService::GetManifestPath(testPicklePath), std::ios::trunc);
-    invalidManifest << R"({"schemaVersion":1,"status":"complete"})";
-    invalidManifest.close();
-    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
-
-    fs::remove_all(testOutputDbPath);
-}
-
-TEST_F(MemSnapshotParserTest, CalculateFileHashTracksFileContent) {
-    {
-        std::ofstream pickleFile(testPicklePath, std::ios::binary | std::ios::trunc);
-        pickleFile << "snapshot-content";
-    }
-    const std::string firstHash = parser->CalculateFileHash(testPicklePath);
-    const std::string secondHash = parser->CalculateFileHash(testPicklePath);
-    EXPECT_FALSE(firstHash.empty());
-    EXPECT_EQ(firstHash, secondHash);
-
-    {
-        std::ofstream pickleFile(testPicklePath, std::ios::binary | std::ios::app);
-        pickleFile << "-changed";
-    }
-    EXPECT_NE(firstHash, parser->CalculateFileHash(testPicklePath));
-}
-
-TEST_F(MemSnapshotParserTest, CalculateFileHashIncludesParserSalt) {
-    {
-        std::ofstream pickleFile(testPicklePath, std::ios::binary | std::ios::trunc);
-        pickleFile << "snapshot-content";
-    }
-    // This value changes when MEM_SNAPSHOT_PARSER_HASH_SALT changes.
-    EXPECT_EQ(
-        "adaad4452d193309891d52c7803603f11ef9a73aae9d8fce35df9b22891cb1be", parser->CalculateFileHash(testPicklePath));
+TEST_F(MemSnapshotParserTest, FileHashIsPublishedByParserScript) {
+    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath);
+    EXPECT_TRUE(parser->GetParseContext().GetFileHash().empty());
+    parser->GetParseContext().SetFileHash("script-generated-hash");
+    EXPECT_EQ(parser->GetParseContext().GetFileHash(), "script-generated-hash");
+    parser->GetParseContext().Reset();
+    EXPECT_TRUE(parser->GetParseContext().GetFileHash().empty());
 }

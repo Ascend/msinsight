@@ -52,6 +52,17 @@ torch_npu.npu.memory._dump_snapshot("memory_snapshot.pickle")
 
 After collection, import <code>memory_snapshot.pickle</code> into MindStudio Insight and analyze it on the memory details (PyTorch Snapshot) interface.
 
+### Limits of Parsed Cache Validation
+
+When importing the same Snapshot again, the parser validates existing artifacts
+before reusing them. A logical digest detects changes to parser-owned base data;
+consumer-added derived tables or indexes do not change that digest. Legacy artifacts
+without a historical digest receive only structural, event-range, dictionary-reference
+and SQLite physical-integrity checks. These checks cannot retrospectively prove that
+every value is unchanged or that no block rows were deleted. Digests are not security
+signatures; import only trusted data. Full validation reads the databases and takes
+longer for larger datasets; it does not mean event replay is running again.
+
 ## Case 1: Locating Memory Leaks During the Training Process
 
 ### Problem Symptom

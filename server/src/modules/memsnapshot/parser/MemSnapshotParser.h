@@ -45,6 +45,7 @@ struct MemSnapshotParserContext {
     std::string GetLogPath() const;
     std::string GetOutputDbPath() const;
     std::string GetFileHash() const;
+    void SetFileHash(std::string hash);
     bool IsInitialSuccessSent() const;
     bool WasInitialSuccessSentWhileBuilding() const;
     void MarkInitialSuccessSent(bool parsingComplete);
@@ -78,9 +79,6 @@ class MemSnapshotParser {
     // 异步解析Pickle文件API
     void AsyncParseMemSnapshotPickle(const std::string &pickleFilePath);
     MemSnapshotParserContext &GetParseContext();
-    static std::string CalculateFileHash(const std::string &filePath);
-    // 用于检查是否需要解析或重新解析pickle文件
-    static bool CheckIfParsingNeed(const MemSnapshotParserContext &context);
 
   private:
     MemSnapshotParser();
@@ -90,8 +88,6 @@ class MemSnapshotParser {
     // 守护线程，实施读取解析进展
     static void ParseDaemonTask();
     static void ParseCallBack();
-    // 解析完成回调方法之一，用于二次检查db结果并设置解析结果db版本
-    bool TryOpenParsingResultDbAndSetVersion() const;
     // 构造解析响应事件
     std::unique_ptr<MemScopeParseSuccessEvent> BuildParseSuccessEventFromContext(
         const std::unordered_set<std::string> *preparedSlices = nullptr) const;
