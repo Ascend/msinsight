@@ -62,6 +62,7 @@ export const createSessionStore = ({ sessions, storeDir = join(process.cwd(), ".
             hostSystemPrompt: String(item.hostSystemPrompt ?? ""),
             modelId: item.modelId === undefined ? undefined : String(item.modelId),
             permissionMode: item.permissionMode === "full-access" ? "full-access" : "ask",
+            permissionModeUpdatedAt: Number.isFinite(item.permissionModeUpdatedAt) ? item.permissionModeUpdatedAt : undefined,
             primaryAgentId: String(item.primaryAgentId ?? "general"),
             primaryAgentFingerprint: item.primaryAgentFingerprint ? String(item.primaryAgentFingerprint) : undefined,
             promptStarted: Boolean(item.promptStarted),

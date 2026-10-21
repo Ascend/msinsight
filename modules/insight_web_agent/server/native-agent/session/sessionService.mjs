@@ -36,7 +36,7 @@ const handleRequest = async (context, method, params) => {
     if (method === "session/load" || method === "session/resume") return loadSession(context, params.sessionId);
     if (method === "session/delete") return deleteSession(context, params.sessionId);
     if (method === "session/prompt") return runPrompt(context, params);
-    if (method === "session/cancel") return cancelPrompt(context, params.sessionId);
+    if (method === "session/cancel") return cancelPrompt(context, params.sessionId, params._meta?.msinsightCancelSource);
     if (method === "session/set_config_option") return setConfigOption(context, params);
     const error = new Error(`method not found: ${method}`);
     error.code = JSON_RPC_METHOD_NOT_FOUND;
@@ -58,6 +58,11 @@ const createInitializeResult = ({ agentRegistry, skillRegistry }) => ({
     },
 });
 
+// Only explicit selections define the default; loading or creating a session never wins.
+const latestPermissionSelection = (sessions) => [...sessions.values()]
+    .filter((session) => Number.isFinite(session.permissionModeUpdatedAt) && !session.permissionChangePending)
+    .reduce((latest, session) => !latest || session.permissionModeUpdatedAt > latest.permissionModeUpdatedAt ? session : latest, undefined);
+
 /** 功能：创建 ACP 会话，初始化文件系统根目录并持久化会话元数据。 */
 const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry, modelCatalog }) => {
     const sessionId = randomUUID();
@@ -71,7 +76,7 @@ const createSession = async ({ sessions, sessionStore, filesystem, agentRegistry
         messages: [],
         runtimeSession: undefined,
         hostSystemPrompt: "",
-        permissionMode: "ask",
+        permissionMode: latestPermissionSelection(sessions)?.permissionMode ?? "ask",
         primaryAgentId: primaryAgent.id,
         primaryAgentFingerprint: primaryAgent.fingerprint,
         primaryAgentBody: primaryAgent.body,
@@ -125,12 +130,16 @@ const deleteSession = async ({ sessions, running, aiRuntime, sessionStore }, ses
 };
 
 /** 功能：中止指定 ACP 会话当前运行的控制器和 AI runtime 请求。 */
-const cancelPrompt = ({ sessions, running, aiRuntime }, sessionId) => {
+const cancelPrompt = ({ sessions, running, aiRuntime }, sessionId, source) => {
     const id = String(sessionId ?? "");
     const session = sessions.get(id);
     if (!session) return {};
-    running.get(id)?.controller.abort();
-    aiRuntime.abortSession(session);
+    // The adapter also cancels idle requests; only an explicit cancel is user intent.
+    const reason = Object.assign(new Error(source ? "Prompt interrupted" : "User cancelled prompt"), {
+        code: source ? "RUNTIME_CANCEL" : "USER_CANCEL",
+    });
+    running.get(id)?.controller.abort(reason);
+    aiRuntime.abortSession(session, reason);
     return {};
 };
 
@@ -190,22 +199,31 @@ const setConfigOption = async (context, { sessionId, configId, value }) => {
     const session = ensureSession(context, sessionId);
     if (configId === "mode") {
         if (!["ask", "full-access"].includes(value)) throw new Error(`Unsupported permission mode: ${value}`);
-        if (context.running.has(session.sessionId) || session.permissionChangePending) {
-            throw new Error("Permissions cannot be changed while a prompt or permission change is running");
+        if (context.permissionChangePending || session.permissionChangePending) {
+            throw new Error("Permissions cannot be changed while a permission change is running");
         }
         const previous = session.permissionMode;
+        const previousModeUpdatedAt = session.permissionModeUpdatedAt;
         const previousUpdatedAt = session.updatedAt;
+        context.permissionChangePending = true;
         session.permissionChangePending = true;
+        // 保存过程中仅允许收紧权限，Full Access 必须在保存成功后才能被工具观察到。
+        session.permissionModeDuringSave = previous === "ask" || value === "ask" ? "ask" : value;
         session.permissionMode = value;
+        // Selection order is distinct from conversation activity and survives restart.
+        session.permissionModeUpdatedAt = Math.max(Date.now(), (previousModeUpdatedAt ?? 0) + 1, (latestPermissionSelection(context.sessions)?.permissionModeUpdatedAt ?? 0) + 1);
         session.updatedAt = Date.now();
         try {
             await context.sessionStore.save();
         } catch (error) {
             session.permissionMode = previous;
             session.updatedAt = previousUpdatedAt;
+            session.permissionModeUpdatedAt = previousModeUpdatedAt;
             throw error;
         } finally {
+            context.permissionChangePending = false;
             session.permissionChangePending = false;
+            delete session.permissionModeDuringSave;
         }
         return { configOptions: createConfigOptions(context.agentRegistry, session, context.modelCatalog) };
     }

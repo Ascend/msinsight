@@ -426,6 +426,24 @@ test("Bash allow always is isolated by session and namespaced remember key", asy
     assert.equal(remembered.result.outcome.optionId, "allow_once");
 });
 
+test("Full Access releases only native tool approvals in the selected session", async () => {
+    const fixture = await createService();
+    const native = fixture.service.requestApproval({ sessionId: "s1", kind: "tool", source: "native/tool_permission", target: "observe" });
+    const file = fixture.service.requestApproval({ sessionId: "s1", kind: "filesystem", target: "file" });
+    const external = fixture.service.requestApproval({ sessionId: "s1", kind: "tool", target: "external" });
+    const other = fixture.service.requestApproval({ sessionId: "s2", kind: "tool", source: "native/tool_permission", target: "other" });
+    fixture.service.setNativePermissionMode("s1", "full-access");
+    assert.equal((await native).allowed, true);
+    assert.equal(fixture.state.pendingPermissions.size, 3);
+    const arriving = await fixture.service.requestApproval({ sessionId: "s1", kind: "bash", source: "native/tool_permission", target: "new" });
+    assert.equal(arriving.allowed, true);
+    fixture.service.setNativePermissionMode("s1", "ask");
+    const askAgain = fixture.service.requestApproval({ sessionId: "s1", kind: "tool", source: "native/tool_permission", target: "ask" });
+    assert.equal(fixture.state.pendingPermissions.size, 4);
+    fixture.service.rejectSessionRequests(undefined);
+    await Promise.all([file, external, other, askAgain]);
+});
+
 test("cancelling pending requests preserves remembered Session approvals", async () => {
     const fixture = await createService();
     fixture.state.permissionRuntimeAllowlist.set("s1", new Set(["bash:general:python -V"]));

@@ -38,6 +38,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
             : DEFAULT_TIMEOUT_MS;
     // 同一会话只激活队首，排队请求在展示后才开始超时；不同会话互不阻塞。
     const requestQueues = new Map();
+    const nativeFullAccessSessions = new Set();
 
     const ensureRuntimeAllowlist = (sessionId) => {
         const key = String(sessionId ?? "").trim();
@@ -74,6 +75,10 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
     const requestApproval = async ({ sessionId, path, normalizedPath, kind = "filesystem", title, target, details, rememberKey, source = "fs/read_text_file", options = defaultOptions() }) => {
         const targetSessionId = String(sessionId ?? "").trim();
         if (!targetSessionId) throw new Error("sessionId is required");
+        if (source === "native/tool_permission" && nativeFullAccessSessions.has(targetSessionId)
+            && ["bash", "tool"].includes(kind) && permissionActions(options).includes("allow_once")) {
+            return { allowed: true, state: "allowed_once", reason: "allowed_once" };
+        }
         const requestId = randomUUID();
         const permissionTarget = target ?? normalizedPath ?? path;
         const request = {
@@ -185,7 +190,23 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         if (targetSessionId && clearRemembered) state.permissionRuntimeAllowlist.delete(targetSessionId);
     };
 
+    /** 功能：仅放行本 Native 会话的工具审批，保留文件策略和其他 Agent 的审批边界。 */
+    const setNativePermissionMode = (sessionId, mode) => {
+        if (mode !== "full-access") {
+            nativeFullAccessSessions.delete(sessionId);
+            return;
+        }
+        nativeFullAccessSessions.add(sessionId);
+        for (const request of [...state.pendingPermissions.values()]) {
+            if (request.sessionId === sessionId && request.source === "native/tool_permission"
+                && ["bash", "tool"].includes(request.kind) && permissionActions(request.options).includes("allow_once")) {
+                resolveRequest(request, "allowed_once");
+            }
+        }
+    };
+
     const resetRuntime = () => {
+        nativeFullAccessSessions.clear();
         rejectSessionRequests(undefined, "invalidated");
         state.permissionRuntimeAllowlist.clear();
     };
@@ -234,6 +255,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         requestApproval,
         respond,
         rejectSessionRequests,
+        setNativePermissionMode,
         resetRuntime,
         updateTimeout,
     };

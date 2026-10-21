@@ -167,7 +167,7 @@ test("activity from another session does not refresh a prompt idle timeout", asy
     assert.deepEqual(children[0].stdin.writes.at(-1), {
         jsonrpc: "2.0",
         method: "session/cancel",
-        params: { sessionId: "s1" },
+        params: { sessionId: "s1", _meta: { msinsightCancelSource: "idle_timeout" } },
     });
 });
 

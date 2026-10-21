@@ -92,10 +92,11 @@ export const createCapabilityTools = ({
 }));
 
 const authorizeCapability = async ({ definition, input, session, signal, hostClient }) => {
-    if (session.permissionMode === "full-access" || session[SESSION_APPROVALS]?.has(definition.name)) return;
+    if ((session.permissionModeDuringSave ?? session.permissionMode) === "full-access" || session[SESSION_APPROVALS]?.has(definition.name)) return;
     const result = await hostClient.request("session/request_permission", {
         sessionId: session.sessionId,
         kind: "tool",
+        _meta: { msinsightNativePermission: true },
         title: definition.name,
         target: definition.name,
         toolCall: {

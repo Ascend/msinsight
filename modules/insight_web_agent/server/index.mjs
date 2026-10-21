@@ -252,6 +252,7 @@ const sessionService = createSessionService({
     state,
     sessionManager,
     capabilitySessionIntegration,
+    permissionService,
 });
 chatService = createChatService({
     acpAdapter,

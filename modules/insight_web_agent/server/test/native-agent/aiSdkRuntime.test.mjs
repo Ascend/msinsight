@@ -110,7 +110,7 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     assert.equal(session.messages[0].content[0].text, "find leaks");
     assert.equal(capturedOptions.system.includes("Use Read, Glob, and Grep"), false);
     assert.equal(await capturedOptions.stopWhen({ steps: Array.from({ length: 8 }) }), true);
-    assert.equal(capturedOptions.prepareStep({ stepNumber: 6 }), undefined);
+    assert.equal(capturedOptions.prepareStep({ stepNumber: 6 }).system, capturedOptions.system);
     const finalStep = capturedOptions.prepareStep({ stepNumber: 7 });
     assert.equal(finalStep.toolChoice, "none");
     assert.ok(finalStep.system.startsWith(capturedOptions.system));
@@ -186,7 +186,7 @@ for (const progressText of ["", "正在调整视域。"]) {
     });
 }
 
-test("AI SDK runtime persists interrupted UI output without adding partial model history", async (t) => {
+test("AI SDK runtime persists interrupted model history with a hidden neutral marker", async (t) => {
     const root = await mkdtemp(join(tmpdir(), "msinsight-ai-sdk-cancel-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     const notifier = createNotifier();
@@ -217,9 +217,115 @@ test("AI SDK runtime persists interrupted UI output without adding partial model
     }), { ok: false, reason: "AI SDK runtime was cancelled" });
 
     const stored = JSON.parse(await readFile(join(root, "sessions", "session-1.json"), "utf8"));
-    assert.deepEqual(stored.modelMessages, []);
+    assert.match(stored.modelMessages[0].content, /Hidden assistant preset\ncancel me/);
+    assert.equal(stored.modelMessages[1].content[0].text, "partial");
+    assert.equal(stored.modelMessages[2].role, "user");
+    assert.match(stored.modelMessages[2].content, /\[Request interrupted\]/);
+    assert.doesNotMatch(JSON.stringify(stored.uiMessages), /\[Request interrupted(?: by user)?\]/);
+    assert.doesNotMatch(JSON.stringify(notifier.updates), /\[Request interrupted(?: by user)?\]/);
     assert.equal(stored.uiMessages[0].content[0].text, "cancel me");
     assert.equal(stored.uiMessages[1].content[0].text, "partial");
+});
+
+test("cancel then restore and continue retains raw completed tools, reconciles pending tools, and hides user interruption", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-cancel-tools-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const notifier = createNotifier();
+    const controller = new AbortController();
+    const output = { data: "x".repeat(20000) };
+    let turn = 0;
+    let continuedMessages;
+    const runtime = createRuntime({
+        aiSdkStoragePath: root, notifier, toolRegistry: { list: () => [] },
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
+        createModel: () => ({}),
+        streamTextImpl: (options) => {
+            turn += 1;
+            if (turn > 1) {
+                continuedMessages = options.messages;
+                return {
+                    fullStream: asAsyncStream(async function* () { yield { type: "text-delta", text: "continued" }; }),
+                    response: Promise.resolve({ messages: [{ role: "assistant", content: "continued" }] }),
+                };
+            }
+            return {
+                fullStream: asAsyncStream(async function* () {
+                    yield { type: "start-step" };
+                    yield { type: "text-delta", text: "before" };
+                    yield { type: "tool-call", toolCallId: "done", toolName: "msinsight", input: { command: "observe" } };
+                    yield { type: "tool-result", toolCallId: "done", toolName: "msinsight", output };
+                    yield { type: "finish-step" };
+                    yield { type: "start-step" };
+                    yield { type: "text-delta", text: "partial" };
+                    yield { type: "tool-call", toolCallId: "pending", toolName: "msinsight", input: { command: "zoom" } };
+                    controller.abort(Object.assign(new Error("User cancelled"), { code: "USER_CANCEL" }));
+                    // A stream may close silently on abort, without an abort event.
+                }),
+                response: Promise.resolve({ messages: [] }),
+            };
+        },
+    });
+    const session = createSession();
+    assert.equal((await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "do it", controller })).ok, false);
+    const history = session.runtimeSession.modelMessages;
+    assert.deepEqual(history.map((message) => message.role), ["user", "assistant", "tool", "assistant", "tool", "user"]);
+    assert.deepEqual(history[2].content[0].output, { type: "json", value: output });
+    assert.equal(history[4].content[0].output.type, "error-text");
+    assert.match(history[4].content[0].output.value, /Side effects may have occurred/);
+    assert.match(history.at(-1).content, /\[Request interrupted by user\]/);
+    assert.doesNotMatch(JSON.stringify(session.messages), /\[Request interrupted by user\]/);
+    assert.doesNotMatch(JSON.stringify(notifier.updates), /\[Request interrupted by user\]/);
+    const restored = createSession();
+    await runtime.restoreSession(restored);
+    assert.deepEqual(restored.runtimeSession.modelMessages, history);
+    assert.deepEqual(restored.messages, session.messages);
+    assert.equal((await runtime.runPrompt({ session: restored, sessionId: restored.sessionId, userText: "continue", controller: new AbortController() })).ok, true);
+    assert.deepEqual(continuedMessages.slice(0, -1), history);
+});
+
+test("cancellation drains a queued tool result without committing successful history twice", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-cancel-response-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const controller = new AbortController();
+    const runtime = createRuntime({
+        aiSdkStoragePath: root, notifier: createNotifier(), toolRegistry: { list: () => [] },
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
+        createModel: () => ({}),
+        streamTextImpl: () => ({
+            fullStream: asAsyncStream(async function* () {
+                yield { type: "tool-call", toolCallId: "done", toolName: "msinsight", input: {} };
+                controller.abort(Object.assign(new Error("User cancelled"), { code: "USER_CANCEL" }));
+                yield { type: "tool-result", toolCallId: "done", toolName: "msinsight", output: "completed before abort" };
+            }),
+            response: Promise.resolve({ messages: [{ role: "assistant", content: "not committed" }] }),
+        }),
+    });
+    const session = createSession();
+    await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "question", controller });
+    const history = session.runtimeSession.modelMessages;
+    assert.deepEqual(history.map(({ role }) => role), ["user", "assistant", "tool", "user"]);
+    assert.deepEqual(history[2].content[0].output, { type: "text", value: "completed before abort" });
+    assert.equal(session.messages.length, 2);
+    assert.doesNotMatch(JSON.stringify(history), /not committed/);
+});
+
+test("ordinary stream errors do not record a user interruption", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-stream-error-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const runtime = createRuntime({
+        aiSdkStoragePath: root, notifier: createNotifier(), toolRegistry: { list: () => [] },
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
+        createModel: () => ({}),
+        streamTextImpl: () => ({ fullStream: asAsyncStream(async function* () {
+            yield { type: "text-delta", text: "partial" };
+            throw new Error("network failure");
+        }) }),
+    });
+    const session = createSession();
+    const result = await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "question", controller: new AbortController() });
+    assert.match(result.reason, /network failure/);
+    assert.deepEqual(session.runtimeSession.modelMessages, []);
+    assert.deepEqual(session.messages, []);
 });
 
 test("each turn uses the session model and retains independent histories and shared env", async (t) => {

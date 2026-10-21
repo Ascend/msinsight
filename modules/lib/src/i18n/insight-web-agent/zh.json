@@ -72,7 +72,7 @@
     "builtinAgentCardName": "MS Insight_Native",
     "systemAgentBadge": "系统",
     "builtinAgentHint": "工具提供内置的系统Agent，配置模型服务后即可使用，也支持切换已安装的第三方Agent，通过ACP协议接入后使用。",
-    "provider": "服务提供方",
+    "provider": "API 格式",
     "model": "模型",
     "defaultModel": "默认模型",
     "modelSwitched": "已切换模型：{{model}}",

@@ -122,7 +122,7 @@ export const createAcpAdapter = ({
                 const waiter = { resolve, reject, method, sessionId, timeout: undefined };
                 const onTimeout = () => {
                     pending.delete(id);
-                    if (sessionId && child && !disconnecting) writeJson(child, { jsonrpc: "2.0", method: "session/cancel", params: { sessionId } });
+                    if (sessionId && child && !disconnecting) writeJson(child, { jsonrpc: "2.0", method: "session/cancel", params: { sessionId, _meta: { msinsightCancelSource: "idle_timeout" } } });
                     reject(new Error(`ACP request ${sessionId ? "idle " : ""}timed out: ${method}`));
                 };
                 waiter.refreshTimeout = () => {

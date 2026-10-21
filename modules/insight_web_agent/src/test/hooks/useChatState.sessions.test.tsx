@@ -27,6 +27,7 @@ jest.mock('../../api', () => ({
     loadSession: jest.fn(),
     sendPrompt: jest.fn(),
     cancelPrompt: jest.fn(),
+    setSessionMode: jest.fn(),
     isBackendUnavailableError: jest.fn(() => false),
 }));
 
@@ -164,6 +165,33 @@ test('saving a different active agent does not reopen the previous agent session
     expect(api.loadSession).not.toHaveBeenCalled();
     expect(chat.sessions).toEqual([]);
     expect(chat.isDraftSession).toBe(true);
+});
+
+test('permission mode can change during a reply and becomes the next draft default', async () => {
+    const modes = (currentValue: string): ConfigOption[] => [{
+        id: 'mode', category: 'mode', name: 'Permissions', type: 'select', currentValue,
+        options: [{ value: 'ask', name: 'Ask for Approval' }, { value: 'full-access', name: 'Full Access' }],
+    }];
+    emit({ type: 'state', state: { configOptions: modes('ask') } });
+    await send('first');
+    expect(chat.pendingPrompt).toBe(true);
+    (api.setSessionMode as jest.Mock).mockResolvedValue({ configOptions: modes('full-access') });
+    await act(async () => { await chat.setMode('full-access'); });
+    expect(api.setSessionMode).toHaveBeenCalledWith('full-access', 'session-a');
+    expect(chat.configOptions[0].currentValue).toBe('full-access');
+    await act(async () => { await chat.createSession(); });
+    expect(chat.configOptions[0].currentValue).toBe('full-access');
+    await send('second');
+    expect(mockSendPrompt).toHaveBeenLastCalledWith('second', true, undefined, [], 'full-access', undefined, undefined);
+});
+
+test('a failed live permission change does not change the new draft default', async () => {
+    await send('first');
+    (api.setSessionMode as jest.Mock).mockRejectedValue(new Error('mode rejected'));
+    await act(async () => { await chat.setMode('full-access'); });
+    await act(async () => { await chat.createSession(); });
+    await send('second');
+    expect(mockSendPrompt).toHaveBeenLastCalledWith('second', true, undefined, [], undefined, undefined, undefined);
 });
 
 test('preserves sent and replayed image blocks when switching sessions', async () => {

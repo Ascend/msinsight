@@ -97,11 +97,29 @@ test("permission selection defaults to approval and persists without resetting h
     assert.equal((await service.handleRequest("session/load", { sessionId: session.sessionId })).configOptions.find(({ id }) => id === "mode").currentValue, "full-access");
     await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "invalid" }), /Unsupported permission mode/);
     context.running.set(session.sessionId, {});
-    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "ask" }), /Permissions cannot be changed/);
+    await service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "ask" });
+    assert.equal(session.permissionMode, "ask");
+    await service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "full-access" });
     context.running.clear();
     context.sessionStore.save = async () => { throw new Error("disk failure"); };
     await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: session.sessionId, configId: "mode", value: "ask" }), /disk failure/);
     assert.equal(session.permissionMode, "full-access");
+});
+
+test("live permission changes do not expose Full Access until persistence completes", async () => {
+    const { context } = createContext();
+    const service = createNativeSessionService(context);
+    const { sessionId } = await service.handleRequest("session/new", {});
+    const session = context.sessions.get(sessionId);
+    let release;
+    context.sessionStore.save = () => new Promise((resolve) => { release = resolve; });
+    const changing = service.handleRequest("session/set_config_option", { sessionId, configId: "mode", value: "full-access" });
+    assert.equal(session.permissionModeDuringSave, "ask");
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId, configId: "mode", value: "ask" }), /permission change is running/);
+    release();
+    await changing;
+    assert.equal(session.permissionMode, "full-access");
+    assert.equal(session.permissionModeDuringSave, undefined);
 });
 
 test("Primary Agent can be bound once before prompting and not after prompt start", async () => {
@@ -277,3 +295,34 @@ function agent(id, mode) {
         diagnostics: [],
     };
 }
+
+
+test("new sessions inherit latest explicit permission selection without changing existing sessions", async () => {
+    const { context } = createContext();
+    const service = createNativeSessionService(context);
+    const first = await service.handleRequest("session/new", {});
+    const second = await service.handleRequest("session/new", {});
+    await service.handleRequest("session/set_config_option", { sessionId: first.sessionId, configId: "mode", value: "full-access" });
+    assert.equal(context.sessions.get(second.sessionId).permissionMode, "ask");
+    const third = await service.handleRequest("session/new", {});
+    assert.equal(context.sessions.get(third.sessionId).permissionMode, "full-access");
+    await service.handleRequest("session/load", { sessionId: second.sessionId });
+    const fourth = await service.handleRequest("session/new", {});
+    assert.equal(context.sessions.get(fourth.sessionId).permissionMode, "full-access");
+});
+
+
+test("restored explicit selection order defines defaults and a failed save does not replace it", async () => {
+    const { context } = createContext();
+    const service = createNativeSessionService(context);
+    const first = await service.handleRequest("session/new", {});
+    const second = await service.handleRequest("session/new", {});
+    Object.assign(context.sessions.get(first.sessionId), { permissionMode: "full-access", permissionModeUpdatedAt: 20 });
+    Object.assign(context.sessions.get(second.sessionId), { permissionMode: "ask", permissionModeUpdatedAt: 10, updatedAt: Date.now() });
+    const inherited = await service.handleRequest("session/new", {});
+    assert.equal(context.sessions.get(inherited.sessionId).permissionMode, "full-access");
+    assert.equal(context.sessions.get(inherited.sessionId).permissionModeUpdatedAt, undefined);
+    context.sessionStore.save = async () => { throw new Error("disk failure"); };
+    await assert.rejects(service.handleRequest("session/set_config_option", { sessionId: second.sessionId, configId: "mode", value: "ask" }), /disk failure/);
+    assert.equal(context.sessions.get(second.sessionId).permissionModeUpdatedAt, 10);
+});

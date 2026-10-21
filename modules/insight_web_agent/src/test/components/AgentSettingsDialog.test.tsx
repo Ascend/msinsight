@@ -267,7 +267,7 @@ test('failed validation stops navigation and shows errors beside each invalid fi
 test('native provider uses shared dropdown options and required fields validate on blur', async () => {
     await openSettings();
     fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
-    const provider = screen.getByLabelText('Provider');
+    const provider = screen.getByLabelText('API Format');
     fireEvent.click(provider);
     expect((await screen.findAllByRole('option')).map((option) => option.textContent)).toEqual([
         'OpenAI', 'OpenAI-compatible', 'Anthropic',
@@ -373,9 +373,9 @@ test('settings entry opens and displays current config snapshot', async () => {
     expect(screen.getByLabelText('Command')).toHaveValue('opencode');
     expect(screen.getByDisplayValue('acp')).toBeVisible();
     expect(screen.getByDisplayValue('ACP_DEBUG')).toBeVisible();
-    expect(screen.queryByText('Built-in agent settings are stored separately from generic ACP launch configurations.')).not.toBeInTheDocument();
+    expect(screen.queryByText('The tool includes a built-in system agent that is ready to use once you configure a model service. You can also switch to an installed third-party agent and connect it via ACP.')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /MS Insight_Native/ }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Built-in agent settings are stored separately from generic ACP launch configurations.');
+    expect(screen.getByRole('alert')).toHaveTextContent('The tool includes a built-in system agent that is ready to use once you configure a model service. You can also switch to an installed third-party agent and connect it via ACP.');
     fireEvent.click(await screen.findByRole('button', { name: 'Session Config' }));
     expect(await screen.findByDisplayValue('missing/path')).toBeVisible();
 });
@@ -690,7 +690,7 @@ test.each([false, true])('custom model after failed fetch preserves legacy/catal
     fireEvent.change(editor, { target: { value: (editor as HTMLTextAreaElement).value } });
     fireEvent.click(screen.getAllByRole('tab').find((tab) => tab.textContent !== 'Script configuration')!);
     fireEvent.click(screen.getByLabelText('Default model'));
-    expect(screen.getAllByRole('option')).toHaveLength(models.length);
+    expect(await screen.findAllByRole('option')).toHaveLength(models.length);
     fireEvent.click(screen.getByRole('option', { name: 'custom/Exact-ID' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mockSaveBuiltinAgentConfig).toHaveBeenCalledWith(expect.objectContaining({ model: 'custom/Exact-ID', models })));
@@ -713,14 +713,15 @@ test('custom model dialog rejects blanks, cancels without changes and deduplicat
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(screen.getByLabelText('Default model')).toHaveTextContent(snapshot.builtinAgent.model);
     fireEvent.click(screen.getByLabelText('Default model'));
+    const configure = await screen.findByRole('button', { name: 'Configure custom model' });
     expect(screen.queryByRole('option', { name: 'discarded' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Configure custom model' }));
+    fireEvent.click(configure);
     dialog = screen.getByRole('dialog', { name: 'Configure custom model' });
     expect(within(dialog).getByLabelText('Model ID')).toHaveValue('');
     fireEvent.change(within(dialog).getByLabelText('Model ID'), { target: { value: snapshot.builtinAgent.model } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Add and select' }));
     fireEvent.click(screen.getByLabelText('Default model'));
-    expect(screen.getAllByRole('option')).toHaveLength(1);
+    expect(await screen.findAllByRole('option')).toHaveLength(1);
     expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
 });
 
@@ -754,8 +755,8 @@ test('model input remains available during fetch and stale results do not overwr
     await act(async () => { finishFetch({ models: [{ id: 'remote' }], truncated: false }); });
     expect(screen.getByLabelText('Default model')).toHaveTextContent('during-fetch');
     fireEvent.click(screen.getByLabelText('Default model'));
+    expect(await screen.findByRole('option', { name: snapshot.builtinAgent.model })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'remote' })).not.toBeInTheDocument();
-    expect(screen.getByRole('option', { name: snapshot.builtinAgent.model })).toBeInTheDocument();
     expect(mockSaveBuiltinAgentConfig).not.toHaveBeenCalled();
 });
 
