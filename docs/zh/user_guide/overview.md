@@ -31,7 +31,7 @@ MindStudio Insight提供了丰富的调优分析手段，能够可视化呈现�
 | 资源 | 说明 |
 | --- | --- |
 | [MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md) | 安装、升级、卸载和完整性校验。 |
-| [版本发布说明](https://gitcode.com/Ascend/msinsight/releases) | MindStudio Insight 与 CANN 等组件的版本配套关系。 |
+| [版本发布说明](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_26.2.0.B110_001) | MindStudio Insight 与 CANN 等组件的版本配套关系。 |
 | [FAQ](../support/faq.md) | 导入、显示、依赖、网络磁盘、JupyterLab 等常见问题。 |
 | [快速入门](../quick_start/system_tuning_quick_start.md) | 通过样例数据快速体验系统调优分析路径。 |
 

@@ -1,17 +1,12 @@
 # Compute Design Document
 
-<!-- md-trans-meta sourceCommit=49122e1f1d6621e5b8a8bbc1c0fdae9583659f48 translatedAt=2026-08-12T11:40:26.859Z pushedAt=2026-08-12T11:57:31.087Z -->
-
 ## Document Purpose and Scope
 
 This document describes the development conventions for Compute (operator tuning) related data import, binary data blocks, Timeline view, Hotspot Instruction view, and Memory Load view.
 
 - JSON data primarily reuses the Trace Event Format.
-
 - Bin data is differentiated by data block encoding for different page data.
-
 - The 0x0A Memory Read/Write Timing Diagram and 0x0B L2Cache Chart are currently documented as POC capabilities, and their stability is subject to implementation and testing.
-
 - The example paths in this document are all sanitized paths. Actual paths are subject to the imported data.
 
 ## Business Process Overview
@@ -74,12 +69,9 @@ Content example:
 #### Bin File
 
 File format: *.bin
-
-Determination logic: Import a single file && ends with *.bin
+Determination logic: Import a single file && ends with `*.bin`
 Content format:
-
 The operator bin file uses a binary format, where each data unit takes the following form:
-
 ![compute_bin](./figures/compute_bin.png)
 
 Principles for assigning data types to data blocks in visualize_data.bin:
@@ -133,7 +125,7 @@ Data block content:
 
 ```json
 {
-  "Cores": [ // Compute cores that execute the operator, e.g., "core0.cubecore0", "core0.veccore0"
+  "Cores": [ // Compute cores that execute the operator, for example, "core0.cubecore0", "core0.veccore0"
     string
   ],
   "Files Dtype": { // Specify column names and data types
@@ -184,7 +176,7 @@ Data Content:
 
 ```json
 {
-  "Cores": [ // Compute cores that execute operators, e.g., "core0.cubecore0", "core0.veccore0"
+  "Cores": [ // Compute cores that execute operators, for example, "core0.cubecore0", "core0.veccore0"
     string
   ],
 "Instructions Dtype": { // Specifies column names and data types
@@ -206,19 +198,19 @@ Data Content:
 },
   "Instructions": [
     {
-      "Address": string,    // Offset address of the instruction, e.g., "0x1269f000"
-      "AscendC Inner Code": string, // Source code file path and code line number, e.g., "/home/xxx.cpp:23"
+      "Address": string,    // Offset address of the instruction, for example, "0x1269f000"
+      "AscendC Inner Code": string, // Source code file path and code line number, for example, "/home/xxx.cpp:23"
       "Cycles": [      // Clock cycles consumed by the instruction on each compute core
         int
       ],
       "Instructions Executed": [  // Number of times the instruction is executed on each compute core
         int
       ],
-      "Pipe": string,     // Instruction queue to which the instruction belongs, e.g., "SCALAR"
+      "Pipe": string,     // Instruction queue to which the instruction belongs, for example, "SCALAR"
       "TheoreticalStallCycles": [                    // Expected stall time
         int
       ],
-      "Source": string,     // Instruction content, e.g., "MOV_XD_IMM XD:X29,IMM"
+      "Source": string,     // Instruction content, for example, "MOV_XD_IMM XD:X29,IMM"
       "RealStallCycles": [                    // Actual stall cycles.
         int
       ]
@@ -287,8 +279,7 @@ Data content:
 }
 ```
 
-NOTE
-The data source is tracing.json, which complies with the Trace Event Format requirements.
+Note: The data source is tracing.json, which complies with the Trace Event Format requirements.
 
 0x05 Operator Basic Information
 
@@ -1115,7 +1106,7 @@ Data Block Content Description (i.e., the files section in api.json):
 
 ```json
 {
-  "Cores": [ // Compute cores that execute operators, e.g., "core0.cubecore0", "core0.veccore0".
+  "Cores": [ // Compute cores that execute operators, for example, "core0.cubecore0", "core0.veccore0".
     string
   ],
   "Files Dtype": { // Specify column names and data types.
@@ -1164,7 +1155,7 @@ Data Block Content Description (i.e., the Instructions section in api.json):
 
 ```json
 {
-  "Cores": [ // Compute cores that execute the operator, e.g., "core0.cubecore0", "core0.veccore0"
+  "Cores": [ // Compute cores that execute the operator, for example, "core0.cubecore0", "core0.veccore0"
     string
   ],
 "Instructions Dtype": { // Specify column names and data types.
@@ -1186,19 +1177,19 @@ Data Block Content Description (i.e., the Instructions section in api.json):
 },
   "Instructions": [
     {
-      "Address": string,    // Offset address of the instruction, e.g., "0x1269f000".
-      "AscendC Inner Code": string, // Source code file path and line number, e.g., "/home/xxx.cpp:23"
+      "Address": string,    // Offset address of the instruction, for example, "0x1269f000".
+      "AscendC Inner Code": string, // Source code file path and line number, for example, "/home/xxx.cpp:23"
       "Cycles": [      // Clock cycles consumed by the instruction on each compute core
         int
       ],
       "Instructions Executed": [  // Number of times the instruction is executed on each compute core
         int
       ],
-      "Pipe": string,     // Instruction queue to which the instruction belongs, e.g., "SCALAR"
+      "Pipe": string,     // Instruction queue to which the instruction belongs, for example, "SCALAR"
       "TheoreticalStallCycles": [                    // Expected stall cycles
         int
       ],
-      "Source": string,     // Instruction content, e.g. "MOV_XD_IMM XD:X29,IMM"
+      "Source": string,     // Instruction content, for example "MOV_XD_IMM XD:X29,IMM"
       "RealStallCycles": [                    // Actual stall cycles
         int
       ]

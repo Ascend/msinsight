@@ -1,7 +1,5 @@
 # Crash Issues
 
-<!-- md-trans-meta sourceCommit=81c78c7bc5b57be8952a8eb0685833246e436fe7 translatedAt=2026-08-12T11:44:53.431Z pushedAt=2026-08-12T11:57:31.130Z -->
-
 ## MindStudio Insight Crashes Immediately on Startup
 
 ### Problem Description
@@ -20,7 +18,7 @@ Operating system: Windows 11
 
 **Symptom**
 
-After msInsight is installed, it crashes on startup and cannot be used normally. Attempting to install the dependency WebView2 Runtime also reports the error "already installed."
+After msInsight is installed, the application crashes on startup and cannot be used normally. Attempting to install the dependency WebView2 Runtime also reports the error "already installed".
 
 **Scoping  Progress**
 
@@ -33,6 +31,8 @@ After msInsight is installed, it crashes on startup and cannot be used normally.
 1. It is difficult to directly locate the missing dependencies and perform targeted repairs. It is recommended to try reinstalling MSVC and then reinstalling WebView2 Runtime.
 
 2. If the environment cannot be repaired, the tool can be temporarily used through browser access (users need to ensure environment security on their own).
+
+---
 
 ## MindStudio Insight Keeps Crashing on Startup, and Reinstallation Does Not Resolve the Issue
 

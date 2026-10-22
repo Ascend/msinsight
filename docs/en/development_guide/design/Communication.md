@@ -1,13 +1,10 @@
 # Communication Design Document
 
-<!-- md-trans-meta sourceCommit=63323a8f22b6b37afd86f8821f5e7972ffe625b0 translatedAt=2026-08-12T11:38:18.177Z pushedAt=2026-08-12T11:57:31.084Z -->
-
 ## 1. Document Purpose and Scope
 
 This document describes the data sources, interface commands, and frontend/backend code entry points related to the `cluster/communication` page, targeting developers who need to maintain the communication matrix, communication latency, operator list, bandwidth, and distribution chart.
 
 - Both TEXT and DB data scenarios are supported.
-
 - Screenshots on the page are for reference only. The actual key interfaces, paths, and data mappings may vary.
 
 ## 2. Interfaces and Data Mapping
@@ -50,23 +47,16 @@ This document describes the data sources, interface commands, and frontend/backe
 ### 2.4 Code Entry
 
 - Frontend request encapsulation: `modules/cluster/src/utils/RequestUtils.ts`
-
 - Backend command constants: `server/src/modules/defs/ProtocolDefs.h`
-
 - Backend plugin: `server/src/modules/communication/CommunicationPlugin.h`
-
 - Plugin registration: `server/src/modules/Plugins.cpp`
-
 - Protocol test: `server/src/test/modules/communication/protocol/CommunicationProtocolUtilTest.cpp`
-
 - Request sample: `server/src/test/test_data/request.csv`
 
 ### 2.5 Notes
 
 - `text` and `db` only indicate different data sources; the page capabilities and interface naming remain consistent.
-
 - The images in the tables are retained to assist in quickly locating UI elements, but they are not the sole source of information.
-
 - The DB scenario support status of `sortOpNames`, the specific algorithms for expert advice, and the complete response fields of each interface may vary according to the source code and test results.
 
 ## 3. Communication Thumbnail Keyboard Navigation

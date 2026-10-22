@@ -38,7 +38,7 @@ MindStudio Insight supports three data import modes. This section describes how 
     2. In the dialog box that is displayed, select a profile data file or directory and click **OK**, as shown in [Figure 1 Selecting a path](#selecting-a-path).
 
         Figure 1 Selecting a path <a id="selecting-a-path"> </a>
-        ![Figure 1 Selecting a path](./figures/basic_operations/select_path_1.png "Selecting a path")
+        ![](./figures/basic_operations/select_path_1.png "Selecting a path")
 
 - Method 2: Entering the profile data path
     1. Open MindStudio Insight and click **Import Data** in the upper left corner of the page.
@@ -46,13 +46,13 @@ MindStudio Insight supports three data import modes. This section describes how 
     3. Click **OK** to import the data, as shown in [Figure 2 Entering the correct path](#entering-the-correct-path).
 
         Figure 2 Entering the correct path <a id="entering-the-correct-path"> </a>
-        ![Figure 2 Entering the correct path](./figures/basic_operations/enter_correct_path_1.png "Entering the correct path")
+        ![](./figures/basic_operations/enter_correct_path_1.png "Entering the correct path")
 
 - Method 3: Dragging a performance file to the MindStudio Insight GUI
 
     Start MindStudio Insight and drag a performance file to the MindStudio Insight GUI to open the corresponding page. A single file or a single folder of profile data can be dragged.
 
->[!NOTE]
+> [!NOTE]
 >
 > - Only local drive data can be imported. If the network drive is used, map the network drive to the local PC and then import the data to the corresponding directory. For details about how to map the network drive to the local PC, see [Data Cannot Be Loaded When a Network Drive Directory Is Dragged to MindStudio Insight](../support/faq.md#faq-network-disk-import).
 > - If dragging a file into MindStudio Insight on a Windows system is not allowed, refer to [File Drag and Drop in MindStudio Insight Is Disabled](../support/faq.md#faq-drag-file-disabled) for resolution.
@@ -91,7 +91,7 @@ Table 1 Data management operations
 |Deleting data from a project|Click ![icon](./figures/basic_operations/en-us_image_0000002531941263.png) next to the selected data in a project to delete the selected data from the project.|
 |Viewing the data path|In the data manager's list, right-click the required project or data and choose **Open in File Explorer** from the shortcut menu to go to the corresponding data file path.|
 
->[!NOTE]
+> [!NOTE]
 >
 > Deleting a data project does not affect the original performance files.
 
@@ -104,15 +104,15 @@ MindStudio Insight supports performance comparison between single-rank data and 
 
         After the setting is complete, the current rank directory is marked in a color. Right-click the current rank again and choose **Unset as Baseline Data** from the shortcut menu to cancel the baseline status of the current rank. Alternatively, right-click any rank directory and choose **Set as Baseline Data** from the shortcut menu to set the selected rank as the baseline data.
 
-        **Figure 1** Setting as baseline data <a id="setting_as_baseline_data"></a>  
-        ![Figure 1 Setting as baseline data](./figures/basic_operations/set_baseline_data_1.png "Setting baseline data")
+        **Figure 1** Setting as baseline data <a id="setting_as_baseline_data"></a>
+        ![](./figures/basic_operations/set_baseline_data_1.png "Setting baseline data")
 
     2. Right-click the rank directory to be set as the comparison rank and choose **Set as Comparison Data** from the shortcut menu to set the selected rank as the comparison rank, as shown in [Figure 2 Setting as comparison data](#setting_as_comparison_data).
 
         After the setting is complete, the comparison rank directory is marked in a color, which is different from the color of the baseline data directory. Only the rank directory in the current project can be selected as the comparison rank. Right-click the current comparison rank again and choose **Unset as Comparison Data** from the shortcut menu to cancel the comparison status of the current comparison rank. Alternatively, right-click any rank directory and choose **Set as Comparison Data** from the shortcut menu to set the comparison data again.
 
-        **Figure 2** Setting as comparison data <a id="setting_as_comparison_data"> </a>  
-        ![Figure 2 Setting as comparison data](./figures/basic_operations/set_comparison_data_1.png "Setting as comparison data")
+        **Figure 2** Setting as comparison data <a id="setting_as_comparison_data"> </a>
+        ![](./figures/basic_operations/set_comparison_data_1.png "Setting as comparison data")
 
     3. After the baseline data and comparison data are set, go to the **Timeline**, **Memory**, and **Operator** tab pages to view the data comparison details.
 
@@ -124,12 +124,12 @@ MindStudio Insight supports performance comparison between single-rank data and 
 
         After the setting is complete, the current cluster directory is marked in a color. Right-click the current cluster directory again and choose **Unset as Baseline Data** from the shortcut menu to cancel the baseline status of the current cluster directory. Alternatively, right-click any cluster directory and choose **Set as Baseline Data** from the shortcut menu to set the selected cluster directory as the baseline data.
 
-        >[!NOTE]
+        > [!NOTE]
         >
         > If the cluster data directory imported to a project is `cluster\_analysis\_output`, you can also set the data in the project as the baseline data.
 
-        **Figure 3** Setting as baseline data <a id="setting_as_baseline_data_2"> </a>  
-        ![**Figure 3** Setting as baseline data](./figures/basic_operations/set_baseline_data_0_1.png "Setting baseline data-0")
+        **Figure 3** Setting as baseline data <a id="setting_as_baseline_data_2"> </a>
+        ![](./figures/basic_operations/set_baseline_data_0_1.png "Setting baseline data-0")
 
     3. After the baseline data is set, go to the **Summary** and **Communication** tab pages to view the data comparison details.
 
@@ -155,7 +155,7 @@ You can view the log file storage path in two ways: directly viewing the path, o
 
     On the MindStudio Insight page, click ![icon](./figures/basic_operations/en-us_image_0000002531920179.png) in the upper right corner and choose **Show Logs in Explorer** to go to the log storage directory.
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > This function is supported only on Windows and macOS.
 
@@ -206,7 +206,7 @@ This section describes the common shortcut keys of MindStudio Insight. You can a
 
 ## Help Documentation
 
-This section describes the document viewing feature of the MindStudio Insight tool. If you encounter any issues, you can first click ![](./figures/basic_operations/en-us_image_0000002500056862.png) in the upper right corner of the MindStudio Insight tool interface, and select "Help Documentation" to view the documentation for this tool. If the issue persists, click "[Help and Feedback](#help-and-feedback)" to go to the community and submit an issue for assistance.
+This section describes the document viewing feature of the MindStudio Insight tool. If you encounter any issues, you can first click ![](./figures/basic_operations/en-us_image_0000002500056862.png) in the upper right corner of the MindStudio Insight tool interface, and select "Help Documentation" to view the documentation for this tool. If the issue persists, click [Help and Feedback](#help-and-feedback) to go to the community and submit an issue for assistance.
 
 ## Help and Feedback
 

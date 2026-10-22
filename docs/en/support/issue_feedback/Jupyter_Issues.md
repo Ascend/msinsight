@@ -1,7 +1,5 @@
 # JupyterLab Issues
 
-<!-- md-trans-meta sourceCommit=49122e1f1d6621e5b8a8bbc1c0fdae9583659f48 translatedAt=2026-08-12T11:45:28.013Z pushedAt=2026-08-12T11:57:31.146Z -->
-
 ## Unable to Open Webpage When Using mindstudio_insight_jupyterlab
 
 ### Problem Description

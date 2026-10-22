@@ -1,7 +1,5 @@
 # Import Issues
 
-<!-- md-trans-meta sourceCommit=e99edc859b9c75396352963171ba410aa66e4e0d translatedAt=2026-08-12T11:46:39.892Z pushedAt=2026-08-12T11:57:31.158Z -->
-
 ## Information Displayed Incompletely When Opening a Profile Data File in MindStudio Insight
 
 ### Problem Description
@@ -24,6 +22,8 @@ The A5 currently has a known issue with DB export, and DB export has been manual
 
 It is recommended to delete all DB files under the `ASCEND_PROFILER_OUTPUT` folder and use TEXT format data for reading.
 
+---
+
 ## Unable to Import Project
 
 ### Problem Description
@@ -37,6 +37,8 @@ Tool version: Insight 8.1
 ### Solution
 
 Update msInsight to version 8.2 or later.
+
+---
 
 ## cluster_analyze Cluster Analysis Result Cannot Be Recognized by MindStudio Insight
 
@@ -59,6 +61,8 @@ The **Summary** page displays data, but the **Communication** page does not. Thi
 
 Perform offline parsing on a single rank.
 
+---
+
 ## No Summary Communication After MindStudio Insight Multi-rank Collection Result Import
 
 ### Problem Description
@@ -77,14 +81,15 @@ Operators and timelines are visible.
 
 ### Solution
 
-【Problem Analysis】
+[Problem Analysis]
 msprof collects data within an NPU rank. **Summary** and **Communication** display inter-rank data. Therefore, parsing the data collected by msprof does not yield inter-rank data, and **Summary** and **Communication** will have no data.
 
-【Solution】
+[Solution]
 
-1. Use Ascend PyTorch Profiler, which can collect both intra-rank and inter-rank data. For details, see [Performance Data Collection and Automatic Parsing](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850alpha001/devaids/Profiling/atlasprofiling_16_0033.html).
-
+1. Use Ascend PyTorch Profiler, which can collect both intra-rank and inter-rank data. For details, see [Performance Data Collection and Automatic Parsing](https://www.hiascend.com/document/detail/en/CANNCommunityEdition/850alpha001/devaids/Profiling/atlasprofiling_16_0033.html).
 2. mstt may support cluster analysis of msprof data.
+
+---
 
 ## L1 Collection Cluster Information Has No Collective Communication or Cluster Overview Information
 
@@ -102,6 +107,8 @@ After data is imported into msInsight, the page displays:
 
 The data analysis is correct, but the msInsight version is too old. Update msInsight to version 8.2 to resolve the issue.
 
+---
+
 ## No NPU Operator Information After Multi-rank Collection Result Import in MindStudio Insight
 
 ### Problem Description
@@ -116,11 +123,11 @@ The op_summary of the multi-rank collection result contains NPU operator informa
 
 No NPU operator information is displayed:
 
-![No NPU operator information displayed](figures/Import_Issues/multi-card-no-npu-operator.png)
+![a2-collection-data.png](figures/Import_Issues/multi-card-no-npu-operator.png)
 
 After changing only the number of ranks, the single-rank collection result contains NPU operator information:
 
-![NPU operator information present in single-rank collection](figures/Import_Issues/single-card-has-npu-operator.png)
+![a2-collection-data.png](figures/Import_Issues/single-card-has-npu-operator.png)
 
 ### Solution
 
@@ -131,6 +138,8 @@ It is suspected that the data was previously parsed, but msInsight was closed be
 
 **Solution**
 Delete the `mindstudio_insight_data.db` cache database under the import directory, and then re-import and parse the data.
+
+---
 
 ## How to View Memory Information of GPU-Collected Profile Data in MindStudio Insight
 
@@ -144,6 +153,8 @@ In the msInsight 8 version released in 2025, the data files required for the **M
 
 These data files are not generated on GPUs, so memory data collected from GPUs cannot be viewed.
 
+---
+
 ## No Data Is Displayed in Communication After Importing a Project
 
 ### Problem Description
@@ -156,7 +167,7 @@ No data is displayed in **Communication** after a project is imported.
 
 **Issue Source:** MinSpeed-MM Team, Ascend Computing Training Development Department
 
-**Model Usage Scenario:** qwen3vl-30B, 8-card
+**Model Usage Scenario:** qwen3vl-30B, 8-rank
 
 **Performance Problem Description:** In the training scenario, the out-of-the-box performance did not meet expectations.
 
@@ -167,6 +178,8 @@ Upon checking `analysis.db`, it is found that the `CommAnalyzerBandwidth` table 
 
 [Solution]
 It is suspected that an error occurred during the online profiling parsing process. Offline parsing is recommended for troubleshooting.
+
+---
 
 ## [Cluster] No Results After Importing Profile Data in MindStudio Insight
 
@@ -179,6 +192,8 @@ When using MindStudio Insight to import cluster profile data collected via the `
 ### Solution
 
 The issue occurs because `--data_simplification` was not enabled during msprof cluster analysis, and msInsight does not support non-simplified mode data. Run `msprof-analyze cluster -m all -d {data location} --data_simplification` again. It has been confirmed with the msprof team that data simplification will be enabled by default in future versions, and the non-simplified mode will be removed.
+
+---
 
 ## [Import Issue] MindStudio Insight Reports Error "No parsable db files found" When Opening a Profile File
 
@@ -193,6 +208,8 @@ In the imported folder, `msprof.db` exists under the `PROF_***` folder, while th
 During import, simply import the `ASCEND_PROFILER_OUTPUT` folder.
 
 From the collection perspective, the reason why `ASCEND_PROFILER_OUTPUT` contains text format data while `PROF_***` has `msprof.db` is that CANN uses the default db export method, whereas the framework-side profiling is of an older version.
+
+---
 
 ## [Import Issue] All Files Exist but Unable to Import: No parsable db files found
 
@@ -216,6 +233,8 @@ When importing, import only the ASCEND_PROFILER_OUTPUT folder.
 
 From a collection perspective, the reason why ASCEND_PROFILER_OUTPUT contains text format data while PROF_*** has msprof.db is that CANN uses the default db export method, whereas PTA uses an older one. It is recommended to update PTA.
 
+---
+
 ## Unable to See Directory When Importing Profile Data in MindStudio Insight
 
 ### Problem Description
@@ -238,6 +257,8 @@ Import path security check protection is triggered, primarily by the following c
 
 A simple prompt can be provided.
 
+---
+
 ## MindStudio Insight Parses nodata
 
 ### Problem Description
@@ -252,6 +273,8 @@ Data exists, but parsing shows nodata.
 
 The issue is resolved after re-importing. The probable cause is that the data file is too large, resulting in disk space exhaustion.
 
+---
+
 ## MindStudio Insight Opening Profile Shows No Data
 
 ### Problem Description
@@ -261,6 +284,8 @@ Tool version 8.1.RC1
 ### Solution
 
 This issue occurs because the `trace_view.json` file is missing from the profile data. The display returns to normal after the file is downloaded.
+
+---
 
 ## No Trace Graph Displayed When Opening a JSON File
 
@@ -277,6 +302,8 @@ This is a collection-side issue and is unrelated to MindStudio Insight. The time
 [Solution]
 
 You can first search for any event. The interface will automatically zoom in to the corresponding scale, and then you can use WASD to navigate.
+
+---
 
 ## Error Occurs When MindStudio Insight Opens the Performance Simulation Diagram trace.json
 
@@ -302,11 +329,14 @@ The data can be successfully imported after restoring the raw data to JSON forma
 
 The error prompts in older versions of msInsight were not sufficiently accurate. The new version of msInsight provides more user-friendly error prompts, and this can be continuously optimized.
 
+---
+
 ## Unable to Load Profiling, Constantly Spinning
 
 ### Problem Description
 
-Jupyter version: It initially loaded successfully, then a pop-up window appeared.
+Jupyter version:
+It initially loaded successfully, then a pop-up window appeared.
 
 ![a2-collection-data.png](figures/Import_Issues/nodata-4.png)
 
@@ -326,6 +356,8 @@ After downloading the data locally, open it using the Windows version, and it ca
 
 2. The ACC PMU cannot be displayed because excessive data in a single unit causes the frontend communication load to be overwhelmed, resulting in disconnection. The Counter unit has reduced data volume through sampling in iteration four. The issue of being unable to load and disconnection does not occur when user data is imported via single-rank import.
 
+---
+
 ## No Cluster Communication Information When Using msprof to Collect Cluster Profiling
 
 ### Problem Description
@@ -344,6 +376,8 @@ msprof --analyze=on --output=<dir>
 ```
 
 [Parse and Export Performance Data - MindStudio 8.1.RC1 - Ascend Community](https://www.hiascend.com/document/detail/en/mindstudio/81RC1/T&ITools/Profiling/atlasprofiling_16_0018.html)
+
+---
 
 ## Unable to Open Profile Data Collected from the vllm Service in MindStudio Insight
 
@@ -385,6 +419,8 @@ if __name__ == "__main__":
 ​
 ```
 
+---
+
 ## Data Disappears After Opening Two Files
 
 ### Problem Description
@@ -394,6 +430,8 @@ When two JSON files are opened, data loss occurs.
 ### Solution
 
 Your two JSON files are in the same directory, and the .db files saved after data parsing are identical. Therefore, when you open two JSON files simultaneously, the parsed data will be overwritten. To open two JSON files at the same time, you can resolve this issue by importing them within a project. This issue will be optimized in the 930 mainline version.
+
+---
 
 ## Profile Data Imported But Not Displayed
 
@@ -419,6 +457,8 @@ Restart msInsight and open the data that has been fully parsed.
 
 When the communication latency data parsing is complete, refresh the content of the upper dropdown box.
 
+---
+
 ## DB Data Collected by msprof Fails to Import to MindStudio Insight
 
 ### Problem Description
@@ -443,6 +483,8 @@ In this scenario, multiple processes run on a single rank and cannot be collecte
 
 The introduction of new features has resulted in relatively strict import constraints for the offline inference msprof scenario. Subsequent analysis will be conducted to appropriately relax the import constraints for the msprof scenario.
 
+---
+
 ## Communication Group Missing After Opening Cluster Results in MindStudio
 
 ### Problem Description
@@ -455,7 +497,7 @@ Organization: Siye Noah
 
 #### Tool Version
 
-MindStudio-Insight_8.1.RC1_win.exe
+MindStudio-Insight\_8.1.RC1\_win.exe
 
 #### Detailed Problem Description
 
@@ -476,7 +518,6 @@ During cluster import, the `cluster_communication_matrix.json` file was not reco
 [Workaround]
 
 1. Directly import the cluster analysis output subdirectory, which will bypass the overwrite logic described above.
-
 2. Manually invoke the communication matrix mode of cluster analysis for all ranks, and add the `cluster_communication_matrix.json` file to the cluster analysis output.
 
 [Modification Plan]
@@ -488,6 +529,8 @@ An erroneous logic exists during cluster import parsing. The process is as follo
 Modify it to the following correct process:
 
 ![a2-collection-data.png](figures/Import_Issues/cluster-import-correct-flow.png)
+
+---
 
 ## Unable to Load a Profiling File of Approximately 80 GB After Importing into MindStudio Insight
 

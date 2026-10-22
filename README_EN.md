@@ -1,17 +1,16 @@
-<!-- md-trans-meta sourceCommit=8ba87048c67a1e13d2b4097e6b7e7ed22a41559a translatedAt=2026-08-17T09:15:14.033Z pushedAt=2026-08-17T09:15:32.958Z -->
-
 <h1 align="center">MindStudio Insight</h1>
+
 <div align="center">
   <img src="./modules/framework/public/favicon.ico" width="160" alt="MindStudio Insight Logo">
   <p><b><span style="font-size:24px;">A Powerful Visual Tuning Tool for the Full Ascend AI Workflow</span></b></p>
 
   [![Quick Start](https://badgen.net/badge/Quick%20Start/QuickStart/blue)](./docs/en/quick_start/system_tuning_quick_start.md)
-  [![AI FAQ (DeepWiki)](https://badgen.net/badge/AI%20FAQ/DeepWiki/blue)](https://deepwiki.com/mindstudio-docs/master)
-  [![AI FAQ (ZRead)](https://badgen.net/badge/AI%20FAQ/ZRead/blue)](https://zread.ai/mindstudio-docs/master)
-  [![Exact Search](https://badgen.net/badge/Exact%20Search/ReadTheDocs/blue)](https://msinsight.readthedocs.io/zh-cn/latest/)
-  [![Ascend Community](https://badgen.net/badge/Ascend%20Community/Community/blue)](https://www.hiascend.com/cn/developer/software/mindstudio)
+  [![AI FAQ (DeepWiki)](https://badgen.net/badge/AI%20FAQ/DeepWiki/blue)](https://deepwiki.com/mindstudio-docs/26.2.0)
+  [![AI FAQ (ZRead)](https://badgen.net/badge/AI%20FAQ/ZRead/blue)](https://zread.ai/mindstudio-docs/26.2.0)
+  [![Exact Search](https://badgen.net/badge/Exact%20Search/ReadTheDocs/blue)](https://msinsight.readthedocs.io/zh-cn/26.2.0/)
+  [![Ascend Community](https://badgen.net/badge/Ascend%20Community/Community/blue)](https://www.hiascend.com/eng/developer/software/mindstudio)
   [![Report Issues](https://badgen.net/badge/Report%20Issues/Issues/blue)](https://gitcode.com/Ascend/msinsight/issues)
-  [![Version](https://badgen.net/badge/Version/26.1.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
+  [![Version](https://badgen.net/badge/Version/26.2.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
 </div>
 
 English | [简体中文](./README.md)
@@ -19,6 +18,8 @@ English | [简体中文](./README.md)
 ## ✨ Latest News
 
 <span style="font-size:14px;">
+
+🔹 **[2026.10.19]**: MindStudio Insight 26.2.0 is released, with continued enhancements in native Pytorch Trace import, memory snapshot analysis, Timeline hardware metrics, and operator tuning experience.
 
 🔹 **[2026.07.25]**: MindStudio Insight 26.1.0 is released, with continuous enhancements in host-side performance analysis, memory snapshot analysis, containerized deployment, web access, and Timeline interaction experience, primarily targeting developers in Ascend AI performance tuning scenarios.
 
@@ -76,11 +77,6 @@ For detailed usage and feature descriptions of the tool, see the following docum
 ## 💡 Typical Cases
 
 Help users understand and master the tool through typical problem scenarios:<br>
-🔹 [Host Bound Problem Analysis](./docs/en/best_practices/host_bound_analysis_with_linux_kernel_trace.md)<br>
-🔹 [Jupyter Plugin Installation Guide](./docs/en/best_practices/Jupyter_Plugin_Installation_Guide.md)<br>
-🔹 [Keyboard Shortcut Use Cases](./docs/en/best_practices/Keyboard_Shortcuts.md)<br>
-🔹 [Timeline Common Lanes and Interfaces](./docs/en/best_practices/Timeline_Common_Lanes_and_Interface.md)<br>
-🔹 [verl Memory Snapshot Collection and Analysis](./docs/en/best_practices/verl_Memory_Snapshot_Collection_and_Analysis.md)
 
 ## ❓ FAQs
 
@@ -89,8 +85,9 @@ For common issues and solutions, see [MindStudio Insight FAQs](./docs/en/support
 ## 🌌 Intelligent Search
 
 To improve document lookup efficiency, we provide multiple efficient search methods:<br>
-🔹 [AI FAQs (DeepWiki)](https://deepwiki.com/mindstudio-docs/master): Natural language Q&A to quickly grasp the project architecture and module relationships.<br>
-🔹 [AI FAQs (ZRead)](https://zread.ai/mindstudio-docs/master): Better Chinese Q&A experience, precisely locating feature usage and details.<br>
+🔹 [AI FAQs (DeepWiki)](https://deepwiki.com/mindstudio-docs/26.2.0): Natural language Q&A to quickly grasp the project architecture and module relationships.<br>
+🔹 [AI FAQs (ZRead)](https://zread.ai/mindstudio-docs/26.2.0): Better Chinese Q&A experience, precisely locating feature usage and details.<br>
+🔹 [Exact Search (ReadTheDocs)](https://msinsight.readthedocs.io/zh-cn/latest/): Full-text keyword search with direct access to installation, usage, FAQ, and other documents.
 
 ## 🛠️ Contribution
 
@@ -100,7 +97,7 @@ Welcome to contribute to the MindStudio Insight project:<br>
 
 ## ⚖️ Related Notes
 
-🔹 [Release Notes](./docs/en/release_notes/release_notes.md)<br>
+🔹 [Release Notes](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_26.2.0.B110_001)<br>
 🔹 [Project License](./License)<br>
 🔹 [Documentation License](./docs/LICENSE)<br>
 🔹 [Security Statement](./docs/en/legal/security_statement.md)<br>

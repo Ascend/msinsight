@@ -31,7 +31,7 @@ MindStudio Insight provides various import modes based on the file type. For det
 **Precautions**
 
 - The profile data of system tuning and serving tuning can be imported at the same time. You need to place the data of the two scenarios in the same folder and select the folder when importing the data.
-- For details about how to obtain the data, see [msServiceProfiler Multi Analyze](https://gitcode.com/Ascend/msserviceprofiler/blob/master/docs/en/msserviceprofiler_multi_analyze_instruct.md).
+- For details about how to obtain the data, see [msServiceProfiler Multi Analyze](https://gitcode.com/Ascend/msserviceprofiler/blob/26.2.0/docs/en/user_guide/msserviceprofiler_multi_analyze_instruct.md).
 
 ## Timeline
 
@@ -47,10 +47,10 @@ You can check the duration and interval at each level in the timeline view to de
 
 The **Timeline** tab page consists of the toolbar (area 1), graphical display (area 2), and data pane (area 3), as shown in [**Figure 1** Timeline page](#timeline-page).
 
-**Figure 1** Timeline page <a id="timeline-page"></a> 
+**Figure 1** Timeline page <a id="timeline-page"></a>
 ![](./figures/service_optimization/timeline_interface_11_1.png "Timeline page-11")
 
-- Area 1: toolbar, which contains common shortcut keys. From left to right, the shortcut keys are **Marker List**, **Filter** (card or unit), **Search**, **Flow Events**, **Reset** (page restoration), **Timeline Zoom Out**, and **Timeline Zoom In**.
+- Area 1: toolbar, which contains common shortcut keys. From left to right, the shortcut keys are **Marker List**, **Filter** (rank or unit), **Search**, **Flow Events**, **Reset** (page restoration), **Timeline Zoom Out**, and **Timeline Zoom In**.
 - Area 2: graphical display. The profile data collected by service is displayed on the left. The first level is the process, and the second level is the key phase information of the request. [Unit Information](#unit-information) describes the unit information. The timeline view is displayed on the right line by line, including the execution sequence and duration of each key phase.
 - Area 3: data pane, which displays statistics or instruction details. If you select **Slice Detail**, the details of a single key phase are displayed. If you select **Slice List**, the key phase list information of the selected area in the unit is displayed.
 
@@ -108,13 +108,13 @@ The **Timeline** tab page consists of the toolbar (area 1), graphical display (a
 
 ### Usage Description
 
-For details about how to use the **Timeline** tab page in the serving tuning scenario, see "[Usage Description](./system_tuning.md#usage-description)" in the *MindStudio Insight System Tuning*.
+For details about how to use the **Timeline** tab page in the serving tuning scenario, see [Usage Description](./system_tuning.md#usage-description) in the *MindStudio Insight System Tuning*.
 
 **Slice Detail**
 
 When you select a key phase block, the details about the key phase are displayed on the **Slice Detail** tab page in the lower part. If **res\_list** exists on the **Slice Detail** tab page, click any row in the **rid** list. The request details of the corresponding RID are displayed in the right pane of the **Slice Detail** tab page, as shown in [**Figure 2** Slice Detail](#slice-detail-12). For details about the fields, see [**Table 3** Slice Detail fields](#slice-detail-fields).
 
-**Figure 2** Slice Detail <a id="slice-detail-12"></a> 
+**Figure 2** Slice Detail <a id="slice-detail-12"></a>
 ![](./figures/service_optimization/selected_details_12_1.png "Slice Detail-12")
 
 **Table 3** Slice Detail fields <a id="slice-detail-fields"></a>
@@ -135,20 +135,20 @@ The serving data includes the **kvcache\_usage**, **batch\_info**, **request\_da
 
 When you select a serving data type, the corresponding details are displayed in the right area. For details about the fields, see [**Table 4** Servitization View fields](#servitization-view-fields). You can search for information by clicking ![](./figures/service_optimization/en-us_image_0000002500200444.png) next to the field name.
 
-**Figure 3** System View <a id="system-view"></a> 
+**Figure 3** System View <a id="system-view"></a>
 ![](./figures/service_optimization/system_view_1.png "System view")
 
 **Table 4** Servitization View fields <a id="servitization-view-fields"></a>
 
 |Field|Description|
 |--|--|
-|**kvcache_usage**|-|
+|**kvcache_usage**|Device memory usage during inference.|
 |rid|Request ID.|
-|name|Method that changes the graphics memory usage.|
+|name|Method that changes the device memory usage.|
 |real_start_time_ms|Time when the device memory usage changes, in milliseconds.|
-|device_kvcache_left|Number of left blocks in the graphics memory.|
+|device_kvcache_left|Number of left blocks in the device memory.|
 |kvcache_usage_rate|KV cache usage.|
-|**batch_info**|-|
+|**batch_info**|Detailed data at the batch granularity for serving inference, including the duration of batch grouping and batch execution.|
 |name|Batch grouping or execution. **batchFrameworkProcessing** refers to batch grouping, while **modelExec** refers to batch execution.|
 |res_list|Batch composition information.|
 |start_time_ms|Start time of batch grouping or batch execution, in milliseconds.|
@@ -159,7 +159,7 @@ When you select a serving data type, the corresponding details are displayed in 
 |dp*_rid|ID of the request contained in the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
 |dp*_size|Batch size of the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
 |dp*_forward_ms|The longest forward execution time in the DP domain, in milliseconds. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|**request_data**|-|
+|**request_data**|Detailed data at the request granularity for serving inference, including TTFT and the input and output lengths of requests.|
 |http_rid|HTTP request ID.|
 |start_time_ms|Request arrival time, in milliseconds.|
 |recv_token_size|Input token length of a request.|
@@ -167,7 +167,7 @@ When you select a serving data type, the corresponding details are displayed in 
 |execution_time_ms|End-to-end request duration, in ms.|
 |queue_wait_time_ms|The total waiting time of a request in the queue throughout the inference process includes both waiting and pending periods, measured in milliseconds.|
 |first_token_latency|Time to first token (TTFT), in milliseconds.|
-|**forward_info**|-|
+|**forward_info**|Detailed data about the forward execution process of the serving inference model.|
 |name|Labels a forward event, indicating the model forward execution process.|
 |relative_start_time(ms)|Time elapsed since the initial forward on each device.|
 |start_time(ms)|Forward start time.|
@@ -192,7 +192,7 @@ On the **Timeline** tab page, right-click a block in any unit and choose **Gener
 
 If you spot an anomaly in the curve, zoom into that area and click on the anomaly. Check the related information in the data details table below the curve. Right-click the data row and choose **Find in Timeline** from the shortcut menu. The **Timeline** page is displayed, as shown in [**Figure 5** Find in Timeline](#find-in-timeline-13).
 
-**Figure 5** Find in Timeline <a id="find-in-timeline-13"> </a> 
+**Figure 5** Find in Timeline <a id="find-in-timeline-13"> </a>
 ![](./figures/service_optimization/jump_to_timeline_view_13_1.png "Find in Timeline-13")
 
 ## Curve
@@ -205,10 +205,10 @@ Data changes can be displayed in curves and data details tables, facilitating an
 
 The **Curve** tab page consists of the parameter configuration area (area 1), curve data (area 2), and table data details (area 3), as shown in [**Figure 6** Curve page](#curve-page).
 
-**Figure 6** Curve page <a id="curve-page"> </a> 
-![**Figure 6** Curve page](./figures/service_optimization/line_chart_interface_1.png "Curve page")
+**Figure 6** Curve page <a id="curve-page"> </a>
+![](./figures/service_optimization/line_chart_interface_1.png "Curve page")
 
-- Area 1: parameter configuration area, including the card ID and grouping mode.
+- Area 1: parameter configuration area, including the rank ID and grouping mode.
 - Area 2: curve chart, showing data changes.
 - Area 3: table data details, showing the detailed data of the SQLite database. The table supports sorting and pagination. You can click the table header of each column to display data in ascending, descending, or default order.
 
@@ -222,10 +222,10 @@ In the curve, click and drag the mouse to the end point to be zoomed in and rele
 
 You can click to dim a legend on the top to hide the curve. You can also click the dimmed legend to show the curve.
 
-**Figure 7** Selected zoom-in region <a id="selected-zoom-in-region-14"> </a> 
+**Figure 7** Selected zoom-in region <a id="selected-zoom-in-region-14"> </a>
 ![](./figures/service_optimization/selected_zoom_region_14_1.png "Selected zoom-in region-14")
 
->[!NOTE]
+> [!NOTE]
 >
 > - Click ![](./figures/service_optimization/en-us_image_0000002500040464.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
 > - You can click ![](./figures/service_optimization/en-us_image_0000002500200460.png) in the upper right corner of the curve to cancel the last zoom-in operation.

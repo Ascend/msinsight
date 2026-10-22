@@ -1,8 +1,6 @@
 # Communication Issues
 
-<!-- md-trans-meta sourceCommit=e99edc859b9c75396352963171ba410aa66e4e0d translatedAt=2026-08-12T11:44:59.316Z pushedAt=2026-08-12T11:57:31.142Z -->
-
-## Abnormal Values in A3 Log Communication Group 
+## Abnormal Values in A3 Log Communication Group
 
 ### Problem Description
 
@@ -13,6 +11,8 @@ For a job with four A3 ranks and eight dies, there are abnormally large values i
 ### Solution
 
 This string is not an abnormal value. It is a hash value collected by profiling in different collective communication groups, serving as a unique identifier to distinguish different communication groups. When profiling fails to collect the specific type of a communication group, this unique identifier is used to differentiate cases where the RankSet is the same but the communication groups are different (for example, in the figure above, there are two communication groups containing the RankSet 0, 1, 2, 3, 4, 5, but they are not the same communication group, and the communication behaviors within them also differ).
+
+---
 
 ## A3 AICPU Related Operator Collection Issues
 
@@ -34,6 +34,8 @@ As shown in the screenshot, the A3 operators include allgatherAicpuKernel, whose
 
 By analyzing the names, it can be determined that these operators are communication operators executed through the AICPU path.
 
+---
+
 ## Data Statistics Analysis Under Different Communication Planes
 
 ### Problem Description
@@ -46,6 +48,8 @@ Taking the HcomAllToAllVC operator as an example, is there a way to separately c
 
 Select this range to view statistics.
 ![image.png](figures/Communication_Issues/selection-statistics.png)
+
+---
 
 ## MindStudio Insight Encounters All-Gather Communication Algorithm with HD Suffix
 
@@ -125,6 +129,8 @@ Why does the communication algorithm have an extra HD?
 [Cause]
 This is caused by the collection level configuration. level1 is MESH-HD, and level2 is MESH-HD-HD.
 
+---
+
 ## How to Find the Peer for hcom_send
 
 ### Problem Description
@@ -141,8 +147,9 @@ The user wants to find the receive communication operator corresponding to hcom_
 [Solution]
 
 1. Note that hcom_send is followed by `447_18_1`, which is a unique identifier. The user can perform a global search for `447_18_1` to locate the corresponding hcom_receive__447_18_1.
-
 2. Send and receive communicate within the same communication group. Right-click the unit corresponding to this send and pin the communication group unit of the corresponding receive end.
+
+---
 
 ## Right-clicking a Communication Operator Fails to Jump to Communication, and the Corresponding Communication Group Cannot Be Found in the Communication Tab
 
@@ -162,3 +169,5 @@ The corresponding communication domain cannot be found in the **Communication** 
 The pin feature requires that the communication group name must not consist solely of digits.
 
 The collection side collected purely numeric data, and the data itself is problematic.
+
+---
