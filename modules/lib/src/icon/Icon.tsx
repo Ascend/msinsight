@@ -229,7 +229,7 @@ export function MinusIcon(props: ISVGProps): JSX.Element {
     return <Icon svgElement={MinusIconSvg} {...props } />;
 }
 export function ResetIcon(props: ISVGProps): JSX.Element {
-    return <Icon svgElement={ResetIconSvg} {...props } />;
+    return <Icon svgElement={ResetIconSvg} color={useTheme().iconColor} {...props } />;
 }
 export function StartIcon(props: ISVGProps): JSX.Element {
     return <Icon svgElement={StartSvg} {...props }/>;
