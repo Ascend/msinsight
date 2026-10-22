@@ -5,9 +5,9 @@
   <p><b><span style="font-size:24px;">昇腾 AI 全流程可视化调优利器</span></b></p>
 
   [![快速入门](https://badgen.net/badge/快速入门/QuickStart/blue)](./docs/zh/quick_start/system_tuning_quick_start.md)
-  [![AI问答(DeepWiki)](https://badgen.net/badge/AI问答/DeepWiki/blue)](https://deepwiki.com/mindstudio-docs/master)
-  [![AI问答(ZRead)](https://badgen.net/badge/AI问答/ZRead/blue)](https://zread.ai/mindstudio-docs/master)
-  [![精确搜索](https://badgen.net/badge/精确搜索/ReadTheDocs/blue)](https://msinsight.readthedocs.io/zh-cn/latest/)
+  [![AI问答(DeepWiki)](https://badgen.net/badge/AI问答/DeepWiki/blue)](https://deepwiki.com/mindstudio-docs/26.2.0)
+  [![AI问答(ZRead)](https://badgen.net/badge/AI问答/ZRead/blue)](https://zread.ai/mindstudio-docs/26.2.0)
+  [![精确搜索](https://badgen.net/badge/精确搜索/ReadTheDocs/blue)](https://msinsight.readthedocs.io/zh-cn/26.2.0/)
   [![昇腾社区](https://badgen.net/badge/昇腾社区/Community/blue)](https://www.hiascend.com/cn/developer/software/mindstudio)
   [![报告问题](https://badgen.net/badge/报告问题/Issues/blue)](https://gitcode.com/Ascend/msinsight/issues)
   [![Version](https://badgen.net/badge/Version/26.2.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
@@ -85,8 +85,8 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时
 ## 🌌 智能检索
 
 为提升文档查阅效率，我们提供多种高效检索方式：<br>
-🔹 [AI 问答（DeepWiki）](https://deepwiki.com/mindstudio-docs/master)：自然语言问答，快速把握项目架构与模块关系。<br>
-🔹 [AI 问答（ZRead）](https://zread.ai/mindstudio-docs/master)：中文问答体验更优，精准定位功能用法与细节。<br>
+🔹 [AI 问答（DeepWiki）](https://deepwiki.com/mindstudio-docs/26.2.0)：自然语言问答，快速把握项目架构与模块关系。<br>
+🔹 [AI 问答（ZRead）](https://zread.ai/mindstudio-docs/26.2.0)：中文问答体验更优，精准定位功能用法与细节。<br>
 🔹 [精确搜索（ReadTheDocs）](https://msinsight.readthedocs.io/zh-cn/latest/)：关键词全文检索，直达安装、使用、FAQ 等文档。
 
 ## 🛠️ 贡献指南

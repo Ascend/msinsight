@@ -1,7 +1,5 @@
 # Single-Rank Top-Down Operator Dispatch Bottleneck Analysis
 
-<!-- md-trans-meta sourceCommit=98733f8b413179602cfeaca938e1855022a2f898 translatedAt=2026-08-12T11:37:49.807Z pushedAt=2026-08-12T11:57:31.067Z -->
-
 ## Background
 
 In single-rank training or inference scenarios, the device-side computing performance depends not only on the duration of the operators themselves, but also on whether the host can dispatch tasks continuously and in a timely manner. If the host-side dispatch speed is insufficient, bubbles will appear in the device-side pipeline, preventing the AI Core from continuously executing computing tasks. This ultimately manifests as increased overall Step duration and decreased compute utilization.
@@ -13,19 +11,14 @@ For single-rank performance issues, a top-down analysis approach is recommended:
 For single-rank top-down analysis, it is recommended to proceed in the following order:
 
 1. **First, examine the overall proportion**: Observe the proportions of Computing, Communication, and Free Time in Overlap Analysis or the statistics view.
-
 2. **Determine the bottleneck type**: If Computing accounts for a high proportion, prioritize analyzing compute operators; if Communication accounts for a high proportion, prioritize analyzing communication or synchronization; if Free Time accounts for a high proportion, prioritize analyzing dispatch, scheduling, or data transfer.
-
 3. **Expand Timeline details**: In the abnormal time range, examine the gaps between units such as host-side API, NPU Runtime, and Ascend Hardware.
-
 4. **Locate operators using the system view**: Search for abnormal operators in the Stats System View or the detail table, and examine operator duration, start time, and dispatch relationships.
-
 5. **Trace the dispatch link**: Enable the async_npu dispatch connection to correlate NPU-layer tasks with Python APIs, and determine whether there is frequent HostToDevice copy, synchronization, or slow host-side dispatch.
 
 Operator dispatch links can generally be classified into two types: ACLOP and ACLNN. During analysis, you do not need to determine the operator type first. Instead, first confirm whether the device bubble corresponds to the host-side dispatch gap, and then identify the specific dispatch path based on the call chain in the Timeline.
 
 - **ACLOP operator dispatch link**: Python layer (`<built-in ...>`) -> Python layer specific operator (`aten::...`) -> Python layer Enqueue -> Python layer Dequeue -> CANN layer `aclopCompileAndExecute` -> CANN layer launch -> Ascend Hardware layer executes the operator.
-
 - **ACLNN operator dispatch link**: Python layer (`<built-in ...>`) -> Python layer specific operator (`aten::...`) -> Python layer Enqueue -> Python layer Dequeue -> CANN layer operator -> CANN layer `Node@launch` -> Ascend Hardware layer executes the operator. CANN layer operator names in the ACLNN path typically start with `aclnn`.
 
 ## Step 1: Determining the Idle Proportion through Overlap Analysis
@@ -43,11 +36,8 @@ When the Free Time proportion is significantly higher than that of Computing and
 Focus on the following when making the judgment:
 
 - Whether Free Time appears continuously in chunks, rather than only briefly at step boundaries.
-
 - Whether Computing is frequently interrupted and unable to form a continuous computing pipeline.
-
 - Whether the Communication proportion is relatively low, ruling out the possibility that communication is the dominant factor.
-
 - Whether idle intervals are adjacent to host-side API calls, data transfer, or synchronization operations.
 
 ## Step 2: Expanding the Timeline to Observe Dispatch Intervals
@@ -57,11 +47,8 @@ After confirming the Free Time anomaly, zoom in on the abnormal Step or abnormal
 At this point, focus on the following units:
 
 - Python API or framework layer call units: Observe whether upper-layer interfaces frequently trigger synchronization or data transfer.
-
 - NPU Runtime or acl related units: Observe whether host-side dispatch is continuous.
-
 - Ascend Hardware-related unit: Observe whether there are bubbles between tasks on the device.
-
 - Overlap Analysis unit: Confirm the correspondence between bubbles and Computing and Communication.
 
 **Figure 3** Expanding Timeline to view dispatch details<a id="expand-timeline-to-view-dispatch-details"></a>
@@ -102,11 +89,8 @@ In Figure 6, the Python-side synchronization or blocking operations are adjacent
 When using dispatch connections, focus on the following observations:
 
 - Whether a single Python API triggers a large number of fragmented hardware tasks.
-
 - Whether HostToDevice data transfers are frequently interleaved between computing tasks.
-
 - Whether there are synchronization APIs in the dispatch link that prevent subsequent tasks from being queued asynchronously.
-
 - Whether the abnormal API is related to data conversion, printing, value retrieval, control flow, or dynamic graph branching.
 
 If it is confirmed that a certain Python API causes frequent HostToDevice copies or synchronization, you should return to the model code to check whether data transfer can be reduced, small operators can be merged, unnecessary synchronization can be avoided, or part of the logic can be migrated to the device for execution.
@@ -122,13 +106,9 @@ Therefore, this issue is a typical single-rank dispatch bottleneck. The direct c
 For operator dispatch bottlenecks, optimization can be pursued in the following directions:
 
 - Reduce HostToDevice data transfer in the training or inference main loop, and avoid frequently creating or copying device tensors within a step.
-
 - Avoid unnecessary synchronization operations, such as frequent scalar retrieval, printing device tensors, blocking data reads, and so on.
-
 - Merge excessively fine-grained small operators or small-scale API calls to reduce host-side scheduling and dispatch overhead.
-
 - Check the data preprocessing and input pipeline to prevent host-side data preparation from blocking device-side computation.
-
 - Review dynamic graph control flows or conditional branches to reduce unstable dispatch paths within each step.
 
 After optimization, it is recommended to re-collect profile data and compare the Overlap Analysis before and after optimization: the Free Time proportion should decrease, the Computing proportion should increase, and the bubbles between hardware tasks in the Timeline should be reduced.
@@ -136,9 +116,6 @@ After optimization, it is recommended to re-collect profile data and compare the
 ## Reference
 
 - [System Tuning](../user_guide/system_tuning.md)
-
 - [Common Units and Interfaces Introduction](./Timeline_Common_Lanes_and_Interface.md)
-
 - [Observing Dispatch Bottlenecks](https://www.hiascend.com/document/detail/en/mindstudio/830/practicalcases/GeneralPerformanceIssue/toolsample6_022.html?framework=mindspore#ZH-CN_TOPIC_0000002535807019__section1664916388559)
-
 - [Issue #324: Add Case-Specific Documentation](https://gitcode.com/Ascend/msinsight/issues/324)

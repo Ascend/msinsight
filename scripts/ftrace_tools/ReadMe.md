@@ -1,6 +1,6 @@
 # Loading Linux Kernel ftrace Data into MindStudio Insight for Joint Host Bound Analysis
 
-[Simplified Chinese](ReadMe.zh-CN.md) | English
+[简体中文](ReadMe.zh-CN.md) | English
 
 ## Release Notes (2026/6/29)
 
@@ -17,7 +17,7 @@ There has been a lack of tooling that integrates Profiling data with Linux kerne
 
 ## Host Bound Troubleshooting Approach
 
-1. Apply general scheduling optimizations first, including the common first-line optimizations of CPU affinity, pipeline optimization, and memory allocator replacement. For PyTorch framework scheduling optimization, see [Scheduling Optimization - Ascend Extension for PyTorch](https://www.hiascend.com/document/detail/zh/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0059.html).
+1. Apply general scheduling optimizations first, including the common first-line optimizations of CPU affinity, pipeline optimization, and memory allocator replacement. For PyTorch framework scheduling optimization, see [Scheduling Optimization - Ascend Extension for PyTorch](https://www.hiascend.com/document/detail/en/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0059.html).
 2. If the general optimizations do not deliver the expected result, collect data for deeper analysis. It is recommended that ftrace data and Profiling data be collected together. For Profiling data collection, see the [MindStudio Profiler Tool Guide](https://mindstudio-profiler-docs.readthedocs.io/zh-cn/latest/msprof/).
 3. Convert ftrace data into a format that can be recognized by MindStudio Insight.
 4. Import ftrace data and Profiling data together, and analyze process scheduling behavior.
@@ -37,10 +37,8 @@ Typical workflow:
 ```text
 trace_record.py (collect)
       |
-      v
 trace_convert.py (convert to DB/JSON and optionally align with the Profiling timeline)
       |
-      v
 MindStudio Insight (visual joint analysis) or trace_analyze.py (statistical analysis)
 ```
 
@@ -126,12 +124,11 @@ Parameters:
 
 | Parameter | Description | Default |
 | --- | --- | --- |
-| `--input` | 输入的原始 ftrace 文件。trace-cmd 后端通常为 `.dat`，debugfs 后端通常为 `.txt` | `trace.dat` |
-| `--output` | 输出文件路径。后缀必须与 `--format` 匹配 | `ftrace_data.db` |
-| `--format` | 输出格式，支持 `db` 或 `json` | `db` |
-| `--cpu` | 转换阶段的 CPU 过滤掩码，支持 `0`、`0,1,4`、`0-3,8`、`0-15` 等写法；未选中的 CPU 事件会在时间转换和 PID 映射前跳过 | 转换全部 CPU |
-| `--profiling_data` | Profiling 数据目录，用于 ftrace 与 Profiling 时间轴对齐 | 不启用 |
-| `--pid_mapping` | 容器 PID 映射文件，用于把宿主机 PID 转为容器内 PID | 不启用 |
+| `--input` | Raw ftrace file to be converted. It is usually `.dat` for the trace-cmd backend and `.txt` for the debugfs backend | `trace.dat` |
+| `--output` | Output file path. The suffix must match `--format` | `ftrace_data.db` |
+| `--format` | Output format. The value can be `db` or `json` | `db` |
+| `--profiling_data` | Profiling data directory, used to align the ftrace and profiling timelines | Disabled |
+| `--pid_mapping` | Container PID mapping file, used to convert host PIDs into in-container PIDs | Disabled |
 
 ### 4.1 Output Format and Suffix Requirements
 
@@ -153,9 +150,6 @@ python trace_convert.py --input=trace.txt --output=ftrace_data.db --format=db
 
 # Output Chrome Trace JSON
 python trace_convert.py --input=trace.dat --output=ftrace_data.json --format=json
-
-# 只转换指定 CPU，减少转换耗时和输出大小
-python trace_convert.py --input=trace.dat --output=ftrace_cpu0_15.db --format=db --cpu=0-15
 ```
 
 > The debugfs mode usually outputs `trace.txt`. If a stale default file named `trace.dat` still exists in the same directory and `--input=trace.txt` is not explicitly specified during conversion, the script reads the default `trace.dat` instead of the latest debugfs collection result.

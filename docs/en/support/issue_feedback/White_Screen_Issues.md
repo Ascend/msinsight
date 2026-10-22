@@ -1,7 +1,5 @@
 # White Screen Issues
 
-<!-- md-trans-meta sourceCommit=fa1a6c7eaa3f2f5893a21924aaf47beb93b490b6 translatedAt=2026-08-12T11:46:02.323Z pushedAt=2026-08-12T11:57:31.151Z -->
-
 ## White Screen on MindStudio Startup
 
 ### Problem Description
@@ -15,6 +13,8 @@ OS: win11
 ### Solution
 
 This can be temporarily resolved by using the frontend-backend separated startup method.
+
+---
 
 ## White Screen When Loading Memory
 

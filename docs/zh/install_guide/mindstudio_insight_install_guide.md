@@ -87,7 +87,7 @@ MindStudio Insight可在如下场景使用：
 
 为了防止软件包在传递过程或存储期间被恶意篡改，下载软件包时需下载对应软件包的.sha256文件用于完整性验证。
 
-单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)获取对应软件包的哈希校验文件（.sha256），并对[下载的软件包](#软件包下载)进行完整性校验。如果校验失败，请不要使用该软件包，需要支持与服务请在论坛求助或提交技术工单。
+单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_26.2.0.B110_001)获取对应软件包的哈希校验文件（.sha256），并对[下载的软件包](#软件包下载)进行完整性校验。如果校验失败，请不要使用该软件包，需要支持与服务请在论坛求助或提交技术工单。
 
 具体校验方法如下：
 

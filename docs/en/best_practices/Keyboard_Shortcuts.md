@@ -1,7 +1,5 @@
 # Keyboard Shortcuts
 
-<!-- md-trans-meta sourceCommit=81c78c7bc5b57be8952a8eb0685833246e436fe7 translatedAt=2026-08-12T11:36:38.186Z pushedAt=2026-08-12T11:57:31.069Z -->
-
 **Software version: 8.0.RC1**
 
 At MindStudio Insight, we are committed to delivering a smoother and more efficient user experience. To help you quickly master the powerful tool, this document introduces a selection of commonly used keyboard shortcuts that will accelerate your workflow and boost overall productivity.

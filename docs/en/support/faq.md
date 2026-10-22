@@ -1,4 +1,4 @@
-# **FAQs**
+# FAQs
 
 <a id="faq-missing-dependencies"></a>
 
@@ -8,11 +8,11 @@
 
 When MindStudio Insight is running on Windows, the "Missing Dependencies" error message is displayed, and MindStudio Insight cannot be run.
 
-![figure](./figures/FAQ/missing_webview2_runtime_file_1.png)
+![](./figures/FAQ/missing_webview2_runtime_file_1.png)
 
 **Possible Causes**
 
-The **WebView2Runtime** file required for running the tool is missing.
+The system is missing the WebView2 Runtime component that MindStudio Insight depends on to run.
 
 **Solution**
 
@@ -20,7 +20,7 @@ The **WebView2Runtime** file required for running the tool is missing.
 2. Download the x64 installation package for Evergreen Standalone Installer, as shown in [**Figure 1** WebView2 installation package](#webview2-installation-package).
 
     **Figure 1** WebView2 installation package <a id="webview2-installation-package"></a>
-    ![**Figure 1** WebView2 installation package](./figures/FAQ/webview2_installer_1.png "WebView2 installation package")
+    ![](./figures/FAQ/webview2_installer_1.png "WebView2 installation package")
 
 3. After the installation is complete, run MindStudio Insight again.
 
@@ -77,7 +77,7 @@ Solution 1:
 2. Click the **X11** tab and select **disable "copy on select"** for Clipboard, as shown in [**Figure 1** MobaXterm Configuration](#mobaxterm-configuration).
 
     **Figure 1** MobaXterm Configuration <a id="mobaxterm-configuration"></a>
-    ![**Figure 1** MobaXterm Configuration](./figures/FAQ/MobaXterm-Configuration.png "MobaXterm-Configuration")
+    ![](./figures/FAQ/MobaXterm-Configuration.png "MobaXterm-Configuration")
 
 3. Click **OK**.
 4. After the configuration is complete, run MindStudio Insight again.
@@ -104,7 +104,7 @@ MindStudio Insight allows you to import only local drive directories. Network dr
 2. Choose **This PC** \> **Map Network Drive**. The **Map Network Drive** dialog box is displayed, as shown in [**Figure 1** Map Network Drive](#map-network-drive).
 
     **Figure 1** Map Network Drive <a id="map-network-drive"></a>
-    ![**Figure 1** Map Network Drive](./figures/FAQ/map_network_drive_1.png "Map Network Drive")
+    ![](./figures/FAQ/map_network_drive_1.png "Map Network Drive")
 
 3. Select the drive letter from the **Drive** drop-down list.
 4. Click **Browse** next to **Folder** and select the network directory to be mapped.
@@ -147,7 +147,7 @@ When MindStudio Insight is installed in the Windows OS and **Run MindStudio Insi
 When MindStudio Insight is started in X11 or VNC mode in the Linux OS, the MindStudio Insight GUI is blank and the error message "cannot open shared object file swrast\_dri.so" is displayed, as shown in [**Figure 1** Error message](#error-message).
 
 **Figure 1** Error message <a id="error-message"></a>
-![**Figure 1** Error message](./figures/FAQ/error_screenshot_1.png "Error message")
+![](./figures/FAQ/error_screenshot_1.png "Error message")
 
 **Possible Causes**
 
@@ -170,7 +170,7 @@ The dependency may be missing.
 When MindStudio Insight is started in VNC mode in the Linux OS, the error message "Oh no! Something has gone wrong" is displayed, as shown in [**Figure 1** Error message](#error-message).
 
 **Figure 1** Error message <a id="error-message"></a>
-![**Figure 1** Error message](./figures/FAQ/error_message_1.png "Error message")
+![](./figures/FAQ/error_message_1.png "Error message")
 
 **Possible Causes**
 
@@ -196,7 +196,7 @@ Configure the SSH server.
 
 **Symptom**
 
-In the Linux OS, when openEuler and its derivative OSs are installed, a message indicating that the dependency cannot be found is displayed.
+On Linux, when openEuler and its derivative operating systems install dependencies, an error is reported that the related dependencies cannot be found.
 
 **Possible Causes**
 
@@ -319,26 +319,48 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 1. First, check whether the issue is caused by proxy settings. Go to the host settings interface and navigate to **Network &amp; Internet &gt; Proxy &gt; Manual proxy setup**.
 
    ![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/network-proxy-settings.png)
-
 2. Click **Edit** to view the details.
 
    ![alt text](./figures/FAQ/MindStudio_Insight_Disconnect/proxy-edit-interface.png)
-
-3. Check whether the **&lt;-loopback&gt;** keyword exists in the proxy whitelist shown above. If it does, delete it and save the changes.
+3. Check whether the **&lt;-loopback&gt;** keyword exists in the proxy allowlist shown above. If it does, delete it and save the changes.
 
    ![alt text](./figures/FAQ/MindStudio_Insight_Disconnect/proxy-whitelist.png)
-
-4. If removing the whitelist affects some local web access, you can add the keyword ![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png), and then reopen MindStudio Insight to use it.
-
+4. If removing the allowlist affects some local web access, you can add the keyword ![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png), and then reopen MindStudio Insight to use it.
 5. If the keyword does not exist and the modification is ineffective, contact the MindStudio Insight tool contact for further diagnosis.
 
 ## 17. How can I view only text data when profiling both DB and text mixed data?
 
 **Symptom**
 
+When multiple JSON files are placed in the same folder and several MindStudio Insight instances are opened to view the Timeline pages of these JSON files at the same time, only one page can be displayed correctly, while the other pages display nothing or display errors, as shown in the following examples:
+
 **Symptom 1: Unit display inconsistent with expectations**
 
+![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/no-display.png)
+
 Expected result 👇
+
+![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/display-error.png)
+
+Example version number
+
+![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/version-example.png)
+
+**Cause Analysis**
+
+MindStudio Insight generates a DB file after parsing a JSON file to facilitate subsequent queries. If a directory contains multiple JSON files, only one DB file is still generated, so the content of a file parsed later overwrites the content of a file parsed earlier, which makes the content of the file opened first incorrect.
+
+**Solution**
+
+Delete the DB file, put the multiple JSON files in different folders, and import them again.
+
+## 18. How Can I View Only Text Data When Profiling DB and Text Data Are Mixed?
+
+**Symptom**
+
+**Symptom 1: The unit display does not match the expectation**
+
+The expected display is as follows:
 
 ![image.png](./figures/FAQ/Profiling_Text_DB_Mixed_Data/674afda0-2977-4cdd-b0df-c6adf33ba740.png)
 
@@ -369,3 +391,111 @@ Search for and delete all DB deliverables in the data directory, including the `
 ![image.png](./figures/FAQ/Profiling_Text_DB_Mixed_Data/6d0ff384-aeb4-4944-bcbd-3a90ab33e7de.png)
 
 ![image.png](./figures/FAQ/Profiling_Text_DB_Mixed_Data/d3e1ab5a-a2be-4dd2-afdf-0fe84b8d66a2.png)
+
+<a id="faq-timeline-host-device-reverse-flow"></a>
+
+## 19. Why Do the Connection Lines Between the Host Side and the Device Side in the Timeline Run from Back to Front?
+
+**Symptom**
+
+When you view `HostToDevice` or `async_npu` connection lines in the Timeline, some Device-side endpoints are located to the left of the corresponding Host-side endpoints, which visually appears as lines running from right to left (also described as "from back to front").
+
+**Cause Analysis**
+
+Host-side events and Device-side events are collected separately and converted to the same time axis. Because of device frequency conversion and possible errors in Host and Device time synchronization, the converted Device timestamp may be earlier than the Host timestamp that triggered the task.
+
+Connection relationships are established based on correlation identifiers such as `connectionId` or `flow_id` in the collected data, rather than being inferred from the left-right positions of the two endpoints on the time axis. MindStudio Insight keeps the Host as the start point and the Device as the end point and draws the line according to the actual positions of the two timestamps. Therefore, when the Device timestamp is smaller than the Host timestamp, the connection line is displayed from right to left.
+
+This phenomenon usually does not mean that the Device task is actually dispatched before the Host, nor does it mean that the connection relationship is wrong. However, before time calibration is complete, do not calculate the dispatch delay or end-to-end duration based on the horizontal distance between the two ends of a connection line.
+
+**Solution**
+
+1. Select "Restore the default offset of all ranks" to rule out manually set rank or unit timestamp offsets.
+2. Check `Raw Start` in "Selected Details" at both ends of the connection line to confirm whether the Device-side raw timestamp is earlier than the Host side.
+3. If many connection lines have an approximately fixed time deviation, you can use the timestamp offset of the rank or unit for temporary display calibration. This operation changes only the display position and does not modify the original timestamps.
+4. If the deviation is large, keeps changing with the collection time, or affects performance analysis, check whether the versions of CANN, Profiler, torch_npu, and MindStudio Insight match, and re-collect the data with the recommended versions.
+5. If the problem persists after re-collection, provide the original profiling data, the versions of the related components, the types of the abnormal connection lines, the endpoint timestamps, and screenshots of the problem for further analysis.
+
+<a id="faq-communication-cluster-data-type"></a>
+
+## 20. How Is the Data Type Determined When Cluster Data Is Imported on the Communication Page, and What Does a Normal Data Directory Look Like?
+
+**Determination Rules**
+
+MindStudio Insight determines the data type when cluster data is imported. The Communication page uses the type determined during import and the corresponding cluster database; it does not re-determine the type when the page is opened.
+
+1. When the primary Profiler DB (`ascend_pytorch_profiler_<rank_id>.db`) is found in the import directory, the data is identified as DB format.
+2. When the primary Profiler DB is not found but JSON/CSV deliverables such as `trace_view.json` and `communication.json` are found, the data is identified as TEXT format.
+3. `analysis.db` stores communication detail information and is not the primary Profiler DB. MindStudio Insight does not identify the entire profiling data as DB format based only on `analysis.db`.
+
+If the same directory contains both TEXT and DB deliverables, MindStudio Insight imports in DB format first. To import in pure TEXT format, see FAQ 18.
+
+**Normal Data Directory (for msprof 26.1.0)**
+
+The following directory structure is guaranteed by the data export conventions of msprof 26.1.0. For an example directory, see the [26.1.0 cluster analysis tool documentation](https://gitcode.com/Ascend/msprof-analyze/blob/tag_MindStudio_26.1.0.B100_002/docs/en/user_guide/cluster_analyse_instruct.md). This directory structure applies only to msprof 26.1.0; if later versions change it, the upstream documentation of the corresponding version prevails.
+
+The following directory tree lists only the key files used by the Communication page to determine and read communication data. A cluster directory usually contains multiple Rank directories, and the file structure of each Rank should be consistent.
+
+DB format:
+
+```text
+<cluster_root>/
+└── <rank_directory>/
+    ├── ASCEND_PROFILER_OUTPUT/
+    │   ├── analysis.db                         # Communication details, including the transfer volume, transfer links, and communication matrix
+    │   └── ascend_pytorch_profiler_<rank_id>.db # Primary Profiler DB
+    └── profiler_info_<rank_id>.json
+```
+
+Pure TEXT format:
+
+```text
+<cluster_root>/
+└── <rank_directory>/
+    ├── ASCEND_PROFILER_OUTPUT/
+    │   ├── step_trace_time.csv       # Iteration duration
+    │   ├── communication.json        # Communication duration and communication bandwidth information
+    │   └── communication_matrix.json # Communication matrix information
+    └── profiler_info_<rank_id>.json
+```
+
+Some versions also generate the primary Profiler DB and `analysis.db` when exporting TEXT deliverables. Such complete mixed deliverables are normal data, and MindStudio Insight imports them in DB format with priority.
+
+**Notes**
+
+Do not mix files generated by different tasks, different ranks, or different versions into the same cluster directory. The following directory structure is neither a complete DB deliverable nor a pure TEXT deliverable:
+
+```text
+TEXT JSON/CSV files + analysis.db + missing ascend_pytorch_profiler_<rank_id>.db
+```
+
+With this structure, MindStudio Insight imports in TEXT format, but msprof-analyze 26.1.0 still generates cluster analysis results in DB format based on `analysis.db`, which makes the file format read by the Communication page inconsistent with the actual generated results.
+
+If this directory structure is found, obtain the complete profiling data again first. If you are sure that you need to use it in pure TEXT format, back up the original data first, then move `analysis.db` out of the data copy, clean up the previously generated `cluster_analysis_output` and `cluster.db`, and import again.
+
+<a id="faq-no-available-port"></a>
+
+## 21. What Should I Do If the Application Exits Without a Window or Any Message After Startup?
+
+**Symptom**
+
+After you double-click MindStudio Insight or start it from the desktop, the application does not display the main window and the process exits immediately. When the port is unavailable, a Startup Failed message box is displayed (a system error dialog box on Windows, a system dialog box on macOS, and, on Linux, a dialog box when zenity, kdialog, or xmessage is installed). When you start the application from a terminal, the following may appear in the standard error:
+
+```text
+No available port between 9000 and 9100
+```
+
+**Cause Analysis**
+
+The MindStudio Insight desktop application needs to allocate a local frontend-backend communication port within `127.0.0.1:9000~9100`. When a Windows excluded port range (commonly caused by Hyper-V, WinNAT, WSL, or Docker) covers this interval, or other processes occupy the whole interval, no port can be allocated. The desktop application does not support changing this port range through a configuration item.
+
+**Solution**
+
+1. Run the following in the Windows Command Prompt or PowerShell:
+
+    ```shell
+    netsh interface ipv4 show excludedportrange protocol=tcp
+    ```
+
+2. If the output contains an excluded range covering `9000-9100`, clear or adjust that range, or disable the Hyper-V / WinNAT / Docker / WSL services that occupy it, and then try again.
+3. On Linux or macOS, release the occupied ports in `9000-9100` and try again.

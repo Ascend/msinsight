@@ -1,7 +1,5 @@
 # Operator Issues
 
-<!-- md-trans-meta sourceCommit=fa1a6c7eaa3f2f5893a21924aaf47beb93b490b6 translatedAt=2026-08-12T11:45:46.365Z pushedAt=2026-08-12T11:57:31.149Z -->
-
 ## How to Open Multiple Files Simultaneously for Comparison
 
 ### Problem Description
@@ -14,6 +12,8 @@ How to open multiple files simultaneously for comparison.
 
 2. Place the files in different projects and set them as baseline and compare respectively.
 
+---
+
 ## torch_zeros_like Fails to Collect NPU Execution Operators
 
 ### Problem Description
@@ -25,6 +25,8 @@ When `torch_zeros_like` is invoked, no corresponding operation is observed on th
 ### Solution
 
 This is expected behavior, as the implementations on NPUs and GPUs differ. Additionally, there is no dispatch flow for this operation on the NPU; the copy is performed directly on the CPU side.
+
+---
 
 ## Shape Collection for Operators Is Enabled but Not Displayed in MindStudio Insight
 
@@ -91,3 +93,5 @@ HCCL-type operators do not have data values in this column.
 The same applies to the tensor column.
 
 ![img](figures/Operator_Issues/hccl-no-tensor-data.png)
+
+---
