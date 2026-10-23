@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import React from 'react';
 import { ThemeProvider } from '@emotion/react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -22,6 +23,7 @@ import '@testing-library/jest-dom';
 import { themeInstance } from '@insight/lib/theme';
 import i18n from '@insight/lib/i18n';
 import { COMMAND_ERROR_CODES, CommandError } from '@insight/lib/FrontendAgentCommand';
+import { ActionBlock } from '../../components/ActionBlock';
 import type { ChatMessage } from '../../types';
 
 const mockExecuteFrontendCommand = jest.fn();
@@ -331,14 +333,130 @@ test('preflights an action and executes it only after approval', async () => {
     expect(mockExecuteFrontendCommand.mock.calls[0][1]).toEqual({ command: 'MemScope.lifecycleGraph.selectBlock' });
     expect(await screen.findByText('Select memory block')).toBeInTheDocument();
     expect(screen.getByText('Highlight block #123.')).toBeInTheDocument();
-    expect(screen.getByText(/"blockId": 123/)).toBeInTheDocument();
+    const details = document.querySelector('.action-approval-details') as HTMLDetailsElement;
+    expect(details).not.toHaveAttribute('open');
+    expect(screen.getByText(/"blockId": 123/).closest('details')).toBe(details);
+    await userEvent.click(screen.getByText('Command and arguments'));
+    expect(details).toHaveAttribute('open');
 
     await userEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
 
     expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(2);
     expect(mockExecuteFrontendCommand.mock.calls[1][0]).toBe('MemScope.lifecycleGraph.selectBlock');
     expect(mockExecuteFrontendCommand.mock.calls[1][1]).toEqual({ blockId: 123 });
-    expect(await screen.findByText(/Command completed.*accepted.*true/)).toBeInTheDocument();
+    expect(await screen.findByText('Action completed.')).toBeInTheDocument();
+    expect(screen.queryByText(/accepted/)).not.toBeInTheDocument();
+});
+
+const repeatAction = { actionId: 'repeat-action', label: 'Observe', description: 'Observe the page.', command: 'observe', args: {} };
+const observeHelp = { command: { name: 'observe', title: 'Observe page', description: 'Observe the current page.', inputSchema: { type: 'object' } } };
+
+test('reuses explicit consent but preflights every repeat and prevents duplicate clicks', async () => {
+    mockExecuteFrontendCommand.mockImplementation(async (command: string) => command === 'help' ? observeHelp : { accepted: true });
+    render(<ActionBlock action={repeatAction} />);
+    const trigger = screen.getByRole('button', { name: 'Observe' });
+    act(() => {
+        fireEvent.click(trigger);
+        fireEvent.click(trigger);
+    });
+    const approve = await screen.findByRole('button', { name: 'Approve and run' });
+    expect(screen.getByRole('button', { name: 'Observe' })).toBeDisabled();
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(1);
+    act(() => {
+        fireEvent.click(approve);
+        fireEvent.click(approve);
+    });
+    await screen.findByText('Action completed.');
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await screen.findByText('Action completed.');
+    expect(mockExecuteFrontendCommand.mock.calls.map(([command]) => command)).toEqual(['help', 'observe', 'help', 'observe']);
+    expect(screen.queryByRole('button', { name: 'Approve and run' })).not.toBeInTheDocument();
+});
+
+test.each([
+    { label: 'Observe again' },
+    { description: 'Inspect a different target.' },
+    { args: { target: 'other' } },
+    { command: 'other' },
+])('invalidates local consent when action content changes: %j', async (change) => {
+    mockExecuteFrontendCommand.mockImplementation(async (command: string, args: Record<string, unknown>) => command === 'help'
+        ? { command: { ...observeHelp.command, name: args.command } }
+        : {});
+    const { rerender } = render(<ActionBlock action={repeatAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve and run' }));
+    await screen.findByText('Action completed.');
+    const changed = { ...repeatAction, ...change };
+    rerender(<ActionBlock action={changed} />);
+    await userEvent.click(screen.getByRole('button', { name: changed.label }));
+    expect(await screen.findByRole('button', { name: 'Approve and run' })).toBeInTheDocument();
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(3);
+});
+
+test('requires renewed approval when trusted help changes', async () => {
+    mockExecuteFrontendCommand.mockResolvedValueOnce(observeHelp).mockResolvedValueOnce({})
+        .mockResolvedValueOnce({ command: { ...observeHelp.command, inputSchema: { type: 'object', required: ['target'] } } });
+    render(<ActionBlock action={repeatAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve and run' }));
+    await screen.findByText('Action completed.');
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    expect(await screen.findByRole('button', { name: 'Approve and run' })).toBeInTheDocument();
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(3);
+});
+
+test('does not dispatch a delayed preflight for replaced action content', async () => {
+    let finishHelp: (value: unknown) => void = () => undefined;
+    mockExecuteFrontendCommand.mockImplementationOnce(() => new Promise(resolve => { finishHelp = resolve; }));
+    const { rerender } = render(<ActionBlock action={repeatAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    rerender(<ActionBlock action={{ ...repeatAction, args: { target: 'other' } }} />);
+    await act(async () => { finishHelp(observeHelp); });
+    expect(screen.queryByRole('button', { name: 'Approve and run' })).not.toBeInTheDocument();
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(1);
+});
+
+test('reports choice required without raw output or false success', async () => {
+    mockExecuteFrontendCommand.mockResolvedValueOnce(observeHelp)
+        .mockResolvedValueOnce({ needsChoice: true, choices: [{ id: 'private-target' }] });
+    render(<ActionBlock action={repeatAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve and run' }));
+    expect(await screen.findByText(/More information is needed to select a target/)).toBeInTheDocument();
+    expect(screen.queryByText('Action completed.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/private-target|needsChoice/)).not.toBeInTheDocument();
+});
+
+test('requires confirmation again after an execution failure without automatically retrying', async () => {
+    mockExecuteFrontendCommand.mockResolvedValueOnce(observeHelp).mockRejectedValueOnce(new Error('Try later'))
+        .mockResolvedValueOnce(observeHelp).mockResolvedValueOnce({});
+    render(<ActionBlock action={repeatAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve and run' }));
+    await screen.findByText('Action failed: Try later');
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    const approve = await screen.findByRole('button', { name: 'Approve and run' });
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(3);
+    await userEvent.click(approve);
+    await screen.findByText('Action completed.');
+    expect(mockExecuteFrontendCommand.mock.calls.map(([command]) => command)).toEqual(['help', 'observe', 'help', 'observe']);
+});
+
+test('a failed repeat clears a previous successful execution', async () => {
+    mockExecuteFrontendCommand.mockResolvedValueOnce(observeHelp).mockResolvedValueOnce({})
+        .mockResolvedValueOnce(observeHelp).mockRejectedValueOnce(new Error('Try later'))
+        .mockResolvedValueOnce(observeHelp);
+    render(<ActionBlock action={repeatAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve and run' }));
+    await screen.findByText('Action completed.');
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await screen.findByText('Action failed: Try later');
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    expect(await screen.findByRole('button', { name: 'Approve and run' })).toBeInTheDocument();
+    expect(mockExecuteFrontendCommand.mock.calls.map(([command]) => command)).toEqual(['help', 'observe', 'help', 'observe', 'help']);
 });
 
 describe('action module availability diagnostics', () => {
@@ -425,7 +543,7 @@ test('hides an unclosed action while streaming and shows it literally after comp
     expect(screen.getByText(/<insight-action>/)).toBeInTheDocument();
 });
 
-test('bounds a string command result in the local Action UI', async () => {
+test('does not display raw string command output in the local Action UI', async () => {
     mockExecuteFrontendCommand
         .mockResolvedValueOnce({ command: { name: 'observe', title: 'Observe page', description: 'Observe the current page.', inputSchema: { type: 'object' } } })
         .mockResolvedValueOnce('x'.repeat(600));
@@ -438,9 +556,8 @@ test('bounds a string command result in the local Action UI', async () => {
     await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
     await userEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
 
-    const result = await screen.findByText(/Command completed/);
-    expect(result.textContent?.endsWith('…')).toBe(true);
-    expect(result.textContent?.length).toBeLessThan(600);
+    expect(await screen.findByText('Action completed.')).toBeInTheDocument();
+    expect(screen.queryByText(/xxxx/)).not.toBeInTheDocument();
 });
 
 test('allows multiple action approval cards to remain open', async () => {
@@ -485,6 +602,9 @@ test('cancel closes approval without executing the target command', async () => 
 
     expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('Confirm page action')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    expect(await screen.findByRole('button', { name: 'Approve and run' })).toBeInTheDocument();
+    expect(mockExecuteFrontendCommand.mock.calls.map(([command]) => command)).toEqual(['help', 'help']);
 });
 
 test('renders generic Tool permission details and only Agent-provided actions', () => {
