@@ -92,6 +92,66 @@ describe('jumpToUnitOperator', () => {
         (calculateDomainRange as jest.Mock).mockReturnValue([80, 140]);
     });
 
+    it('selects the requested database when lane identities otherwise match', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const other = createMergedUnit();
+        (other.metadata as ThreadMetaData).dbPath = 'other.db';
+        const target = createMergedUnit();
+        jumpToUnitOperator(OP_DETAIL);
+        const navigation = session.locateUnit;
+        const matched = [other, target].find(unit => navigation?.target(unit));
+        expect(matched).toBe(target);
+        if (matched) navigation?.onSuccess(matched);
+        expect(session.selectedData?.dbPath).toBe('trace.db');
+        expect(session.foregroundTarget?.dbPath).toBe('trace.db');
+    });
+
+    it('rechecks the navigation guard before mutating selection', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const target = createMergedUnit();
+        const guard = jest.fn(() => true);
+        const onSuccess = jest.fn();
+        const onFailure = jest.fn();
+        jumpToUnitOperator(OP_DETAIL, { guard, onSuccess, onFailure });
+        const pending = session.locateUnit;
+        expect(pending?.target(target)).toBe(true);
+
+        guard.mockReturnValue(false);
+        expect(pending?.target(target)).toBe(false);
+        pending?.onSuccess(target);
+
+        expect(session.selectedData).toBeUndefined();
+        expect(session.foregroundTarget).toBeUndefined();
+        expect(session.domainRange).toEqual({ domainStart: 0, domainEnd: 100 });
+        expect(onSuccess).not.toHaveBeenCalled();
+        expect(onFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it('notifies success after installing the normalized selection and foreground target', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const target = createMergedUnit();
+        const onSuccess = jest.fn(unit => {
+            expect(unit).toBe(target);
+            expect(session.selectedData).toEqual(expect.objectContaining({ id: '42', threadId: '2', startTime: 95 }));
+            expect(session.selectedDataUnit).toBe(target);
+            expect(session.foregroundTarget?.tid).toBe('2');
+        });
+        jumpToUnitOperator(OP_DETAIL, { onSuccess });
+        session.locateUnit?.onSuccess(target);
+        expect(onSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    it('forwards unavailable navigation and missing-session failures', () => {
+        const onFailure = jest.fn();
+        jumpToUnitOperator(OP_DETAIL, { onFailure });
+        store.sessionStore.activeSession?.locateUnit?.onFailure?.();
+        expect(onFailure).toHaveBeenCalledTimes(1);
+
+        store.sessionStore.activeSession = undefined;
+        jumpToUnitOperator(OP_DETAIL, { onFailure });
+        expect(onFailure).toHaveBeenCalledTimes(2);
+    });
+
     it.each<{ metaType: string; offsetSide?: OffsetSide; expectedSide: OffsetSide; expectedStart: number }>([
         { metaType: 'TEXT', offsetSide: 'device', expectedSide: 'device', expectedStart: 50 },
         { metaType: 'TEXT', offsetSide: 'host', expectedSide: 'host', expectedStart: 90 },

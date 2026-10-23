@@ -19,7 +19,7 @@ import type { Theme } from '@emotion/react';
 import type { ReactNode } from 'react';
 import type { Readable } from '../utils/humanReadable';
 import type { AtomicObjectElementType } from './common';
-import type { Session } from './session';
+import type { SelectedDataType, Session } from './session';
 import type { InsightUnit, UnitHeight } from './insight';
 
 export type SizePx = number;
@@ -74,6 +74,12 @@ export interface ChartHandle<T extends ChartType> {
 
 export type ChartReaction<T extends ChartType> = (data: AtomicObjectElementType<ChartData<T>> | undefined, session: Session, metadata: unknown) => void;
 
+// 点击可来自画布或已完成的算子导航，不要求导航补齐绘制专用字段。
+export type ChartClickReaction<T extends ChartType> = (
+    data: (T extends 'stackStatus' ? StackStatusData | SelectedDataType : AtomicObjectElementType<ChartData<T>>) | undefined,
+    session: Session, metadata: unknown,
+) => void;
+
 export type CustomChartDraw<T extends ChartType> = (handle: ChartHandle<T>, xScale: Scale, yScale: Scale, theme: Theme) => void;
 
 export interface TextConfig { overflow: 'hidden' | 'ellipsis'; textMarginLeft: number | ((num: number) => number); textAlign: 'start' | 'center' };
@@ -94,7 +100,7 @@ export type ChartProps<T extends ChartType> = ChartConfig<T> & {
     title: string;
     metadata: unknown;
     onHover?: ChartReaction<T>;
-    onClick?: ChartReaction<T>;
+    onClick?: ChartClickReaction<T>;
     decorator?: ChartDecorator<T>;
 };
 

@@ -29,6 +29,7 @@ import { MAX_ZOOM_DURATION, PAN_RATE, type DomainRange } from '../entity/domain'
 import { isValidSession, type SelectedDataType, type Session } from '../entity/session';
 import type { InsightUnit } from '../entity/insight';
 import { selectSlice, selectSliceDefinition } from './selectSlice';
+import { listVisibleSlices, listVisibleSlicesDefinition, summarizeVisibleSlices } from './visibleSlices';
 
 const MODULE_ID = 'Timeline';
 const UNIT_SUMMARY_LIMIT = 10;
@@ -70,6 +71,7 @@ export const observeTimeline = (): ObservationData => {
             hasNonFtraceData: session.hasNonFtraceData,
         },
         viewport: viewportOf(session),
+        visibleSlices: summarizeVisibleSlices(session),
         selection: {
             range: session.selectedRange === undefined ? null : [...session.selectedRange],
             operator: summarizeOperator(session.selectedData),
@@ -83,6 +85,10 @@ export const observeTimeline = (): ObservationData => {
 
 export const registerTimelineCommands = (client: ModuleAgentCommandClient): (() => void) => {
     const unregister = [
+        client.registerCommand(listVisibleSlicesDefinition, (args, context) => {
+            const session = requireSession();
+            return listVisibleSlices(args, context, session, () => activeSession === session && isValidSession(session));
+        }),
         client.registerCommand({
             name: 'Timeline.zoom',
             title: 'Zoom timeline view',

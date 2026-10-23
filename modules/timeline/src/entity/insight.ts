@@ -18,7 +18,7 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import type React from 'react';
 import type { CommonStateProto } from '../components/details/base/Tabs';
-import type { ChartConfig, ChartDecorator, ChartReaction, ChartType, GetChartConfig, MapFunc, RenderTooltip } from './chart';
+import type { ChartClickReaction, ChartConfig, ChartDecorator, ChartReaction, ChartType, GetChartConfig, MapFunc, RenderTooltip } from './chart';
 import type { ElementType, TreeNode } from './common';
 import type { Session } from './session';
 import type { TabState } from './tabDependency';
@@ -40,7 +40,7 @@ export interface ChartDesc<T extends ChartType> {
     height: UnitHeight;
     renderTooltip?: RenderTooltip<T>;
     onHover?: ChartReaction<T>;
-    onClick?: ChartReaction<T>;
+    onClick?: ChartClickReaction<T>;
     decorator?: ChartDecorator<T>;
     error?: boolean;
 }
@@ -418,6 +418,7 @@ export { unitBase as unit };
 export interface UnitMatcher {
     target: (ele: InsightUnit) => boolean;
     onSuccess: (ele: InsightUnit) => void;
+    onFailure?: () => void;
     showDetail?: boolean;
     tuneToSelectedSlice?: boolean;
 };

@@ -114,6 +114,7 @@ export const useJumpTarget = (session: Session, unitsArea: InsightUnit[], suppor
             if (session.locateUnit === undefined) { return; }
             const targetUnit = getTargetUnit(getRootUnit(session.units), session.locateUnit.target);
             if (targetUnit === undefined) {
+                session.locateUnit?.onFailure?.();
                 message.warn(t('NotFoundJumpTargetWarn'));
             } else {
                 handleUnitSelection(targetUnit);

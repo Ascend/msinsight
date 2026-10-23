@@ -54,38 +54,28 @@ msinsight({ command, args });
 
 ### 2.1 Timeline 算子定位与泳道置顶
 
-自然语言请求“查看 MatMul 算子”“看看 MatMul”“定位 MatMul 算子”和“选中 MatMul 算子”均表示在当前 Timeline 屏幕内查找并选中该算子、展示其详情。
+自然语言请求“查看 MatMul 算子”“看看 MatMul”“定位 MatMul 算子”和“选中 MatMul 算子”均表示在当前 Timeline 已导入数据中查找并选中该算子、展示其详情。
 Agent 应通过 `help` 发现并确认 `Timeline.selectSlice` 的参数，将算子名称 `MatMul` 作为 `name`，而非传入整句提示词。
 “MatMul 算子是什么/原理是什么”属于概念解释，不触发选中；`Timeline.focus` 只调整已有选中对象的视口，不能代替按名称查找。
 
-在 Timeline 页面展开泳道并等待当前画布加载完成后，可以按名称选中当前屏幕内的算子，再置顶同名泳道：
+在 Timeline 页面导入数据后，可以按名称定位并选中算子，再置顶同名泳道：
 
 ```json
 {"command":"Timeline.selectSlice","args":{"name":"MatMul"}}
 ```
 
-按名称查找时，默认区分大小写且精确匹配；模糊匹配示例：
+命令优先选中当前可见画布中的匹配算子，复用点击行为加载详情和连线，不改变缩放、滚动位置，也不打开搜索框。没有可见匹配时，才打开搜索框并填入条件，复用现有搜索、首项定位及分页行为。
+默认不区分大小写、非精确匹配，与搜索框一致；需要精确匹配时：
 
 ```json
-{"command":"Timeline.selectSlice","args":{"name":"add","isMatchCase":false,"isMatchExact":false}}
+{"command":"Timeline.selectSlice","args":{"name":"MatMul","isMatchCase":true,"isMatchExact":true}}
 ```
 
-命令读取当前画布已经显示的算子数据，范围同时受时间视口和屏幕可见泳道限制，包括置顶区域。
-折叠、隐藏、垂直滚动区域外或时间范围外的算子不参与匹配；可传入 `cardId` 进一步限定卡。
-选中效果复用画布点击逻辑，保持当前视口，不自动展开泳道或跳到窗口外。
-
-只有一个匹配时直接选中；多个匹配时返回 `status: "needsChoice"`、`needsChoice: true` 和 `candidates`，保留当前选中状态。
-Agent 应列出候选的名称、卡号、泳道、开始时间、耗时，让用户选择，不能默认选第一个。
-`timeUnit` 指明时间单位，`offset`/`limit` 可分页读取候选（默认每页 20 条，最多 50 条）。
-候选的 `index` 仅用于展示序号，确认时必须使用返回的 `candidateRef`：
-
-```json
-{"command":"Timeline.selectSlice","args":{"candidateRef":"<用户选中项的 candidateRef>"}}
-```
-
-`name` 查询参数与 `candidateRef` 确认参数互斥，不再接受旧版 `index` 输入。
-滚动、缩放、布局或画布数据变化后，应重新查询候选并让用户选择，旧引用不能用于选择新的匹配项。
-可见泳道尚在加载、选中区域锁定、当前屏幕没有匹配项、引用过期或有其他定位进行中时会返回对应错误。
+可选 `cardId` 默认 `ALL`；查询遵循搜索框的卡、显示及锁定范围过滤，不跨项目搜索。
+多个匹配与搜索框一样直接选中第一项；不返回候选引用，也不接受 `candidateRef`、`offset`、`limit` 或 `index`。
+通过现有定位行为展开泳道、调整时间范围并滚动，选中完成后复用点击回调加载详情和连线。
+选中成功后返回 `status: "selected"` 和 `requiresObserve: true`，搜索路径额外返回 `totalCount`；无匹配、锁定、定位不可用或其他定位进行中返回对应错误。
+异步查询和定位受当前会话、取消信号及截止时间约束，迟到结果不能继续修改选中状态。
 
 ```json
 {"command":"Timeline.pinByUnitName","args":{}}
@@ -94,6 +84,27 @@ Agent 应列出候选的名称、卡号、泳道、开始时间、耗时，让�
 置顶命令复用右键菜单“置顶同名泳道”，按照现有名称/分组规则匹配同层级泳道，每次最多处理 100 条，重复调用不会重复置顶。
 调用前可通过 `observe` 检查 `actions.pinByUnitName`；调用后检查 `pinnedUnitCount` 和选中泳道的 `pinned` 状态。
 两项命令均返回 `requiresObserve: true`，应再次观察页面以确认最终状态。
+
+### 2.2 Timeline 当前可见算子列表
+
+`observe` 保留已有 `selection` 字段，另提供 `visibleSlices: { count, loading, sourceCount, revision }` 摘要，不内联算子数组。需要具体条目时独立调用：
+
+```json
+{"command":"Timeline.listVisibleSlices","args":{"offset":0,"limit":20}}
+```
+
+结果包含 `slices`、`revision`、`totalCount`、`loading`、`sourceCount`、`offset`、`limit`、`hasMore` 和当前会话的 `timeUnit`（`ns` / `ms`）。每条摘要包含 `sourceRef`、`id`、`cardId`、`processId`、`threadId`、`metaType`、`name`、`lane`、`startTime`、`duration`、`depth`；缺失进程 ID 为 `null`。不返回数据库路径、DOM、内部数据数组或回调。
+
+- 只读取当前已经渲染且处于时间、垂直和裁剪视口内的算子；普通与置顶副本去重，不进行全量导入数据查询，也不改变选择、视口或泳道。
+- `count` / `totalCount` 是当前已就绪可见数据的数量；`loading: true` 表示仍有可见来源未就绪，不能声称列表完整。`sourceCount` 为可见渲染来源数量，普通与置顶来源分别计数，并非去重后的泳道数。
+- `offset` 为非负安全整数；`limit` 默认 20，范围 1–50。`offset > 0` 必须携带首页返回的 `revision`。视口、滚动、来源就绪状态或可见条目改变使旧版本失效，返回 `COMMAND_INVALID`，应去掉旧版本并从 `offset: 0` 重读。
+- `sourceRef` 为不泄露路径的会话内来源泳道标识，用于区分多数据库同名条目；不可作为 `Timeline.selectSlice` 的输入。
+
+```json
+{"command":"Timeline.listVisibleSlices","args":{"offset":20,"limit":20,"revision":"<首页返回的 revision>"}}
+```
+
+该命令通过 Timeline 现有注册入口自动出现在 runtime 完整快照及 `help` 中，不新增 Native Tool 或传输协议。
 
 ## 3. 一个 Command 的组成
 
@@ -805,6 +816,7 @@ msinsight_refreshTable
 | Module 注册与完整快照 | `modules/lib/src/ModuleAgentCommandClient/client.ts` |
 | Framework 统一门面 | `modules/framework/src/agent/frontendAgentCommandController/FrontendAgentCommandController.ts` |
 | 可见目录和命名校验 | `modules/framework/src/agent/frontendAgentCommandController/CommandCatalog.ts` |
+| Timeline 可见算子分页与观察摘要 | `modules/timeline/src/agent/visibleSlices.ts`、`timelineController.ts` |
 | MemScope Module runtime | `modules/leaks/src/agent/runtime.ts` |
 | 表格领域适配器 | `modules/lib/src/AgentTable/registerTableCommands.ts` |
 | Agent iframe relay | `modules/insight_web_agent/src/bridge/frontendAgentCommandTransport.ts` |
