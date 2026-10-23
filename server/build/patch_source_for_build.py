@@ -1,5 +1,20 @@
+# -------------------------------------------------------------------------
+# This file is part of the MindStudio project.
+# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+#
+# MindStudio is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+# -------------------------------------------------------------------------
+
 import ast
-import sys
 import os
 import logging
 
@@ -7,22 +22,26 @@ logger = logging.getLogger('PATCH_SOURCE')
 
 
 def check_ast_if_node_is_main_chunk(node: ast.If):
-    result = (isinstance(node.test, ast.Compare) and isinstance(node.test.left, ast.Name)
-              and node.test.left.id == '__name__')
+    result = (
+        isinstance(node.test, ast.Compare) and isinstance(node.test.left, ast.Name) and node.test.left.id == '__name__'
+    )
     result = result and (len(node.test.ops) == 1 and isinstance(node.test.ops[0], ast.Eq))
-    result = result and (len(node.test.comparators) == 1 and isinstance(node.test.comparators[0], ast.Constant)
-                         and node.test.comparators[0].value == '__main__')
+    result = result and (
+        len(node.test.comparators) == 1
+        and isinstance(node.test.comparators[0], ast.Constant)
+        and node.test.comparators[0].value == '__main__'
+    )
     return result
 
 
 def extra_replacements(new_source_path: str):
-    """ 从new_source_path中提取所有顶层方法和__main__的源码片段 """
+    """从new_source_path中提取所有顶层方法和__main__的源码片段"""
     with open(new_source_path, 'r', encoding='utf-8') as f:
         new_source = f.read()
     try:
         new_tree = ast.parse(new_source, filename=new_source_path)
     except SyntaxError as e:
-        logger.error(f"Syntax error in new_source_path: {new_source_path}, {e}")
+        logger.error("Syntax error in new_source_path: %s, %s", new_source_path, e)
         return None, new_source
 
     replacements = {}
@@ -43,13 +62,13 @@ def extra_replacements(new_source_path: str):
 
 
 def patch_old_source_file(old_source_path: str, replacements: dict):
-    """ 读取old_source.py, 替换同名函数和__main__, 返回新的源码 """
+    """读取old_source.py, 替换同名函数和__main__, 返回新的源码"""
     with open(old_source_path, 'r', encoding='utf-8') as f:
         old_source = f.read()
     try:
         old_tree = ast.parse(old_source, filename=old_source_path)
     except SyntaxError as e:
-        logger.error(f"Syntax error in old_source_path: {old_source_path}, {e}")
+        logger.error("Syntax error in old_source_path: %s, %s", old_source_path, e)
         return old_source
 
     # 将需要替换的节点位置记录下来
@@ -76,7 +95,7 @@ def patch_old_source_file(old_source_path: str, replacements: dict):
                 # fallback: 全局查找
                 pos = old_source.find(old_src_seg)
             if pos == -1:
-                logger.warning(f"Failed to find segment[{key}] in {old_source_path}")
+                logger.warning("Failed to find segment[%s] in %s", key, old_source_path)
                 continue
             end = pos + len(old_src_seg)
             replace_ranges.append((pos, end, replacements[key]))
@@ -102,10 +121,10 @@ def patch_source(old_source_path: str, new_source_path: str, output_path: str = 
         output_path = old_source_path  # ！！！直接替换原文件
 
     if not os.path.exists(old_source_path):
-        logger.error(f"The old source file not found: {old_source_path}")
+        logger.error("The old source file not found: %s", old_source_path)
         return False
     if not os.path.exists(new_source_path):
-        logger.error(f"The new source file not found: {new_source_path}")
+        logger.error("The new source file not found: %s", new_source_path)
         return False
 
     replacements, _ = extra_replacements(new_source_path)
@@ -115,5 +134,5 @@ def patch_source(old_source_path: str, new_source_path: str, output_path: str = 
     with open(output_path, 'w', encoding='utf-8', newline='') as f:
         f.write(new_source)
 
-    logger.info(f"Successfully patched functions from new source path {new_source_path} into {output_path}")
+    logger.info("Successfully patched functions from new source path %s into %s", new_source_path, output_path)
     return True
