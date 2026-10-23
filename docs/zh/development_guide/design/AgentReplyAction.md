@@ -15,7 +15,7 @@ Insight Web Agent 可以连接内置 Native Agent，也可以连接任意兼容 
 3. ACP、服务端消息和 Session 历史只保存原始 assistant 文本；
 4. 浏览器将普通 Markdown 与 Action 按原顺序交错渲染；
 5. 展示 Action 没有页面副作用，不需要用户确认；
-6. 每次执行必须获得用户对精确 `command + args` 的一次性确认；
+6. 首次执行需确认精确载荷；同一 Action 成功后可重复直接执行，失败后重新确认；
 7. Action 确认与执行完全在浏览器端完成；
 8. Session 恢复后重新从原始文本解析 Action，不恢复审批和执行运行态；
 9. Action 执行结果只显示在当前 UI，不自动回传 Agent。
@@ -130,9 +130,9 @@ MessageList
 ```text
 idle
   → loading_definition
-  → awaiting_approval
+  → awaiting_approval（同一组件内已同意且内容、可信定义未变化时跳过）
   → executing
-  → succeeded | failed
+  → succeeded | needsChoice | failed
 ```
 
 用户点击 Action 后：
@@ -141,26 +141,21 @@ idle
 2. Framework 从当前可见 Command 目录返回可信 `CommandDefinition`；
 3. 浏览器确认返回的是同名 Command 的完整可信定义；
 4. 浏览器复制并冻结本次 `command + args`；
-5. 在 Action 下方内联展开独立的 `ActionApprovalCard`；
-6. 用户选择“同意并执行”或“取消”；
-7. 同意后通过 `executeFrontendCommand` 执行冻结载荷一次；
-8. 成功、返回值或错误只显示在该 Action 附近。
+5. 首次点击在 Action 下方内联展开独立的 `ActionApprovalCard`；
+6. 用户选择“同意并执行”或“取消”；相同 Action 已确认并成功执行且可信定义未变化时跳过确认；
+7. 通过 `executeFrontendCommand` 执行本次冻结载荷一次；
+8. 只在该 Action 附近显示简洁完成提示或错误，不展示原始返回 JSON/字符串；`needsChoice` 显示需要明确目标的提示，不误报成功，也不自动重试。
 
-确认卡同时展示：
-
-- 可信能力说明：当前 `CommandDefinition.title` 和 `description`；
-- 本次行为说明：XML payload 的 `description`；
-- 实际 `command`；
-- 格式化后的 `args`。
+确认卡默认只展示 XML payload 的 `description`。可信能力标题与说明、实际 `command` 和格式化 `args` 放在默认折叠的“命令与参数”详情内，用户可自行展开。
 
 `help` 是只读预检，不单独请求确认。目标 Command 的具体参数约束由既有执行链路校验。
 
 ## 8. 授权语义
 
 - 每次点击都重新执行 `help` 预检；
-- 每次同意只授权当次冻结的 `command + args`；
-- 不提供“始终允许”；
-- 再次点击同一 Action 必须重新确认；
+- 仅成功执行后在当前组件实例中记住免确认状态；取消不授权，预检或执行失败、需要选择目标时清除免确认状态；
+- `command + args + description + label` 任一变化或可信定义（含 schema）变化时重新确认；
+- 已成功执行的相同 Action 再次点击会预检后直接执行，不提供跨 Action 或持久化的“始终允许”；
 - 多个 Action 可以同时展开各自的确认卡；
 - 进入执行状态后禁用重复提交；
 - 审批状态只存在于浏览器组件，不写入服务端 Session；

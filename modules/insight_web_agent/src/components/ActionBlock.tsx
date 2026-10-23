@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { COMMAND_ERROR_CODES, isCommandErrorShape } from '@insight/lib/FrontendAgentCommand';
 import { executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
@@ -25,7 +25,7 @@ import { ActionApprovalCard, type ActionCommandDefinition } from './ActionApprov
 
 const COMMAND_TIMEOUT_MS = 30000;
 
-type ActionState = 'idle' | 'loading' | 'approval' | 'executing' | 'succeeded' | 'failed';
+type ActionState = 'idle' | 'loading' | 'approval' | 'executing' | 'succeeded' | 'needsChoice' | 'failed';
 
 const Container = styled.div`
     display: grid;
@@ -66,71 +66,110 @@ const Container = styled.div`
     }
 `;
 
-export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => {
+// Content, not the streamed block ID, defines the lifetime of local approval.
+export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => (
+    <ActionContent key={actionFingerprint(action)} action={action} />
+);
+
+const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
+    const busy = useRef(false);
+    const mounted = useRef(true);
+    const approvedDefinition = useRef<string>();
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; };
+    }, []);
     const [state, setState] = useState<ActionState>('idle');
     const [definition, setDefinition] = useState<ActionCommandDefinition>();
     const [error, setError] = useState<string>();
     const [targetModule, setTargetModule] = useState<string>();
     const reportError = (nextError: unknown): void => {
+        approvedDefinition.current = undefined;
         const module = isCommandErrorShape(nextError) && nextError.code === COMMAND_ERROR_CODES.UNAVAILABLE &&
             nextError.details?.reason === 'module_not_active' ? nextError.details.targetModule : undefined;
         setTargetModule(typeof module === 'string' && module.trim() ? module.trim() : undefined);
         setError(errorMessage(nextError));
         setState('failed');
     };
-    const [result, setResult] = useState<string>();
     const [frozenAction, setFrozenAction] = useState<ActionItem>();
 
-    const openApproval = async (): Promise<void> => {
-        if (state === 'loading' || state === 'executing') return;
-        setState('loading');
-        setDefinition(undefined);
-        setFrozenAction(undefined);
-        setError(undefined);
-        setResult(undefined);
-        try {
-            const result = await executeFrontendCommand(
-                'help',
-                { command: action.command },
-                crypto.randomUUID(),
-                Date.now() + COMMAND_TIMEOUT_MS,
-            );
-            const commandDefinition = commandDefinitionFromHelp(result, action.command);
-            setDefinition(commandDefinition);
-            setFrozenAction(cloneAction(action));
-            setState('approval');
-        } catch (nextError) {
-            reportError(nextError);
-        }
-    };
-
-    const approve = async (): Promise<void> => {
-        if (state !== 'approval' || !frozenAction) return;
+    const execute = async (snapshot: ActionItem, fingerprint: string): Promise<void> => {
         setState('executing');
         setError(undefined);
         try {
             const commandResult = await executeFrontendCommand(
-                frozenAction.command,
-                frozenAction.args,
+                snapshot.command,
+                snapshot.args,
                 crypto.randomUUID(),
                 Date.now() + COMMAND_TIMEOUT_MS,
             );
-            setResult(formatCommandResult(commandResult));
-            setState('succeeded');
+            if (!mounted.current) return;
+            const needsChoice = commandResult !== null && typeof commandResult === 'object' &&
+                'needsChoice' in commandResult && commandResult.needsChoice === true;
+            // 仅成功执行才允许重复免确认；未完成的目标选择不能视为成功。
+            approvedDefinition.current = needsChoice ? undefined : fingerprint;
+            setState(needsChoice ? 'needsChoice' : 'succeeded');
         } catch (nextError) {
-            reportError(nextError);
+            if (mounted.current) reportError(nextError);
         } finally {
-            setDefinition(undefined);
-            setFrozenAction(undefined);
+            if (mounted.current) {
+                setDefinition(undefined);
+                setFrozenAction(undefined);
+            }
+        }
+    };
+
+    const openApproval = async (): Promise<void> => {
+        // React state alone cannot exclude two clicks in the same render tick.
+        if (busy.current || state === 'approval') return;
+        busy.current = true;
+        setState('loading');
+        setDefinition(undefined);
+        setFrozenAction(undefined);
+        setError(undefined);
+        try {
+            const snapshot = cloneAction(action);
+            const result = await executeFrontendCommand(
+                'help',
+                { command: snapshot.command },
+                crypto.randomUUID(),
+                Date.now() + COMMAND_TIMEOUT_MS,
+            );
+            // A replaced/unmounted action must never dispatch a delayed preflight result.
+            if (!mounted.current) return;
+            const commandDefinition = commandDefinitionFromHelp(result, snapshot.command);
+            const fingerprint = JSON.stringify(commandDefinition);
+            if (approvedDefinition.current === fingerprint) {
+                await execute(snapshot, fingerprint);
+            } else {
+                approvedDefinition.current = undefined;
+                setDefinition(commandDefinition);
+                setFrozenAction(snapshot);
+                setState('approval');
+            }
+        } catch (nextError) {
+            if (mounted.current) reportError(nextError);
+        } finally {
+            busy.current = false;
+        }
+    };
+
+    const approve = async (): Promise<void> => {
+        if (busy.current || state !== 'approval' || !frozenAction || !definition) return;
+        busy.current = true;
+        try {
+            await execute(frozenAction, JSON.stringify(definition));
+        } finally {
+            busy.current = false;
         }
     };
 
     const cancel = (): void => {
+        if (busy.current) return;
         setDefinition(undefined);
         setFrozenAction(undefined);
         setError(undefined);
-        setResult(undefined);
         setState('idle');
     };
 
@@ -138,13 +177,13 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
         <Container>
             <button
                 className="action-trigger"
-                disabled={state === 'loading' || state === 'executing'}
+                disabled={state === 'loading' || state === 'executing' || state === 'approval'}
                 onClick={() => {
                     openApproval();
                 }}
                 type="button"
             >
-                {state === 'loading' ? t('actionLoading') : action.label}
+                {state === 'loading' ? t('actionLoading') : state === 'executing' ? t('actionExecuting') : action.label}
             </button>
             {state === 'approval' && definition && frozenAction ? (
                 <ActionApprovalCard
@@ -166,7 +205,8 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
                     onCancel={() => undefined}
                 />
             ) : null}
-            {state === 'succeeded' ? <div className="action-result succeeded">{t('actionSucceeded')}{result ? ` ${result}` : ''}</div> : null}
+            {state === 'succeeded' ? <div className="action-result succeeded">{t('actionSucceeded')}</div> : null}
+            {state === 'needsChoice' ? <div className="action-result">{t('actionNeedsChoice')}</div> : null}
             {state === 'failed' ? <div className="action-result failed">{targetModule
                 ? t('actionModuleNotActive', { module: targetModule })
                 : t('actionFailed', { error })}</div> : null}
@@ -200,17 +240,8 @@ const nonEmptyString = (value: unknown, name: string): string => {
     return value.trim();
 };
 
-const formatCommandResult = (value: unknown): string | undefined => {
-    if (value === undefined) return undefined;
-    if (typeof value === 'string') return truncateResult(value);
-    try {
-        const serialized = JSON.stringify(value);
-        return truncateResult(serialized ?? String(value));
-    } catch (_error) {
-        return truncateResult(String(value));
-    }
-};
-
-const truncateResult = (value: string): string => value.length > 500 ? `${value.slice(0, 499)}…` : value;
+const actionFingerprint = (action: ActionItem): string => JSON.stringify([
+    action.command, action.args, action.description, action.label,
+]);
 
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);

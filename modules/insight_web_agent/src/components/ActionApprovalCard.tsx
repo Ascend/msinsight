@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import React from 'react';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
 import type { ActionItem } from '../types';
@@ -43,6 +44,12 @@ const Card = styled.div`
     .action-approval-section {
         display: grid;
         gap: 3px;
+        margin-top: 8px;
+    }
+
+    .action-approval-details summary {
+        cursor: pointer;
+        color: ${(props): string => props.theme.textColorSecondary};
     }
 
     .action-approval-label {
@@ -112,23 +119,23 @@ export const ActionApprovalCard = ({
     return (
         <Card>
             <div className="action-approval-title">{t('actionApprovalTitle')}</div>
-            <section className="action-approval-section">
-                <span className="action-approval-label">{t('actionTrustedCapability')}</span>
-                <strong className="action-approval-value">{definition.title}</strong>
-                <span className="action-approval-value">{definition.description}</span>
-            </section>
-            <section className="action-approval-section">
-                <span className="action-approval-label">{t('actionRequestedBehavior')}</span>
-                <span className="action-approval-value">{action.description}</span>
-            </section>
-            <section className="action-approval-section">
-                <span className="action-approval-label">{t('actionCommand')}</span>
-                <pre className="action-approval-code">{action.command}</pre>
-            </section>
-            <section className="action-approval-section">
-                <span className="action-approval-label">{t('actionArguments')}</span>
-                <pre className="action-approval-code">{JSON.stringify(action.args, null, 2)}</pre>
-            </section>
+            <div className="action-approval-value">{action.description}</div>
+            <details className="action-approval-details">
+                <summary>{t('actionDetails')}</summary>
+                <section className="action-approval-section">
+                    <span className="action-approval-label">{t('actionTrustedCapability')}</span>
+                    <strong className="action-approval-value">{definition.title}</strong>
+                    <span className="action-approval-value">{definition.description}</span>
+                </section>
+                <section className="action-approval-section">
+                    <span className="action-approval-label">{t('actionCommand')}</span>
+                    <pre className="action-approval-code">{action.command}</pre>
+                </section>
+                <section className="action-approval-section">
+                    <span className="action-approval-label">{t('actionArguments')}</span>
+                    <pre className="action-approval-code">{JSON.stringify(action.args, null, 2)}</pre>
+                </section>
+            </details>
             <div className="action-approval-buttons">
                 <button className="primary" disabled={executing} onClick={onApprove} type="button">
                     {executing ? t('actionExecuting') : t('actionApprove')}
