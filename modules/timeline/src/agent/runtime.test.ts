@@ -9,6 +9,9 @@
 import { MODULE_AGENT_COMMANDS_CHANGED, MODULE_AGENT_READY } from '@insight/lib/FrontendAgentCommand';
 import { startTimelineAgentRuntime, stopTimelineAgentRuntime } from './runtime';
 
+// 命令注册测试隔离图表导航 UI；实际定位行为由交互与导航套件覆盖。
+jest.mock('../components/CategorySearch', () => ({ calculateDomainRange: jest.fn() }));
+jest.mock('../insight/units/AscendUnit', () => ({ ThreadUnit: class { metadata = {}; } }));
 describe('Timeline agent runtime', () => {
     test('advertises slice selection and pinning commands to the framework', async () => {
         const parent = { postMessage: jest.fn() } as unknown as Window;
@@ -29,6 +32,7 @@ describe('Timeline agent runtime', () => {
             event: MODULE_AGENT_COMMANDS_CHANGED,
             commands: expect.arrayContaining([
                 expect.objectContaining({ name: 'Timeline.selectSlice' }),
+                expect.objectContaining({ name: 'Timeline.listVisibleSlices' }),
                 expect.objectContaining({ name: 'Timeline.pinByUnitName' }),
             ]),
         }), window.location.origin);

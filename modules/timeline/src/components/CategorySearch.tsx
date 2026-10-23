@@ -89,9 +89,7 @@ interface RemoteCount {
     countList: RankCount[];
 };
 
-let remoteCntArray: RemoteCount[] = [];
-
-interface SearchCriteria {
+export interface SearchCriteria {
     content: string;
     isMatchCase: boolean;
     isMatchExact: boolean;
@@ -142,12 +140,12 @@ const getLockRangeMetaList = (session: Session): LockRangeMetadata[] => {
 };
 
 // 获取搜索的结果数量
-const queryDataCount = async (session: Session, searchContent: string, isMatchCase: boolean, isMatchExact: boolean, selectedRankId?: string): Promise<number> => {
+const queryDataCount = async (session: Session, searchContent: string, isMatchCase: boolean, isMatchExact: boolean, selectedRankId?: string): Promise<{ totalCnt: number; counts: RemoteCount[] }> => {
+    const counts: RemoteCount[] = [];
     if (searchContent === undefined || searchContent === '') {
-        return 0;
+        return { totalCnt: 0, counts };
     }
     let totalCnt = 0;
-    remoteCntArray = [];
     const metadataList = getLockRangeMetaList(session);
     for (const unit of session.units) {
         if (!unit.isDisplay || unit.isMultiDeviceHidden) {
@@ -170,10 +168,25 @@ const queryDataCount = async (session: Session, searchContent: string, isMatchCa
                 continue;
             }
             totalCnt += res.totalCount;
-            remoteCntArray.push({ dataSource: metadata.dataSource, countList: res.countList });
+            counts.push({ dataSource: metadata.dataSource, countList: res.countList });
         }
     }
-    return totalCnt;
+    return { totalCnt, counts };
+};
+
+interface SearchOptions {
+    isCurrent: () => boolean;
+    onSuccess: NonNullable<Parameters<typeof jumpToUnitOperator>[1]>['onSuccess'];
+    onFailure: () => void;
+}
+
+const searchHandlers = new WeakMap<Session, (criteria: SearchCriteria, options: SearchOptions) => Promise<number>>();
+
+/** 打开搜索框并复用手动搜索入口，同步输入条件和分页状态。 */
+export const searchCategory = async (session: Session, criteria: SearchCriteria, options: SearchOptions): Promise<number> => {
+    const handler = searchHandlers.get(session);
+    if (handler === undefined || !options.isCurrent()) { options.onFailure(); return 0; }
+    return handler(criteria, options);
 };
 
 interface JumpSliceParams {
@@ -184,11 +197,15 @@ interface JumpSliceParams {
     isMatchExact: boolean;
     selectedRankId: string;
     setIsSearching: (val: boolean) => void;
+    counts: RemoteCount[];
+    isCurrent: () => boolean;
+    options?: SearchOptions;
 }
 // 跳转函数
 const jumpSlice = async ({
-    session, searchContent, index, isMatchExact, isMatchCase, selectedRankId, setIsSearching,
+    session, searchContent, index, isMatchExact, isMatchCase, selectedRankId, setIsSearching, counts, isCurrent, options,
 }: JumpSliceParams): Promise<void> => {
+    if (!isCurrent()) { options?.onFailure(); return; }
     const criteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
     clearForegroundTarget(session, criteria);
     let finalDataSource;
@@ -196,7 +213,7 @@ const jumpSlice = async ({
     let finalDbPath: string | undefined;
     let flag = false;
     let currentIndex = index;
-    for (const remoteCount of remoteCntArray) {
+    for (const remoteCount of counts) {
         if (flag) {
             break;
         }
@@ -218,11 +235,11 @@ const jumpSlice = async ({
         command: 'search/slice',
         params: { rankId: finalRankId, dbPath: finalDbPath, searchContent, index: Math.max(1, currentIndex), isMatchCase, isMatchExact, metadataList },
     }).finally(() => {
-        setIsSearching(false);
+        if (isCurrent()) { setIsSearching(false); }
     });
-    if (slice === undefined || !isCurrentSearch(session, criteria)) { return; }
+    if (slice === undefined || !isCurrent()) { options?.onFailure(); return; }
     const targetThreadId = slice.tid?.toString();
-    if (targetThreadId === undefined || targetThreadId === '') { return; }
+    if (targetThreadId === undefined || targetThreadId === '') { options?.onFailure(); return; }
     const targetSlice = {
         ...slice,
         name: slice.name ?? searchContent,
@@ -233,6 +250,10 @@ const jumpSlice = async ({
         cardId: slice.rankId,
         dbPath: slice.dbPath,
         timestamp: slice.startTime,
+    }, {
+        guard: isCurrent,
+        onSuccess: options?.onSuccess,
+        onFailure: options?.onFailure,
     });
 };
 
@@ -261,7 +282,7 @@ const ImgWithFallback = ({ className = '' }): JSX.Element => {
 };
 
 // eslint-disable-next-line max-lines-per-function
-const CategorySearchContent = (session: Session): JSX.Element => {
+const CategorySearchContent = (session: Session, showSearch: () => void): JSX.Element => {
     const { t } = useTranslation();
     const [messageApi, contextHolder] = message.useMessage();
     const theme = useTheme();
@@ -274,6 +295,8 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     const [isMatchCase, setIsMatchCase] = useState(false);
     const [isMatchExact, setIsMatchExact] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
+    const searchGenerationRef = React.useRef(0);
+    const searchResultRef = React.useRef<{ counts: RemoteCount[]; isCurrent: () => boolean }>();
 
     // 获取所有可用的 rankId 列表
     const rankIdSet = new Set<string>();
@@ -295,8 +318,11 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     });
 
     useEffect(action(() => {
+        searchGenerationRef.current++;
+        searchResultRef.current = undefined;
         setSearchIconVisible(true); setSearchContent(''); setInputSearchContent(''); setIsMatchCase(false); setIsMatchExact(false);
         updatePaginationData({ current: 1, total: 0 });
+        setSearchingStatus(false); setIsSearching(false);
         session.searchData = undefined;
         session.foregroundTarget = undefined;
         // 切换数据源时，重置为新数据源的第一个 rankId
@@ -304,35 +330,86 @@ const CategorySearchContent = (session: Session): JSX.Element => {
         setSelectedRankId(newRankId);
     }), [session, session.units]);
     const onPageChange = (current: number): void => {
-        if (isSearching) {
+        const result = searchResultRef.current;
+        if (isSearching || result === undefined || !result.isCurrent()) {
             return;
         }
         updatePaginationData(prevState => ({ current, total: prevState.total }));
-        jumpSlice({ session, searchContent, index: current, isMatchCase, isMatchExact, selectedRankId, setIsSearching });
+        jumpSlice({ session, searchContent, index: current, isMatchCase, isMatchExact, selectedRankId, setIsSearching, ...result });
     };
-    const onInputPressEnter = async (): Promise<void> => {
-        if (searchContent === '') { return; }
-        const criteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
+    const currentSessionRef = React.useRef<Session>();
+    currentSessionRef.current = session;
+    const onInputPressEnter = async (
+        criteria: SearchCriteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId },
+        options?: SearchOptions,
+    ): Promise<number> => {
+        if (criteria.content === '') { return 0; }
+        // Identical criteria can belong to different requests; late completions must not publish into the newer search.
+        const generation = ++searchGenerationRef.current;
+        searchResultRef.current = undefined;
+        const isCurrentCriteria = (): boolean => generation === searchGenerationRef.current &&
+            currentSessionRef.current === session && isCurrentSearch(session, criteria);
+        const isCurrent = (): boolean => isCurrentCriteria() && options?.isCurrent() !== false;
         runInAction(() => {
             session.searchData = criteria;
             session.foregroundTarget = undefined;
         });
         setSearchingStatus(true);
-        const totalCnt = await queryDataCount(session, searchContent, isMatchCase, isMatchExact, selectedRankId);
-        if (!isCurrentSearch(session, criteria)) {
-            setSearchingStatus(false);
-            return;
-        }
-        if (totalCnt > 0) {
+        setIsSearching(false);
+        try {
+            const { totalCnt, counts } = await queryDataCount(session, criteria.content, criteria.isMatchCase, criteria.isMatchExact, criteria.rankId);
+            if (!isCurrent()) { options?.onFailure(); return 0; }
+            // 后续手动翻页不依赖已经结束的 Agent 请求，但仍属于本次有效搜索。
+            searchResultRef.current = { counts, isCurrent: isCurrentCriteria };
             updatePaginationData({ current: 1, total: totalCnt });
-            jumpSlice({ session, searchContent, index: 1, isMatchCase, isMatchExact, selectedRankId, setIsSearching });
-            setSearchIconVisible(false);
-        } else {
-            clearForegroundTarget(session, criteria);
-            messageApi.warning(t('notify:SearchEmpty'));
+            if (totalCnt > 0) {
+                setSearchIconVisible(false);
+                await jumpSlice({
+                    session,
+                    searchContent: criteria.content,
+                    index: 1,
+                    isMatchCase: criteria.isMatchCase,
+                    isMatchExact: criteria.isMatchExact,
+                    selectedRankId: criteria.rankId,
+                    setIsSearching,
+                    counts,
+                    isCurrent,
+                    options,
+                });
+            } else {
+                setSearchIconVisible(true);
+                clearForegroundTarget(session, criteria);
+                messageApi.warning(t('notify:SearchEmpty'));
+            }
+            return totalCnt;
+        } finally {
+            if (isCurrent()) { setSearchingStatus(false); }
         }
-        setSearchingStatus(false);
     };
+    const searchHandlerRef = React.useRef<(criteria: SearchCriteria, options: SearchOptions) => Promise<number>>();
+    searchHandlerRef.current = (criteria, options) => {
+        showSearch();
+        setSearchContent(criteria.content);
+        setInputSearchContent(criteria.content);
+        setIsMatchCase(criteria.isMatchCase);
+        setIsMatchExact(criteria.isMatchExact);
+        setSelectedRankId(criteria.rankId);
+        return onInputPressEnter({ ...criteria }, options);
+    };
+    // Content 的 hooks 属于父组件，即使 Tooltip 尚未打开也注册；重渲染只更新入口引用。
+    useEffect(() => {
+        currentSessionRef.current = session;
+        const handler = (criteria: SearchCriteria, options: SearchOptions): Promise<number> => {
+            const currentHandler = searchHandlerRef.current;
+            if (currentSessionRef.current !== session || currentHandler === undefined) { options.onFailure(); return Promise.resolve(0); }
+            return currentHandler(criteria, options);
+        };
+        searchHandlers.set(session, handler);
+        return () => {
+            if (searchHandlers.get(session) === handler) { searchHandlers.delete(session); }
+            currentSessionRef.current = undefined;
+        };
+    }, [session]);
     const onInputChange = action((e: ChangeEvent<HTMLInputElement>): void => {
         const inputContent = e.target.value;
         const trimmedValue = inputContent.trim();
@@ -409,7 +486,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
                         ? <div className={'icon_selected_exact_match'}/>
                         : <div className={'icon_exact_match'}/>} onClick={(): void => changeMatchExactStatus()}></StyledButton>
                 </Tooltip>
-                <CustomButton icon={SearchIcon as any} onClick={onInputPressEnter}></CustomButton>
+                <CustomButton icon={SearchIcon as any} onClick={(): void => { void onInputPressEnter(); }}></CustomButton>
             </SearchContainer>;
         } else {
             dom = <SearchContainer>
@@ -440,7 +517,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
                     popupClassName="rank-id-select-dropdown"
                 />
                 <Input allowClear={{ clearIcon: <CloseIcon fill={theme.buttonColor.enableClickColor} /> }} disabled={searchingStatus || isSearching} maxLength={200}
-                    size="large" value={inputSearchContent} onChange={onInputChange} onPressEnter={onInputPressEnter} ></Input>
+                    size="large" value={inputSearchContent} onChange={onInputChange} onPressEnter={(): void => { void onInputPressEnter(); }} ></Input>
                 <div className="searchResult">
                     {dom}
                 </div>
@@ -473,7 +550,8 @@ export const CategorySearch = observer(({ session }: { session: Session}): JSX.E
     return (
         <Tooltip overlayStyle={{ maxWidth: 1000 }}
             overlayInnerStyle={{ maxWidth: 800, borderRadius: 2 }}
-            title={CategorySearchContent(session)}
+            title={CategorySearchContent(session, () => onTooltipVisibleChange(true))}
+            open={customButtonProps.isSuspend}
             trigger="click"
             onOpenChange={onTooltipVisibleChange}
             overlayClassName={'insight-category-search-overlay'}

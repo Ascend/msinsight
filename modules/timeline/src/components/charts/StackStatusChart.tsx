@@ -21,7 +21,7 @@ import * as d3 from 'd3';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
 import React, { useEffect, useMemo, useRef } from 'react';
-import type { ChartProps, ChartReaction, Scale, StackStatusData, TextConfig } from '../../entity/chart';
+import type { ChartClickReaction, ChartProps, Scale, StackStatusData, TextConfig } from '../../entity/chart';
 import { UnitHeight } from '../../entity/insight';
 import type { Session } from '../../entity/session';
 import { Canvas, CanvasContainer, zipStatusData } from './common';
@@ -272,7 +272,7 @@ interface MouseUpFuncParams {
     rowHeight: UnitHeight; session: Session;
     unit: StackStatusChartProps['unit'];
     metadata: unknown;
-    onClick?: ChartReaction<'stackStatus'>;
+    onClick?: ChartClickReaction<'stackStatus'>;
 }
 const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, unit, metadata, onClick }: MouseUpFuncParams): void => {
     const clickedData = findDataByXY({ x: e.offsetX, y: e.offsetY }, datasState, rangeAndDomain, rowHeight, session.endTimeAll ?? 0);

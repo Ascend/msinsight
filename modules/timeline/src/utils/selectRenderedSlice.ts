@@ -6,7 +6,7 @@
  * -------------------------------------------------------------------------
  */
 import { runInAction } from 'mobx';
-import type { ChartReaction, StackStatusData } from '../entity/chart';
+import type { ChartClickReaction, StackStatusData } from '../entity/chart';
 import type { ThreadMetaData } from '../entity/data';
 import type { Session } from '../entity/session';
 import type { InsightUnit } from '../entity/insight';
@@ -15,7 +15,7 @@ import { getOffsetSide } from '../insight/units/offset';
 
 export const selectRenderedSlice = (
     session: Session, metadata: ThreadMetaData, slice: StackStatusData | undefined,
-    onClick: ChartReaction<'stackStatus'> | undefined, unit: InsightUnit,
+    onClick: ChartClickReaction<'stackStatus'> | undefined, unit: InsightUnit,
 ): void => {
     if (session.selectedRangeIsLock) return;
     if (slice) slice.showSelectedData = true;

@@ -14,6 +14,9 @@ import type { SelectedDataType } from '../entity/session';
 import { MAX_ZOOM_DURATION } from '../entity/domain';
 import { observeTimeline, registerTimelineCommands, setTimelineAgentSession } from './timelineController';
 
+// 命令注册测试隔离图表导航 UI；实际定位行为由交互与导航套件覆盖。
+jest.mock('../components/CategorySearch', () => ({ calculateDomainRange: jest.fn() }));
+jest.mock('../insight/units/AscendUnit', () => ({ ThreadUnit: class { metadata = {}; } }));
 const MODULE_ID = 'Timeline';
 const MAX_TEST_ZOOM_STEPS = 256;
 
@@ -72,9 +75,10 @@ afterEach(() => {
 const getObs = (key: string): unknown => (observeTimeline() as Record<string, unknown>)[key];
 
 describe('registration', () => {
-    test('registers exactly six Timeline commands', () => {
+    test('registers exactly seven Timeline commands', () => {
         expect([...definitions.keys()].sort()).toEqual([
             'Timeline.focus',
+            'Timeline.listVisibleSlices',
             'Timeline.pan',
             'Timeline.pinByUnitName',
             'Timeline.restore',
@@ -98,9 +102,12 @@ describe('registration', () => {
                 expect(def.inputSchema.properties).toHaveProperty('percentage', expect.objectContaining({ minimum: 1, maximum: 90 }));
             } else if (name === 'Timeline.pinByUnitName') {
                 expect(def.inputSchema.properties).toEqual({});
+            } else if (name === 'Timeline.listVisibleSlices') {
+                expect(def.inputSchema.properties).toHaveProperty('limit', expect.objectContaining({ maximum: 50 }));
+                expect(def.inputSchema.properties).toHaveProperty('revision');
             } else if (name === 'Timeline.selectSlice') {
-                expect(def.inputSchema.oneOf).toEqual([{ required: ['name'] }, { required: ['candidateRef'] }]);
-                expect(def.inputSchema.properties).not.toHaveProperty('index');
+                expect(def.inputSchema.required).toEqual(['name']);
+                expect(Object.keys(def.inputSchema.properties ?? {})).toEqual(['name', 'cardId', 'isMatchCase', 'isMatchExact']);
             } else {
                 expect(def.inputSchema.required).toEqual([expect.any(String)]);
             }

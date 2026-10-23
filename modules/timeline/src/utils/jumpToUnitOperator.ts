@@ -29,11 +29,17 @@ import { isOperatorMetadata } from './operatorUnit';
 import { getSelectedThreadId } from './selectionContext';
 import { getOffsetSide } from '../insight/units/offset';
 
+interface NavigationOptions {
+    guard?: (unit: InsightUnit) => boolean;
+    onSuccess?: (unit: InsightUnit) => void;
+    onFailure?: () => void;
+}
+
 /**
  * 在泳道中选中特定算子
  * @param {OpDetail} opDetail 算子详情信息
  */
-const jumpToUnitOperator = (opDetail: OpDetail): void => {
+const jumpToUnitOperator = (opDetail: OpDetail, options: NavigationOptions = {}): void => {
     const {
         id,
         cardId: cid,
@@ -47,13 +53,17 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
         metaType,
     } = opDetail;
     const session = store.sessionStore.activeSession;
-    if (session === undefined) { return; }
+    if (session === undefined) { options.onFailure?.(); return; }
 
     runInAction(() => {
         session.locateUnit = {
             target: (unit: InsightUnit): boolean => unit instanceof ThreadUnit &&
-                isOperatorMetadata(unit.metadata, { cardId: cid, pid, tid, metaType }),
+                (!dbPath || unit.metadata.dbPath === dbPath) &&
+                isOperatorMetadata(unit.metadata, { cardId: cid, pid, tid, metaType }) && (options.guard?.(unit) ?? true),
+            onFailure: options.onFailure,
             onSuccess: (unit): void => {
+                // 匹配和实际定位可能异步分离；副作用前重新检查调用方的导航条件。
+                if (options.guard?.(unit) === false) { options.onFailure?.(); return; }
                 const unitMetaData = unit.metadata as ThreadMetaData;
                 const normalizedThreadId = getSelectedThreadId(unitMetaData, tid);
                 const normalizedProcessId = unitMetaData.processId ?? pid;
@@ -92,6 +102,7 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                     depth,
                     metaType: normalizedMetaType,
                 };
+                options.onSuccess?.(unit);
             },
             showDetail: false,
         };

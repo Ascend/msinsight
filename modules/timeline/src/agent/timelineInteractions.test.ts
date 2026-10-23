@@ -6,7 +6,8 @@
  * MindStudio is licensed under Mulan PSL v2.
  * -------------------------------------------------------------------------
  */
-import { runInAction } from 'mobx';
+import { calculateDomainRange, searchCategory } from '../components/CategorySearch';
+import { ThreadUnit } from '../insight/units/AscendUnit';
 import { message } from 'antd';
 import type { CommandDefinition, CommandHandler, JsonObject } from '@insight/lib/FrontendAgentCommand';
 import type { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandClient';
@@ -14,12 +15,19 @@ import { unit, type InsightUnit } from '../entity/insight';
 import type { CardMetaData, ThreadMetaData } from '../entity/data';
 import type { StackStatusData } from '../entity/chart';
 import { Session } from '../entity/session';
+import { store } from '../store';
 import { isPinned, switchPinned } from '../components/ChartContainer/unitPin';
 import { selectRenderedSlice } from '../utils/selectRenderedSlice';
-import { registerVisibleSliceSource, visibleSliceScope, type VisibleSliceSource } from './visibleSlices';
 import { observeTimeline, registerTimelineCommands, setTimelineAgentSession } from './timelineController';
+import { registerVisibleSliceSource, visibleSliceScope } from './visibleSlices';
 
-const Thread = unit<ThreadMetaData>({ name: 'Thread' });
+jest.mock('../store', () => ({ store: { sessionStore: { activeSession: undefined } } }));
+jest.mock('../components/CategorySearch', () => ({ calculateDomainRange: jest.fn(() => [80, 140]), searchCategory: jest.fn() }));
+jest.mock('../insight/units/AscendUnit', () => ({
+    ThreadUnit: jest.requireActual('../entity/insight').unit({ name: 'Thread' }),
+}));
+
+const Thread = ThreadUnit;
 const Card = unit<CardMetaData>({ name: 'Card' });
 const dataSource = { remote: '', port: 0, projectName: '', dataPath: [], projectPath: [], children: [] };
 const createThread = (threadId: string, threadName = 'stream', cardId = '0'): InsightUnit => new Thread({
@@ -52,32 +60,9 @@ let originalRequest: typeof window.request;
 const invoke = (name: string, args: JsonObject = {}, signal = new AbortController().signal, deadline = Date.now() + 5000): unknown =>
     handlers.get(name)?.(args, { requestId: 'test', deadline, signal });
 const select = (args: JsonObject): Promise<any> => invoke('Timeline.selectSlice', args) as Promise<any>;
-const rect = (top = 100, height = 80): DOMRect => ({ top, bottom: top + height, left: 200, right: 1000, width: 800, height } as DOMRect);
-
-const mountSource = (data = [slice], lane = session.units[0].children?.[0] as InsightUnit, top = 100): VisibleSliceSource => {
-    const element = document.createElement('div');
-    element.getBoundingClientRect = () => rect(top);
-    document.body.appendChild(element);
-    const source: VisibleSliceSource = {
-        unit: lane,
-        element,
-        data: [data],
-        ...session.domainRange,
-        rowHeight: 20,
-        ready: true,
-        scope: visibleSliceScope(session, lane),
-        select: jest.fn(item => runInAction(() => {
-            session.selectedUnits = [lane];
-            selectRenderedSlice(session, lane.metadata as ThreadMetaData, item, undefined, lane);
-        })),
-    };
-    const unregister = registerVisibleSliceSource(session, source);
-    stops.push(() => { unregister(); element.remove(); });
-    return source;
-};
-
 beforeEach(() => {
     session = new Session({ isNsMode: true });
+    store.sessionStore.activeSession = session;
     session.phase = 'download';
     session.domainRange = { domainStart: 0, domainEnd: 2000 };
     session.units = [createCard('0', [createThread('t1'), createThread('t2'), createThread('t3', 'other')])];
@@ -91,150 +76,101 @@ beforeEach(() => {
     } as unknown as ModuleAgentCommandClient)];
     originalRequest = window.request;
     window.request = jest.fn();
+    jest.mocked(calculateDomainRange).mockReturnValue([80, 140]);
 });
 
 afterEach(() => {
     stops.forEach(stop => stop());
     setTimelineAgentSession(undefined);
+    store.sessionStore.activeSession = undefined;
     session.cancelZoomingHistory();
     window.request = originalRequest;
     jest.restoreAllMocks();
 });
 
-describe('select visible slice', () => {
-    test('selects one rendered operator and its lane without searching or changing the viewport', async () => {
-        mountSource();
+describe('select slice through CategorySearch', () => {
+    beforeEach(() => { jest.mocked(searchCategory).mockReset(); });
+
+    test('selects a visible slice through its click callback without searching or changing the viewport', async () => {
+        const lane = session.units[0].children?.[0] as InsightUnit;
+        const element = document.createElement('div');
+        element.getBoundingClientRect = () => ({ top: 100, bottom: 180, left: 200, right: 1000, width: 800, height: 80 } as DOMRect);
+        document.body.appendChild(element);
+        const onClick = jest.fn();
+        const unregister = registerVisibleSliceSource(session, {
+            unit: lane,
+            element,
+            data: [[slice]],
+            ...session.domainRange,
+            rowHeight: 20,
+            ready: true,
+            scope: visibleSliceScope(session, lane),
+            select: target => selectRenderedSlice(session, lane.metadata as ThreadMetaData, target, onClick, lane),
+        });
+        stops.push(() => { unregister(); element.remove(); });
         const viewport = { ...session.domainRange };
-        await expect(select({ name: 'MatMul' })).resolves.toMatchObject({ status: 'selected', totalCount: 1, requiresObserve: true });
-        expect(session.selectedData).toMatchObject({ id: slice.id, name: slice.name, timestamp: 1100, showSelectedData: true });
-        expect(session.selectedUnits).toEqual([session.units[0].children?.[0]]);
+        const searchData = session.searchData;
+        await expect(select({ name: 'matmul', isMatchExact: true })).resolves.toMatchObject({ status: 'selected' });
+        expect(session.selectedData?.id).toBe(slice.id);
         expect(session.domainRange).toEqual(viewport);
+        expect(session.searchData).toBe(searchData);
+        expect(session.locateUnit).toBeUndefined();
+        expect(onClick).toHaveBeenCalledTimes(1);
+        expect(searchCategory).not.toHaveBeenCalled();
         expect(window.request).not.toHaveBeenCalled();
-        expect(invoke('Timeline.pinByUnitName')).toMatchObject({ addedCount: 2 });
     });
 
-    test('lists duplicate names without changing selection, then selects the chosen stable reference', async () => {
-        mountSource([slice, { ...slice, id: 'slice-2', startTime: 1500, duration: 100 }]);
-        const before = { ...session.domainRange };
-        const result = await select({ name: 'MatMul' });
-        expect(result).toMatchObject({ status: 'needsChoice', needsChoice: true, totalCount: 2, timeUnit: 'ns' });
-        expect(result.candidates).toEqual([
-            expect.objectContaining({ index: 1, name: 'MatMul', cardId: '0', lane: 'stream', startTime: 1000, duration: 50 }),
-            expect.objectContaining({ index: 2, startTime: 1500, duration: 100 }),
-        ]);
-        expect(session.selectedData).toBeUndefined();
-        expect(session.selectedUnits).toEqual([]);
-        expect(session.domainRange).toEqual(before);
-        expect(JSON.stringify(result)).not.toContain('/private/');
-        await select({ candidateRef: result.candidates[1].candidateRef });
-        expect(session.selectedData?.id).toBe('slice-2');
-        expect(session.domainRange).toEqual(before);
+    test('delegates first-match selection and loads links after the shared navigation succeeds', async () => {
+        const lane = session.units[0].children?.[0] as InsightUnit;
+        const onClick = jest.fn();
+        lane.chart = { onClick } as unknown as typeof lane.chart;
+        jest.mocked(searchCategory).mockImplementation(async (_session, _criteria, options) => {
+            selectRenderedSlice(session, lane.metadata as ThreadMetaData, { ...slice }, undefined, lane);
+            options.onSuccess?.(lane);
+            return 3;
+        });
+        await expect(select({ name: ' MatMul ' })).resolves.toMatchObject({ status: 'selected', totalCount: 3, requiresObserve: true });
+        expect(searchCategory).toHaveBeenCalledWith(session, { content: 'MatMul', rankId: 'ALL', isMatchCase: false, isMatchExact: false }, expect.anything());
+        expect(onClick).toHaveBeenCalledWith(session.selectedData, session, lane.metadata);
+        expect(window.request).not.toHaveBeenCalled();
     });
 
-    test('returns only overlapping time ranges, including a visible zero-duration operator', async () => {
-        mountSource([
-            { ...slice, id: 'left', startTime: -100, duration: 50 },
-            { ...slice, id: 'right', startTime: 2100 },
-            { ...slice, id: 'overlap', startTime: -100, duration: 200 },
-            { ...slice, id: 'zero', startTime: 500, duration: 0 },
-        ]);
-        const result = await select({ name: 'MatMul' });
-        expect(result.totalCount).toBe(2);
-        expect(result.candidates.map((item: any) => item.startTime)).toEqual([-100, 500]);
+    test('forwards card and match options and reports no match', async () => {
+        jest.mocked(searchCategory).mockResolvedValue(0);
+        await expect(select({ name: 'add', cardId: '0', isMatchCase: true, isMatchExact: true })).rejects.toMatchObject({ code: 'COMMAND_NOT_FOUND' });
+        expect(searchCategory).toHaveBeenCalledWith(session, { content: 'add', rankId: '0', isMatchCase: true, isMatchExact: true }, expect.anything());
     });
 
-    test('excludes off-screen, hidden and clipped depths, including virtual-scroll overscan', async () => {
-        mountSource([slice], undefined, window.innerHeight + 10);
-        const visible = mountSource([{ ...slice, id: 'visible' }, { ...slice, id: 'clipped', depth: 3 }]);
-        const clip = document.createElement('div');
-        clip.style.overflow = 'auto';
-        clip.getBoundingClientRect = () => rect(100, 30);
-        document.body.appendChild(clip);
-        clip.appendChild(visible.element);
-        stops.push(() => clip.remove());
-        const hidden = mountSource([{ ...slice, id: 'hidden' }]);
-        hidden.element.style.display = 'none';
-        const result = await select({ name: 'MatMul' });
-        expect(result).toMatchObject({ status: 'selected', totalCount: 1 });
-        expect(session.selectedData?.id).toBe('visible');
-    });
-
-    test('deduplicates the same operator rendered in both pinned and normal areas', async () => {
-        mountSource();
-        mountSource([slice], undefined, 220);
-        await expect(select({ name: 'MatMul' })).resolves.toMatchObject({ totalCount: 1, status: 'selected' });
-    });
-
-    test('distinguishes same names across cards and supports explicit card filtering', async () => {
-        mountSource();
-        const other = createThread('t1', 'another stream', '1');
-        mountSource([{ ...slice, cardId: '1' }], other, 200);
-        const result = await select({ name: 'MatMul' });
-        expect(result.candidates.map((item: any) => item.cardId)).toEqual(['0', '1']);
-        await expect(select({ name: 'MatMul', cardId: '1' })).resolves.toMatchObject({ status: 'selected', operator: { cardId: '1' } });
-    });
-
-    test('supports case-insensitive substring matching using the real rendered names', async () => {
-        mountSource([{ ...slice, name: 'aten::Add', type: 'aten::Add' }]);
-        await expect(select({ name: 'add' })).rejects.toMatchObject({ code: 'COMMAND_NOT_FOUND' });
-        await expect(select({ name: 'add', isMatchCase: false, isMatchExact: false })).resolves.toMatchObject({ operator: { name: 'aten::Add' } });
-    });
-
-    test.each(['scroll', 'zoom', 'reload', 'filter', 'unmount'])('rejects old choices after %s', async change => {
-        const source = mountSource([slice, { ...slice, id: 'slice-2', startTime: 1500 }]);
-        const result = await select({ name: 'MatMul' });
-        if (change === 'scroll') source.element.getBoundingClientRect = () => rect(80);
-        if (change === 'zoom') session.domainRange = { domainStart: 500, domainEnd: 1500 };
-        if (change === 'filter') session.areFlagEventsHidden = !session.areFlagEventsHidden;
-        if (change === 'reload') source.ready = false;
-        if (change === 'unmount') source.element.remove();
-        await expect(select({ candidateRef: result.candidates[0].candidateRef })).rejects.toThrow();
-        expect(session.selectedData).toBeUndefined();
-    });
-
-    test('does not pick a unique match until all visible sources have finished loading', async () => {
-        mountSource();
-        const loading = mountSource([], session.units[0].children?.[1] as InsightUnit, 200);
-        loading.ready = false;
-        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE', retryable: true });
-        expect(session.selectedData).toBeUndefined();
-        loading.ready = true;
-        await expect(select({ name: 'MatMul' })).resolves.toMatchObject({ status: 'selected' });
-    });
-
-    test('paginates candidates without selecting and keeps existing references stable', async () => {
-        mountSource(Array.from({ length: 24 }, (_, index) => ({ ...slice, id: `slice-${index}`, startTime: 100 + index * 50 })));
-        const first = await select({ name: 'MatMul', limit: 10 });
-        const next = await select({ name: 'MatMul', offset: 10, limit: 10 });
-        expect(first).toMatchObject({ needsChoice: true, totalCount: 24, hasMore: true });
-        expect(next.candidates[0].index).toBe(11);
-        expect(session.selectedData).toBeUndefined();
-        await expect(select({ candidateRef: first.candidates[0].candidateRef })).resolves.toMatchObject({ status: 'selected' });
-    });
-
-    test.each<JsonObject>([{}, { name: '' }, { name: 'MatMul', index: 1 }, { name: 'MatMul', candidateRef: 'x' }, { name: 'MatMul', limit: 51 }, { name: 'MatMul', offset: -1 }])('rejects invalid arguments %j', async args => {
-        await expect(select(args)).rejects.toMatchObject({ code: 'COMMAND_INVALID' });
-    });
-
-    test('reports missing rendered lanes and no match distinctly', async () => {
+    test('reports failed navigation rather than stale selection', async () => {
+        jest.mocked(searchCategory).mockImplementation(async (_session, _criteria, options) => { options.onFailure(); return 1; });
         await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE' });
-        mountSource([]);
-        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_NOT_FOUND' });
     });
 
-    test('honors selection lock, an in-flight navigation, cancellation and deadline before mutation', async () => {
-        mountSource();
+    test('invalidates delegated callbacks after cancellation', async () => {
+        let options: Parameters<typeof searchCategory>[2] | undefined;
+        jest.mocked(searchCategory).mockImplementation((_session, _criteria, value) => { options = value; return new Promise(() => {}); });
+        const abort = new AbortController();
+        const pending = invoke('Timeline.selectSlice', { name: 'MatMul' }, abort.signal);
+        abort.abort();
+        await expect(pending).rejects.toMatchObject({ code: 'COMMAND_CANCELLED' });
+        expect(options?.isCurrent()).toBe(false);
+        expect(session.selectedData).toBeUndefined();
+    });
+
+    test.each<JsonObject>([{}, { name: '' }, { name: 'MatMul', index: 1 }, { candidateRef: 'x' }, { name: 'MatMul', offset: 1 }])('rejects invalid arguments %j', async args => {
+        await expect(select(args)).rejects.toMatchObject({ code: 'COMMAND_INVALID' });
+        expect(searchCategory).not.toHaveBeenCalled();
+    });
+
+    test('honors lock, concurrent navigation and deadline before delegation', async () => {
         session.selectedRangeIsLock = true;
         await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE' });
         session.selectedRangeIsLock = false;
-        session.locateUnit = { target: () => false, onSuccess: () => {}, showDetail: false };
+        session.locateUnit = { target: () => false, onSuccess: () => {} };
         await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_BUSY' });
         session.locateUnit = undefined;
-        const abort = new AbortController();
-        abort.abort();
-        await expect(invoke('Timeline.selectSlice', { name: 'MatMul' }, abort.signal)).rejects.toMatchObject({ code: 'COMMAND_CANCELLED' });
         await expect(invoke('Timeline.selectSlice', { name: 'MatMul' }, undefined, Date.now() - 1)).rejects.toMatchObject({ code: 'COMMAND_TIMEOUT' });
-        expect(session.selectedData).toBeUndefined();
+        expect(searchCategory).not.toHaveBeenCalled();
     });
 });
 

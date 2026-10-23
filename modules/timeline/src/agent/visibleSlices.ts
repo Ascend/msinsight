@@ -5,6 +5,7 @@
  * MindStudio is licensed under Mulan PSL v2.
  * -------------------------------------------------------------------------
  */
+import { COMMAND_ERROR_CODES, CommandError, type CommandContext, type CommandDefinition, type JsonObject } from '@insight/lib/FrontendAgentCommand';
 import type { StackStatusData } from '../entity/chart';
 import type { ThreadMetaData } from '../entity/data';
 import type { InsightUnit } from '../entity/insight';
@@ -107,6 +108,8 @@ export const readVisibleSlices = (session: Session): { revision: string; slices:
                 const x = rect.left + (slice.startTime - domainStart) / (domainEnd - domainStart) * rect.width;
                 const right = Math.max(x + 1, rect.left + (end - domainStart) / (domainEnd - domainStart) * rect.width);
                 if (right <= bounds.left || x >= bounds.right) continue;
+                // 内容变化也参与原有 revision，使用注册来源编号而非数据库路径。
+                revisions.push([id, slice.id, slice.name, slice.startTime, slice.duration, slice.depth, slice.threadId, meta.threadName]);
                 // A copied pinned lane can display the same underlying slice twice.
                 const key = JSON.stringify([meta.dbPath, meta.cardId, meta.processId, meta.threadId, meta.metaType, slice.id, slice.startTime, slice.duration, slice.depth]);
                 const existing = slices.get(key);
@@ -114,10 +117,98 @@ export const readVisibleSlices = (session: Session): { revision: string; slices:
             }
         }
     }
+    const ordered = [...slices.values()].sort((a, b) => a.top - b.top || a.slice.startTime - b.slice.startTime || a.key.localeCompare(b.key));
     return {
         revision: JSON.stringify(revisions),
-        slices: [...slices.values()].sort((a, b) => a.top - b.top || a.slice.startTime - b.slice.startTime || a.key.localeCompare(b.key)),
+        slices: ordered,
         loading,
         sourceCount,
     };
+};
+
+export const listVisibleSlicesDefinition: CommandDefinition = {
+    name: 'Timeline.listVisibleSlices',
+    title: 'List visible timeline operators',
+    description: 'Read only currently rendered, visible operators, deduplicating normal and pinned copies. Not an imported-data search. ' +
+        'Returns at most 50 summaries (default 20). For offset > 0, pass the revision from the first page; restart at offset 0 if stale. ' +
+        'loading means the visible data is incomplete. sourceRef identifies a source lane, not a selectSlice candidateRef. No selection or viewport changes.',
+    inputSchema: {
+        type: 'object',
+        properties: {
+            offset: { type: 'integer', minimum: 0, default: 0 },
+            limit: { type: 'integer', minimum: 1, maximum: 50, default: 20 },
+            revision: { type: 'string', minLength: 1 },
+        },
+        additionalProperties: false,
+    },
+};
+
+const sourceRefs = new WeakMap<Session, Map<string, string>>();
+let sourceRefId = 0;
+const summarize = (session: Session, { source, slice }: VisibleSlice): JsonObject => {
+    const meta = source.unit.metadata as ThreadMetaData;
+    let refs = sourceRefs.get(session);
+    if (!refs) { refs = new Map(); sourceRefs.set(session, refs); }
+    // 合并卡片可能包含多个数据库；不暴露私有路径，也不混淆不同来源的同名泳道。
+    const key = JSON.stringify([meta.cardId, meta.dbPath, meta.processId, meta.threadId, meta.metaType]);
+    let sourceRef = refs.get(key);
+    if (!sourceRef) { sourceRef = `visible-source-${++sourceRefId}`; refs.set(key, sourceRef); }
+    return {
+        sourceRef,
+        id: slice.id ?? null,
+        cardId: meta.cardId,
+        processId: meta.processId ?? null,
+        threadId: slice.threadId ?? meta.threadId,
+        metaType: meta.metaType,
+        name: slice.name,
+        lane: meta.threadName ?? meta.threadId,
+        startTime: slice.startTime,
+        duration: slice.duration,
+        depth: slice.depth,
+    };
+};
+
+const invalid = (message: string): CommandError => new CommandError({ code: COMMAND_ERROR_CODES.INVALID, message, retryable: false });
+const validate = (args: JsonObject): void => {
+    if (Object.keys(args).some(key => !['offset', 'limit', 'revision'].includes(key)) ||
+        ('offset' in args && (typeof args.offset !== 'number' || !Number.isSafeInteger(args.offset) || args.offset < 0)) ||
+        ('limit' in args && (typeof args.limit !== 'number' || !Number.isSafeInteger(args.limit) || args.limit < 1 || args.limit > 50)) ||
+        ('revision' in args && (typeof args.revision !== 'string' || !args.revision.trim())) ||
+        (typeof args.offset === 'number' && args.offset > 0 && !('revision' in args))) {
+        throw invalid('Provide offset >= 0, limit from 1 to 50 and a nonempty revision; offset > 0 requires the first page revision.');
+    }
+};
+
+export const listVisibleSlices = (args: JsonObject, context: CommandContext, session: Session, isCurrent: () => boolean): JsonObject => {
+    validate(args);
+    const check = (): void => {
+        if (context.signal.aborted) throw new CommandError({ code: COMMAND_ERROR_CODES.CANCELLED, message: 'Visible slice listing was cancelled.', retryable: false });
+        if (Date.now() >= context.deadline) throw new CommandError({ code: COMMAND_ERROR_CODES.TIMEOUT, message: 'Visible slice listing timed out.', retryable: false });
+        if (!isCurrent()) throw new CommandError({ code: COMMAND_ERROR_CODES.UNAVAILABLE, message: 'The active Timeline session changed.', retryable: true });
+    };
+    check();
+    const visible = readVisibleSlices(session);
+    if (args.revision !== undefined && args.revision !== visible.revision) {
+        throw invalid('The visible slice revision is stale. Restart listing at offset 0 without revision.');
+    }
+    const offset = (args.offset as number | undefined) ?? 0;
+    const limit = (args.limit as number | undefined) ?? 20;
+    const slices = visible.slices.slice(offset, offset + limit).map(slice => summarize(session, slice));
+    check();
+    return {
+        revision: visible.revision,
+        totalCount: visible.slices.length,
+        loading: visible.loading,
+        sourceCount: visible.sourceCount,
+        offset,
+        limit,
+        hasMore: offset + limit < visible.slices.length,
+        timeUnit: session.isNsMode ? 'ns' : 'ms',
+        slices,
+    };
+};
+
+export const summarizeVisibleSlices = (session: Session): JsonObject => {
+    const { slices, revision, loading, sourceCount } = readVisibleSlices(session);
+    return { count: slices.length, loading, sourceCount, revision };
 };
