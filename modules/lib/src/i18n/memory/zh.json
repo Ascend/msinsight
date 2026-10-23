@@ -2,6 +2,7 @@
   "memory": {
     "Find in Timeline": "跳转至时间线视图",
     "Show in Timeline": "在时间线中显示",
+    "Show current range in Timeline": "在 Timeline 中查看当前范围",
     "Invalid Size Warning": "无效查询条件：“最大值”不能小于“最小值”",
     "Memory Analysis": "内存分析",
     "Memory Allocation/Release Details": "内存申请/释放详情",

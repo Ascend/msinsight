@@ -19,7 +19,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { runInAction } from 'mobx';
-import { Spin, CollapsiblePanel, Select } from '@insight/lib/components';
+import { Spin, CollapsiblePanel, Select, Button } from '@insight/lib/components';
 import { StyledEmpty, customConsole as console } from '@insight/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { Graph } from '../entity/memory';
@@ -30,6 +30,7 @@ import { memoryCurveGet } from '../utils/RequestUtils';
 import { getTimelineCardOffset } from '../connection/handler';
 import { Label } from './Common';
 import { FlexDiv } from '../utils/styleUtils';
+import connector from '../connection';
 
 const resolveRangeFromRowIndex = (rows: Graph['rows'], start: number, end: number): SelectedRange | undefined => {
     if (rows.length <= 1 || start > end) {
@@ -61,6 +62,7 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
     const [curveSpin, setCurveSpin] = useState<boolean>(false);
     const [rangeFlagData, setRangeFlagData] = useState<RangeFlagList[]>([]);
     const [rankOffsetNs, setRankOffsetNs] = useState<number>(0);
+    const [curveRankId, setCurveRankId] = useState('');
     const requestIdRef = useRef(0);
     const { t } = useTranslation('memory');
 
@@ -129,6 +131,7 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
                 rows: resp.lines,
             });
             setRankOffsetNs(resp.rankOffsetNs);
+            setCurveRankId(rankValue.rankInfo.rankId);
         }).catch(err => {
             if (requestId !== requestIdRef.current) {
                 return;
@@ -168,14 +171,37 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
         });
     }, [isCompare]);
 
+    // The chart is rebuilt after server sampling and displays all returned rows.
+    // Use its visible endpoints rather than the original Timeline marker bounds.
+    const startMs = Number(lineChartData?.rows[0]?.[0]);
+    const endMs = Number(lineChartData?.rows[lineChartData.rows.length - 1]?.[0]);
+    const canLocateRange = !curveSpin && curveRankId === memorySession.selectedRankId && curveRankId !== '' &&
+        Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs && Number.isFinite(rankOffsetNs);
+    const locateRange = (): void => {
+        if (!canLocateRange) { return; }
+        connector.send({
+            event: 'switchModule',
+            body: {
+                switchTo: 'timeline',
+                toModuleEvent: 'locateTimeRange',
+                params: { cardId: curveRankId, startMs, endMs, rankOffsetNs },
+            },
+        });
+    };
+
     return (
         <div className="mb-30">
             <CollapsiblePanel title={t('Memory Analysis')}>
                 <Spin spinning={curveSpin}>
                     {lineChartData
                         ? <>
-                            <div style={{ paddingBottom: 20 }}>
+                            <div data-testid="memory-range-navigation" data-start-ms={startMs} data-end-ms={endMs}
+                                data-rank-id={curveRankId}
+                                style={{ paddingBottom: 20, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                                 <RangeFlagSelect memorySession={memorySession} rankOffsetNs={rankOffsetNs} callback={setRangeFlagData}/>
+                                <Button disabled={!canLocateRange} onClick={locateRange}>
+                                    {t('Show current range in Timeline')}
+                                </Button>
                             </div>
                             <LineChart
                                 hAxisTitle={t('Time (ms)')}

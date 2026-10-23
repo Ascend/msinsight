@@ -31,6 +31,9 @@ import { GroupBy } from '../../entity/memorySession';
 import { getTimelineCardOffset } from '../../connection/handler';
 import { Label } from '../Common';
 import { FlexDiv } from '../../utils/styleUtils';
+import connector from '../../connection';
+
+jest.mock('../../connection', () => ({ __esModule: true, default: { send: jest.fn() } }));
 
 // Mock external dependencies
 jest.mock('mobx-react-lite', () => ({
@@ -54,6 +57,7 @@ jest.mock('../../utils/styleUtils', () => ({
 }));
 
 jest.mock('@insight/lib/components', () => ({
+    Button: ({ children, ...props }) => <button {...props}>{children}</button>,
     Spin: ({ children, spinning }) => (
         <div data-testid="spin" data-spinning={spinning}>
             {children}
@@ -233,6 +237,58 @@ describe('DynamicLineChart', () => {
 
     afterEach(() => {
         jest.useRealTimers();
+    });
+
+    it.each([false, true])('jumps using visible sampled bounds and the selected rank (compare=%s)', async (isCompare) => {
+        (memoryCurveGet as jest.Mock).mockResolvedValue({
+            title: 'Memory', legends: ['Allocated'], rankOffsetNs: 7000000,
+            lines: [['143', '50'], ['145', '55'], ['147', '60']],
+        });
+        const memorySession = { ...mockMemorySession, selectedRankId: 'rank-2' };
+        memorySession.getSelectedRankValue.mockReturnValue({ rankInfo: { rankId: 'rank-2' }, dbPath: '/rank-2' });
+        render(<DynamicLineChart {...defaultProps} memorySession={memorySession}
+            session={{ ...mockSession, compareRank: { isCompare, rankId: 'baseline-rank' } }} />);
+        const button = await screen.findByRole('button', { name: 'Show current range in Timeline' });
+        await waitFor(() => expect(button).toBeEnabled());
+        fireEvent.click(button);
+        expect(connector.send).toHaveBeenCalledWith({
+            event: 'switchModule',
+            body: {
+                switchTo: 'timeline', toModuleEvent: 'locateTimeRange',
+                params: { cardId: 'rank-2', startMs: 143, endMs: 147, rankOffsetNs: 7000000 },
+            },
+        });
+    });
+
+    it('waits for the newly selected rank and then navigates using its curve and offset', async () => {
+        (memoryCurveGet as jest.Mock).mockResolvedValue({
+            title: 'Memory', legends: ['Allocated'], rankOffsetNs: 0,
+            lines: [['1', '50'], ['2', '55']],
+        });
+        const memorySession = { ...mockMemorySession, selectedRankId: 'rank-1' };
+        memorySession.getSelectedRankValue.mockReturnValue({ rankInfo: { rankId: 'rank-1' } });
+        const { rerender } = render(<DynamicLineChart {...defaultProps} memorySession={memorySession} />);
+        const button = await screen.findByRole('button', { name: 'Show current range in Timeline' });
+        await waitFor(() => expect(button).toBeEnabled());
+        let resolveCurve: (value: unknown) => void = () => {};
+        (memoryCurveGet as jest.Mock).mockReturnValue(new Promise(resolve => { resolveCurve = resolve; }));
+        memorySession.getSelectedRankValue.mockReturnValue({ rankInfo: { rankId: 'rank-2' } });
+        rerender(<DynamicLineChart {...defaultProps} memorySession={{ ...memorySession, selectedRankId: 'rank-2' }} />);
+        expect(button).toBeDisabled();
+        fireEvent.click(button);
+        expect(connector.send).not.toHaveBeenCalled();
+        await waitFor(() => expect(memoryCurveGet).toHaveBeenLastCalledWith(expect.objectContaining({ rankId: 'rank-2' })));
+        resolveCurve({
+            title: 'Rank 2', legends: ['Allocated'], rankOffsetNs: 9000000,
+            lines: [['143', '50'], ['147', '55']],
+        });
+        await waitFor(() => expect(button).toBeEnabled());
+        fireEvent.click(button);
+        expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({
+            body: expect.objectContaining({
+                params: { cardId: 'rank-2', startMs: 143, endMs: 147, rankOffsetNs: 9000000 },
+            }),
+        }));
     });
 
     it('renders without crashing', () => {

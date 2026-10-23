@@ -226,6 +226,10 @@ export const ChartContainer = observer((props: Props) => {
         }}
         tabIndex={-1}
         id={'main-container'}
+        data-domain-start={session.domainRange.domainStart}
+        data-domain-end={session.domainRange.domainEnd}
+        data-selection-start={session.selectedRange?.[0]}
+        data-selection-end={session.selectedRange?.[1]}
     >
         <RenderEngineContext.Provider value={renderEngine}>
             <ChartHeader
