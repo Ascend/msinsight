@@ -16,9 +16,9 @@
  * -------------------------------------------------------------------------
  */
 
-import { expect, test as baseTest, WebSocket } from '@playwright/test';
+import { expect, test as baseTest, WebSocket, type Locator, type Page } from '@playwright/test';
 import { FileExploreDialogPage, FrameworkPage, MemoryPage, TimelinePage } from '@/page-object';
-import { clearAllData, importData, observeWebSocketRequests, setCompare, setupWebSocketListener, waitForResponse, waitForWebSocketEvent } from '@/utils';
+import { clearAllData, dragSelect, importData, observeWebSocketRequests, setCompare, setupWebSocketListener, waitForResponse, waitForWebSocketEvent } from '@/utils';
 import { CheckboxHelpers, InputHelpers, SelectHelpers } from '@/components';
 import { FilePath } from '@/utils/constants';
 
@@ -150,7 +150,7 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
         await rankIdSelect.open();
         await rankIdSelect.selectOption('0');
         await page.waitForTimeout(2000);
-        await memoryFrame.locator('tr:nth-child(3) > td:nth-child(15)').getByRole('button').click();
+        await memoryFrame.getByRole('row').filter({ has: memoryFrame.getByRole('cell', { name: 'aten::empty_strided', exact: true }) }).nth(1).getByRole('button', { name: 'Show in Timeline', exact: true }).click();
 
         await expect(fullPage.getByText('aten::empty_strided', { exact: true })).toBeVisible({ timeout: 20_000 });
         await expect(fullPage.getByText('NPU Metrics', { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -191,7 +191,7 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
         const initialTotal = Number((await totalNumListItem.innerText()).match(/\d+/)?.[0]);
         expect(initialTotal).toBeGreaterThan(0);
 
-        const chart = memoryFrame.locator('.ant-spin-container > div > div:nth-child(2) > div:nth-child(1) > canvas');
+        const chart = memoryPage.usageChart;
         await page.waitForTimeout(1000);
         const chartInfo = await chart.boundingBox();
 
@@ -386,8 +386,8 @@ test.describe('Memory(Pytorch_MultiMachinesMultiRanksData)', () => {
     });
 
     // 多机多卡db类型数据比对场景
-    test('test_pageDisplay_compare_rank_db', async ({ page, memoryPage }) => {
-        test.setTimeout(120000);
+    test('test_pageDisplay_compare_rank_db', async ({ page, memoryPage, ws }) => {
+        test.setTimeout(160000);
         const { minSizeInputor, maxSizeInputor, memoryFrame, queryBtn, resetBtn } = memoryPage;
         await setCompare(page, memoryFrame, { baseline: FilePath.MULTI_NODES_NODE_0_RANK_0, comparison: FilePath.MULTI_NODES_NODE_1_RANK_0 });
         await memoryFrame.getByText('Difference').first().waitFor({ state: 'visible' });
@@ -399,13 +399,17 @@ test.describe('Memory(Pytorch_MultiMachinesMultiRanksData)', () => {
         await minSizeInput.expectValueToBe('-243840');
         await maxSizeInput.expectValueToBe('243840');
         await minSizeInput.setValue('0');
+        const filtered = waitForResponse(await ws, res => res?.command === 'Memory/view/operator');
         await queryBtn.click();
+        await filtered;
         await memoryFrame.locator('.ant-spin-spinning').first().waitFor({ state: 'hidden' });
         await memoryFrame.getByText('Difference').first().waitFor({ state: 'visible' });
         await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('memory-compare-rank-db-with-condition.png', {
             maxDiffPixels: 500,
         });
+        const reset = waitForResponse(await ws, res => res?.command === 'Memory/view/operator');
         await resetBtn.click();
+        await reset;
         await minSizeInput.expectValueToBe('-243840');
         await page.waitForTimeout(2000); // 对比场景需要加延时，确保稳定
     });
@@ -444,6 +448,11 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
         await dialog.confirmBtn.click();
         await expect(dialog.mainDialog).toBeHidden();
         await dbParsedPromise;
+        // Import completion can precede Memory's initial Rank selection and curve response.
+        await frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_0).click();
+        await expect(memoryPage.memoryFrame.getByTestId('memory-range-navigation'))
+            .toHaveAttribute('data-rank-id', 'node18899436934890168541_0 0');
+        await expect(memoryPage.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
     });
 
     // 测试从多机多卡db类型数据切换到单机多卡text类型数据
@@ -473,30 +482,46 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
     // 测试从单机多卡text类型数据切换到多机多卡db类型数据
     test('test_pageDisplay_when_text_to_db', async ({ page, memoryPage, ws }) => {
         const frameworkPage = new FrameworkPage(page);
-        const textRank0 = frameworkPage.getRankLocator(FilePath.TEXT_RANK_0);
-        await textRank0.click();
+        const curves = observeWebSocketRequests<{ rankId: string }, {
+            lines: Array<Array<string | number>>;
+        }>(await ws, 'Memory/view/memoryUsage');
+        try {
+            const textRank0 = frameworkPage.getRankLocator(FilePath.TEXT_RANK_0);
+            await textRank0.click();
 
-        const dbRank1 = frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_1);
-        const allCardParsedPromise = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
-        const searchPromise = waitForResponse(await ws, (res) => res?.command === 'Memory/view/operator');
-        await dbRank1.click();
-        await allCardParsedPromise;
+            const dbRank1 = frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_1);
+            const allCardParsedPromise = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
+            const searchPromise = waitForResponse(await ws, (res) => res?.command === 'Memory/view/operator');
+            await dbRank1.click();
+            await allCardParsedPromise;
 
-        await page.mouse.move(0,0);
-        const { memoryFrame, hostSelector, rankIdSelector } = memoryPage;
-        await hostSelector.waitFor({ state: 'attached' });
-        const hostSelect = new SelectHelpers(page, hostSelector, memoryFrame);
-        const hostText = await hostSelect.getValue();
-        expect(hostText).toBe('node18899436934890168541_0');
-        const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
-        const selectedText = await rankIdSelect.getValue();
-        expect(selectedText).toBe('1');
-        await searchPromise;
-        // 等待 echarts 动画结束
-        await page.waitForTimeout(2000);
-        await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('pytorch-text-to-db.png', {
-            maxDiffPixels: 500,
-        });
+            await page.mouse.move(0,0);
+            const { memoryFrame, hostSelector, rankIdSelector } = memoryPage;
+            await hostSelector.waitFor({ state: 'attached' });
+            const hostSelect = new SelectHelpers(page, hostSelector, memoryFrame);
+            const hostText = await hostSelect.getValue();
+            expect(hostText).toBe('node18899436934890168541_0');
+            const rankIdSelect = new SelectHelpers(page, rankIdSelector, memoryFrame);
+            const selectedText = await rankIdSelect.getValue();
+            expect(selectedText).toBe('1');
+            await searchPromise;
+            const curve = await curves.waitFor(params => params.rankId === 'node18899436934890168541_0 1');
+            expect(curve.response.result).toBe(true);
+            const { lines } = curve.response.body;
+            expect(lines.length).toBeGreaterThan(1);
+            const navigation = memoryFrame.getByTestId('memory-range-navigation');
+            await expect(navigation).toHaveAttribute('data-rank-id', curve.params.rankId);
+            await expect(navigation).toHaveAttribute('data-start-ms', String(Number(lines[0][0])));
+            await expect(navigation).toHaveAttribute('data-end-ms', String(Number(lines[lines.length - 1][0])));
+            await expect(memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+            // 等待 echarts 动画结束
+            await page.waitForTimeout(2000);
+            await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('pytorch-text-to-db.png', {
+                maxDiffPixels: 500,
+            });
+        } finally {
+            curves.dispose();
+        }
     });
 
     test.afterEach(async ({ page, ws }) => {
@@ -714,7 +739,7 @@ test.describe('Memory(Text)', () => {
         await rankIdSelect.open();
         await rankIdSelect.selectOption('0');
         await page.waitForTimeout(2000);
-        await memoryFrame.locator('tr:nth-child(3) > td:nth-child(15)').getByRole('button').click();
+        await memoryFrame.getByRole('row').filter({ has: memoryFrame.getByRole('cell', { name: 'aten::empty_strided', exact: true }) }).nth(1).getByRole('button', { name: 'Show in Timeline', exact: true }).click();
         await expect(fullPage.getByText('aten::empty_strided', { exact: true })).toBeVisible({ timeout: 20_000 });
         await expect(fullPage.getByText('NPU Metrics', { exact: true })).toBeVisible({ timeout: 20_000 });
         await page.waitForTimeout(1000);
@@ -760,4 +785,223 @@ test.describe('Memory(Text)', () => {
             maxDiffPixels: 500,
         });
     });
+});
+
+// Memory 曲线范围跳转回 Timeline 的 GUI 看护。
+test.describe('Memory(RangeNavigation)', () => {
+    type CurveParams = { rankId: string; start: string; end: string; isCompare: boolean };
+    type Curve = { lines: Array<Array<string | number>>; rankOffsetNs: number };
+    type Curves = ReturnType<typeof observeWebSocketRequests<CurveParams, Curve>>;
+    type TraceRequests = ReturnType<typeof observeWebSocketRequests<{ cardId: string }, unknown>>;
+    type CurveResult = Awaited<ReturnType<Curves['waitFor']>>;
+    type RangeFixtures = { curves: Curves };
+
+    const rangeTest = test.extend<RangeFixtures>({
+        curves: async ({ page, ws }, use) => {
+            await new FrameworkPage(page).goto();
+            const curves = observeWebSocketRequests<CurveParams, Curve>(await ws, 'Memory/view/memoryUsage');
+            try {
+                await use(curves);
+            } finally {
+                curves.dispose();
+                await page.mouse.move(0, 0);
+                await clearAllData(page);
+            }
+        },
+    });
+
+    // DB data uses a host-qualified internal card ID, while the selectors display the short Rank label.
+    function rankLabel(rank: string): string {
+        return rank.split(' ').pop() ?? rank;
+    }
+
+    function card(timeline: TimelinePage, rank: string): Locator {
+        return timeline.unitWrapperScroller.locator('.unit-info').filter({
+            has: timeline.timelineFrame.getByText(rankLabel(rank), { exact: true }),
+        });
+    }
+
+    async function setOffsets(timeline: TimelinePage, rank: string, host: number, device: number): Promise<void> {
+        const info = card(timeline, rank);
+        await info.hover();
+        await info.getByTestId('offset-btn').click();
+        const tooltip = timeline.timelineFrame.getByRole('tooltip');
+        for (const [side, value] of [['Host', host], ['Device', device]] as const) {
+            const input = tooltip.getByRole('textbox', { name: `${side} Offset`, exact: true });
+            await input.fill(String(value));
+            await input.press('Enter');
+            await expect(input).toHaveValue(String(value));
+        }
+        await info.getByTestId('offset-btn').click();
+        await expect(tooltip).toBeHidden();
+    }
+
+    async function selectRank(page: Page, rank: string): Promise<void> {
+        const label = rankLabel(rank);
+        const memory = new MemoryPage(page);
+        const select = new SelectHelpers(page, memory.rankIdSelector, memory.memoryFrame);
+        if (await select.getValue() !== label) {
+            await select.open();
+            await select.selectOption(label);
+        }
+        await expect(memory.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+        await expect.poll(async () => rankLabel(await memory.memoryFrame.getByTestId('memory-range-navigation')
+            .getAttribute('data-rank-id') ?? '')).toBe(label);
+    }
+
+    async function zoomMemory(page: Page, curves: Curves, rank: string): Promise<CurveResult> {
+        const memory = new MemoryPage(page);
+        const chart = memory.usageChart;
+        await chart.scrollIntoViewIfNeeded();
+        const box = await chart.boundingBox();
+        if (box === null) { throw new Error('Memory chart is missing'); }
+        const before = curves.cursor;
+        // Keep both ends within the plot grid, away from legends and toolbox controls.
+        await dragSelect(page, { x: box.x + box.width * 0.35, y: box.y + box.height * 0.55 },
+            { x: box.x + box.width * 0.65, y: box.y + box.height * 0.6 });
+        const result = await curves.waitFor(params => rankLabel(params.rankId) === rankLabel(rank) && params.start !== '' && params.end !== '', before);
+        expect(result.response.result).toBe(true);
+        const { lines } = result.response.body;
+        expect(lines.length).toBeGreaterThan(1);
+        const navigation = memory.memoryFrame.getByTestId('memory-range-navigation');
+        await expect(navigation).toHaveAttribute('data-start-ms', String(Number(lines[0][0])));
+        await expect(navigation).toHaveAttribute('data-end-ms', String(Number(lines[lines.length - 1][0])));
+        await expect(memory.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+        return result;
+    }
+
+    async function jumpAndCheck(page: Page, result: CurveResult, snapshotName: string, deviceOffset = 0,
+        traces?: TraceRequests): Promise<void> {
+        const { lines, rankOffsetNs } = result.response.body;
+        const start = Number(lines[0][0]) * 1e6 + rankOffsetNs - deviceOffset;
+        const end = Number(lines[lines.length - 1][0]) * 1e6 + rankOffsetNs - deviceOffset;
+        expect(end).toBeGreaterThan(start);
+        const memory = new MemoryPage(page);
+        await page.mouse.move(0, 0);
+        await expect(memory.memoryFrame.locator('.mi-collapsible-panel').first()).toHaveScreenshot(`${snapshotName}-memory.png`, {
+            maxDiffPixels: 500,
+        });
+        await memory.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true }).click();
+        await expect(page.locator('#Timeline')).toBeVisible();
+        const timeline = new TimelinePage(page);
+        // Assert the rendered viewport and selection independently; a correct duration alone can hide a shifted range.
+        for (const [attribute, expected] of [
+            ['data-domain-start', start], ['data-domain-end', end],
+            ['data-selection-start', start], ['data-selection-end', end],
+        ] as const) {
+            await expect.poll(async () => Number(await timeline.mainContainer.getAttribute(attribute))).toBeCloseTo(expected, 3);
+        }
+        await expect(card(timeline, result.params.rankId).getByRole('checkbox')).toBeChecked();
+        await expect(card(timeline, result.params.rankId)).toBeInViewport();
+        await expect(card(timeline, result.params.rankId).getByTestId('expand-btn')).toHaveClass(/insight-unit-expanded/);
+        if (traces !== undefined) {
+            await traces.waitFor(params => params.cardId === result.params.rankId);
+            await expect.poll(() => traces.pendingCount, { message: 'Waiting for Timeline trace responses' }).toBe(0);
+            // Expanded Rank headers appear before their asynchronous trace requests finish.
+            // Require rendered trace pixels so an empty lane cannot become a valid baseline.
+            await expect.poll(() => timeline.unitWrapperScroller.locator('canvas.drawCanvas').evaluateAll(canvases =>
+                canvases.some(element => {
+                    const canvas = element as HTMLCanvasElement;
+                    const rect = canvas.getBoundingClientRect();
+                    if (rect.bottom <= 0 || rect.top >= window.innerHeight || canvas.width === 0 || canvas.height === 0) {
+                        return false;
+                    }
+                    const context = canvas.getContext('2d');
+                    if (context === null) { return false; }
+                    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+                    return pixels.some((value, index) => index % 4 === 3 && value > 0);
+                })), { message: 'Waiting for visible Timeline lanes to render trace data' }).toBe(true);
+        }
+        await page.mouse.move(0, 0);
+        await expect(timeline.mainContainer).toHaveScreenshot(`${snapshotName}-timeline.png`, {
+            maxDiffPixels: 500,
+        });
+    }
+
+    for (const source of [
+        { name: 'Text', path: FilePath.TEXT, otherRank: '2', baseline: FilePath.TEXT_RANK_0, comparison: FilePath.TEXT_RANK_2 },
+        { name: 'DB', path: FilePath.DB, otherRank: '1', baseline: FilePath.DB_RANK_0, comparison: FilePath.DB_RANK_1 },
+    ]) {
+        const snapshotPrefix = `memory-range-${source.name.toLowerCase()}`;
+        rangeTest.describe(`Memory range navigation (${source.name})`, () => {
+            rangeTest.beforeEach(async ({ page, curves, ws }) => {
+                await clearAllData(page);
+                const parsed = waitForResponse(await ws, res => res?.event === 'allPagesSuccess');
+                await importData(page, source.path);
+                await parsed;
+                await expect(new TimelinePage(page).timelineFrame.getByText('NPU Metrics', { exact: true })).toBeVisible();
+                void curves;
+            });
+
+            rangeTest('uses twice-refined Memory range instead of the original Timeline marker', async ({ page, curves }) => {
+                const timeline = new TimelinePage(page);
+                await timeline.resetBtn.click();
+                await expect(timeline.mainContainer).toHaveAttribute('data-domain-start', '0');
+                const chart = timeline.timelineFrame.locator('.unit > .chart, .unit > .chart-selected').first();
+                const box = await chart.boundingBox();
+                if (box === null) { throw new Error('Timeline chart is missing'); }
+                await dragSelect(page, { x: box.x + box.width * 0.1, y: box.y + 5 },
+                    { x: box.x + box.width * 0.8, y: box.y + 15 });
+                await expect(timeline.mainContainer).toHaveAttribute('data-selection-start', /\d/);
+                await expect(timeline.mainContainer).toHaveAttribute('data-selection-end', /\d/);
+                const originalStart = Number(await timeline.mainContainer.getAttribute('data-selection-start'));
+                const originalEnd = Number(await timeline.mainContainer.getAttribute('data-selection-end'));
+                expect(originalEnd).toBeGreaterThan(originalStart);
+                await page.keyboard.press('k');
+                await new FrameworkPage(page).clickTab('memory');
+                await selectRank(page, '0');
+                await expect(new MemoryPage(page).memoryFrame.getByTitle('range-0', { exact: true })).toBeVisible();
+                const first = await zoomMemory(page, curves, '0');
+                const second = await zoomMemory(page, curves, '0');
+                expect(Number(second.params.start)).toBeGreaterThan(Number(first.params.start));
+                expect(Number(second.params.end)).toBeLessThan(Number(first.params.end));
+                await jumpAndCheck(page, second, `${snapshotPrefix}-refined`);
+                const duration = Number(await timeline.mainContainer.getAttribute('data-domain-end')) -
+                    Number(await timeline.mainContainer.getAttribute('data-domain-start'));
+                expect(duration).toBeLessThan(originalEnd - originalStart);
+            });
+
+            rangeTest('uses the target Rank Device offset and ignores its Host offset', async ({ page, curves }) => {
+                const timeline = new TimelinePage(page);
+                await setOffsets(timeline, '0', 300_000_000, 100_000_000);
+                await setOffsets(timeline, source.otherRank, -200_000_000, -50_000_000);
+                await new FrameworkPage(page).clickTab('memory');
+                await selectRank(page, '0');
+                await jumpAndCheck(page, await zoomMemory(page, curves, '0'), `${snapshotPrefix}-device-offset-rank-0`, 100_000_000);
+                await new FrameworkPage(page).clickTab('memory');
+                await selectRank(page, source.otherRank);
+                await jumpAndCheck(page, await zoomMemory(page, curves, source.otherRank),
+                    `${snapshotPrefix}-device-offset-rank-${source.otherRank}`, -50_000_000);
+            });
+
+            rangeTest('scrolls to the Rank selected in Memory when it is outside the Timeline viewport', async ({ page, curves, ws }) => {
+                const timeline = new TimelinePage(page);
+                await timeline.timelineFrame.getByRole('button', { name: 'Expand all lanes', exact: true }).click();
+                await expect.poll(() => card(timeline, source.otherRank).count()).toBe(0);
+                await expect.poll(() => timeline.unitWrapperScroller.evaluate(el => el.scrollTop)).toBe(0);
+                await new FrameworkPage(page).clickTab('memory');
+                await selectRank(page, source.otherRank);
+                const traces = observeWebSocketRequests<{ cardId: string }, unknown>(await ws, 'unit/threadTraces');
+                try {
+                    await jumpAndCheck(page, await zoomMemory(page, curves, source.otherRank), `${snapshotPrefix}-switch-rank`, 0, traces);
+                } finally {
+                    traces.dispose();
+                }
+                await expect.poll(() => timeline.unitWrapperScroller.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+                await expect(card(timeline, source.otherRank)).toBeInViewport();
+                await expect(card(timeline, source.otherRank).getByTestId('expand-btn')).toHaveClass(/insight-unit-expanded/);
+            });
+
+            rangeTest('uses the displayed comparison curve range and its Rank', async ({ page, curves }) => {
+                await new FrameworkPage(page).clickTab('memory');
+                const before = curves.cursor;
+                await setCompare(page, new MemoryPage(page).memoryFrame, source);
+                const compared = await curves.waitFor(params => params.isCompare, before);
+                await selectRank(page, compared.params.rankId);
+                const refined = await zoomMemory(page, curves, compared.params.rankId);
+                expect(refined.params.isCompare).toBe(true);
+                await jumpAndCheck(page, refined, `${snapshotPrefix}-comparison`);
+            });
+        });
+    }
 });

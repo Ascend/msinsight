@@ -172,6 +172,7 @@ export function observeWebSocketRequests<P, T>(ws: WebSocket, command: string) {
             return result;
         },
         get cursor() { return sequence; },
+        get pendingCount() { return requests.size; },
         dispose() {
             ws.off('framesent', onSent);
             ws.off('framereceived', onReceived);

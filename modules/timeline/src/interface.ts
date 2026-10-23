@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type { NotificationHandler } from './connection/defs';
+import { locateTimeRangeHandler } from './connection/locateTimeRange';
 import {
     parseSuccessHandler,
     parseProgressHandler,
@@ -84,6 +85,7 @@ export const NOTIFICATION_HANDLERS: Record<string, NotificationHandler> = {
     [BASELINE_REMOVE]: removeBaselineHandler,
     setTheme,
     locateUnit: locateUnitHandler,
+    locateTimeRange: locateTimeRangeHandler,
     switchLanguage: switchLanguageHandler,
     updateProjectName: updateProjectNameHandler,
     findBlock,

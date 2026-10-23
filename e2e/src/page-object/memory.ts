@@ -22,6 +22,7 @@ import { FrameworkPage } from './framework';
 export class MemoryPage {
     readonly page: Page;
     readonly memoryFrame: FrameLocator;
+    readonly usageChart: Locator;
     readonly hostSelector: Locator;
     readonly rankIdSelector: Locator;
     readonly groupIdSelector: Locator;
@@ -36,6 +37,7 @@ export class MemoryPage {
     constructor(page: Page) {
         this.page = page;
         this.memoryFrame = page.frameLocator('#Memory');
+        this.usageChart = this.memoryFrame.locator('.mi-collapsible-panel').first().locator('canvas').first();
         this.hostSelector = this.memoryFrame.locator('#select-host');
         this.rankIdSelector = this.memoryFrame.locator('#select-rankId');
         this.groupIdSelector = this.memoryFrame.locator('#select-groupId');
