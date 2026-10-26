@@ -55,6 +55,7 @@
 #include "QueryKernelOverallHandler.h"
 #include "QuerySystemViewFtraceStatHandler.h"
 #include "QueryKernelE2ETimeHandler.h"
+#include "QueryFreeAttributionHandler.h"
 #include "RankOffsetHandler.h"
 #include "QuerySystemViewTraceHandler.h"
 #include "QueryKernelMfuListHandler.h"
@@ -103,6 +104,8 @@ void TimelineModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(REQ_RES_UNIT_SYSTEM_VIEW_TRACE, std::make_unique<QuerySystemViewTraceHandler>());
     requestHandlerMap.emplace(REQ_RES_UNIT_KERNEL_DETAILS, std::make_unique<QueryKernelDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_KERNEL_E2E_TIME, std::make_unique<QueryKernelE2ETimeHandler>());
+    requestHandlerMap.emplace(REQ_RES_FREE_ATTRIBUTION_SUMMARY, std::make_unique<QueryFreeAttributionSummaryHandler>());
+    requestHandlerMap.emplace(REQ_RES_FREE_ATTRIBUTION_DETAILS, std::make_unique<QueryFreeAttributionDetailsHandler>());
     requestHandlerMap.emplace(REQ_RES_ONE_KERNEL_DETAILS, std::make_unique<QueryOneKernelHandler>());
     requestHandlerMap.emplace(REQ_RES_TABLE_DATA_NAME_LIST, std::make_unique<QueryTableDataNameListHandler>());
     requestHandlerMap.emplace(REQ_RES_TABLE_DATA_DETAIL, std::make_unique<QueryTableDataDetailHandler>());

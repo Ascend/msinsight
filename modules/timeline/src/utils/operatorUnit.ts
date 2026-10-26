@@ -17,7 +17,7 @@
  */
 
 import type { OpDetail } from '../api/interface';
-import type { ThreadMetaData } from '../entity/data';
+import type { ThreadMetaData, ThreadSource } from '../entity/data';
 import type { InsightUnit } from '../entity/insight';
 
 const PYTHON_STACK_THREAD_ID_PREFIX = 'python_stack:';
@@ -36,21 +36,34 @@ const getPythonStackThreadId = (threadId?: string): string | undefined => {
     return undefined;
 };
 
-export type OperatorUnitIdentity = Pick<OpDetail, 'cardId' | 'pid' | 'tid' | 'metaType'>;
+export type OperatorUnitIdentity = Pick<OpDetail, 'cardId' | 'dbPath' | 'pid' | 'tid' | 'metaType'>;
 
 export const isOperatorMetadata = (metadata: ThreadMetaData, opDetail: OperatorUnitIdentity): boolean => {
+    if (metadata.threadSourceList !== undefined) {
+        return getOperatorSource(metadata, opDetail) !== undefined;
+    }
     const targetMetaType = opDetail.metaType === '' ? undefined : opDetail.metaType;
     const isSameMetaType = targetMetaType === undefined || targetMetaType === metadata.metaType;
     const { threadId, threadIdList, threadName } = metadata;
     const isSameThread = threadId === opDetail.tid || threadName === opDetail.tid || threadIdList?.includes(opDetail.tid) === true ||
         (getPythonStackThreadId(threadId) !== undefined &&
             getPythonStackThreadId(threadId) === (getPythonStackThreadId(opDetail.tid) ?? opDetail.tid));
-    const isSameUnit = metadata.processId === opDetail.pid && isSameThread && isSameMetaType;
+    const isSameSource = !opDetail.dbPath || opDetail.dbPath === metadata.dbPath;
+    const isSameUnit = metadata.processId === opDetail.pid && isSameThread && isSameMetaType && isSameSource;
     if (opDetail.cardId && metadata.cardId) {
         return opDetail.cardId === metadata.cardId && isSameUnit;
     }
     return Boolean(isSameUnit);
 };
+
+export const getOperatorSource = (metadata: ThreadMetaData, opDetail: OperatorUnitIdentity): ThreadSource | undefined =>
+    metadata.threadSourceList?.find(source => isOperatorMetadata({
+        ...metadata,
+        ...source,
+        metaType: source.metaType ?? metadata.metaType,
+        threadIdList: undefined,
+        threadSourceList: undefined,
+    }, opDetail));
 
 export const findOperatorUnit = (units: InsightUnit[], opDetail: OperatorUnitIdentity): InsightUnit | undefined => {
     return units.find(unit => unit.name === 'Thread' && isOperatorMetadata(unit.metadata as ThreadMetaData, opDetail));

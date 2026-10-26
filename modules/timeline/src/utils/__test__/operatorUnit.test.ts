@@ -26,6 +26,16 @@ const createThreadUnit = (metadata: Partial<ThreadMetaData>): InsightUnit => ({
 } as unknown as InsightUnit);
 
 describe('operator unit resolution', () => {
+    it('preserves legacy matching when the target omits a database path', () => {
+        const metadata = {
+            cardId: '0', processId: '100', threadId: 'pytorch', metaType: 'PYTORCH_API',
+        } as ThreadMetaData;
+        const target = { cardId: '0', pid: '100', tid: 'pytorch', metaType: 'PYTORCH_API' };
+
+        expect(isOperatorMetadata(metadata, { ...target, dbPath: 'trace.db' })).toBe(false);
+        expect(isOperatorMetadata({ ...metadata, dbPath: 'trace.db' }, target)).toBe(true);
+    });
+
     it('resolves a record to a non-first selected child lane', () => {
         const firstUnit = createThreadUnit({
             cardId: '0', processId: '100', threadId: 'acl', metaType: 'CANN_API',

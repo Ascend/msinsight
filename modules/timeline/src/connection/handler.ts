@@ -315,6 +315,11 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
     if (!session) { return; }
     if (result.reset as boolean) { resetPage({ dataSource }); }
     resetImportedDataTypeState(session, result, isNeedResetRankId);
+    // Cached units can be reused below, but their old registrations do not
+    // belong to the incoming project. Wait for its parse/success registrations.
+    if (isNeedResetRankId) {
+        session.rankCardInfoMap.clear();
+    }
     if (!session.units.length) {
         session.threadsToFetch.clear();
     }
@@ -353,9 +358,6 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
             }
             cardUnits.push(cardUnit);
             session.units = session.units.concat([cardUnit]);
-            if (isNeedResetRankId) {
-                session.rankCardInfoMap.clear();
-            }
         });
         if (unit) {
             unit.isExpanded = cardUnits.length > 0 ? cardUnits[0].isExpanded : false;
@@ -455,6 +457,9 @@ export const parseUnitCompletedHandler: NotificationHandler = action((data: Reco
             break;
         case 'OVERLAP_ANALYSIS':
             session.asyncDataLoadingList[dbId].OVERLAP_ANALYSIS = true;
+            // The same source can complete again while its previous completion flag is still true.
+            session.asyncDataLoadingList[dbId].OVERLAP_ANALYSIS_VERSION =
+                (session.asyncDataLoadingList[dbId].OVERLAP_ANALYSIS_VERSION ?? 0) + 1;
             // 发送更新泳道loading消息
             connector.send({
                 event: 'updateAnalysisLoading',

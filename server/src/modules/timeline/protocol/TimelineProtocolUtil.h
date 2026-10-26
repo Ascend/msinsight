@@ -57,6 +57,12 @@ std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>(const ExpAnaA
 template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const EventsViewResponse &response);
 template <> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(const KernelDetailsResponse &response);
 template <> std::optional<document_t> ToResponseJson<KernelE2ETimeResponse>(const KernelE2ETimeResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<FreeAttributionSummaryResponse>(
+    const FreeAttributionSummaryResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<FreeAttributionDetailsResponse>(
+    const FreeAttributionDetailsResponse &response);
 template <> std::optional<document_t> ToResponseJson<OneKernelResponse>(const OneKernelResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>(const UnitThreadsOperatorsResponse &response);

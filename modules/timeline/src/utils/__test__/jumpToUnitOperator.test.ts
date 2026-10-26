@@ -128,8 +128,10 @@ describe('jumpToUnitOperator', () => {
 
     it.each([
         ['python_stack:100', '100', 'Python Stack 100'],
+        ['python_stack:100', 'python_stack:100', 'Python Stack 100'],
         ['python_stack:text:100', 'Python Stack 100', 'Python Stack 100'],
-    ])('normalizes a Python Stack result alias to virtual lane %s', (threadId, tid, threadName) => {
+        ['python_stack:text:100', 'python_stack:text:100', 'Python Stack 100'],
+    ])('preserves virtual lane %s for Python Stack search result %s', (threadId, tid, threadName) => {
         const metadata = {
             cardId: '0',
             dbPath: 'trace.db',
@@ -143,11 +145,13 @@ describe('jumpToUnitOperator', () => {
 
         const selectedSession = store.sessionStore.activeSession as Session;
         expect(selectedSession.locateUnit?.target(target)).toBe(true);
+        expect(selectedSession.locateUnit?.target(new ThreadUnit({ ...metadata, dbPath: 'other.db' }) as InsightUnit)).toBe(false);
         selectedSession.locateUnit?.onSuccess(target);
 
         expect(selectedSession.selectedData).toEqual(expect.objectContaining({
             threadId, processId: '200', metaType: 'PYTORCH_API_PYTHON_STACK',
         }));
+        expect(selectedSession.selectedData?.dbPath).toBe('trace.db');
         expect(selectedSession.selectedDataUnit).toBe(target);
         expect(selectedSession.foregroundTarget?.tid).toBe(threadId);
     });
@@ -188,6 +192,54 @@ describe('jumpToUnitOperator', () => {
             metaType: 'Ascend Hardware',
         });
         expect(store.sessionStore.activeSession?.domainRange).toEqual({ domainStart: 80, domainEnd: 140 });
+    });
+
+    it('locates a PyTorch API in its source database when a rank has identical host threads', () => {
+        const metadata = {
+            cardId: 'rank0',
+            dbPath: 'second.db',
+            processId: '4294967306',
+            threadId: 'pytorch',
+            metaType: 'PYTORCH_API',
+        } as ThreadMetaData;
+        const target = new ThreadUnit(metadata) as InsightUnit;
+        const sibling = new ThreadUnit({ ...metadata, dbPath: 'first.db' }) as InsightUnit;
+        jumpToUnitOperator({
+            ...OP_DETAIL,
+            cardId: 'rank0',
+            dbPath: 'second.db',
+            pid: '4294967306',
+            tid: 'pytorch',
+            metaType: 'PYTORCH_API',
+        });
+
+        const session = store.sessionStore.activeSession as Session;
+        expect(session.locateUnit?.target(sibling)).toBe(false);
+        expect(session.locateUnit?.target(target)).toBe(true);
+        session.locateUnit?.onSuccess(target);
+        expect(session.selectedData?.dbPath).toBe('second.db');
+        expect(session.foregroundTarget?.dbPath).toBe('second.db');
+    });
+
+    it('preserves the matching source when jumping to an explicitly merged lane', () => {
+        const mergedUnit = createMergedUnit();
+        const metadata = mergedUnit.metadata as ThreadMetaData;
+        metadata.threadSourceList = ['first.db', 'second.db'].map(dbPath => ({
+            cardId: '0',
+            dbPath,
+            processId: OP_DETAIL.pid,
+            threadId: OP_DETAIL.tid,
+            threadName: 'Stream 2',
+            metaType: OP_DETAIL.metaType,
+        }));
+        jumpToUnitOperator({ ...OP_DETAIL, dbPath: 'second.db' });
+
+        const session = store.sessionStore.activeSession as Session;
+        expect(session.locateUnit?.target(mergedUnit)).toBe(true);
+        session.locateUnit?.onSuccess(mergedUnit);
+        expect(session.selectedData?.threadId).toBe('2');
+        expect(session.selectedData?.dbPath).toBe('second.db');
+        expect(session.foregroundTarget?.dbPath).toBe('second.db');
     });
 
     it('locates the exact DPU Stream and uses the host offset for a search result', () => {

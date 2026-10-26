@@ -1692,6 +1692,22 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Min(μs)|Minimum time of the category.|
   |Max(μs)|Maximum time of the category.|
 
+- Free Time Attribution
+
+  Select **Free Time Attribution** in **Stats System View** to inspect the PyTorch Host APIs associated with Free events on the selected rank. The analysis follows the first computation or communication behavior after each Free event, finds device operators with the same start time, and traces their flows back to Host APIs. Results are for reference only and should be verified against the actual execution in Timeline.
+
+  |Field|Description|
+  |--|--|
+  |Host API|Groups APIs by their complete names. Free events without a complete, unique association are shown in unresolved, incomplete, or ambiguous groups.|
+  |Total Free Duration (μs)|Sum of the complete durations of associated Free events, rather than API durations.|
+  |Free Operator Count|Number of Free operators in this group. Each Free operator is counted once.|
+
+  Expand a group to inspect API and Free start times, durations, subsequent behaviors, and association status. Separate actions locate the API or Free event in Timeline. When several API candidates exist, each can be located separately. Summary and detail tables support sorting, pagination, and copying their current page independently.
+
+  API name, start time, and duration in the detail table can be sorted using the associated API or candidate APIs. For multiple candidates, values in the selected column are arranged in ascending order and compared one by one. The first differing value determines the row order; when one list is a prefix of the other, the shorter list comes first in ascending order. Descending order reverses this comparison. Numeric columns use their original numeric values. Sorting does not change the association status or the displayed order of candidate APIs.
+
+  Time Range Analysis includes Free events intersecting the selected range, including events touching its endpoints, and counts their complete durations. The total may therefore exceed the range length. After applying the device time offset, a selection entirely before the original time origin returns no results. A selection that only touches the origin includes only Free events intersecting that boundary; it does not switch to full-data analysis. APIs and subsequent operators may lie outside the range; locating an event preserves the analysis range. Collected data must include CPU (framework-side), NPU, and corresponding flow data.
+
 - Operator Trace
 
   Operator Trace includes Python API Trace, CANN API Trace, Ascend Hardware Task Trace, and Communication Trace. The operator information is shown in [**Figure 8** Operator Trace](#operator-trace), and the field descriptions are provided in [**Table 7** Operator Trace field description](#operator-trace-field-description).

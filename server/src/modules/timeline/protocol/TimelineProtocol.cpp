@@ -61,6 +61,51 @@ bool ParseCustomClassificationRules(
     }
     return true;
 }
+
+template <typename REQUEST>
+std::unique_ptr<Request> ParseFreeAttributionRequest(const json_t &json, std::string &error, bool details) {
+    auto request = std::make_unique<REQUEST>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*request, json) || !json["params"].IsObject()) {
+        error = "Invalid Free attribution request.";
+        return nullptr;
+    }
+    const auto &params = json["params"];
+    for (const auto *key : {"rankId", "dbPath", "orderBy", "order", "groupId", "rangeMode", "searchName"}) {
+        if (params.HasMember(key) && !params[key].IsString()) {
+            error = std::string("Free attribution parameter must be a string: ") + key;
+            return nullptr;
+        }
+    }
+    for (const auto *key : {"startTime", "endTime", "current", "pageSize"}) {
+        if (params.HasMember(key) && !params[key].IsUint64()) {
+            error = std::string("Free attribution parameter must be an unsigned integer: ") + key;
+            return nullptr;
+        }
+    }
+    if (details) {
+        request->params.orderBy = "freeStartTime";
+        request->params.order = "asc";
+    }
+    JsonUtil::SetByJsonKeyValue(request->params.rankId, params, "rankId");
+    JsonUtil::SetByJsonKeyValue(request->params.dbPath, params, "dbPath");
+    JsonUtil::SetByJsonKeyValue(request->params.startTime, params, "startTime");
+    JsonUtil::SetByJsonKeyValue(request->params.endTime, params, "endTime");
+    JsonUtil::SetByJsonKeyValue(request->params.current, params, "current");
+    JsonUtil::SetByJsonKeyValue(request->params.pageSize, params, "pageSize");
+    JsonUtil::SetByJsonKeyValue(request->params.orderBy, params, "orderBy");
+    JsonUtil::SetByJsonKeyValue(request->params.order, params, "order");
+    JsonUtil::SetByJsonKeyValue(request->params.groupId, params, "groupId");
+    JsonUtil::SetByJsonKeyValue(request->params.searchName, params, "searchName");
+    JsonUtil::SetByJsonKeyValue(request->params.rangeMode, params, "rangeMode");
+    if (params.HasMember("rangeMode") && request->params.rangeMode.empty()) {
+        error = "Free attribution range mode must not be empty when provided.";
+        return nullptr;
+    }
+    if (request->params.dbPath.empty()) {
+        request->params.dbPath = request->fileId;
+    }
+    return request;
+}
 }
 
 void TimelineProtocol::RegisterJsonToRequestFuncs() {
@@ -86,6 +131,8 @@ void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_UNIT_EVENTS_VIEW, ToEventsViewRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_KERNEL_DETAILS, ToKernelDetailRequest);
     jsonToReqFactory.emplace(REQ_RES_KERNEL_E2E_TIME, ToKernelE2ETimeRequest);
+    jsonToReqFactory.emplace(REQ_RES_FREE_ATTRIBUTION_SUMMARY, ToFreeAttributionSummaryRequest);
+    jsonToReqFactory.emplace(REQ_RES_FREE_ATTRIBUTION_DETAILS, ToFreeAttributionDetailsRequest);
     jsonToReqFactory.emplace(REQ_RES_ONE_KERNEL_DETAILS, ToOneKernelRequest);
     jsonToReqFactory.emplace(REQ_RES_COMMUNICATION_KERNEL_DETAIL, ToCommunicationKernelRequest);
     jsonToReqFactory.emplace(REQ_RES_SAME_OPERATORS_DURATION, ToUnitThreadsOperatorsRequest);
@@ -124,6 +171,8 @@ void TimelineProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_UNIT_EVENTS_VIEW, ToEventsViewResponseJson);
     resToJsonFactory.emplace(REQ_RES_UNIT_KERNEL_DETAILS, ToKernelDetailResponseJson);
     resToJsonFactory.emplace(REQ_RES_KERNEL_E2E_TIME, ToKernelE2ETimeResponseJson);
+    resToJsonFactory.emplace(REQ_RES_FREE_ATTRIBUTION_SUMMARY, ToFreeAttributionSummaryResponseJson);
+    resToJsonFactory.emplace(REQ_RES_FREE_ATTRIBUTION_DETAILS, ToFreeAttributionDetailsResponseJson);
     resToJsonFactory.emplace(REQ_RES_ONE_KERNEL_DETAILS, ToOneKernelResponseJson);
     resToJsonFactory.emplace(REQ_RES_COMMUNICATION_KERNEL_DETAIL, ToCommunicationKernelResponseJson);
     resToJsonFactory.emplace(REQ_RES_SAME_OPERATORS_DURATION, ToUnitThreadsOperatorsResponseJson);
@@ -622,6 +671,14 @@ std::unique_ptr<Request> TimelineProtocol::ToOneKernelRequest(const Dic::json_t 
     return reqPtr;
 }
 
+std::unique_ptr<Request> TimelineProtocol::ToFreeAttributionSummaryRequest(const json_t &json, std::string &error) {
+    return ParseFreeAttributionRequest<FreeAttributionSummaryRequest>(json, error, false);
+}
+
+std::unique_ptr<Request> TimelineProtocol::ToFreeAttributionDetailsRequest(const json_t &json, std::string &error) {
+    return ParseFreeAttributionRequest<FreeAttributionDetailsRequest>(json, error, true);
+}
+
 std::unique_ptr<Request> TimelineProtocol::ToTableDataNameListRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<TableDataNameListRequest> reqPtr = std::make_unique<TableDataNameListRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
@@ -980,6 +1037,16 @@ std::optional<document_t> TimelineProtocol::ToKernelDetailResponseJson(const Dic
 
 std::optional<document_t> TimelineProtocol::ToKernelE2ETimeResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<KernelE2ETimeResponse>(dynamic_cast<const KernelE2ETimeResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToFreeAttributionSummaryResponseJson(const Response &response) {
+    return ToResponseJson<FreeAttributionSummaryResponse>(
+        dynamic_cast<const FreeAttributionSummaryResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToFreeAttributionDetailsResponseJson(const Response &response) {
+    return ToResponseJson<FreeAttributionDetailsResponse>(
+        dynamic_cast<const FreeAttributionDetailsResponse &>(response));
 }
 
 std::optional<document_t> TimelineProtocol::ToOneKernelResponseJson(const Dic::Protocol::Response &response) {

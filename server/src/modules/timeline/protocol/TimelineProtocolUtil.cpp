@@ -668,6 +668,81 @@ template <> std::optional<document_t> ToResponseJson<KernelE2ETimeResponse>(cons
     return std::optional<document_t>{std::move(json)};
 }
 
+static json_t FreeAttributionTargetJson(
+    const Dic::Module::Timeline::FreeAttributionTarget &target, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
+    json_t json(kObjectType);
+    JsonUtil::AddMember(json, "id", target.id, allocator);
+    JsonUtil::AddMember(json, "name", target.name, allocator);
+    JsonUtil::AddMember(json, "cardId", target.cardId, allocator);
+    JsonUtil::AddMember(json, "dbPath", target.dbPath, allocator);
+    JsonUtil::AddMember(json, "pid", target.pid, allocator);
+    JsonUtil::AddMember(json, "tid", target.tid, allocator);
+    JsonUtil::AddMember(json, "depth", target.depth, allocator);
+    JsonUtil::AddMember(json, "metaType", target.metaType, allocator);
+    JsonUtil::AddMember(json, "timestamp", target.timestamp, allocator);
+    JsonUtil::AddMember(json, "duration", target.duration, allocator);
+    return json;
+}
+
+template <>
+std::optional<document_t> ToResponseJson<FreeAttributionSummaryResponse>(
+    const FreeAttributionSummaryResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t groups(kArrayType);
+    for (const auto &group : response.body.groups) {
+        json_t item(kObjectType);
+        JsonUtil::AddMember(item, "groupId", group.groupId, allocator);
+        JsonUtil::AddMember(item, "groupType", group.groupType, allocator);
+        JsonUtil::AddMember(item, "apiName", group.apiName, allocator);
+        JsonUtil::AddMember(item, "totalFreeDuration", group.totalFreeDuration, allocator);
+        JsonUtil::AddMember(item, "freeCount", group.freeCount, allocator);
+        groups.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "groups", groups, allocator);
+    JsonUtil::AddMember(body, "totalGroups", response.body.totalGroups, allocator);
+    JsonUtil::AddMember(body, "totalFreeDuration", response.body.totalFreeDuration, allocator);
+    JsonUtil::AddMember(body, "totalFreeCount", response.body.totalFreeCount, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <>
+std::optional<document_t> ToResponseJson<FreeAttributionDetailsResponse>(
+    const FreeAttributionDetailsResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t records(kArrayType);
+    for (const auto &record : response.body.records) {
+        json_t item(kObjectType);
+        JsonUtil::AddMember(item, "detailId", record.detailId, allocator);
+        JsonUtil::AddMember(item, "freeDuration", record.freeDuration, allocator);
+        JsonUtil::AddMember(item, "nextBehaviorType", record.nextBehaviorType, allocator);
+        JsonUtil::AddMember(item, "attributionStatus", record.attributionStatus, allocator);
+        JsonUtil::AddMember(item, "reason", record.reason, allocator);
+        auto freeTarget = FreeAttributionTargetJson(record.freeTarget, allocator);
+        JsonUtil::AddMember(item, "freeTarget", freeTarget, allocator);
+        if (record.hostApiTarget.has_value()) {
+            auto hostTarget = FreeAttributionTargetJson(*record.hostApiTarget, allocator);
+            JsonUtil::AddMember(item, "hostApiTarget", hostTarget, allocator);
+        }
+        json_t candidates(kArrayType);
+        for (const auto &target : record.candidateApiTargets) {
+            candidates.PushBack(FreeAttributionTargetJson(target, allocator), allocator);
+        }
+        JsonUtil::AddMember(item, "candidateApiTargets", candidates, allocator);
+        records.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "records", records, allocator);
+    JsonUtil::AddMember(body, "totalRecords", response.body.totalRecords, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
 template <>
 std::optional<document_t> ToResponseJson<CommunicationKernelResponse>(const CommunicationKernelResponse &response) {
     document_t json(kObjectType);

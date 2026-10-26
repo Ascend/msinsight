@@ -25,7 +25,7 @@ import { ThreadUnit } from '../insight/units/AscendUnit';
 import type { OpDetail } from '../api/interface';
 import { store } from '../store';
 import { InsightUnit } from '../entity/insight';
-import { isOperatorMetadata } from './operatorUnit';
+import { getOperatorSource, isOperatorMetadata } from './operatorUnit';
 import { getSelectedThreadId } from './selectionContext';
 import { getOffsetSide } from '../insight/units/offset';
 
@@ -52,14 +52,15 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
     runInAction(() => {
         session.locateUnit = {
             target: (unit: InsightUnit): boolean => unit instanceof ThreadUnit &&
-                isOperatorMetadata(unit.metadata, { cardId: cid, pid, tid, metaType }),
+                isOperatorMetadata(unit.metadata, { cardId: cid, dbPath, pid, tid, metaType }),
             onSuccess: (unit): void => {
                 const unitMetaData = unit.metadata as ThreadMetaData;
-                const normalizedThreadId = getSelectedThreadId(unitMetaData, tid);
-                const normalizedProcessId = unitMetaData.processId ?? pid;
-                const normalizedCardId = unitMetaData.cardId ?? cid;
-                const normalizedDbPath = unitMetaData.dbPath ?? dbPath ?? '';
-                const normalizedMetaType = unitMetaData.metaType ?? metaType;
+                const source = getOperatorSource(unitMetaData, opDetail) ?? unitMetaData;
+                const normalizedThreadId = getSelectedThreadId(source, tid);
+                const normalizedProcessId = source.processId ?? pid;
+                const normalizedCardId = source.cardId ?? cid;
+                const normalizedDbPath = source.dbPath ?? dbPath ?? '';
+                const normalizedMetaType = source.metaType ?? metaType;
                 const startTime = timestamp - getTimeOffset(session, unitMetaData);
                 const [rangeStart, rangeEnd] = calculateDomainRange(session, startTime, duration);
                 session.domainRange = { domainStart: rangeStart, domainEnd: rangeEnd };

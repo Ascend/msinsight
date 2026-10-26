@@ -86,6 +86,50 @@ export interface OpDetail {
     metaType?: string;
 }
 
+export type FreeAttributionRangeMode = 'all' | 'range' | 'empty';
+
+export interface FreeAttributionParams extends PaginationParams {
+    rankId: string;
+    dbPath: string;
+    rangeMode?: FreeAttributionRangeMode;
+    searchName?: string;
+    startTime: number;
+    endTime: number;
+    orderBy: string;
+    order: 'asc' | 'desc';
+}
+
+export interface FreeAttributionGroup {
+    groupId: string;
+    groupType: 'matched' | 'unresolved' | 'incomplete' | 'ambiguous';
+    apiName: string;
+    totalFreeDuration: number;
+    freeCount: number;
+}
+
+export interface FreeAttributionSummary {
+    groups: FreeAttributionGroup[];
+    totalGroups: number;
+    totalFreeDuration: number;
+    totalFreeCount: number;
+}
+
+export interface FreeAttributionDetail {
+    detailId: string;
+    freeDuration: number;
+    nextBehaviorType: string;
+    attributionStatus: string;
+    reason: string;
+    hostApiTarget?: OpDetail | null;
+    freeTarget: OpDetail;
+    candidateApiTargets: OpDetail[];
+}
+
+export interface FreeAttributionDetails {
+    records: FreeAttributionDetail[];
+    totalRecords: number;
+}
+
 export interface UnitDetail {
     cardId: string;
     propsCardId: string;
