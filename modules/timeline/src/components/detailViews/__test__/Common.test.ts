@@ -52,6 +52,7 @@ describe('getVisibleStatsSystemViewItems', () => {
             'Communication Summary',
             'Communication Trace',
             'Overlap Analysis',
+            'Free Time Attribution',
             'Kernel Dispatch Duration Breakdown',
             'Kernel Details',
             'Kernel Summary',

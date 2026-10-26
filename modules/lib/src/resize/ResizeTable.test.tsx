@@ -17,11 +17,15 @@
  */
 
 import React from 'react';
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+// eslint-disable-next-line import/named -- waitFor is re-exported from @testing-library/dom.
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { ThemeProvider } from '@emotion/react';
 import type { ColumnType } from 'antd/lib/table';
 import { light } from '../theme/light';
 import { ResizeTable, type ResizeTableRef } from './ResizeTable';
+import { copyTableToClipboard } from '../utils';
+
+jest.mock('../utils', () => ({ ...jest.requireActual('../utils'), copyTableToClipboard: jest.fn() }));
 
 jest.mock('react-i18next', () => ({
     ...jest.requireActual('react-i18next'),
@@ -74,4 +78,28 @@ it('keeps newly added server filters controlled and supports clearing filters', 
     const messages = errors.mock.calls;
     errors.mockRestore();
     expect(messages).toEqual([]);
+});
+
+it('uses explicit clipboard columns without exporting actions or tooltip content', async () => {
+    const columns = [
+        { title: <span>Name tooltip</span>, dataIndex: 'name' },
+        { title: 'Actions', key: 'action', render: () => <button>Jump</button> },
+    ];
+    const copyColumns = [{ title: 'Name', dataIndex: 'name' }];
+    const rows = [{ key: 'one', name: 'aten::add' }];
+    const view = render(<ThemeProvider theme={light}>
+        <ResizeTable columns={columns} copyColumns={copyColumns} dataSource={rows} pagination={false} />
+    </ThemeProvider>);
+    fireEvent.click(view.container.querySelector('.exportTableBtn') as Element);
+    await waitFor(() => expect(copyTableToClipboard).toHaveBeenCalledWith(copyColumns, rows));
+});
+
+it('keeps the existing clipboard columns when no override is provided', async () => {
+    const columns = [{ title: 'Name', dataIndex: 'name' }];
+    const rows = [{ key: 'one', name: 'aten::add' }];
+    const view = render(<ThemeProvider theme={light}>
+        <ResizeTable columns={columns} dataSource={rows} pagination={false} />
+    </ThemeProvider>);
+    fireEvent.click(view.container.querySelector('.exportTableBtn') as Element);
+    await waitFor(() => expect(copyTableToClipboard).toHaveBeenCalledWith(columns, rows));
 });

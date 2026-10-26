@@ -65,6 +65,9 @@ class DataBaseManager {
         const std::string &fileId, const std::string &dbPath, bool sharedMemory = false);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByRankId(const std::string &rankId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByFileId(const std::string &fileId);
+    // A stable, non-owning source identity for caches. Unlike a leased connection,
+    // this token expires when the source is released or reimported.
+    std::weak_ptr<void> GetTraceDatabasePoolToken(const std::string &fileId);
 
     std::vector<DBConnectionPool<VirtualTraceDatabase> *> GetAllTraceDatabase();
     std::vector<std::string> GetAllRankId();

@@ -235,6 +235,7 @@ export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Communication Summary', tips: 'CommunicationSummaryTips' },
     { name: 'Communication Trace', tips: 'CommunicationTraceTips' },
     { name: 'Overlap Analysis', tips: 'OverlapAnalysisTips' },
+    { name: 'Free Time Attribution', tips: 'FreeTimeAttributionTips' },
     { name: 'Kernel Dispatch Duration Breakdown', tips: 'KernelE2ETimeTips' },
     { name: 'Kernel Details', tips: 'KernelDetailsTips' },
     { name: 'Kernel Summary', tips: 'KernelSummaryTips' },

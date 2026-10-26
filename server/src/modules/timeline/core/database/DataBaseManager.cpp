@@ -126,6 +126,22 @@ std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByFileId(
     return ptr;
 }
 
+std::weak_ptr<void> DataBaseManager::GetTraceDatabasePoolToken(const std::string &fileId)
+{
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    auto found = traceDatabaseMap.find(fileId);
+    if (found == traceDatabaseMap.end() && dbFilePathMap.count(fileId) != 0) {
+        found = traceDatabaseMap.find(dbFilePathMap[fileId]);
+    }
+    if (found == traceDatabaseMap.end()) {
+        const auto normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(fileId);
+        found = std::find_if(traceDatabaseMap.begin(), traceDatabaseMap.end(), [&normalizedFileId](const auto &entry) {
+            return RankLaneMergeCoordinator::NormalizeSourceFileId(entry.first) == normalizedFileId;
+        });
+    }
+    return found == traceDatabaseMap.end() ? std::weak_ptr<void>{} : std::weak_ptr<void>{found->second};
+}
+
 std::string DataBaseManager::GetRankIdByFileId(const std::string &fileId)
 {
     return fileIdToRankIdMap[fileId];

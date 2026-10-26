@@ -43,6 +43,7 @@ import OperatorDetailView from './OperatorDetailView';
 import { KernelE2ETimeTable } from './KernelE2ETimeTable';
 import { FtraceTaskSummary } from './FtraceTaskSummary';
 import { KernelMfuTable } from './KernelMfuTable';
+import { FreeAttribution } from './FreeAttribution';
 
 const filterColumn = [
     'name', 'type', 'acceleratorCore', 'taskId', 'inputShapes', 'inputDataTypes',
@@ -220,6 +221,7 @@ const LayerAndTrace = summaryAndTraceTypes.map((item) => {
 export const StatsSystemView = [
     OverallMetrics,
     ...LayerAndTrace,
+    FreeAttribution,
     KernelE2ETimeTable,
     KernelDetails,
     OperatorDetailView,

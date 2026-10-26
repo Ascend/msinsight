@@ -30,6 +30,7 @@
 #include "TimelineParamStrcut.h"
 #include "ProtocolMessage.h"
 #include "TimelineErrorManager.h"
+#include "FreeAttributionService.h"
 
 namespace Dic {
 namespace Protocol {
@@ -558,6 +559,19 @@ struct KernelE2ETimeParams {
 struct KernelE2ETimeRequest : public Request {
     KernelE2ETimeRequest() : Request(REQ_RES_KERNEL_E2E_TIME) {};
     KernelE2ETimeParams params;
+};
+
+struct FreeAttributionSummaryRequest : public Request {
+    FreeAttributionSummaryRequest() : Request(REQ_RES_FREE_ATTRIBUTION_SUMMARY) {}
+    FreeAttributionParams params;
+};
+
+struct FreeAttributionDetailsRequest : public Request {
+    FreeAttributionDetailsRequest() : Request(REQ_RES_FREE_ATTRIBUTION_DETAILS) {
+        params.orderBy = "freeStartTime";
+        params.order = "asc";
+    }
+    FreeAttributionParams params;
 };
 
 struct KernelParams {

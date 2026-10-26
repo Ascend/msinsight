@@ -32,6 +32,7 @@
 #include "NumberUtil.h"
 #include "TimelineBodyStruct.h"
 #include "SystemMemoryDatabase.h"
+#include "FreeAttributionService.h"
 
 namespace Dic {
 namespace Protocol {
@@ -604,6 +605,16 @@ struct KernelE2ETimeBody {
 struct KernelE2ETimeResponse : public Response {
     KernelE2ETimeResponse() : Response(REQ_RES_KERNEL_E2E_TIME) {}
     KernelE2ETimeBody body;
+};
+
+struct FreeAttributionSummaryResponse : public Response {
+    FreeAttributionSummaryResponse() : Response(REQ_RES_FREE_ATTRIBUTION_SUMMARY) {}
+    Dic::Module::Timeline::FreeAttributionSummary body;
+};
+
+struct FreeAttributionDetailsResponse : public Response {
+    FreeAttributionDetailsResponse() : Response(REQ_RES_FREE_ATTRIBUTION_DETAILS) {}
+    Dic::Module::Timeline::FreeAttributionDetails body;
 };
 
 struct OneKernelBody {

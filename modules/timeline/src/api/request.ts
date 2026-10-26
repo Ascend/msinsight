@@ -41,6 +41,9 @@ import {
     QueryTimelineOffsetResult,
     KernelMfuListParams,
     KernelMfuListResponse,
+    FreeAttributionParams,
+    FreeAttributionSummary,
+    FreeAttributionDetails,
 } from './interface';
 import connector from '../connection';
 
@@ -182,3 +185,9 @@ export async function queryTimelineOffset(params: QueryTimelineOffsetParams): Pr
 export async function queryKernelMfuList(params: KernelMfuListParams): Promise<KernelMfuListResponse> {
     return window.requestData('systemView/kernelMfu/list', params, 'timeline');
 }
+
+export const queryFreeAttributionSummary = async (params: FreeAttributionParams): Promise<FreeAttributionSummary> =>
+    window.requestData('systemView/freeAttribution/summary', params, 'timeline', { silent: true });
+
+export const queryFreeAttributionDetails = async (params: FreeAttributionParams & { groupId: string }): Promise<FreeAttributionDetails> =>
+    window.requestData('systemView/freeAttribution/details', params, 'timeline', { silent: true });
