@@ -41,9 +41,7 @@ class SourceProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToNoParamsRequest(
         const json_t &json, std::string &error, const std::string &command);
     static std::unique_ptr<Request> ToCodeFileRequest(const json_t &json, std::string &error);
-    static std::unique_ptr<Request> ToApiLineRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToApiLineDynamicRequest(const json_t &json, std::string &error);
-    static std::unique_ptr<Request> ToApiInstrRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToApiInstrDynamicRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToDetailsBaseInfoRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToDetailsLoadInfoRequest(const json_t &json, std::string &error);
@@ -56,9 +54,7 @@ class SourceProtocol : public ProtocolUtil {
 
     // response to json
     static std::optional<document_t> ToCodeFileResponse(const Response &response);
-    static std::optional<document_t> ToApiLineResponse(const Response &response);
     static std::optional<document_t> ToApiLineDynamicResponse(const Response &response);
-    static std::optional<document_t> ToApiInstrResponse(const Response &response);
     static std::optional<document_t> ToApiInstrDynamicResponse(const Response &response);
     static std::optional<document_t> ToDetailsBaseInfoResponse(const Response &response);
     static std::optional<document_t> ToDetailsLoadInfoResponse(const Response &response);

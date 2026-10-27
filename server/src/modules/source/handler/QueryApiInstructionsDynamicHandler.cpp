@@ -49,22 +49,6 @@ void QueryApiInstructionsDynamicHandler::SetResponseBody(
     auto instructions = SourceFileParser::Instance().GetInstrDynamic(request.params.coreName);
     auto columNameMap = SourceFileParser::Instance().GetInstructionColumnTypeMap();
     response.body.coreName = request.params.coreName;
-    if (columNameMap.empty()) { // 如果列名映射表为空，说明是老版本数据
-        const auto &vector = SourceFileParser::Instance().GetInstructions(request.params.coreName);
-        for (const auto &item : vector) {
-            SourceApiInstrRes temp;
-            temp.pipe = item.pipe;
-            temp.ascendCInnerCode = item.ascendCInnerCode;
-            temp.source = item.source;
-            temp.address = item.address;
-            temp.cycles = item.cycles.empty() ? 0 : item.cycles[0];
-            temp.theoreticalStallCycles = item.theoreticalStallCycles.empty() ? 0 : item.theoreticalStallCycles[0];
-            temp.realStallCycles = item.realStallCycles.empty() ? 0 : item.realStallCycles[0];
-            temp.instructionsExecuted = item.instructionsExecuted.empty() ? 0 : item.instructionsExecuted[0];
-            response.body.instructions.emplace_back(temp);
-        }
-        return;
-    }
     // 组装每一列的表头信息
     response.body.columnNameMap = columNameMap;
     // 组装每一列的数据

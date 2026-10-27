@@ -169,37 +169,6 @@ TEST_F(SourceTest, GetSourceList) {
     CleanParser(parser);
 }
 
-TEST_F(SourceTest, GetApiLinesByCoreAndSource) {
-    auto &parser = InitParser(g_apiFileData);
-    vector<Dic::Module::Source::SourceFileLine> apiLines = parser.GetApiLinesByCoreAndSource(
-        "core0.cubecore", "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h");
-    EXPECT_EQ(apiLines.size(), 0);
-
-    apiLines = parser.GetApiLinesByCoreAndSource(
-        "core0.veccore0", "/home/test/workspace/foreach/common/foreach/foreach_tiling.h");
-    EXPECT_EQ(apiLines.size(), 0);
-
-    const vector<Dic::Module::Source::SourceFileLine> &linesByCoreAndSource = parser.GetApiLinesByCoreAndSource(
-
-        "core0.veccore0", "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h");
-    int linesByCoreAndSourceSize = 2;
-    EXPECT_EQ(linesByCoreAndSource.size(), linesByCoreAndSourceSize);
-    EXPECT_EQ(31, linesByCoreAndSource[0].line); // the line is 31
-    EXPECT_EQ(15674, linesByCoreAndSource[0].cycles[0]); // the size of cycles is 15674
-    EXPECT_EQ(192, linesByCoreAndSource[0].instructionsExecuted[0]); // the size of instructions is 192
-    EXPECT_EQ("0x11244240", linesByCoreAndSource[0].addressRange[0].first);
-    EXPECT_EQ("0x11244240", linesByCoreAndSource[0].addressRange[0].second);
-
-    EXPECT_EQ(32, linesByCoreAndSource[1].line); // the size of line is 32 and the index is 1
-    EXPECT_EQ(16293, linesByCoreAndSource[1].cycles[0]); // the size of cycles is 16293
-    EXPECT_EQ(193, linesByCoreAndSource[1].instructionsExecuted[0]); // the size of instructions is 193
-    EXPECT_EQ("0x11244540", linesByCoreAndSource[1].addressRange[0].first); // the index of line is 1
-    EXPECT_EQ("0x11244540", linesByCoreAndSource[1].addressRange[0].second); // the index of line is 1
-    EXPECT_EQ("0x11244548", linesByCoreAndSource[1].addressRange[1].first); // the index of line is 1
-    EXPECT_EQ("0x11244844", linesByCoreAndSource[1].addressRange[1].second); // the index of line is 1
-    CleanParser(parser);
-}
-
 TEST_F(SourceTest, GetInstr) {
     auto &parser = InitParser(g_apiFileData);
     const string &instr = parser.GetInstr();

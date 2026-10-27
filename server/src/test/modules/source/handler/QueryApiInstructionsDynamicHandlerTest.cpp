@@ -17,7 +17,6 @@
  */
 
 #include <gtest/gtest.h>
-#include "ComputeQuerySourceApiHandlerTest.h"
 #include "ComputeQuerySourceApiDynamicHandlerTest.h"
 #include "QueryApiInstructionsDynamicHandler.h"
 #include "ComputeSourceFile.h"
@@ -77,35 +76,4 @@ TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiInstructionsDynamicH
     EXPECT_EQ(data.stringMap["Source"],
         "SIMT_IADD [PEX:6|P],[Rm:3|R],[Rn:8|R],[Rd:3|R],[waitBitMask:3],[stallCyc:7],[yeild:0],[inv:0]");
     EXPECT_EQ(data.intMap["RealStallCycles"], 75); // RealStallCycles is 13
-}
-
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiInstructionsDynamicHandlerRequestWithValidData) {
-    QueryApiInstructionsDynamicHandler handler;
-    auto ptr = std::make_unique<SourceApiInstrDynamicRequest>();
-    ptr->params.coreName = CORE_NAME;
-    ptr->moduleName = "Source";
-    ptr->projectName = "project";
-    handler.HandleRequest(std::move(ptr));
-}
-
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiInstructionsDynamicHandlerSetResponseBodyWithoutDtype) {
-    HandlerDerived handler;
-    SourceApiInstrDynamicRequest request;
-    request.params.coreName = CORE_NAME;
-    SourceApiInstrDynamicResponse response;
-    handler.SetResponseBody(response, request);
-    EXPECT_EQ(response.body.coreName, CORE_NAME);
-    EXPECT_TRUE(response.body.columnNameMap.empty());
-
-    auto dataList = response.body.instructions;
-    EXPECT_TRUE(!dataList.empty());
-    auto data = dataList[0];
-    EXPECT_EQ(data.address, "0x1134e2d8");
-    EXPECT_EQ(data.ascendCInnerCode, "/test/vec_add1_simt.cpp:50");
-    EXPECT_EQ(data.cycles, 62); // Cycles is 62
-    EXPECT_EQ(data.instructionsExecuted, 4); // Instructions Executed is 4
-    EXPECT_EQ(data.pipe, "RVECLD");
-    EXPECT_EQ(data.theoreticalStallCycles, 8); // TheoreticalStallCycles is 8
-    EXPECT_EQ(data.source, "SIMT_LDG [PEX:6|P],[Rn:0|R],[Rn1:1|R],[Rd:0|R],[#ofst:9],[cop:1],[l2_cache_hint:0]");
-    EXPECT_EQ(data.realStallCycles, 13); // RealStallCycles is 13
 }

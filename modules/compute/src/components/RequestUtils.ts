@@ -28,17 +28,6 @@ export const querySourceCode = async(sourceName: string): Promise<any> => {
 };
 
 /**
- * 查询代码行执行信息
- *
- * @param {sourceName} 源文件名
- * @param {coreName} 内核
- * @return {lines:[]}
- */
-export const queryApiLine = async(param: {sourceName: string; coreName: string}): Promise<any> => {
-    return window.requestData('source/api/line', param);
-};
-
-/**
  * 查询动态代码行属性信息
  *
  * @param {sourceName} 源文件名
@@ -47,15 +36,6 @@ export const queryApiLine = async(param: {sourceName: string; coreName: string})
  */
 export const queryDynamicLine = async(param: {sourceName: string; coreName: string}): Promise<any> => {
     return window.requestData('source/api/line/dynamic', { ...param, retry: true });
-};
-
-/**
- * 查询代码行执行信息
- *
- * @return {instructions:string}
- */
-export const queryApiInstr = async(): Promise<any> => {
-    return window.requestData('source/api/instructions', {});
 };
 
 /**

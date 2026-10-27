@@ -215,23 +215,6 @@ void SourceInstructionParser::ProcessColumnDataTypePercentageAndDetails(
     }
 }
 
-void SetStringDataOfInstruction(const Value &instruction, std::string &target, const std::string &fieldName) {
-    if (instruction.HasMember(fieldName.c_str()) && instruction[fieldName.c_str()].IsString()) {
-        target = instruction[fieldName.c_str()].GetString();
-    }
-}
-
-void SetIntArrayOfInstruction(const Value &instruction, std::vector<int> &target, std::string &&fieldName) {
-    if (!JsonUtil::IsJsonArray(instruction, fieldName)) {
-        return;
-    }
-    for (const auto &item : instruction[fieldName.c_str()].GetArray()) {
-        if (item.IsInt()) {
-            target.emplace_back(item.GetInt());
-        }
-    }
-}
-
 /*
 json示例
 {
@@ -270,31 +253,12 @@ void SourceInstructionParser::ConvertApiInstr(const std::string &jsonStr) {
                 apiCores.emplace_back(core.GetString());
             }
         }
+        if (!d.HasMember("Instructions Dtype")) {
+            ServerLog::Error("Api instr does not have Instructions Dtype column.");
+            return;
+        }
         // parse instructions
-        if (d.HasMember("Instructions Dtype")) {
-            ConvertApiInstrDynamic(jsonStr);
-            return;
-        }
-        // 适配老版本数据
-        if (!JsonUtil::IsJsonArray(d, "Instructions")) {
-            return;
-        }
-        Value &instructions = d["Instructions"];
-        for (const auto &instruction : instructions.GetArray()) {
-            if (!instruction.IsObject()) {
-                continue;
-            }
-            SourceApiInstruction temp;
-            SetStringDataOfInstruction(instruction, temp.address, "Address");
-            SetStringDataOfInstruction(instruction, temp.source, "Source");
-            SetStringDataOfInstruction(instruction, temp.ascendCInnerCode, "AscendC Inner Code");
-            SetStringDataOfInstruction(instruction, temp.pipe, "Pipe");
-            SetIntArrayOfInstruction(instruction, temp.cycles, "Cycles");
-            SetIntArrayOfInstruction(instruction, temp.instructionsExecuted, "Instructions Executed");
-            SetIntArrayOfInstruction(instruction, temp.realStallCycles, "RealStallCycles");
-            SetIntArrayOfInstruction(instruction, temp.theoreticalStallCycles, "TheoreticalStallCycles");
-            apiInstructionList.emplace_back(temp);
-        }
+        ConvertApiInstrDynamic(jsonStr);
     } catch (const std::exception &e) {
         ServerLog::Error("Can't parse api instr,not json.Error is ", e.what());
     }
@@ -461,104 +425,15 @@ void SourceInstructionParser::ConvertApiFile(const std::string &jsonStr) {
     Document d;
     try {
         d.Parse(jsonStr.c_str());
-        if (d.HasMember("Files Dtype")) {
-            // parse file lines dynamic
-            ConvertApiFileDynamic(jsonStr);
+        if (!d.HasMember("Files Dtype")) {
+            ServerLog::Error("Api file does not have Files Dtype column.");
             return;
         }
-        if (JsonUtil::IsJsonArray(d, "Files")) {
-            Value &fileArray = d["Files"];
-            apiFiles = ConvertToFileMap(fileArray);
-        }
+        // parse file lines dynamic
+        ConvertApiFileDynamic(jsonStr);
     } catch (const std::exception &e) {
         ServerLog::Error("Can't parse api file,not json.Error is ", e.what());
     }
-}
-
-std::map<std::string, std::vector<SourceFileLine>> SourceInstructionParser::ConvertToFileMap(Value &fileArray) {
-    std::map<std::string, std::vector<SourceFileLine>> sourceLinesMap;
-
-    for (auto &file : fileArray.GetArray()) {
-        if (!file.IsObject()) {
-            continue;
-        }
-
-        if (!file.HasMember("Source") || !file["Source"].IsString()) {
-            continue;
-        }
-        if (!file.HasMember("Lines") || !file["Lines"].IsArray()) {
-            continue;
-        }
-
-        std::string source = file["Source"].GetString();
-
-        rapidjson::Value &lineArray = file["Lines"];
-        std::vector<SourceFileLine> sourceFileLineArray = ConvertToLineArray(lineArray);
-
-        // 将Source和对应的SourceFileLines vector添加到map中
-        sourceLinesMap[source] = sourceFileLineArray;
-    }
-    return sourceLinesMap;
-}
-
-std::vector<SourceFileLine> SourceInstructionParser::ConvertToLineArray(Value &lineArray) {
-    std::vector<SourceFileLine> sourceFileLines;
-
-    for (auto &line : lineArray.GetArray()) {
-        if (!line.IsObject()) {
-            continue;
-        }
-
-        SourceFileLine sourceFileLine;
-
-        // 解析Address Range数组
-        if (!line.HasMember("Address Range") || !line["Address Range"].IsArray()) {
-            continue;
-        }
-        Value &addressRangeArray = line["Address Range"];
-        for (auto &addressRange : addressRangeArray.GetArray()) {
-            if (!addressRange.IsArray() || addressRange.Size() != addressRangeSize) {
-                continue;
-            }
-            if (!addressRange[0].IsString() || !addressRange[1].IsString()) {
-                continue;
-            }
-
-            const char *startAddress = addressRange[0].GetString();
-            const char *endAddress = addressRange[1].GetString();
-
-            sourceFileLine.addressRange.emplace_back(startAddress, endAddress);
-        }
-
-        // 解析Cycles数组
-        if (!line.HasMember("Cycles") || !line["Cycles"].IsArray()) {
-            continue;
-        }
-        Value &cycleArray = line["Cycles"];
-        for (auto &cycle : cycleArray.GetArray()) {
-            sourceFileLine.cycles.emplace_back(cycle.GetFloat());
-        }
-
-        // 解析Instructions Executed数组
-        if (!line.HasMember("Instructions Executed") || !line["Instructions Executed"].IsArray()) {
-            continue;
-        }
-        Value &instrExecutedArray = line["Instructions Executed"];
-        for (auto &instrExecuted : instrExecutedArray.GetArray()) {
-            sourceFileLine.instructionsExecuted.emplace_back(instrExecuted.IsInt() ? instrExecuted.GetInt() : 0);
-        }
-
-        // 解析Line
-        if (!line.HasMember("Line") || !line["Line"].IsInt()) {
-            continue;
-        }
-        int lineIndex = line["Line"].GetInt();
-        sourceFileLine.line = lineIndex;
-
-        // 将解析好的SourceFileLine对象添加到vector中
-        sourceFileLines.push_back(sourceFileLine);
-    }
-    return sourceFileLines;
 }
 
 void SourceInstructionParser::PreprocessInstr(document_t &doc) {
@@ -652,46 +527,6 @@ std::vector<std::string> SourceInstructionParser::GetSourceList() {
     return sourceList;
 }
 
-std::vector<SourceFileLine> SourceInstructionParser::GetApiLinesByCoreAndSource(
-    const std::string &core, const std::string &sourceName) {
-    std::vector<SourceFileLine> result;
-
-    auto it = std::find(apiCores.begin(), apiCores.end(), core);
-    if (it == apiCores.end()) {
-        ServerLog::Error("Can't find the specified core name: ", core);
-        return result;
-    }
-    // never below zero
-    size_t index = static_cast<size_t>(std::distance(apiCores.begin(), it));
-
-    if (apiFiles.find(sourceName) == apiFiles.end()) {
-        ServerLog::Warn("The specified file doesn't exist in api files, and source name is ", sourceName);
-        return result;
-    }
-    std::vector<SourceFileLine> &vector = apiFiles[sourceName];
-    for (auto line : vector) {
-        if (line.cycles.size() < index + 1 || line.instructionsExecuted.size() < index + 1) {
-            continue;
-        }
-
-        // filter lines without instruction executed
-        if (line.instructionsExecuted[index] == 0 && line.cycles[index] == 0) {
-            continue;
-        }
-
-        SourceFileLine output;
-        for (const auto &pair : line.addressRange) {
-            output.addressRange.emplace_back(pair.first, pair.second);
-        }
-        output.cycles.emplace_back(line.cycles[index]);
-        output.instructionsExecuted.emplace_back(line.instructionsExecuted[index]);
-        output.line = line.line;
-
-        result.emplace_back(output);
-    }
-    return result;
-}
-
 std::string SourceInstructionParser::GetInstr(std::string &filePath) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
     if (!file) {
@@ -702,36 +537,6 @@ std::string SourceInstructionParser::GetInstr(std::string &filePath) {
     std::string content = BinFileParseUtil::GetContentStr(file, apiInstrPos, maxDataSize);
     file.close();
     return content;
-}
-
-void SetInstrDataOfTargetCore(const std::vector<int> &sourceList, std::vector<int> &targetList, size_t index) {
-    if (sourceList.empty()) {
-        return;
-    }
-    targetList.emplace_back(sourceList[index < sourceList.size() ? index : 0]);
-}
-
-std::vector<SourceApiInstruction> SourceInstructionParser::GetInstructions(std::string &coreName) {
-    std::vector<SourceApiInstruction> result;
-    auto targetCore = std::find(apiCores.begin(), apiCores.end(), coreName);
-    if (targetCore == apiCores.end()) {
-        targetCore = apiCores.begin();
-    }
-    size_t index = static_cast<size_t>(std::distance(apiCores.begin(), targetCore)); // never below zero
-    for (const auto &item : apiInstructionList) {
-        SourceApiInstruction temp;
-        temp.pipe = item.pipe;
-        temp.ascendCInnerCode = item.ascendCInnerCode;
-        temp.address = item.address;
-        temp.source = item.source;
-        SetInstrDataOfTargetCore(item.theoreticalStallCycles, temp.theoreticalStallCycles, index);
-        SetInstrDataOfTargetCore(item.realStallCycles, temp.realStallCycles, index);
-        SetInstrDataOfTargetCore(item.instructionsExecuted, temp.instructionsExecuted, index);
-        SetInstrDataOfTargetCore(item.cycles, temp.cycles, index);
-        result.emplace_back(temp);
-    }
-
-    return result;
 }
 
 std::vector<SourceFileInstructionDynamicCol> SourceInstructionParser::GetInstrDynamic(std::string &coreName) {

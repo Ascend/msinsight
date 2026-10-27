@@ -43,9 +43,3 @@ TEST_F(ComputeSourceModuleTest, RegisterRequestHandlersTest) {
     EXPECT_TRUE(!module.GetRegister().empty());
     EXPECT_TRUE(module.GetRegister().find(Dic::Protocol::REQ_RES_SOURCE_CODE_FILE) != module.GetRegister().end());
 }
-
-TEST_F(ComputeSourceModuleTest, OnRequestTest) {
-    SourceModuleTemp module;
-    auto requestPtr = std::make_unique<Dic::Protocol::SourceApiInstrRequest>();
-    module.OnRequest(std::move(requestPtr));
-}

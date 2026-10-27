@@ -60,10 +60,8 @@ class SourceFileParser : public FileParser {
         const std::string &rankId, std::shared_ptr<std::vector<std::future<void>>> futures, const std::string &fileId);
     std::vector<std::string> GetCoreList();
     std::vector<std::string> GetSourceList();
-    std::vector<SourceFileLine> GetApiLinesByCoreAndSource(const std::string &core, const std::string &sourceName);
     std::vector<SourceFileLineDynamicCol> GetApiLinesDynamic(const std::string &core, const std::string &sourceName);
     std::string GetInstr();
-    std::vector<SourceApiInstruction> GetInstructions(std::string &coreName);
     std::vector<SourceFileInstructionDynamicCol> GetInstrDynamic(std::string &coreName);
     std::map<std::string, int> GetInstructionColumnTypeMap();
     std::map<std::string, int> GetSourceLineColumnTypeMap();

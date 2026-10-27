@@ -55,11 +55,6 @@ struct SourceApiLineParams {
     }
 };
 
-struct SourceApiLineRequest : public Request {
-    SourceApiLineRequest() : Request(REQ_RES_SOURCE_API_LINE) {};
-    SourceApiLineParams params;
-};
-
 struct SourceApiLineDynamicRequest : public Request {
     SourceApiLineDynamicRequest() : Request(REQ_RES_SOURCE_API_LINE_DYNAMIC) {};
     SourceApiLineParams params;
@@ -78,12 +73,8 @@ struct SourceApiInstrParams {
 };
 
 struct SourceApiInstrDynamicRequest : public Request {
-    SourceApiInstrDynamicRequest() : Request(REQ_RES_SOURCE_API_INSTRUCTIONS) {};
+    SourceApiInstrDynamicRequest() : Request(REQ_RES_SOURCE_API_INSTRUCTIONS_DYNAMIC) {};
     SourceApiInstrParams params;
-};
-
-struct SourceApiInstrRequest : public Request {
-    SourceApiInstrRequest() : Request(REQ_RES_SOURCE_API_INSTRUCTIONS) {};
 };
 
 struct SourceDetailBaseInfoParams {
