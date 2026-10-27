@@ -46,6 +46,47 @@ python preprocess_third_party.py
 
 > 说明：执行该步骤前请保证网络畅通。若处于代理环境，请提前配置 git、pip、npm/pnpm 等工具的代理或镜像源。
 
+#### Windows sqlite 源包缓存（可选）
+
+Windows 预处理可通过下表配置复用源包。非 Windows 仍使用原 `configure && make sqlite3.c` 流程。
+
+| 环境变量 | 必填 | 用途 / 默认值 |
+| --- | --- | --- |
+| `MSINSIGHT_SQLITE3_CACHE_DIR` | 否 | 流水线执行账户可读写、跨 Job 持久的目录；未设置或为空时不缓存，不隐式创建机器级目录 |
+| `MSINSIGHT_SQLITE3_URL` | 否 | 可选下载源覆盖；未设置或为空时使用 `https://www.sqlite.org/2024/sqlite-autoconf-3460100.tar.gz` |
+
+缓存文件名为 `sqlite-autoconf-3460100.tar.gz`；默认源和覆盖源均校验固定 SHA256：
+
+```text
+67d3fe6d268e6eaddcae3727fce58fcc8e9c53869bdd07a0c61e38ddf2965071
+```
+
+此值来自官方 HTTPS 文件下载后计算的自锚定值，不是官方签名或官方校验清单。参考大小为 3,265,571 字节，完整性以哈希为准。替代源必须提供相同字节内容。
+
+在 Windows 产品仓库根目录执行（前置：第三方依赖已下载、MinGW 可用、执行账户已获目录权限）：
+
+```powershell
+# 示例目录；CI 应选择工作区外的持久目录，并将变量传入实际 Job 进程。
+$env:MSINSIGHT_SQLITE3_CACHE_DIR = Join-Path $env:LOCALAPPDATA 'msinsight-cache\sqlite3'
+python server\build\preprocess_third_party.py
+```
+
+预期退出码为 0。首次缺失缓存时下载、校验并尝试写回；后续**全新工作区**日志应出现 `cache_read_verify status=hit` 和 `download status=skipped`。已有 `sqlite-autoconf-3460100` 源目录会保持原跳过行为（仍检查 MinGW），不能用它证明缓存命中或源目录经过哈希校验。缓存命中使用工作区私有副本，避免校验后其他 Job 替换缓存影响解包。
+
+缓存未配置、缺失、不可读或损坏分别记录 `unconfigured`、`missing`、`unreadable`、`invalid`，随后回退下载。下载异常或错误哈希返回失败，不解包、不发布缓存；日志仅记录异常类型，不输出覆盖 URL 或可能带凭据的异常消息。缓存目录创建、复制、原子替换失败（含 Windows 文件共享冲突）只告警，已验证下载仍可供本次构建使用。源包通过校验后采用缓存目录内唯一临时文件与原子替换发布；正常返回时仅清理本次调用的临时文件，强制终止遗留文件不会作为正式缓存读取。
+
+日志记录 `cache_read_verify`、`download`、`download_verify`、`cache_write`、`extract` 阶段状态和 `elapsed` 秒数。失败时根据对应阶段处理权限、下载源或源包一致性，再重跑；不自动接受新哈希。下载超时/重试策略维持原行为，冷缓存下载仍可能慢。
+
+机器级变量设置后，已运行的 Agent 不一定继承新值。CI 部署必须在实际 Job 内核对变量、账户权限和全新工作区复用；Agent 重启须安排空闲窗口。部署前备份原变量存在性和值，回滚恢复原值（原来未设置则移除），并切回原分支；缓存可保留为未引用文件，删除另行确认。
+
+产品仓库根目录可运行离线行为测试，无需真实下载、编译器或机器配置（Python 3.11+）：
+
+```bash
+python -m unittest discover -s test/ut -p 'test_preprocess_third_party.py' -v
+```
+
+预期所有测试通过；失败时先定位测试场景再继续部署。模拟 Windows 分支的 macOS/Linux 测试不等于 Windows 实际账户与流水线验收。
+
 ### 1.3 安装前端依赖
 
 ```bash
