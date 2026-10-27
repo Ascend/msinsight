@@ -798,7 +798,8 @@ void AppendFileVersion(std::string &key, const std::string &path) {
             AppendKey(key, "missing");
             continue;
         }
-        AppendKey(key, std::to_string(modified.time_since_epoch().count()));
+        // libc++ may use a 128-bit file clock representation, which std::to_string does not support.
+        AppendKey(key, std::to_string(static_cast<long long>(modified.time_since_epoch().count())));
         const auto size = std::filesystem::file_size(file, error);
         AppendKey(key, error ? "unknown-size" : std::to_string(size));
     }
