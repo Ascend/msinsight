@@ -21,7 +21,6 @@
 
 #include <gtest/gtest.h>
 #include "ComputeSourceFile.h"
-#include "QueryApiLineHandler.h"
 #include "SourceProtocolRequest.h"
 #include "../mockUtils/BinFileGenerator.h"
 #include "QueryCodeFileHandler.h"

@@ -39,16 +39,6 @@ TEST_F(SourceProtocolTest, ToCodeFileRequest) {
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToApiLineRequest) {
-    const std::unique_ptr<Request> &ptr = manager->FromJson(TO_API_LINE_REQ_JSON, error);
-    EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
-}
-
-TEST_F(SourceProtocolTest, ToApiInstrRequest) {
-    const std::unique_ptr<Request> &ptr = manager->FromJson(TO_API_INSTR_REQ_JSON, error);
-    EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
-}
-
 TEST_F(SourceProtocolTest, ToDetailsBaseInfoRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_BASE_INFO_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
@@ -76,22 +66,6 @@ TEST_F(SourceProtocolTest, ToDetailsInterCoreLoadGraphRequest) {
 
 TEST_F(SourceProtocolTest, ToCodeFileResponse) {
     SourceCodeFileResponse response;
-    response.moduleName = MODULE_SOURCE;
-    manager->ToJson(response, error);
-}
-
-TEST_F(SourceProtocolTest, ToApiLineResponse) {
-    SourceApiLineResponse response;
-    SourceFileLineRes lineRes;
-    std::pair<std::string, std::string> pair = {"1", "10"};
-    lineRes.addressRange.emplace_back(pair);
-    response.body.lines.emplace_back(lineRes);
-    response.moduleName = MODULE_SOURCE;
-    manager->ToJson(response, error);
-}
-
-TEST_F(SourceProtocolTest, ToApiInstrResponse) {
-    SourceApiInstrResponse response;
     response.moduleName = MODULE_SOURCE;
     manager->ToJson(response, error);
 }

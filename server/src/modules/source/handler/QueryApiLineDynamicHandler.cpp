@@ -45,26 +45,6 @@ void QueryApiLineDynamicHandler::SetResponseBody(
     auto linesDynamic =
         SourceFileParser::Instance().GetApiLinesDynamic(request.params.coreName, request.params.sourceName);
     response.body.columnNameMap = SourceFileParser::Instance().GetSourceLineColumnTypeMap();
-    if (response.body.columnNameMap.empty()) { // 如果列名映射表为空，说明是老版本数据
-        const std::vector<SourceFileLine> &lines =
-            SourceFileParser::Instance().GetApiLinesByCoreAndSource(request.params.coreName, request.params.sourceName);
-        std::vector<SourceFileLineRes> lineResArray;
-        for (const auto &line : lines) {
-            SourceFileLineRes lineRes;
-            lineRes.line = line.line;
-            if (!line.cycles.empty()) {
-                lineRes.cycle = line.cycles[0];
-            }
-            if (!line.instructionsExecuted.empty()) {
-                lineRes.instructionExecuted = line.instructionsExecuted[0];
-            }
-            lineRes.addressRange = line.addressRange;
-
-            lineResArray.emplace_back(lineRes);
-        }
-        response.body.lines = lineResArray;
-        return;
-    }
     for (const auto &item : linesDynamic) {
         SourceFileLineDynamic line;
         line.addressRange = item.addressRange;

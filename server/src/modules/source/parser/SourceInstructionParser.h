@@ -81,10 +81,8 @@ class SourceInstructionParser {
         std::vector<Position> &apiInstrPosArray);
     std::vector<std::string> GetCoreList();
     std::vector<std::string> GetSourceList();
-    std::vector<SourceFileLine> GetApiLinesByCoreAndSource(const std::string &core, const std::string &sourceName);
     std::vector<SourceFileLineDynamicCol> GetApiLinesDynamic(const std::string &core, const std::string &sourceName);
     std::string GetInstr(std::string &filePath);
-    std::vector<SourceApiInstruction> GetInstructions(std::string &coreName);
     std::vector<SourceFileInstructionDynamicCol> GetInstrDynamic(std::string &coreName);
     std::string GetSourceByName(std::string &sourceName, const std::string &filePath) const;
     std::map<std::string, int> GetInstructionColumnTypeMap() const;
@@ -103,8 +101,6 @@ class SourceInstructionParser {
     void ConvertApiFileDynamic(const std::string &jsonStr);
     void ParseFile(rapidjson::Value &file);
     void ParseSourceLineAddressRange(const Value &line, SourceFileLineDynamicCol &sourceFileLine);
-    std::map<std::string, std::vector<SourceFileLine>> ConvertToFileMap(rapidjson::Value &fileArray);
-    std::vector<SourceFileLine> ConvertToLineArray(rapidjson::Value &lineArray);
     template <typename T>
     void GetValueInTargetCore(const std::unordered_map<std::string, std::vector<T>> &sourceMap,
         std::unordered_map<std::string, std::vector<T>> &targetMap, size_t index);

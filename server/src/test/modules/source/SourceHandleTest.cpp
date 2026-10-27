@@ -17,8 +17,6 @@
  */
 
 #include <gtest/gtest.h>
-#include "QueryApiInstructionsHandler.h"
-#include "QueryApiLineHandler.h"
 #include "QueryCodeFileHandler.h"
 #include "QueryDetailsBaseInfoHandler.h"
 #include "QueryDetailsLoadInfoHandler.h"
@@ -43,18 +41,6 @@ class SourceHandleTest : public ::testing::Test {
         return RUN_ALL_TESTS();
     }
 };
-
-TEST_F(SourceHandleTest, QueryApiInstructionsHandlerTest) {
-    Dic::Module::Source::QueryApiInstructionsHandler handler;
-    std::unique_ptr<Request> requestPtr = std::make_unique<SourceApiInstrRequest>();
-    handler.HandleRequest(std::move(requestPtr));
-}
-
-TEST_F(SourceHandleTest, QueryApiLineHandler) {
-    Dic::Module::Source::QueryApiLineHandler handler;
-    std::unique_ptr<Request> requestPtr = std::make_unique<SourceApiLineRequest>();
-    handler.HandleRequest(std::move(requestPtr));
-}
 
 TEST_F(SourceHandleTest, QueryCodeFileHandler) {
     Dic::Module::Source::QueryCodeFileHandler handler;

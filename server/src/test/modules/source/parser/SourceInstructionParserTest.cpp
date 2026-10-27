@@ -103,46 +103,6 @@ TEST(SourceInstructionParserTest, testConvertApiFileNewWithValidJsonData) {
     EXPECT_TRUE(NumberUtil::IsEqual(line.floatColumnMap["float list"][1], 12.2));
 }
 
-TEST(SourceInstructionParserTest, testConvertApiInstrNewWithoutDtype) {
-    SourceInstructionParserDerived parser;
-    std::string json = std::string(INSTR_FILE);
-    parser.ConvertApiInstr(json);
-    auto list = parser.GetApiInstructionList();
-    EXPECT_TRUE(!list.empty());
-    auto line = list[0];
-    EXPECT_EQ(line.address, "0x1134e2d8");
-    EXPECT_EQ(line.source, "SIMT_LDG [PEX:6|P],[Rn:0|R],[Rn1:1|R],[Rd:0|R],[#ofst:9],[cop:1],[l2_cache_hint:0]");
-    EXPECT_EQ(line.pipe, "RVECLD");
-    EXPECT_EQ(line.ascendCInnerCode, "/test/vec_add1_simt.cpp:50");
-    EXPECT_TRUE(!line.realStallCycles.empty());
-    EXPECT_EQ(line.realStallCycles[0], 13); // value is 13
-    EXPECT_TRUE(!line.theoreticalStallCycles.empty());
-    EXPECT_EQ(line.theoreticalStallCycles[0], 8); // value is 8
-    EXPECT_TRUE(!line.cycles.empty());
-    EXPECT_EQ(line.cycles[0], 62); // value is 62
-    EXPECT_TRUE(!line.instructionsExecuted.empty());
-    EXPECT_EQ(line.instructionsExecuted[0], 4); // value is 4
-}
-
-TEST(SourceInstructionParserTest, testConvertApiFileNewWithoutDtype) {
-    SourceInstructionParserDerived parser;
-    std::string json = std::string(API_FILE);
-    std::string sourceName = "/test/vec_add1_simt.cpp";
-    parser.ConvertApiFile(json);
-    auto map = parser.GetApiFiles();
-    auto lines = map[sourceName];
-    EXPECT_TRUE(!lines.empty());
-    auto line = lines[0];
-    EXPECT_EQ(line.line, 31); // value is 31
-    EXPECT_TRUE(!line.instructionsExecuted.empty());
-    EXPECT_EQ(line.instructionsExecuted[0], 8); // value is 8
-    EXPECT_TRUE(!line.cycles.empty());
-    EXPECT_EQ(line.cycles[0], 56); // value is 56
-    EXPECT_TRUE(!line.addressRange.empty());
-    EXPECT_EQ(line.addressRange[0].first, "0x1134e2d8");
-    EXPECT_EQ(line.addressRange[0].second, "0x1134e4d8");
-}
-
 TEST(SourceInstructionParserTest, testGRPStatusHelperProgressAndReset) {
     GRPStatusHelper helper;
     EXPECT_EQ(helper.UpdateGRPStatus("R0", 3, GRPStatus::READ), GRPProgress::BEGIN);

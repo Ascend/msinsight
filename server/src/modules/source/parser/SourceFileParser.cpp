@@ -390,20 +390,9 @@ std::vector<std::string> SourceFileParser::GetSourceList() {
     return sourceInstructionParser.GetSourceList();
 }
 
-std::vector<SourceFileLine> SourceFileParser::GetApiLinesByCoreAndSource(
-    const std::string &core, const std::string &sourceName) {
-    std::unique_lock<std::mutex> lock(mutex);
-    return sourceInstructionParser.GetApiLinesByCoreAndSource(core, sourceName);
-}
-
 std::string SourceFileParser::GetInstr() {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetInstr(filePath);
-}
-
-std::vector<SourceApiInstruction> SourceFileParser::GetInstructions(std::string &coreName) {
-    std::unique_lock<std::mutex> lock(mutex);
-    return sourceInstructionParser.GetInstructions(coreName);
 }
 
 std::vector<SourceFileInstructionDynamicCol> SourceFileParser::GetInstrDynamic(std::string &coreName) {

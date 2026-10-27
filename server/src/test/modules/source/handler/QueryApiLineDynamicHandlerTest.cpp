@@ -17,7 +17,6 @@
  */
 
 #include <gtest/gtest.h>
-#include "ComputeQuerySourceApiHandlerTest.h"
 #include "ComputeQuerySourceApiDynamicHandlerTest.h"
 #include "SourceProtocolRequest.h"
 #include "QueryCodeFileHandler.h"
@@ -74,36 +73,4 @@ TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerSe
     EXPECT_EQ(map.intMap["Cycles"], 284); // cycles is 284
     EXPECT_EQ(map.intMap["Instructions Executed"], 36); // instructions executed is 36
     EXPECT_EQ(map.intMap["Line"], 32); // line is 32
-}
-
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerRequestWithoutDtype) {
-    QueryApiLineDynamicHandler handler;
-    auto ptr = std::make_unique<SourceApiLineDynamicRequest>();
-    ptr->params.sourceName = SOURCE_NAME;
-    ptr->params.coreName = CORE_NAME;
-    ptr->moduleName = "Source";
-    ptr->projectName = "project";
-    handler.HandleRequest(std::move(ptr));
-}
-
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerSetResponseBodyWithoutDtype) {
-    SourceApiLineDynamicRequest request;
-    request.params.sourceName = SOURCE_NAME;
-    request.params.coreName = CORE_NAME;
-    SourceApiLineDynamicResponse response;
-    HandlerDerived handler;
-    handler.SetResponseBody(response, request);
-    EXPECT_TRUE(response.body.columnNameMap.empty());
-
-    auto lines = response.body.lines;
-    EXPECT_EQ(lines.size(), 8); // lines size is 8
-    auto line = lines[1];
-    auto addressRange = line.addressRange;
-    EXPECT_EQ(addressRange.size(), 2); // address range size is 2
-    EXPECT_EQ(addressRange[1].first, "0x1134e0f8");
-    EXPECT_EQ(addressRange[1].second, "0x1134e0f8");
-
-    EXPECT_EQ(line.cycle, 284); // cycles is 284
-    EXPECT_EQ(line.instructionExecuted, 36); // instructions executed is 36
-    EXPECT_EQ(line.line, 32); // line is 32
 }

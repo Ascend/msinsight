@@ -76,28 +76,6 @@ const std::string TO_BASE_INFO_REQ_JSON = R"(
   }
 }
 )";
-const std::string TO_API_INSTR_REQ_JSON = R"(
-{
-  "id": 4777,
-  "moduleName": "source",
-  "type": "request",
-  "command": "source/api/instructions",
-  "params": {
-  }
-}
-)";
-const std::string TO_API_LINE_REQ_JSON = R"(
-{
-  "id": 4776,
-  "moduleName": "source",
-  "type": "request",
-  "command": "source/api/line",
-  "params": {
-    "sourceName": "xxx.cpp",
-    "coreName": "core0.cubecore0"
-  }
-}
-)";
 const std::string TO_CODE_FILE_REQ_JSON = R"(
 {
   "id": 4772,

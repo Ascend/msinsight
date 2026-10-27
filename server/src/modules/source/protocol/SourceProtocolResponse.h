@@ -49,26 +49,6 @@ struct SourceFileLineRes {
     std::vector<std::pair<std::string, std::string>> addressRange;
 };
 
-struct SourceApiLineResBody {
-    std::vector<SourceFileLineRes> lines;
-};
-
-struct SourceApiLineResponse : public Response {
-    SourceApiLineResponse() : Response(REQ_RES_SOURCE_API_LINE) {}
-
-    SourceApiLineResBody body;
-};
-
-struct SourceApiInstrResBody {
-    std::string instructions;
-};
-
-struct SourceApiInstrResponse : public Response {
-    SourceApiInstrResponse() : Response(REQ_RES_SOURCE_API_INSTRUCTIONS) {}
-
-    SourceApiInstrResBody body;
-};
-
 struct SourceColumnValueMap {
     std::unordered_map<std::string, int> intMap;
     std::unordered_map<std::string, float> floatMap;
@@ -91,8 +71,6 @@ struct SourceApiInstrDynamicBody {
     std::string coreName;
     std::map<std::string, int> columnNameMap;
     std::vector<SourceColumnValueMap> columnValues;
-    // earlier version data
-    std::vector<SourceApiInstrRes> instructions;
 };
 
 struct SourceApiInstrDynamicResponse : public Response {
@@ -108,8 +86,6 @@ struct SourceFileLineDynamic {
 struct SourceApiLineDynamicResBody {
     std::map<std::string, int> columnNameMap;
     std::vector<SourceFileLineDynamic> sourceFileLines;
-    // earlier version data
-    std::vector<SourceFileLineRes> lines;
 };
 
 struct SourceApiLineDynamicResponse : public Response {
