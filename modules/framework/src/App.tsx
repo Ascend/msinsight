@@ -34,6 +34,7 @@ import { LoadingOutlined } from '@ant-design/icons';
 import i18n from '@insight/lib/i18n';
 import { runInAction } from 'mobx';
 import { isVscodePluginEnvironment, pluginModeInit, isVscodeEnv } from '@/vscode-adapter';
+import { getInsightFileSelectorConfigUrl, prefetchInsightFileSelectorDefaultDirectory } from '@/utils/defaultBrowseDirectory';
 
 // Only the JupyterLab wrapper supplies profilerServerId. Other hosts are unchanged.
 const notifyJupyterStartup = (status: 'ready' | 'error'): void => {
@@ -94,6 +95,9 @@ const App = observer(() => {
     useEffect(() => {
         if (session.defaultConnected) {
             notifyJupyterStartup('ready');
+            if (getInsightFileSelectorConfigUrl(window.location.href)) {
+                prefetchInsightFileSelectorDefaultDirectory();
+            }
         }
     }, [session.defaultConnected]);
 
