@@ -30,7 +30,7 @@ A5当前导出db存在已知问题，手动拦截了db导出。
 
 ![a2-collection-data.png](figures/Import_Issues/cannot-import-project.png)
 
-用MindStudio Insight打开profiling，显示无法打开。已排查2和3，profiling中的steptrace也能用google perfetto正常打开。
+用MindStudio Insight打开profiling，显示无法打开。已排查2和3，profiling中的step_trace也能用google perfetto正常打开。
 
 工具版本：Insight 8.1
 

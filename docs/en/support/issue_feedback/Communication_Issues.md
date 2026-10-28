@@ -14,7 +14,7 @@ This string is not an abnormal value. It is a hash value collected by profiling 
 
 ---
 
-## A3 AICPU Related Operator Collection Issues
+## A3 aicpu Related Operator Collection Issues
 
 ### Problem Description
 
@@ -30,9 +30,9 @@ Tool Version: 8.1.RC1
 
 ### Solution
 
-As shown in the screenshot, the A3 operators include allgatherAicpuKernel, whose name contains "Aicpu" and is reported as the AICPU type, so it is classified under AICPU operations.
+As shown in the screenshot, the A3 operators include allgatherAicpuKernel, whose name contains "Aicpu" and is reported as the aicpu type, so it is classified under aicpu operations.
 
-By analyzing the names, it can be determined that these operators are communication operators executed through the AICPU path.
+By analyzing the names, it can be determined that these operators are communication operators executed through the aicpu path.
 
 ---
 

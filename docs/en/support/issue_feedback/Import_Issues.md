@@ -30,7 +30,7 @@ It is recommended to delete all DB files under the `ASCEND_PROFILER_OUTPUT` fold
 
 ![a2-collection-data.png](figures/Import_Issues/cannot-import-project.png)
 
-When opening profiling with MindStudio Insight, it shows that the file cannot be opened. Steps 2 and 3 have been checked, and the steptrace in profiling can also be opened normally with Google Perfetto.
+When opening profiling with MindStudio Insight, it shows that the file cannot be opened. Steps 2 and 3 have been checked, and the step_trace in profiling can also be opened normally with Google Perfetto.
 
 Tool version: Insight 8.1
 
@@ -165,7 +165,7 @@ No data is displayed in **Communication** after a project is imported.
 
 **Tool Version:** Insight 8.2.RC1
 
-**Issue Source:** MinSpeed-MM Team, Ascend Computing Training Development Department
+**Issue Source:** MindSpeed-MM Team, Ascend Computing Training Development Department
 
 **Model Usage Scenario:** qwen3vl-30B, 8-rank
 
