@@ -36,6 +36,8 @@ import tornado
 from tornado.web import StaticFileHandler
 from tornado.httputil import HTTPServerRequest
 
+from .config import load_insight_file_selector_config
+
 
 # 配置日志
 logging.basicConfig(
@@ -417,6 +419,18 @@ class TerminateProfilerHandler(APIHandler):
             )
 
 
+class InsightFileSelectorConfigHandler(APIHandler):
+    @tornado.web.authenticated
+    def get(self):
+        self.set_header("Cache-Control", "no-store")
+        config = self.settings["mindstudio_insight_file_selector_config"]
+        if config.error is not None:
+            self.set_status(422)
+            self.finish({"error": config.error})
+            return
+        self.finish({"defaultBrowseDir": config.default_browse_dir})
+
+
 class RouteHandler(APIHandler):
     # The following decorator should be present on all verb methods (head, get, post,
     # patch, put, delete, options) to ensure only authorized user can request the
@@ -432,6 +446,15 @@ class IFrameStaticFileHandler(StaticFileHandler):
 
 def setup_handlers(web_app, server_app):
     web_app.settings["mindstudio_server_app"] = server_app
+    config = load_insight_file_selector_config(server_app)
+    web_app.settings["mindstudio_insight_file_selector_config"] = config
+    if config.error:
+        server_app.log.warning("%s", config.error)
+    elif config.default_browse_dir:
+        server_app.log.info(
+            "MindStudio Insight file selector initial directory (MSInsight.initial_dir): %r ",
+            config.default_browse_dir,
+        )
     web_app.settings["shutdown_hook"] = shutdown_hook
     host_pattern = HOST_PATTERN
     base_url = web_app.settings["base_url"]
@@ -449,6 +472,12 @@ def setup_handlers(web_app, server_app):
     static_handlers = [(static_route_pattern, IFrameStaticFileHandler, {'path': static_frontend_path})]
 
     api_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/get_example")
-    api_handlers = [(api_route_pattern, RouteHandler)]
+    insight_file_selector_config_pattern = url_path_join(
+        base_url, "/mindstudio_insight_jupyterlab/file_selector_config"
+    )
+    api_handlers = [
+        (api_route_pattern, RouteHandler),
+        (insight_file_selector_config_pattern, InsightFileSelectorConfigHandler),
+    ]
 
     web_app.add_handlers(host_pattern, iframe_handlers + terminate_handlers + static_handlers + api_handlers)

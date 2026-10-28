@@ -31,6 +31,7 @@ import type { FileSortBy, FileSortOrder } from '@/utils/Request';
 import type { CatalogActionListener, SearchResult } from './ResourceCatalog';
 import ResourceCatalog, { CatalogAction } from './ResourceCatalog';
 import { handleProjectAction } from '@/utils/Project';
+import { getInsightFileSelectorConfigUrl, loadInsightFileSelectorDefaultDirectory } from '@/utils/defaultBrowseDirectory';
 import FileConflictDialog from './FileConflictDialog';
 
 const orderStorageKey = (sortBy: FileSortBy): LocalStorageKey => {
@@ -202,6 +203,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     const [sortBy, setSortBy] = useState<FileSortBy>(initialSortBy);
     const [order, setOrder] = useState<FileSortOrder>(readStoredSortOrder(initialSortBy));
     const actionNonce = useRef(0);
+    const initialDirectoryApplied = useRef(false);
 
     // 点击确认
     const handleConfirm = async (): Promise<void> => {
@@ -270,8 +272,9 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     };
 
     // 查询目录树
-    const searchCatalog = (): void => {
-        const path = getSearchDir(inputPath);
+    const searchCatalog = (value = inputPath): void => {
+        initialDirectoryApplied.current = true;
+        const path = getSearchDir(value);
         setInputPath(path);
         actionNonce.current += 1;
         setActionListener({ type: CatalogAction.SEARCH, value: path, nonce: actionNonce.current });
@@ -298,6 +301,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+        initialDirectoryApplied.current = true;
         setInputPath(e.target.value);
         setActionListener({ type: CatalogAction.INPUT_PATH_CHANGE, value: e.target.value, nonce: actionNonce.current });
     };
@@ -305,15 +309,31 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     const handleSelectedChange = (val: string): void => {
         setSelectedPath(val);
         if (val !== '' && val !== inputPath) {
+            initialDirectoryApplied.current = true;
             setInputPath(val);
         }
     };
 
     // 每次打开对话框，刷新目录
     useEffect(() => {
+        let active = true;
         if (dialogOpen) {
-            searchCatalog();
+            if (initialDirectoryApplied.current || !getInsightFileSelectorConfigUrl(window.location.href)) {
+                searchCatalog();
+            } else {
+                void loadInsightFileSelectorDefaultDirectory().then(path => {
+                    if (!active || initialDirectoryApplied.current) {
+                        return;
+                    }
+                    searchCatalog(path || inputPath);
+                }).catch(() => {
+                    if (active && !initialDirectoryApplied.current) {
+                        setHit({ alert: true, message: 'FileCheckFailedDescribe' });
+                    }
+                });
+            }
         }
+        return () => { active = false; };
     }, [dialogOpen]);
 
     // 输入路径更新后，清掉告警
@@ -365,7 +385,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
                 />
             </div>
             <Tooltip placement="bottom" title={t('RefreshDirectory')}>
-                <RefreshIcon className="modal-refresh" onClick={searchCatalog}/>
+                <RefreshIcon className="modal-refresh" onClick={(): void => searchCatalog()}/>
             </Tooltip>
         </div>
     </div>;
