@@ -14,7 +14,7 @@ MindStudio Insight can be used in the following scenarios:
 
 ### Package Download
 
-You can download the software package that suits your operating system. By downloading the binary software, you agree to the terms and conditions of the [Software License Agreement 2.0](https://www.hiascend.com/legal/softlicense).
+You can download the software package that suits your operating system. By downloading the binary software, you agree to the terms and conditions of the [Software License Agreement 2.0](https://www.hiascend.com/en/legal/softlicense).
 
 ### Software Packages by Platform
 
@@ -616,12 +616,12 @@ Depending on the network environment of the server, you can pull the image onlin
 
 1. Visit the [AscendHub MindStudio Insight Image Page](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1) and select an image tag based on the base operating system and Python version of the image.
 
-    The following image tags are currently available, all supporting both `x86_64` and `aarch64` architectures.
+    The following image tags are the latest, all supporting both `x86_64` and `aarch64` architectures.
 
     |Image Tag|Base Operating System|Python Version|
     |--|--|--|
-    |`26.1.0-ubuntu22.04-py3.10`|Ubuntu 22.04|3.10|
-    |`26.1.0-openeuler24.03-py3.11`|openEuler 24.03 LTS|3.11|
+    | [`26.2.0-ubuntu22.04-py3.10`](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1?version=26.2.0-ubuntu22.04-py3.10) |Ubuntu 22.04|3.10|
+    | [`26.2.0-openeuler24.03-py3.11`](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1?version=26.2.0-openeuler24.03-py3.11) |openEuler 24.03 LTS|3.11|
 
 2. In the operation column of the corresponding tag on the image page, click **Download**, and follow the steps displayed on the page to copy and execute the image pull command.
 

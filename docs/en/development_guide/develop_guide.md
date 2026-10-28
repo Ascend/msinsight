@@ -539,7 +539,7 @@ server
 
 Write JSON protocol handling and response passing here:
 
-```c++
+```cpp
 struct JsonResponse : public Response {
     explicit JsonResponse(const std::string &command) : Response(command) {}
     [[nodiscard]] virtual std::optional<document_t> ToJson() const = 0;

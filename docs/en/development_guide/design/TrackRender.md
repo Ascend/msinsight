@@ -121,7 +121,7 @@ In all unit content areas, there are two canvases, NormalCanvas and HoverCanvas,
 
 Mouse events and keyboard events defined on these two canvases are exposed externally via useImperativeHandle and are actually bound to the ChartContainer component.
 
-[Canvas](./figures/track-render/content-4.png)
+![Canvas](./figures/track-render/content-4.png)
 
 ## 6. Interaction
 

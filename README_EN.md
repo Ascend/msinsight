@@ -114,10 +114,5 @@ You are cordially invited to participate in the [satisfaction survey](https://rd
 
 ## 🙏 Acknowledgments
 
-MindStudio Insight is jointly contributed by the following departments of Huawei:<br>
-🔹 Computing Product Line <br>
-🔹 2012 Laboratories
-
-We appreciate every PR from the community and welcome contributions to MindStudio Insight!
-
-The Huawei MindStudio full-process development toolchain team is committed to providing end-to-end Ascend AI app development solutions, enabling developers to efficiently complete training development, inference development, and operator development.
+This tool is jointly contributed by Huawei Technologies Co., Ltd. and developers. <br>
+Thanks for every PR from the community, and contributions are welcome.
