@@ -4,10 +4,12 @@
  */
 #include "QueryFreeAttributionHandler.h"
 
+#include <exception>
 #include <limits>
 #include <set>
 #include <type_traits>
 #include "FreeAttributionService.h"
+#include "ServerLog.h"
 #include "TraceTime.h"
 
 namespace Dic::Module::Timeline {
@@ -66,12 +68,18 @@ bool HandleAttribution(std::unique_ptr<Protocol::Request> requestPtr, bool detai
         SendResponse(std::move(response), false, error);
         return false;
     }
-    FreeAttributionService service;
-    bool success;
-    if constexpr (std::is_same_v<RESPONSE, Protocol::FreeAttributionSummaryResponse>) {
-        success = service.QuerySummary(request->params, response->body, error);
-    } else {
-        success = service.QueryDetails(request->params, response->body, error);
+    bool success = false;
+    try {
+        FreeAttributionService service;
+        if constexpr (std::is_same_v<RESPONSE, Protocol::FreeAttributionSummaryResponse>) {
+            success = service.QuerySummary(request->params, response->body, error);
+        } else {
+            success = service.QueryDetails(request->params, response->body, error);
+        }
+    } catch (const std::exception &exception) {
+        Server::ServerLog::Error("Free attribution query threw an exception, command: ", request->command,
+            ", request id: ", request->id, ", error: ", exception.what());
+        error = "Failed to query Free time attribution.";
     }
     if (!success) {
         SetTimelineError(ErrorCode::QUERY_FREE_ATTRIBUTION_FAILED);

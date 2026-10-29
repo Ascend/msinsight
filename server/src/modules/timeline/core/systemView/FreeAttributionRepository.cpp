@@ -17,6 +17,7 @@
 #include <unordered_set>
 
 #include "DataBaseManager.h"
+#include "FileUtil.h"
 #include "RankOverlapStore.h"
 #include "SqlitePreparedStatement.h"
 #include "TraceTime.h"
@@ -322,6 +323,8 @@ bool LoadDbEvidence(const Source &source, const std::string &rankId, uint64_t mi
     if (source.database->CheckTableExist("CONNECTION_IDS")) {
         for (size_t offset = 0; offset < connections.size(); offset += SQL_BATCH_SIZE) {
             const size_t count = std::min(SQL_BATCH_SIZE, connections.size() - offset);
+            std::vector<std::pair<std::string, std::string>> connectionRows;
+            std::set<std::string> apiConnectionKeys;
             const auto bind = [&](auto &statement) {
                 for (size_t item = 0; item < count; ++item) {
                     statement->BindParams(connections[offset + item]);
@@ -329,8 +332,14 @@ bool LoadDbEvidence(const Source &source, const std::string &rankId, uint64_t mi
             };
             if (!Read(
                     source.database,
-                    "SELECT connectionId FROM CONNECTION_IDS WHERE connectionId IN (" + Placeholders(count) + ")", bind,
-                    [&](auto &row) { knownConnections.insert(row->GetString("connectionId")); }, error)) {
+                    "SELECT id,connectionId FROM CONNECTION_IDS WHERE connectionId IN (" + Placeholders(count) + ")",
+                    bind,
+                    [&](auto &row) {
+                        const auto connection = row->GetString("connectionId");
+                        knownConnections.insert(connection);
+                        connectionRows.emplace_back(row->GetString("id"), connection);
+                    },
+                    error)) {
                 return false;
             }
             if (!source.database->CheckTableExist("PYTORCH_API") || !source.database->CheckTableExist("STRING_IDS")) {
@@ -340,7 +349,7 @@ bool LoadDbEvidence(const Source &source, const std::string &rankId, uint64_t mi
             const std::string sql = "SELECT api.ROWID AS id, names.value AS name, api.startNs, api.endNs, "
                                     "api.globalTid AS pid, 'pytorch' AS tid, " +
                 std::string(depth) +
-                " AS depth, ids.connectionId AS connectionId FROM PYTORCH_API api "
+                " AS depth, ids.connectionId AS connectionId, ids.id AS connectionKey FROM PYTORCH_API api "
                 "JOIN STRING_IDS names ON api.name=names.id "
                 "JOIN CONNECTION_IDS ids ON api.connectionId=ids.id "
                 "WHERE (api.type IS NULL OR api.type!=50003) AND ids.connectionId IN (" +
@@ -350,20 +359,17 @@ bool LoadDbEvidence(const Source &source, const std::string &rankId, uint64_t mi
                     [&](auto &row) {
                         auto target = MakeTarget(row, source, rankId, "PYTORCH_API", minTime);
                         apis[row->GetString("connectionId")].push_back(std::move(target));
+                        apiConnectionKeys.insert(row->GetString("connectionKey"));
                     },
                     error)) {
                 return false;
             }
-            const std::string missingSql = "SELECT DISTINCT ids.connectionId FROM CONNECTION_IDS ids "
-                                           "WHERE ids.connectionId IN (" +
-                Placeholders(count) +
-                ") AND NOT EXISTS ("
-                "SELECT 1 FROM PYTORCH_API api JOIN STRING_IDS names ON api.name=names.id "
-                "WHERE api.connectionId=ids.id AND (api.type IS NULL OR api.type!=50003))";
-            if (!Read(
-                    source.database, missingSql, bind,
-                    [&](auto &row) { incompleteConnections.insert(row->GetString("connectionId")); }, error)) {
-                return false;
+            // Reuse the API join instead of rescanning PYTORCH_API for each mapping.
+            // Check mapping IDs separately: a reused connection may have both valid and missing APIs.
+            for (const auto &[key, connection] : connectionRows) {
+                if (apiConnectionKeys.count(key) == 0) {
+                    incompleteConnections.insert(connection);
+                }
             }
         }
     }
@@ -792,15 +798,21 @@ class TextEvidenceLoader {
 
 void AppendFileVersion(std::string &key, const std::string &path) {
     for (const auto &file : {path, path + "-wal"}) {
+#ifdef _WIN32
+        // Convert the backend's local encoding explicitly before passing paths to filesystem.
+        const std::filesystem::path nativePath(FileUtil::ConvertToLongPathW(file));
+#else
+        const std::filesystem::path nativePath(file);
+#endif
         std::error_code error;
-        const auto modified = std::filesystem::last_write_time(file, error);
+        const auto modified = std::filesystem::last_write_time(nativePath, error);
         if (error) {
             AppendKey(key, "missing");
             continue;
         }
         // libc++ may use a 128-bit file clock representation, which std::to_string does not support.
         AppendKey(key, std::to_string(static_cast<long long>(modified.time_since_epoch().count())));
-        const auto size = std::filesystem::file_size(file, error);
+        const auto size = std::filesystem::file_size(nativePath, error);
         AppendKey(key, error ? "unknown-size" : std::to_string(size));
     }
 }
