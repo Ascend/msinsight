@@ -15,6 +15,7 @@
 #include "DbTraceDataBase.h"
 #include "FreeAttributionService.h"
 #include "RankOverlapStore.h"
+#include "StringUtil.h"
 #include "TraceTime.h"
 
 namespace Dic::Module::Timeline {
@@ -87,7 +88,8 @@ class FreeAttributionDatabaseTest : public testing::TestWithParam<DataType> {
 
     void Exec(const std::string &path, const std::string &sql) {
         sqlite3 *database = nullptr;
-        ASSERT_EQ(sqlite3_open(path.c_str(), &database), SQLITE_OK);
+        const auto sqlitePath = StringUtil::ToUtf8Str(path);
+        ASSERT_EQ(sqlite3_open(sqlitePath.c_str(), &database), SQLITE_OK);
         char *message = nullptr;
         const auto status = sqlite3_exec(database, sql.c_str(), nullptr, nullptr, &message);
         const std::string detail = message ? message : "";
@@ -97,7 +99,15 @@ class FreeAttributionDatabaseTest : public testing::TestWithParam<DataType> {
     }
 
     std::string Source(const std::string &name, const std::string &rank = "free-test-rank") {
-        const auto path = (directory / (name + ".db")).string();
+        return SourceAt(directory / (name + ".db"), rank);
+    }
+
+    std::string SourceAt(const std::filesystem::path &file, const std::string &rank = "free-test-rank") {
+#ifdef _WIN32
+        const auto path = StringUtil::WString2String(file.native());
+#else
+        const auto path = file.string();
+#endif
         Exec(path, GetParam() == DataType::TEXT ? TEXT_SCHEMA : DB_SCHEMA);
         Exec(path, "PRAGMA user_version=" + Database::GetCompileDataBaseVersion() + ";");
         auto &manager = DataBaseManager::Instance();
@@ -155,6 +165,40 @@ class FreeAttributionDatabaseTest : public testing::TestWithParam<DataType> {
     FreeAttributionService service;
     std::filesystem::path directory;
 };
+
+TEST_P(FreeAttributionDatabaseTest, SupportsNativeEncodedChinesePathsForSummaryDetailsAndRefresh) {
+    const auto file = directory / std::filesystem::u8path(u8"\u5f52\u56e0\u6d4b\u8bd5") / "trace.db";
+#ifdef _WIN32
+    const auto localPath = StringUtil::WString2String(file.native());
+    if (StringUtil::String2WString(localPath) != file.native()) {
+        GTEST_SKIP() << "The current Windows code page cannot represent this Chinese path.";
+    }
+#endif
+    ASSERT_TRUE(std::filesystem::create_directory(file.parent_path()));
+    const auto path = SourceAt(file);
+    Compute(path);
+    FreeAttributionSummary summary;
+    std::vector<FreeAttributionRecord> records;
+    ASSERT_NO_THROW(records = Details(Query(path), summary));
+    ASSERT_EQ(records.size(), 1U);
+    ASSERT_TRUE(records[0].hostApiTarget.has_value());
+    EXPECT_EQ(records[0].hostApiTarget->dbPath, path);
+    ASSERT_EQ(summary.groups.size(), 1U);
+    EXPECT_EQ(summary.groups[0].apiName, "aten::add");
+    EXPECT_EQ(summary.totalFreeCount, 1U);
+    EXPECT_EQ(summary.totalFreeDuration, 80U);
+    ASSERT_NO_THROW(records = Details(Query(path), summary));
+    ASSERT_EQ(records.size(), 1U);
+    Exec(path,
+        GetParam() == DataType::TEXT ? "UPDATE slice SET name='aten::renamed' WHERE id=1;"
+                                     : "UPDATE STRING_IDS SET value='aten::renamed' WHERE id=1;");
+    ASSERT_NO_THROW(records = Details(Query(path), summary));
+    ASSERT_EQ(records.size(), 1U);
+    ASSERT_EQ(summary.groups.size(), 1U);
+    EXPECT_EQ(summary.groups[0].apiName, "aten::renamed");
+    EXPECT_EQ(summary.totalFreeCount, 1U);
+    EXPECT_EQ(summary.totalFreeDuration, 80U);
+}
 
 TEST_P(FreeAttributionDatabaseTest, FindsComputingApiOutsideRangeAndPreservesJumpCoordinates) {
     const auto path = Source("compute");
@@ -324,6 +368,30 @@ INSERT INTO CONNECTION_IDS VALUES(8,42);
     EXPECT_EQ(records[0].candidateApiTargets.size(), 2U);
     EXPECT_EQ(summary.totalFreeCount, 1U);
     EXPECT_EQ(summary.totalFreeDuration, 80U);
+}
+
+TEST_P(FreeAttributionDatabaseTest, ReusedDbConnectionPreservesEachMissingApiMapping) {
+    if (GetParam() != DataType::DB) {
+        GTEST_SKIP() << "This fixture exercises explicit DB connection mappings.";
+    }
+    const std::vector<std::string> missingApis = {"", "INSERT INTO PYTORCH_API VALUES(1,160,190,4294967306,50003,0,8);",
+        "INSERT INTO PYTORCH_API VALUES(999,160,190,4294967306,50001,0,8);"};
+    for (size_t index = 0; index < missingApis.size(); ++index) {
+        SCOPED_TRACE(index);
+        DataBaseManager::Instance().Clear();
+        const auto path = Source("partial-mapping-" + std::to_string(index));
+        Compute(path);
+        Exec(path, "INSERT INTO CONNECTION_IDS VALUES(8,42);" + missingApis[index]);
+        FreeAttributionSummary summary;
+        const auto records = Details(Query(path), summary);
+        ASSERT_EQ(records.size(), 1U);
+        EXPECT_EQ(records[0].attributionStatus, "incomplete");
+        EXPECT_FALSE(records[0].hostApiTarget.has_value());
+        ASSERT_EQ(records[0].candidateApiTargets.size(), 1U);
+        EXPECT_EQ(records[0].candidateApiTargets[0].name, "aten::add");
+        EXPECT_EQ(summary.totalFreeCount, 1U);
+        EXPECT_EQ(summary.totalFreeDuration, 80U);
+    }
 }
 
 TEST_P(FreeAttributionDatabaseTest, CoStartingBehaviorsShareApiAndKeepMissingBranchIncomplete) {
