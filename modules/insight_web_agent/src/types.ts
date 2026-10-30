@@ -37,6 +37,8 @@ export interface PermissionRequestItem {
 export type ToolCallStatus = 'in_progress' | 'completed' | 'failed';
 export type AgentActivity = 'analyzing_tool_results' | {
     type: 'model_retry';
+    reason?: 'connection' | 'rate_limit';
+    retryAt?: number;
     attempt?: number;
     maxAttempts?: number;
     retryAfterSeconds?: number;

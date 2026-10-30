@@ -194,6 +194,8 @@
     "thinkingAnswering": "Thought completed, starting answer:",
     "analyzingToolResults": "Analyzing tool results...",
     "modelRetrying": "The model service is rate limited. Request {{attempt}}/{{maxAttempts}} is in progress; recovery is expected in {{wait}}...",
+    "modelRetryConnecting": "Retry {{attempt}}/{{maxAttempts}} in progress; waiting for model response...",
+    "modelConnectionRetrying": "Model connection interrupted or timed out. Retry {{attempt}}/{{maxAttempts}} (backoff {{wait}}); retaining existing output...",
     "modelRetryWaitUnknown": "a while",
     "modelRetryWaitSeconds": "{{count}} seconds",
     "modelRetryWaitMinutes": "{{count}} minutes",

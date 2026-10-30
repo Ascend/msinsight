@@ -46,7 +46,7 @@ const createMockChild = () => {
 const createAdapter = (options = {}) => {
     const children = [];
     const adapter = createAcpAdapter({
-        agentServer: { name: "mock-agent", command: "mock", args: [] },
+        agentServer: { name: options.agentName ?? "mock-agent", command: "mock", args: [] },
         cwd: "/tmp",
         spawnProcess: () => {
             const child = createMockChild();
@@ -140,6 +140,14 @@ test("request rejects after timeout", async () => {
     const { adapter } = createAdapter({ requestTimeoutMs: 1 });
     adapter.connect();
     await assert.rejects(adapter.request("slow", {}), /ACP request timed out: slow/);
+});
+
+test("Native receives model idle timeout and survives that interval before Host cancellation", async () => {
+    const { adapter, children } = createAdapter({ agentName: "msinsight-native", promptRequestTimeoutMs: 10 });
+    const pending = adapter.request("session/prompt", { sessionId: "s1" });
+    await sleep(25);
+    emitLine(children[0], { jsonrpc: "2.0", id: 1, result: { ok: true } });
+    await assert.doesNotReject(pending);
 });
 
 test("session/prompt activity refreshes its idle timeout", async () => {

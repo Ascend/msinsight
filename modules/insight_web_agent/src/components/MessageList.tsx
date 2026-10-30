@@ -810,10 +810,10 @@ export const MessageList = ({ messages, notices = [], pendingPrompt, onPermissio
                                     : null}
                                 {typeof message.activity === 'object' && message.activity.type === 'model_retry'
                                     ? <div className="model-retry-alert" role="status">
-                                        {t('modelRetrying', {
+                                        {t(message.activity.retryAt !== undefined && now >= message.activity.retryAt ? 'modelRetryConnecting' : message.activity.reason === 'connection' ? 'modelConnectionRetrying' : 'modelRetrying', {
                                             attempt: message.activity.attempt,
                                             maxAttempts: message.activity.maxAttempts,
-                                            wait: formatRetryWait(message.activity.retryAfterSeconds, t),
+                                            wait: message.activity.retryAt !== undefined && now >= message.activity.retryAt ? t('modelRetryWaitUnknown') : formatRetryWait(message.activity.retryAt === undefined ? message.activity.retryAfterSeconds : Math.max(0, Math.ceil((message.activity.retryAt - now) / 1000)), t),
                                         })}
                                     </div>
                                     : null}

@@ -24,6 +24,70 @@ const createNotifier = () => {
     };
 };
 
+for (const outcome of ["success", "error", "pending"]) test(`tool ${outcome}: recover only settled results without replay`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-tool-recovery-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    let attempts = 0;
+    let executions = 0;
+    t.mock.timers.enable({ apis: ["Date", "setInterval"] });
+    const notifier = createNotifier();
+    const runtime = createRuntime({
+        env: { MSINSIGHT_NATIVE_IDLE_TIMEOUT_MS: "3000" }, aiSdkStoragePath: root, notifier, retrySleep: async () => {},
+        modelCatalog: { defaultModelId: "test", models: [{ id: "test" }] }, createModel: () => ({}),
+        toolRegistry: {
+            list: () => [{ name: "write" }],
+            execute: (_name, _input, { signal }) => {
+                executions++;
+                t.mock.timers.tick(4000);
+                assert.equal(signal.aborted, false);
+                return "done";
+            },
+        },
+        streamTextImpl: (options) => ({ fullStream: asAsyncStream(async function* () {
+            if (++attempts === 1) {
+                yield { type: "text-delta", text: "before" };
+                yield { type: "tool-call", toolCallId: "t", toolName: "write", input: {} };
+                const output = await options.tools.write.execute({}, { toolCallId: "t", abortSignal: options.abortSignal, experimental_context: options.experimental_context });
+                if (outcome !== "pending") yield { type: outcome === "error" ? "tool-error" : "tool-result", toolCallId: "t", toolName: "write", output, error: new Error("tool rejected") };
+                throw Object.assign(new Error("offline"), { isRetryable: true });
+            }
+            assert.ok(options.messages.some((message) => message.content === "before"));
+            assert.ok(options.messages.some((message) => message.role === "tool"));
+            yield { type: "tool-call", toolCallId: "next", toolName: "write", input: { next: true } };
+            const output = await options.tools.write.execute({ next: true }, { toolCallId: "next", abortSignal: options.abortSignal, experimental_context: options.experimental_context });
+            yield { type: "tool-result", toolCallId: "next", toolName: "write", output };
+            yield { type: "text-delta", text: "summary" };
+        }), response: Promise.resolve({ messages: [] }) }),
+    });
+    const session = createSession();
+    const result = await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "go", controller: new AbortController() });
+    assert.equal(result.ok, outcome !== "pending", result.reason);
+    assert.equal(attempts, outcome === "pending" ? 1 : 2);
+    assert.equal(executions, outcome === "pending" ? 1 : 2);
+    assert.equal(notifier.updates.some((update) => update.activity?.attempt === 1 && update.activity.maxAttempts === 10), outcome !== "pending");
+});
+
+for (const scenario of ["limit", "authentication", "cancel", "recovered"]) test(`recovery retry policy: ${scenario}`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-retry-policy-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const controller = new AbortController();
+    let attempts = 0;
+    const runtime = createRuntime({
+        aiSdkStoragePath: root, notifier: createNotifier(), retrySleep: async () => {},
+        modelCatalog: { defaultModelId: "test", models: [{ id: "test" }] }, createModel: () => ({}), toolRegistry: { list: () => [] },
+        streamTextImpl: () => ({ fullStream: asAsyncStream(async function* () {
+            attempts++;
+            if (scenario === "cancel") controller.abort();
+            if (scenario === "recovered" && attempts === 10) yield { type: "text-delta", text: "reconnected" };
+            throw Object.assign(new Error("rejected"), { statusCode: scenario === "authentication" ? 401 : 503 });
+        }), response: Promise.resolve({ messages: [] }) }),
+    });
+    const session = createSession();
+    const result = await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "go", controller });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason.includes("连续重试 10 次均失败"), ["limit", "recovered"].includes(scenario));
+    assert.equal(attempts, scenario === "recovered" ? 20 : scenario === "limit" ? 11 : 1);
+});
 const createSession = () => ({
     sessionId: "session-1",
     messages: [],
@@ -118,7 +182,8 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     assert.match(finalStep.system, /unfinished work/);
     assert.deepEqual(executions.map(({ name }) => name), ["msinsight", "skill"]);
     assert.equal(executions[0].context.sessionId, session.sessionId);
-    assert.equal(executions[0].context.signal, controller.signal);
+    assert.equal(executions[0].context.signal, capturedOptions.abortSignal);
+    assert.equal(executions[0].context.signal.aborted, false);
     assert.deepEqual(session.messages[1].content.map(({ type }) => type), ["text", "thinking", "tool", "tool", "text"]);
     assert.equal(session.messages[1].content[2].toolCall.status, "completed");
     assert.equal(session.messages[1].content[3].toolCall.name, "skill");
@@ -324,8 +389,9 @@ test("ordinary stream errors do not record a user interruption", async (t) => {
     const session = createSession();
     const result = await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "question", controller: new AbortController() });
     assert.match(result.reason, /network failure/);
-    assert.deepEqual(session.runtimeSession.modelMessages, []);
-    assert.deepEqual(session.messages, []);
+    assert.equal(session.runtimeSession.modelMessages.at(-1).content, "partial");
+    assert.equal(session.messages.at(-1).content[0].text, "partial");
+    assert.doesNotMatch(JSON.stringify(session.runtimeSession.modelMessages), /\[Request interrupted/);
 });
 
 test("each turn uses the session model and retains independent histories and shared env", async (t) => {
@@ -382,7 +448,7 @@ test("rate-limited replies persist only visible user text", async (t) => {
         session, sessionId: session.sessionId,
         userText: "Hidden preset\nVisible request", visibleUserText: "Visible request",
         controller: new AbortController(),
-    }), { ok: true });
+    }), { ok: false, reason: "AI SDK runtime failed: rate limited" });
     const restoredSession = createSession();
     await runtime.restoreSession(restoredSession);
     assert.equal(restoredSession.messages[0].content[0].text, "Visible request");

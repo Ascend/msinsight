@@ -395,6 +395,7 @@ const normalizeAgentActivity = (activity) => {
     if (activity?.type !== "model_retry") return undefined;
     return {
         type: "model_retry",
+        reason: activity.reason === "connection" ? "connection" : "rate_limit", retryAt: finiteNumber(activity.retryAt),
         attempt: finiteNumber(activity.attempt),
         maxAttempts: finiteNumber(activity.maxAttempts),
         retryAfterSeconds: finiteNumber(activity.retryAfterSeconds),

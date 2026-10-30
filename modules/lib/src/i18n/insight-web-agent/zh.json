@@ -194,6 +194,8 @@
     "thinkingAnswering": "思考完成，开始回答：",
     "analyzingToolResults": "正在分析工具结果...",
     "modelRetrying": "模型服务限流，正在进行第 {{attempt}}/{{maxAttempts}} 次请求，预计 {{wait}} 后可恢复...",
+    "modelRetryConnecting": "正在进行第 {{attempt}}/{{maxAttempts}} 次重试，等待模型响应...",
+    "modelConnectionRetrying": "模型连接中断或超时，正在进行第 {{attempt}}/{{maxAttempts}} 次重试（退避等待 {{wait}}）；保留已有输出...",
     "modelRetryWaitUnknown": "稍后",
     "modelRetryWaitSeconds": "{{count}} 秒",
     "modelRetryWaitMinutes": "{{count}} 分钟",
