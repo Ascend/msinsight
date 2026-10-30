@@ -15,13 +15,18 @@ import { FreeAttribution } from '../FreeAttribution';
 import type { SelectContentViewProps } from '../SystemView';
 import { freeAttributionTimeRange, freeTargetStart, freeTimeUs } from '../FreeAttributionUtils';
 
-jest.mock('react-i18next', () => ({
-    useTranslation: () => ({
-        t: (key: string, options?: { value?: string; count?: number }) => options?.count === undefined
-            ? key
-            : `${options.value} (${options.count})`,
-    }),
-}));
+jest.mock('react-i18next', () => {
+    const translations = jest.requireActual('../../../../../lib/src/i18n/timeline/en.json').timeline.freeAttribution;
+    return {
+        useTranslation: () => ({
+            t: (key: string, options?: { value?: string; count?: number; defaultValue?: string }) => {
+                if (options?.count !== undefined) return `${options.value} (${options.count})`;
+                const translation = key.split('.').reduce((value, part) => value?.[part], translations);
+                return translation === undefined ? options?.defaultValue ?? key : key;
+            },
+        }),
+    };
+});
 jest.mock('@insight/lib/components', () => ({
     Button: ({ children, type, ...props }: any) => <button {...props}>{children}</button>,
     Tooltip: ({ children, title }: any) => <span title={title}>{children}</span>,
@@ -140,11 +145,46 @@ it('converts the selected range using the device offset and preserves whole-even
     expect(makeProps().session.timeAnalysisRange).toEqual([100, 200]);
     const detailTable = (ResizeTable as jest.Mock).mock.calls.map(call => call[0]).find(props => props.rowKey === 'detailId');
     expect(detailTable.copyColumns.every((column: any) => column.key !== 'actions')).toBe(true);
-    expect(detailTable.copyColumns.map((column: any) => column.dataIndex)).toContain('reasonLabel');
+    expect(detailTable.copyColumns.map((column: any) => column.dataIndex)).toEqual([
+        'apiName', 'apiStartTime', 'apiDuration', 'freeStartTime', 'freeDurationLabel', 'nextBehaviorType', 'statusLabel',
+    ]);
+    expect(detailTable.columns.find((column: any) => column.dataIndex === 'statusLabel').width).toBe(220);
+    expect(await view.findByText('status.matched')).toBeInTheDocument();
     const summaryTable = (ResizeTable as jest.Mock).mock.calls.map(call => call[0]).find(props => props.rowKey === 'groupId' && props.dataSource.length);
     expect(summaryTable.columns.find((column: any) => column.dataIndex === 'totalFreeDuration').sortOrder).toBe('descend');
     expect(detailTable.columns.find((column: any) => column.dataIndex === 'freeStartTime').sortOrder).toBe('ascend');
     expect(summaryTable.copyColumns.every((column: any) => typeof column.title === 'string')).toBe(true);
+});
+
+it.each([
+    ['matched', 'multipleApis', 'status.matched'],
+    ['ambiguous', 'multipleApis', 'reason.multipleApis'],
+    ['incomplete', 'incompleteFlow', 'reason.incompleteFlow'],
+    ['unresolved', 'noFlow', 'reason.noFlow'],
+    ['unresolved', '', 'status.unresolved'],
+    ['incomplete', 'unknownReason', 'status.incomplete'],
+])('merges detail status %s and reason %s into one displayed and copied value', async (attributionStatus, reason, label) => {
+    (queryFreeAttributionDetails as jest.Mock).mockResolvedValue({
+        records: [{
+            detailId: 'free-1',
+            freeDuration: 1500,
+            nextBehaviorType: 'Computing',
+            attributionStatus,
+            reason,
+            hostApiTarget: null,
+            freeTarget: free,
+            candidateApiTargets: [],
+        }],
+        totalRecords: 1,
+    });
+    const view = render(<FreeAttribution {...makeProps()} />);
+    fireEvent.click(await view.findByText('Expand aten::add'));
+    expect((await view.findByText(label)).parentElement).toHaveAttribute('title', label);
+    const detailTable = (ResizeTable as jest.Mock).mock.calls.map(call => call[0])
+        .filter(props => props.rowKey === 'detailId').pop();
+    expect(detailTable.dataSource[0].statusLabel).toBe(label);
+    expect(detailTable.columns.map((column: any) => column.dataIndex)).not.toContain('reasonLabel');
+    expect(detailTable.copyColumns.map((column: any) => column.dataIndex)).not.toContain('reasonLabel');
 });
 
 it('requests server sorting and exposes each ambiguous API target separately', async () => {

@@ -53,7 +53,6 @@ interface DetailRow extends FreeAttributionDetail {
     freeStartTime: string;
     freeDurationLabel: string;
     statusLabel: string;
-    reasonLabel: string;
 }
 
 interface DetailProps {
@@ -96,16 +95,20 @@ const FreeAttributionDetails = observer(({ context, groupId, session }: DetailPr
     }, [context.rankId, context.dbPath, context.rangeMode, context.startTime, context.endTime, context.searchName, groupId,
         page.current, page.pageSize, sorter.field, sorter.order, retry]);
 
-    const data: DetailRow[] = records.map(record => ({
-        ...record,
-        apiName: freeApiCandidates(record).map(api => api.name).join(' / ') || '--',
-        apiStartTime: freeApiCandidates(record).map(api => freeTargetStart(session, api)).join(' / ') || '--',
-        apiDuration: freeApiCandidates(record).map(api => freeTimeUs(api.duration)).join(' / ') || '--',
-        freeStartTime: freeTargetStart(session, record.freeTarget, 'device'),
-        freeDurationLabel: freeTimeUs(record.freeDuration),
-        statusLabel: t(`status.${record.attributionStatus}`, { defaultValue: record.attributionStatus }),
-        reasonLabel: record.reason ? t(`reason.${record.reason}`, { defaultValue: record.reason }) : '--',
-    }));
+    const data: DetailRow[] = records.map(record => {
+        const statusLabel = t(`status.${record.attributionStatus}`, { defaultValue: record.attributionStatus });
+        return {
+            ...record,
+            apiName: freeApiCandidates(record).map(api => api.name).join(' / ') || '--',
+            apiStartTime: freeApiCandidates(record).map(api => freeTargetStart(session, api)).join(' / ') || '--',
+            apiDuration: freeApiCandidates(record).map(api => freeTimeUs(api.duration)).join(' / ') || '--',
+            freeStartTime: freeTargetStart(session, record.freeTarget, 'device'),
+            freeDurationLabel: freeTimeUs(record.freeDuration),
+            statusLabel: record.attributionStatus === 'matched' || !record.reason
+                ? statusLabel
+                : t(`reason.${record.reason}`, { defaultValue: statusLabel }),
+        };
+    });
     const copyColumns: ColumnsType<DetailRow> = [
         { title: t('Host API'), dataIndex: 'apiName' },
         { title: t('API Start Time'), dataIndex: 'apiStartTime' },
@@ -114,7 +117,6 @@ const FreeAttributionDetails = observer(({ context, groupId, session }: DetailPr
         { title: t('Free Duration'), dataIndex: 'freeDurationLabel' },
         { title: t('Next Behavior'), dataIndex: 'nextBehaviorType' },
         { title: t('Status'), dataIndex: 'statusLabel' },
-        { title: t('Reason'), dataIndex: 'reasonLabel' },
     ];
     const apiSortableFields = ['apiName', 'apiStartTime', 'apiDuration'];
     const sortableFields = [...apiSortableFields, 'freeStartTime'];
@@ -137,7 +139,7 @@ const FreeAttributionDetails = observer(({ context, groupId, session }: DetailPr
             title: apiSortableFields.includes(field) && typeof column.title === 'string'
                 ? <Tooltip title={t('Candidate API Sort Tip')}><span>{column.title}</span></Tooltip>
                 : column.title,
-            width: 150,
+            width: field === 'statusLabel' ? 220 : 150,
             ellipsis: true,
             sorter: sortableFields.includes(field) ? {} : false,
             sortOrder: sorter.field === field ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
@@ -231,7 +233,7 @@ const FreeAttributionTable = ({ context, session, bottomHeight, ready }: TablePr
     const copyColumns: ColumnsType<SummaryRow> = [
         { title: t('Host API'), dataIndex: 'displayName' },
         { title: t('Total Free Duration'), dataIndex: 'totalFreeDuration', render: freeTimeUs },
-        { title: t('Free Operator Count'), dataIndex: 'freeCount' },
+        { title: t('Total Free Interval Count'), dataIndex: 'freeCount' },
     ];
     const columns: ColumnsType<SummaryRow> = [
         {
@@ -255,7 +257,7 @@ const FreeAttributionTable = ({ context, session, bottomHeight, ready }: TablePr
             width: 180,
             sorter: {},
             sortOrder: sorter.field === 'freeCount' ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
-            title: <Tooltip title={t('Free Operator Count Tip')}><span>{t('Free Operator Count')}</span></Tooltip>,
+            title: <Tooltip title={t('Total Free Interval Count Tip')}><span>{t('Total Free Interval Count')}</span></Tooltip>,
         },
     ];
     return <div style={{ height: '100%', minHeight: 0 }}>
