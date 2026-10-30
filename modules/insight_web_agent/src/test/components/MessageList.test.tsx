@@ -894,6 +894,18 @@ test('shows tool-result analysis as the last live timeline step', () => {
     expect(analyzing).toHaveTextContent('Analyzing tool results...');
 });
 
+test('shows connection retry reason and budget', () => {
+    jest.useFakeTimers();
+    render(<MessageList messages={[{ id: 'retry', role: 'assistant', content: [], activity: { type: 'model_retry', reason: 'connection', attempt: 2, maxAttempts: 10, retryAt: Date.now() + 4000 } }]} onPermissionDecision={noopPermissionDecision} pendingPrompt />);
+    expect(screen.getByRole('status')).toHaveTextContent('Retry 2/10');
+    expect(screen.getByRole('status')).toHaveTextContent('4 seconds');
+    act(() => jest.advanceTimersByTime(1000));
+    expect(screen.getByRole('status')).toHaveTextContent('3 seconds');
+    act(() => jest.advanceTimersByTime(3000));
+    expect(screen.getByRole('status')).toHaveTextContent('waiting for model response');
+    jest.useRealTimers();
+});
+
 test('renders a rate-limit retry as an alert instead of a thinking indicator', () => {
     render(<MessageList
         messages={[{

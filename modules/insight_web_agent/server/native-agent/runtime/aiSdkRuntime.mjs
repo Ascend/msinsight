@@ -20,6 +20,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { jsonSchema, stepCountIs, streamText, tool } from "ai";
 import { createHash, randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { limitedToolValue, parseRetryAfterSeconds } from "../shared/utils.mjs";
@@ -39,6 +40,7 @@ export const createRuntime = ({
     notifier,
     streamTextImpl = streamText,
     createModel = createAiSdkModel,
+    retrySleep = sleep,
 }) => {
     const sessionStateDir = join(aiSdkStoragePath, "sessions");
 
@@ -67,34 +69,77 @@ export const createRuntime = ({
         const maxSteps = readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 100);
         const system = createNativeSystemPrompt(session);
         session.runtimeSession.activeController = controller;
+        const originalMessages = [...state.modelMessages];
+        const persist = async () => {
+            state.modelMessages = [...originalMessages, userMessage, ...streamState.history];
+            await saveSessionState(session, { ...state, uiMessages: [...state.uiMessages, createUserMessage(visibleUserText), { id: sessionId, role: "assistant", content: streamState.content }] });
+        };
+        let activity;
+        const idleMs = readPositiveInteger(env.MSINSIGHT_NATIVE_IDLE_TIMEOUT_MS, 90000);
+        // 保活独立于模型超时；恢复保留已完成步骤，继续执行未完成任务。
+        const heartbeat = setInterval(() => notifier.sendAgentActivityUpdate(sessionId, activity ?? streamState.inferredActivity), Math.max(1, Math.min(10000, idleMs / 3)));
         try {
-            const result = streamTextImpl({
-                model,
-                system,
-                messages: [...state.modelMessages, userMessage],
-                tools: createAiSdkTools(toolRegistry),
-                stopWhen: stepCountIs(maxSteps),
-                // Reserve the last step for a summary, rather than ending immediately after a tool changes the page.
-                prepareStep: ({ stepNumber }) => {
-                    const currentSystem = createNativeSystemPrompt(session);
-                    return stepNumber >= maxSteps - 1 ? {
-                        toolChoice: "none",
-                        system: `${currentSystem}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
-                    } : { system: currentSystem };
-                },
-                maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 100000),
-                maxRetries: 2,
-                abortSignal: controller.signal,
-                experimental_context: { sessionId },
-                ...optionalTemperature(env.MSINSIGHT_NATIVE_TEMPERATURE),
-            });
-            // Observe rejection immediately even when cancellation skips awaiting the final response.
-            const responsePromise = Promise.resolve(result.response);
-            void responsePromise.catch(() => {});
-            await collectAiSdkStream({ result, streamState, sessionId, controller, notifier });
-            const response = await responsePromise;
-            controller.signal.throwIfAborted();
-            const responseMessages = [...response.messages];
+            let responseMessages;
+            for (let attempt = 0; ; attempt++) {
+                const generation = new AbortController();
+                const signal = AbortSignal.any([controller.signal, generation.signal]);
+                const retained = structuredClone(streamState.history);
+                const recovering = retained.length > 0;
+                streamState.lastEventAt = Date.now();
+                const idleTimer = setInterval(() => {
+                    if (streamState.activeToolCalls.size || streamState.executing.size) {
+                        streamState.lastEventAt = Date.now();
+                    } else if (Date.now() - streamState.lastEventAt >= idleMs) {
+                        generation.abort(new DOMException("Model stream idle timeout", "TimeoutError"));
+                    }
+                }, Math.max(1, Math.min(1000, idleMs / 3)));
+                try {
+                    const result = streamTextImpl({
+                        model, system,
+                        messages: [...originalMessages, userMessage, ...retained, ...(recovering ? [{ role: "user", content: "Runtime recovery after interrupted transport, not a new human request. Continue after the retained reply without repeating it. Continue the unfinished task using the retained tool results. Do not repeat completed operations merely because transport failed; use tools for remaining work and verification. Never claim unknown operations succeeded." }] : [])],
+                        tools: createAiSdkTools(toolRegistry, streamState),
+                        stopWhen: stepCountIs(maxSteps),
+                        // Reserve the last step for a summary, not another page-changing tool.
+                        prepareStep: ({ stepNumber }) => {
+                            const currentSystem = createNativeSystemPrompt(session);
+                            return stepNumber >= maxSteps - 1 ? {
+                                toolChoice: "none",
+                                system: `${currentSystem}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
+                            } : { system: currentSystem };
+                        },
+                        maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 100000),
+                        maxRetries: 0,
+                        abortSignal: signal,
+                        experimental_context: { sessionId },
+                        ...optionalTemperature(env.MSINSIGHT_NATIVE_TEMPERATURE),
+                    });
+                    const responsePromise = Promise.resolve(result.response);
+                    void responsePromise.catch(() => {});
+                    await collectAiSdkStream({ result, streamState, sessionId, controller: { signal }, notifier, persist, onProgress: (event) => {
+                        if (activity) notifier.sendAgentActivityUpdate(sessionId, undefined);
+                        activity = undefined;
+                        if ((["text-delta", "reasoning-delta"].includes(event.type) && event.text) || ["tool-result", "tool-error"].includes(event.type)) attempt = 0;
+                    } });
+                    const response = await responsePromise;
+                    controller.signal.throwIfAborted();
+                    responseMessages = recovering ? [...streamState.history] : [...response.messages];
+                    break;
+                } catch (error) {
+                    clearInterval(idleTimer);
+                    generation.abort();
+                    const stop = controller.signal.aborted ? "cancelled" : streamState.uncertainTool || streamState.executing.size ? "tool_outcome_unknown" : attempt >= 10 ? "exhausted" : !isRecoverable(error) ? "non_retryable" : undefined;
+                    if (stop) throw stop === "exhausted" ? new Error(`连续重试 10 次均失败，已停止自动恢复。最后错误：${error.message}`, { cause: error }) : error;
+                    const retryAfter = rateLimit.latest()?.retryAfterSeconds;
+                    const wait = Math.max(0, retryAfter ?? 2 ** Math.min(attempt, 5));
+                    activity = { type: "model_retry", reason: rateLimit.latest() ? "rate_limit" : "connection", attempt: attempt + 1, maxAttempts: 10, retryAfterSeconds: wait, retryAt: Date.now() + wait * 1000 };
+                    await persist();
+                    notifier.sendAgentActivityUpdate(sessionId, activity);
+                    await retrySleep(wait * 1000, undefined, { signal: controller.signal });
+                } finally {
+                    clearInterval(idleTimer);
+                }
+            }
+            activity = undefined;
             const lastToolIndex = streamState.content.findLastIndex((block) => block.type === "tool");
             if (!streamState.content.slice(lastToolIndex + 1).some((block) => block.type === "text" && block.text.trim())) {
                 // A missing summary must not discard completed tool calls or imply that their effects were rolled back.
@@ -105,7 +150,7 @@ export const createRuntime = ({
             }
             // Once committed in memory, a late abort or persistence failure must not append the turn again.
             historyCommitted = true;
-            state.modelMessages.push(userMessage, ...responseMessages);
+            state.modelMessages = [...originalMessages, userMessage, ...responseMessages];
             // Model history retains one-shot context; replayable UI history must
             // contain only the original user input, including after a restart.
             state.uiMessages.push(
@@ -119,25 +164,23 @@ export const createRuntime = ({
             return { ok: true };
         } catch (error) {
             if (historyCommitted) return { ok: false, reason: `AI SDK runtime failed: ${error.message}` };
+            await persist();
             if (controller.signal.aborted) {
-                state.modelMessages.push(userMessage, ...streamState.interruptedHistory.finish(), {
+                state.modelMessages = [...originalMessages, userMessage, ...streamState.interruptedHistory.finish(), {
                     role: "user",
                     content: controller.signal.reason?.code === "USER_CANCEL"
                         ? "[Request interrupted by user]"
                         : "[Request interrupted]",
-                });
+                }];
                 // This synthetic user event is model-only: never add it to replay/UI messages.
                 if (observationContext) session.lastPageObservationFingerprint = observationContext.fingerprint;
                 await saveInterruptedReply({ session, state, userText: visibleUserText, content: streamState.content, saveSessionState });
                 return { ok: false, reason: "AI SDK runtime was cancelled" };
             }
-            const latestRateLimit = rateLimit.latest();
-            if (latestRateLimit) {
-                await saveRateLimitReply({ session, state, sessionId, userText: visibleUserText, rateLimit: latestRateLimit, notifier, saveSessionState });
-                return { ok: true };
-            }
-            return { ok: false, reason: `AI SDK runtime failed: ${error.message}` };
+            await saveInterruptedReply({ session, state, userText: visibleUserText, content: streamState.content, saveSessionState });
+            return { ok: false, reason: `AI SDK runtime failed: ${error.message}${streamState.uncertainTool ? "; tool outcome is unknown; inspect state before retrying" : ""}` };
         } finally {
+            clearInterval(heartbeat);
             if (session.runtimeSession?.activeController === controller) session.runtimeSession.activeController = undefined;
             notifier.sendAgentActivityUpdate(sessionId, undefined);
         }
@@ -215,19 +258,34 @@ export const createAiSdkModel = (env, fetch) => {
     throw new Error(`unsupported_provider:${providerType}`);
 };
 
-const createAiSdkTools = (toolRegistry) => Object.fromEntries(toolRegistry.list().map((definition) => [
+const createAiSdkTools = (toolRegistry, state) => Object.fromEntries(toolRegistry.list().map((definition) => [
     definition.name,
     tool({
         description: definition.description,
         inputSchema: jsonSchema(definition.inputSchema ?? { type: "object", properties: {} }),
-        execute: (input, options) => toolRegistry.execute(definition.name, input, {
-            sessionId: options.experimental_context?.sessionId,
-            signal: options.abortSignal,
-        }),
+        execute: (input, options) => {
+            if (options.abortSignal?.aborted) throw new Error("Tool execution cancelled");
+            state.executing.add(options.toolCallId);
+            return toolRegistry.execute(definition.name, input, {
+                sessionId: options.experimental_context?.sessionId,
+                signal: options.abortSignal,
+            });
+        },
     }),
 ]));
 
+/** 功能：只恢复传输/服务端瞬时错误，用户取消与请求参数错误不重试。 */
+const isRecoverable = (error) => {
+    const status = error.statusCode ?? error.status;
+    if (status !== undefined) return [408, 409, 429].includes(status) || status >= 500;
+    return error.isRetryable === true || ["TimeoutError", "AbortError"].includes(error.name)
+        || ["ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN"].includes(error.cause?.code ?? error.code);
+};
+
 const createStreamState = () => ({
+    history: [],
+    uncertainTool: false,
+    executing: new Set(),
     content: [],
     interruptedHistory: createInterruptedHistory(),
     activeToolCalls: new Set(),
@@ -235,18 +293,27 @@ const createStreamState = () => ({
     inferredActivity: undefined,
 });
 
-const collectAiSdkStream = async ({ result, streamState, sessionId, controller, notifier }) => {
+const collectAiSdkStream = async ({ result, streamState, sessionId, controller, notifier, persist, onProgress }) => {
     const context = { state: streamState, sessionId, notifier };
     try {
         for await (const event of result.fullStream) {
             // Drain already-produced events after abort so completed tool results aren't lost.
             // The SDK abort signal stops production; never execute tools from these history events.
+            if (!["error", "abort"].includes(event.type)) streamState.lastEventAt = Date.now();
             streamState.interruptedHistory.event(event);
+            if (["text-delta", "reasoning-delta", "tool-call", "tool-result", "tool-error"].includes(event.type)) onProgress(event);
             handleStreamEvent(context, event);
+            if (!streamState.activeToolCalls.size && ["tool-result", "tool-error", "finish-step"].includes(event.type)) await persist();
         }
-        controller.signal.throwIfAborted();
+        if (controller.signal.aborted) throw Object.assign(new Error("Model request timed out"), { name: "TimeoutError" });
         if (streamState.activeToolCalls.size) throw new Error("AI SDK runtime completed with unfinished tool calls");
     } catch (error) {
+        streamState.uncertainTool ||= streamState.activeToolCalls.size > 0 || streamState.executing.size > 0;
+        // 已发起工具但未收到结果时不能重放；补齐协议并保留结果未知的事实。
+        for (const toolCallId of streamState.activeToolCalls) {
+            const call = streamState.history.flatMap((message) => Array.isArray(message.content) ? message.content : []).find((part) => part.type === "tool-call" && part.toolCallId === toolCallId);
+            streamState.history.push({ role: "tool", content: [{ type: "tool-result", toolCallId, toolName: call.toolName, output: { type: "error-text", value: "Tool outcome unknown after interruption. Side effects may have occurred; inspect state before retrying." } }] });
+        }
         failActiveToolCalls(context, error);
         throw error;
     } finally {
@@ -258,6 +325,9 @@ const handleStreamEvent = (context, event) => {
     if (["text-delta", "reasoning-delta", "tool-call"].includes(event.type)) setInferredActivity(context, undefined);
     if (event.type === "text-delta") {
         appendTextBlock(context.state, "text", event.text);
+        const previous = context.state.history.at(-1);
+        if (previous?.role === "assistant" && typeof previous.content === "string") previous.content += event.text;
+        else context.state.history.push({ role: "assistant", content: event.text });
         context.notifier.sendSessionChunk(context.sessionId, event.text);
         return;
     }
@@ -279,12 +349,15 @@ const handleStreamEvent = (context, event) => {
         return;
     }
     if (event.type === "error") throw normalizeError(event.error);
-    if (event.type === "abort") throw new Error(event.reason || "AI SDK stream was cancelled");
+    if (event.type === "abort") throw Object.assign(new Error(event.reason || "Model request timed out"), { name: "TimeoutError" });
 };
 
 const startToolCall = ({ state, sessionId, notifier }, event) => {
     const toolCallId = String(event.toolCallId);
     const toolName = String(event.toolName);
+    const call = { type: "tool-call", toolCallId, toolName, input: event.input };
+    if (state.history.at(-1)?.role === "assistant" && Array.isArray(state.history.at(-1).content)) state.history.at(-1).content.push(call);
+    else state.history.push({ role: "assistant", content: [call] });
     state.activeToolCalls.add(toolCallId);
     state.toolStartedAt.set(toolCallId, Date.now());
     const toolCall = {
@@ -307,6 +380,8 @@ const finishToolCall = (context, event, failed) => {
         name: String(event.toolName),
         input: limitedToolValue(event.input),
     };
+    state.history.push({ role: "tool", content: [{ type: "tool-result", toolCallId, toolName: String(event.toolName), output: failed ? { type: "error-text", value: normalizeError(event.error).message } : { type: "json", value: event.output ?? null } }] });
+    state.executing.delete(toolCallId);
     toolCall.status = failed ? "failed" : "completed";
     toolCall.output = limitedToolValue(failed ? normalizeError(event.error).message : event.output);
     const startedAt = state.toolStartedAt.get(toolCallId);
@@ -349,11 +424,11 @@ const createRateLimitObserver = ({ sessionId, notifier }) => {
         if (response.status === 429) {
             attempt += 1;
             latestRateLimit = {
-                attempt: Math.min(attempt + 1, 3),
-                maxAttempts: 3,
+                attempt,
+                maxAttempts: 10,
                 retryAfterSeconds: parseRetryAfterSeconds(response.headers.get("retry-after")),
             };
-            if (attempt < 3) notifier.sendAgentActivityUpdate(sessionId, { type: "model_retry", ...latestRateLimit });
+            // 外层重试循环统一发送状态，避免 SDK 与 Runtime 重复计数。
         } else if (latestRateLimit) {
             attempt = 0;
             latestRateLimit = undefined;
@@ -371,18 +446,6 @@ const createRateLimitObserver = ({ sessionId, notifier }) => {
 const saveInterruptedReply = async ({ session, state, userText, content, saveSessionState }) => {
     state.uiMessages.push(createUserMessage(userText));
     if (content.length) state.uiMessages.push({ id: randomUUID(), role: "assistant", content });
-    session.messages = state.uiMessages;
-    await saveSessionState(session, state);
-};
-
-const saveRateLimitReply = async ({ session, state, sessionId, userText, rateLimit, notifier, saveSessionState }) => {
-    const wait = rateLimit.retryAfterSeconds === undefined ? "later" : `in about ${formatWaitTime(rateLimit.retryAfterSeconds)}`;
-    const text = `The model service is rate limited. Please retry ${wait}.`;
-    notifier.sendSessionChunk(sessionId, text);
-    state.uiMessages.push(
-        createUserMessage(userText),
-        { id: randomUUID(), role: "assistant", content: [{ id: randomUUID(), type: "text", text }] },
-    );
     session.messages = state.uiMessages;
     await saveSessionState(session, state);
 };
@@ -453,10 +516,3 @@ export const createPageContextPrompt = (userText, context) => [
 ].join("\n");
 
 const normalizeError = (error) => error instanceof Error ? error : new Error(String(error));
-
-const formatWaitTime = (seconds) => {
-    if (seconds < 60) return `${seconds} seconds`;
-    const minutes = Math.floor(seconds / 60);
-    const remainder = seconds % 60;
-    return remainder ? `${minutes} minutes ${remainder} seconds` : `${minutes} minutes`;
-};

@@ -66,7 +66,7 @@ export const createAcpAdapter = ({
         buffer = "";
         child = spawnProcess(command, args, {
             cwd,
-            env: { ...process.env, ...(agentServer.env ?? {}) },
+            env: { ...process.env, ...(agentServer.env ?? {}), ...(agentServer.name === "msinsight-native" ? { MSINSIGHT_NATIVE_IDLE_TIMEOUT_MS: String(promptRequestTimeoutMs) } : {}) },
             stdio: ["pipe", "pipe", "pipe"],
             windowsHide: process.platform === "win32",
             detached: process.platform !== "win32",
@@ -117,7 +117,8 @@ export const createAcpAdapter = ({
             const id = nextId++;
             send({ jsonrpc: "2.0", id, method, params });
             return new Promise((resolve, reject) => {
-                const timeoutMs = method === "session/prompt" ? promptRequestTimeoutMs : requestTimeoutMs;
+                // Native 自主管理模型超时/重试；Host 仅以较宽时限检测进程失联。
+                const timeoutMs = method === "session/prompt" ? (agentServer.name === "msinsight-native" ? Math.max(30000, promptRequestTimeoutMs * 2) : promptRequestTimeoutMs) : requestTimeoutMs;
                 const sessionId = method === "session/prompt" ? String(params?.sessionId ?? params?.session_id ?? "").trim() : undefined;
                 const waiter = { resolve, reject, method, sessionId, timeout: undefined };
                 const onTimeout = () => {
