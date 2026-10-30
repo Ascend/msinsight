@@ -2,7 +2,7 @@
   "memory": {
     "Find in Timeline": "Find in Timeline",
     "Show in Timeline": "Show in Timeline",
-    "Show current range in Timeline": "Show current range in Timeline",
+    "Go to Timeline": "Go to Timeline",
     "Invalid Size Warning": "Invalid Condition: The \"Max Size\" cannot be smaller than the \"Min Size\"",
     "Memory Usage Line": "Memory Analysis",
     "Memory Allocation/Release Details": "Memory Allocation/Release Details",

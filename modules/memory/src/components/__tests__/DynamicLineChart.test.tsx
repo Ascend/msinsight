@@ -116,12 +116,15 @@ jest.mock('../LineChart', () => ({
         graph,
         onSelectionChanged,
         onZoomBack,
+        onLocateRange,
+        canLocateRange,
         record,
         isDark,
         isStatic,
         rangeFlagData,
     }) => (
         <div data-testid="line-chart">
+            <button aria-label="Go to Timeline" disabled={!canLocateRange} onClick={onLocateRange} />
             <div data-testid="h-axis-title">{hAxisTitle}</div>
             <div data-testid="v-axis-title">{vAxisTitle}</div>
             <div data-testid="graph-title">{graph?.title}</div>
@@ -248,7 +251,7 @@ describe('DynamicLineChart', () => {
         memorySession.getSelectedRankValue.mockReturnValue({ rankInfo: { rankId: 'rank-2' }, dbPath: '/rank-2' });
         render(<DynamicLineChart {...defaultProps} memorySession={memorySession}
             session={{ ...mockSession, compareRank: { isCompare, rankId: 'baseline-rank' } }} />);
-        const button = await screen.findByRole('button', { name: 'Show current range in Timeline' });
+        const button = await screen.findByRole('button', { name: 'Go to Timeline' });
         await waitFor(() => expect(button).toBeEnabled());
         fireEvent.click(button);
         expect(connector.send).toHaveBeenCalledWith({
@@ -268,7 +271,7 @@ describe('DynamicLineChart', () => {
         const memorySession = { ...mockMemorySession, selectedRankId: 'rank-1' };
         memorySession.getSelectedRankValue.mockReturnValue({ rankInfo: { rankId: 'rank-1' } });
         const { rerender } = render(<DynamicLineChart {...defaultProps} memorySession={memorySession} />);
-        const button = await screen.findByRole('button', { name: 'Show current range in Timeline' });
+        const button = await screen.findByRole('button', { name: 'Go to Timeline' });
         await waitFor(() => expect(button).toBeEnabled());
         let resolveCurve: (value: unknown) => void = () => {};
         (memoryCurveGet as jest.Mock).mockReturnValue(new Promise(resolve => { resolveCurve = resolve; }));
