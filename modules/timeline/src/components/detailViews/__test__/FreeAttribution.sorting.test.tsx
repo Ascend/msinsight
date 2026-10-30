@@ -128,7 +128,7 @@ const clickSort = async (
 it.each([
     ['Total Free Duration', 'totalFreeDuration'],
     ['Host API', 'apiName'],
-    ['Free Operator Count', 'freeCount'],
+    ['Total Free Interval Count', 'freeCount'],
 ])('keeps summary %s alternating through four header clicks', async (title, field) => {
     const { container } = render(<FreeAttribution {...makeProps()} />);
     await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenCalledWith(expect.objectContaining({
@@ -198,7 +198,7 @@ it('resets the summary to page one when sorting from page two', async () => {
     await waitFor(() => expect(container.querySelector('.ant-pagination-item-2')).not.toBeNull());
     fireEvent.click(container.querySelector('.ant-pagination-item-2') as HTMLElement);
     await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenLastCalledWith(expect.objectContaining({ current: 2 })));
-    await clickSort(container, 'Free Operator Count', queryFreeAttributionSummary as jest.Mock, 'freeCount', 'asc');
+    await clickSort(container, 'Total Free Interval Count', queryFreeAttributionSummary as jest.Mock, 'freeCount', 'asc');
     await waitFor(() => expect(container.querySelector('.ant-pagination-item-1')).toHaveClass('ant-pagination-item-active'));
 });
 
@@ -232,7 +232,7 @@ it('searches from page two and keeps the trimmed name in detail, sort and pagina
     })));
     await openDetails(view.container);
     expect(queryFreeAttributionDetails).toHaveBeenLastCalledWith(expect.objectContaining({ searchName: 'ADD' }));
-    await clickSort(view.container, 'Free Operator Count', queryFreeAttributionSummary as jest.Mock, 'freeCount', 'asc');
+    await clickSort(view.container, 'Total Free Interval Count', queryFreeAttributionSummary as jest.Mock, 'freeCount', 'asc');
     expect(queryFreeAttributionSummary).toHaveBeenLastCalledWith(expect.objectContaining({ searchName: 'ADD' }));
     fireEvent.click(view.container.querySelector('.ant-pagination-item-2') as HTMLElement);
     await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenLastCalledWith(expect.objectContaining({
