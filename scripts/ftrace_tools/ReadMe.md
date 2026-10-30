@@ -1,6 +1,6 @@
 # Loading Linux Kernel ftrace Data into MindStudio Insight for Joint Host Bound Analysis
 
-[Simplified Chinese](ReadMe.zh-CN.md) | English
+[Simplified Chinese](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md) | English
 
 ## Release Notes (2026/6/29)
 
@@ -79,7 +79,7 @@ For detailed requirements and manual troubleshooting, see [8.6 What are the trac
 sudo python trace_record.py --record_time=30 --cpu=0-15 --output=trace.dat
 ```
 
-Common parameters:
+Common parameters
 
 | Parameter | Description | Default |
 | --- | --- | --- |
@@ -122,16 +122,16 @@ python trace_convert.py \
   --pid_mapping pid_mapping.json
 ```
 
-Parameters:
+Parameters
 
 | Parameter | Description | Default |
 | --- | --- | --- |
-| `--input` | 输入的原始 ftrace 文件。trace-cmd 后端通常为 `.dat`，debugfs 后端通常为 `.txt` | `trace.dat` |
-| `--output` | 输出文件路径。后缀必须与 `--format` 匹配 | `ftrace_data.db` |
-| `--format` | 输出格式，支持 `db` 或 `json` | `db` |
-| `--cpu` | 转换阶段的 CPU 过滤掩码，支持 `0`、`0,1,4`、`0-3,8`、`0-15` 等写法；未选中的 CPU 事件会在时间转换和 PID 映射前跳过 | 转换全部 CPU |
-| `--profiling_data` | Profiling 数据目录，用于 ftrace 与 Profiling 时间轴对齐 | 不启用 |
-| `--pid_mapping` | 容器 PID 映射文件，用于把宿主机 PID 转为容器内 PID | 不启用 |
+| `--input` | Raw ftrace input file. The trace-cmd backend usually produces `.dat`, and the debugfs backend usually produces `.txt`. | `trace.dat` |
+| `--output` | Output file path. The suffix must match `--format`. | `ftrace_data.db` |
+| `--format` | Output format. `db` and `json` are supported. | `db` |
+| `--cpu` | CPU filter mask used during conversion. Supported formats include `0`, `0,1,4`, `0-3,8`, and `0-15`. Events from unselected CPUs are skipped before timestamp conversion and PID mapping. | All CPUs |
+| `--profiling_data` | Profiling data directory used to align ftrace and Profiling timelines. | Disabled |
+| `--pid_mapping` | Container PID mapping file used to translate host PIDs to container PIDs. | Disabled |
 
 ### 4.1 Output Format and Suffix Requirements
 
@@ -154,7 +154,7 @@ python trace_convert.py --input=trace.txt --output=ftrace_data.db --format=db
 # Output Chrome Trace JSON
 python trace_convert.py --input=trace.dat --output=ftrace_data.json --format=json
 
-# 只转换指定 CPU，减少转换耗时和输出大小
+# Convert only the specified CPUs to reduce conversion time and output size
 python trace_convert.py --input=trace.dat --output=ftrace_cpu0_15.db --format=db --cpu=0-15
 ```
 
@@ -172,7 +172,7 @@ python trace_convert.py \
   --profiling_data=/path/to/profiling/xxxx_ascend_pt
 ```
 
-In multi-card scenarios, `--profiling_data` can point to the parent directory that contains data for multiple cards, or to any single-card data directory.
+In multi-rank scenarios, `--profiling_data` can point to the parent directory that contains data for multiple ranks, or to any single-rank data directory.
 
 ### 4.3 Container PID Mapping
 
@@ -236,8 +236,8 @@ For details about output sheets, metrics, and charts, see [trace_analyze_README.
 
 ## 7. Complete Example
 
-- If you already have ftrace and Profiling data, start with the [Host Bound troubleshooting workflow (Chinese)](../../docs/zh/best_practices/Host_Bound_Analysis_with_Linux_Kernel_Trace.md#host-bound-常见定位流程) to choose an investigation direction and case study based on common symptoms.
-- For a complete vllm-ascend container example that collects ftrace on the host, collects Profiling data in the container, and imports both into MindStudio Insight for joint analysis, see [docs/vllm_ascend_example.md](docs/vllm_ascend_example.md).
+- If you already have ftrace and Profiling data, start with the [Host Bound troubleshooting workflow](../../docs/en/best_practices/host_bound_analysis_with_linux_kernel_trace.md#common-host-bound-troubleshooting-workflow) to choose an investigation direction and case study based on common symptoms.
+- For a complete vllm-ascend container example that collects ftrace on the host, collects Profiling data in the container, and imports both into MindStudio Insight for joint analysis, see [vllm_ascend_example.md](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/docs/vllm_ascend_example.md).
 
 ## 8. FAQ
 

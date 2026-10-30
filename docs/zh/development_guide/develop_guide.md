@@ -539,7 +539,7 @@ server
 
 JSON 的协议处理、Response 的传递在这里编写：
 
-```c++
+```cpp
 struct JsonResponse : public Response {
     explicit JsonResponse(const std::string &command) : Response(command) {}
     [[nodiscard]] virtual std::optional<document_t> ToJson() const = 0;

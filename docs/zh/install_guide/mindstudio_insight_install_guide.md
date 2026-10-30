@@ -575,12 +575,12 @@ vncserver -localhost -geometry 1920x1080
 
 1. 访问[AscendHub MindStudio Insight镜像页面](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1)，根据镜像基础操作系统和Python版本选择镜像Tag。
 
-    当前提供以下镜像Tag，均支持`x86_64`和`aarch64`架构。
+    以下镜像Tag为最新版本，均支持`x86_64`和`aarch64`架构。
 
     |镜像Tag|基础操作系统|Python版本|
     |--|--|--|
-    |`26.1.0-ubuntu22.04-py3.10`|Ubuntu 22.04|3.10|
-    |`26.1.0-openeuler24.03-py3.11`|openEuler 24.03 LTS|3.11|
+    | [`26.2.0-ubuntu22.04-py3.10`](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1?version=26.2.0-ubuntu22.04-py3.10) |Ubuntu 22.04|3.10|
+    | [`26.2.0-openeuler24.03-py3.11`](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1?version=26.2.0-openeuler24.03-py3.11) |openEuler 24.03 LTS|3.11|
 
 2. 在镜像页面对应Tag的操作栏中单击“立即下载”，按照页面显示的操作步骤复制并执行镜像拉取命令。
 

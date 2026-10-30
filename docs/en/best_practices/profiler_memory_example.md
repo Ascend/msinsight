@@ -1,32 +1,26 @@
 # Case Study on Analyzing Memory Issues Based on PyTorch Snapshot Data
 
-<!-- md-trans-meta sourceCommit=cef2f118d66b4336ea74f9576a816aafd4de8d01 translatedAt=2026-08-12T11:36:47.870Z pushedAt=2026-08-12T11:57:31.052Z -->
-
 ## Background
 
-In training scenarios, a model may run normally under a small batch size, but an OOM error suddenly occurs when the batch size is increased to a certain threshold. Such issues are often more complex than simply "insufficient video memory." During actual analysis, in addition to monitoring the overall peak video memory usage, it is also necessary to examine profile data to determine whether there are abnormal operator workspace allocations, shape amplifications, or temporary memory at a certain stage being multiplied several times over.
+In training scenarios, a model may run normally under a small batch size, but an OOM error suddenly occurs when the batch size is increased to a certain threshold. Such issues are often more complex than simply "insufficient device memory." During actual analysis, in addition to monitoring the overall peak device memory usage, it is also necessary to examine profile data to determine whether there are abnormal operator workspace allocations, shape amplifications, or temporary memory at a certain stage being multiplied several times over.
 
-This case uses an issue where OOM is triggered after the batch size is increased from 2 to 3 as an example, and describes how to first observe the video memory usage trend through profile data, and then pinpoint the specific root cause by combining information about abnormal operators and call stacks.
+This case uses an issue where OOM is triggered after the batch size is increased from 2 to 3 as an example, and describes how to first observe the device memory usage trend through profile data, and then pinpoint the specific root cause by combining information about abnormal operators and call stacks.
 
 ## Analysis Methodology
 
 For this type of "OOM after increasing batch size" issue, you are advised to analyze in the following order:
 
-1. **Examine the overall peak video memory**: Determine whether the issue is caused by an excessively high single peak or by continuous accumulation leading to OOM.
-
-2. **Examine the static video memory usage**: Distinguish among base usage, PTA statistical usage, and temporary operator allocations to determine whether there is any obvious exception.
-
+1. **Examine the overall peak device memory**: Determine whether the issue is caused by an excessively high single peak or by continuous accumulation leading to OOM.
+2. **Examine the static device memory usage**: Distinguish among base usage, PTA statistical usage, and temporary operator allocations to determine whether there is any obvious exception.
 3. **Focus on the difference between Reserved and Allocated**: If there is a large gap between the two, further investigate workspace, fragmentation, or unaccounted component usage.
-
 4. **Return to the exception operator and timeline**: Locate the specific operator and its corresponding shape through the large memory allocation events in the profiler.
-
 5. **Confirm the root cause in combination with the source code**: Finally, examine the shape changes and type conversion order before and after the operator to determine whether unnecessary large memory amplification exists.
 
 This type of issue is usually not that "the model is too large," but rather that a certain intermediate tensor is amplified under a specific order, causing the workspace to increase exponentially.
 
 ## Problem Symptoms
 
-In a certain training scenario, training proceeded normally at `bs=2`, but an OOM occurred when the batch size was increased to `bs=3`. Based on the model scale and historical experience, this configuration should theoretically be able to accommodate `bs=3`, so further analysis is required to determine whether there is any abnormal video memory allocation.
+In a certain training scenario, training proceeded normally at `bs=2`, but an OOM occurred when the batch size was increased to `bs=3`. Based on the model scale and historical experience, this configuration should theoretically be able to accommodate `bs=3`, so further analysis is required to determine whether there is any abnormal device memory allocation.
 
 The OOM log is as follows:
 
@@ -43,7 +37,6 @@ Based on the error information, the OOM occurred during a type conversion operat
 Before proceeding with the analysis, two key pieces of information need to be supplemented:
 
 1. The training task should have `task_queue_enable=2` enabled.
-
 2. It is necessary to compare the profile data under the two scenarios of `bs=2` and `bs=3`.
 
 The reason for paying special attention to `task_queue_enable=2` is that in this mode, the PTA reserved/allocated statistics in profiling may not include the workspace, and it is necessary to further confirm whether an independent workspace allocation exists by combining other views.
@@ -54,9 +47,9 @@ The reason for paying special attention to `task_queue_enable=2` is that in this
 
 Starting with the profile data from smaller batch sizes helps confirm that the issue is not caused by continuous growth in the model's baseline usage.
 
-When `bs=1`, the observed peak allocated memory in profiling is approximately 21 GB, of which the static video memory usage accounts for about 11 GB.
+When `bs=1`, the observed peak allocated memory in profiling is approximately 21 GB, of which the static device memory usage accounts for about 11 GB.
 
-When `bs=2`, the static video memory usage remains at approximately 11 GB, but the peak allocated memory rises to about 26 GB. This result indicates that the model's baseline usage shows no obvious anomaly, yet the peak video memory begins to increase rapidly as the batch size grows.
+When `bs=2`, the static device memory usage remains at approximately 11 GB, but the peak allocated memory rises to about 26 GB. This result indicates that the model's baseline usage shows no obvious anomaly, yet the peak device memory begins to increase rapidly as the batch size grows.
 
 At this point, another noteworthy phenomenon can be observed in the profiling chart: there is a significant gap between `APP Reserved` and `Operator Reserved`, with the peak approaching 20 GB or more. This typically suggests that, in addition to known operator allocations, there are other exceptional usage sources that require further investigation.
 
@@ -66,10 +59,8 @@ When the batch size is increased to `bs=3`, training immediately encounters OOM,
 
 By combining the profiling results for `bs=2` with the OOM log for `bs=3`, a preliminary assessment can be made:
 
-- The issue does not stem from model weights or static video memory exhaustion;
-
+- The issue does not stem from model weights or static device memory exhaustion;
 - Nor does it appear to be caused by CANN components reserving excessive memory;
-
 - It is more likely that a particular operator requests an excessively large workspace under certain shape configurations.
 
 ### Non-PTA Occupancy

@@ -1,7 +1,5 @@
 # Analyzing Memory Issues Based on PyTorch Snapshot Data
 
-<!-- md-trans-meta sourceCommit=81c78c7bc5b57be8952a8eb0685833246e436fe7 translatedAt=2026-08-12T11:36:48.715Z pushedAt=2026-08-12T11:57:31.062Z -->
-
 ## Case Background
 
 In scenarios such as reinforcement learning and multimodal training, the training process typically involves multiple task phases. Different phases vary significantly in input formats, sequence lengths, and operator combinations, leading to more complex memory changes on the device. When analyzing such issues, observing only the overall memory curve usually reveals continuous memory growth, high peak values, or large retained memory, making it difficult to directly determine whether the problem is a memory leak, a transient peak, or memory fragmentation.
@@ -9,7 +7,6 @@ In scenarios such as reinforcement learning and multimodal training, the trainin
 PyTorch Snapshot data records memory allocation and deallocation events, as well as the memory pool status at the time of collection. After importing the Snapshot data into MindStudio Insight, you can use the memory block lifetime graph, memory pool status graph, and call stack information to further analyze the phase in which the memory issue occurs, identify abnormal memory blocks, trace allocation sources, and examine memory pool fragmentation.
 
 **Figure 1**  Linked display of the memory block lifetime graph and memory pool status diagram<a id="linked-display-of-the-memory-block-lifecycle-diagram-and-memory-pool-status-diagram"></a>
-
 ![](./figures/pytorch_snapshot_memory_analysis/snapshot_dual_chart_linkage.png "Linked display of the memory block lifetime graph and memory pool status diagram")
 
 ## Analysis Methodology
@@ -17,19 +14,14 @@ PyTorch Snapshot data records memory allocation and deallocation events, as well
 When analyzing memory issues based on Snapshot data, it is recommended to proceed in the order of "first scope, then locate, and finally verify":
 
 1. **First, observe the overall trend**: Examine the memory allocation/release curve to determine whether the issue is continuous growth, a single-point peak, or reserved memory significantly exceeding actual allocated memory over a long period.
-
 2. **Then, narrow down the anomaly interval**: Use the zoom bar on the trend chart to select an abnormal step or time period, and focus on the memory blocks and memory events within that interval.
-
 3. **Locate the anomalous objects**: Examine unreleased memory blocks, large memory blocks, and key events such as `segment_alloc` within the interval to determine whether the anomalous memory persists or triggers memory pool expansion.
-
 4. **Trace back the code path**: Select the abnormal memory block or memory event, view the call stack, and locate the Python code position that triggered the allocation.
-
 5. **Verify the root cause in combination with business logic**: Return to the training logic to examine factors such as tensor lifetime, global container retention, input length fluctuation, and cache release timing, and verify whether the suspected root cause is valid.
 
 The following two common phenomena need to be distinguished during the analysis process:
 
 - **Memory leak**: Memory blocks remain unreleased after multiple steps, and memory usage grows continuously with the training process, which may eventually trigger OOM.
-
 - **Memory fragmentation**: The actual allocation may not grow continuously, but the reserved memory is significantly higher than the actual allocation. The memory pool contains many free areas that cannot be reused, which may lead to frequent subsequent expansion or degraded training efficiency.
 
 ## Snapshot Data Collection
@@ -52,16 +44,13 @@ torch_npu.npu.memory._dump_snapshot("memory_snapshot.pickle")
 
 After collection, import <code>memory_snapshot.pickle</code> into MindStudio Insight and analyze it on the memory details (PyTorch Snapshot) interface.
 
-### Limits of Parsed Cache Validation
+### Parsing Cache Validation Limits
 
-When importing the same Snapshot again, the parser validates existing artifacts
-before reusing them. A logical digest detects changes to parser-owned base data;
-consumer-added derived tables or indexes do not change that digest. Legacy artifacts
-without a historical digest receive only structural, event-range, dictionary-reference
-and SQLite physical-integrity checks. These checks cannot retrospectively prove that
-every value is unchanged or that no block rows were deleted. Digests are not security
-signatures; import only trusted data. Full validation reads the databases and takes
-longer for larger datasets; it does not mean event replay is running again.
+When the same Snapshot is imported again, the parsing script validates existing artifacts to determine whether they can be reused. Artifacts with a basic-data logic digest
+can check whether the basic parsed data has changed; adding derived tables or indexes on the caller side does not change the digest.
+Legacy artifacts without a historical digest can only undergo structural, event-range, dictionary-reference, and SQLite physical-integrity checks;
+they cannot prove retroactively that all fields are unmodified or that no memory-block records were deleted. The digest is not a security signature; import only trusted data.
+Full validation of a large file requires reading the database. Its duration grows with data volume and does not mean that parsing is being replayed.
 
 ## Case 1: Locating Memory Leaks During the Training Process
 
@@ -72,13 +61,11 @@ An OOM occurred after a long training session of a model demo. Based on the symp
 ### Analysis Process
 
 1. Import the Snapshot data into MindStudio Insight and navigate to the memory details (PyTorch Snapshot) page.
-
 2. View the memory block lifetime graph to observe the changes in memory allocation and deallocation at each step.
-
 3. You can observe that each step allocates a distinct memory block, yet these blocks persist after the step completes and are not released during training.
 
     **Figure 2**  Obvious unreleased memory blocks during the training process<a id="obvious-unreleased-memory-blocks-during-the-training-process"></a>
-    ![](./figures/pytorch_snapshot_memory_analysis/snapshot_memory_leak_blocks.png "Obvious unreleased memory blocks during the training process")
+    ![](./figures/pytorch_snapshot_memory_analysis/snapshot_memory_leak_blocks.webp "Obvious unreleased memory blocks during the training process")
 
 4. Select the abnormal Step and view the unreleased memory blocks in the interval to confirm that the unreleased memory blocks accumulate as the Step increases.
 
@@ -98,9 +85,7 @@ This is a typical memory leak. The root cause is not an excessively high peak in
 ### Optimization Suggestions
 
 - Delete global tensor containers that are no longer in use, or promptly clear tensors from containers after each step.
-
 - For data that needs to be preserved across steps, prioritize saving essential scalars, CPU data, or compressed results, and avoid holding device tensors over the long term.
-
 - After applying the fix, collect a new snapshot to verify that unreleased memory blocks no longer accumulate continuously within the same step interval.
 
 ## Case 2: Locating Memory Fragmentation in a Reinforcement Learning Scenario
@@ -118,11 +103,8 @@ Further examination of the memory curve showed that the reserved memory during t
     ![](./figures/pytorch_snapshot_memory_analysis/snapshot_fragmentation_memory_curve.png "Reserved memory significantly higher than actual allocated memory")
 
 2. Collect snapshot data and import it into MindStudio Insight, then navigate to the memory details (PyTorch Snapshot) page.
-
 3. In the memory block lifetime graph, locate the time point when memory pool expansion is triggered, focusing on `segment_alloc`-related events. Examine the last `segment alloc` event within a step.
-
 4. Click the abnormal event to view the memory block lifetime graph.
-
 5. Observe the free areas within memory segments in the memory block lifetime graph. If there are numerous scattered free blocks, or if large free areas exist yet new `segment_alloc` events are still triggered, it indicates low memory pool reuse efficiency. It is found that at the time of the last `segment alloc` event in a step, a gap of approximately 10.6 GB had already appeared.
 
     **Figure 4** Unreused free memory in the memory block lifetime graph<a id="unreused-free-memory-in-the-memory-pool-status-diagram"></a>
@@ -137,11 +119,8 @@ This issue is a decline in training efficiency caused by memory fragmentation. T
 ### Optimization Suggestions
 
 - Optimize the variable-length sequence processing logic to reduce the impact of extremely long sequences on the peak memory of a single step.
-
 - Adjust the batch organization method to place samples of similar lengths into the same batch, reducing memory fluctuations within the same training phase.
-
 - Review the tail concatenation, padding, and other logic to avoid unnecessary large temporary tensors.
-
 - After optimization, re-collect Profiling and Snapshot data to confirm that the gap between `Reserved` and `Allocated` has narrowed and that fragmentation in the memory block lifetime graph has decreased.
 
 ## Summary
@@ -153,5 +132,4 @@ The complete analysis loop is as follows: first determine the problem type throu
 ## Reference
 
 - [MindStudio Insight Memory Tuning](../user_guide/memory_tuning.md)
-
 - [Issue #324: Add Case-Specific Documentation](https://gitcode.com/Ascend/msinsight/issues/324)

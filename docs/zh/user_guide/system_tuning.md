@@ -764,11 +764,11 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="2">LLC</td>
     <td class="tg-0pky">LLC &lt;id&gt; Read/Hit Rate<br>LLC &lt;id&gt; Write/Hit Rate</td>
-    <td class="tg-0pky">三级缓存读写速率数据，三级缓存读取、写入时的吞吐量。</td>
+    <td class="tg-0pky">三级缓存读写速率数据，三级缓存读取、写入时的命中率。</td>
   </tr>
   <tr>
     <td class="tg-0pky">LLC &lt;id&gt; Read/Throughput<br>LLC &lt;id&gt; Write/Throughput</td>
-    <td class="tg-0pky">三级缓存读取、写入时的命中率。</td>
+    <td class="tg-0pky">三级缓存读取、写入时的吞吐量。</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="6">NPU_MEM</td>

@@ -1,7 +1,5 @@
 # Keyboard Shortcuts
 
-<!-- md-trans-meta sourceCommit=81c78c7bc5b57be8952a8eb0685833246e436fe7 translatedAt=2026-08-12T11:36:38.186Z pushedAt=2026-08-12T11:57:31.069Z -->
-
 **Software version: 8.0.RC1**
 
 At MindStudio Insight, we are committed to delivering a smoother and more efficient user experience. To help you quickly master the powerful tool, this document introduces a selection of commonly used keyboard shortcuts that will accelerate your workflow and boost overall productivity.
@@ -77,7 +75,7 @@ Applicable scenarios: system tuning, operator tuning
 
 * **Description**: Press `<strong>Ctrl</strong>(Windows)<strong>/</strong><span> </span><strong>Cmd</strong>(Mac)`​`<strong>+ 0</strong>` to reset the timeline to its initial state and restore the default view.
 
-**Screenshot Example**:
+**Screenshot Example**
 
 ![](figures/Keyboard_Shortcuts/reset-timeline.gif)
 
@@ -105,7 +103,7 @@ Box Selection description: After box-selecting some operators, you can view the 
 
 * **Description**: Hold down the `<strong>Alt</strong>(Windows)<strong>/</strong><span> </span><strong>Option</strong>(Mac)` key and **drag** the mouse to zoom in on the box selection area for greater precision.
 
-**Screenshot Example**:
+**Screenshot Example**
 
 ![](figures/Keyboard_Shortcuts/alt-drag-zoom.gif)
 

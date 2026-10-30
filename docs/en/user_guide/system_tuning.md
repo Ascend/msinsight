@@ -18,15 +18,15 @@ Import profile data in the correct format. For details about the data, see [Data
 
 **Recommended Analysis Path**
 
-The system tuning documentation is extensive. It is recommended to select a reading path based on the problem type:
+The system tuning documentation is extensive. It is recommended to select a reading path based on the problem type.
 
 | Problem Type | Recommended Reading Path |
-| --- | --- |
+| --- |----------------------------------------------------------------------------------------|
 | Importing system profile data for the first time | [Data Description](#data-description) → [Import Data](./basic_operations.md#importing-data) → [Timeline](#timeline) |
 | Slow single-rank training/inference performance | [Timeline](#timeline) → [Operator](#operator) → [Memory](#memory) |
 | Slow cluster communication or fast/slow rank discrepancy | [Summary](#summary) → [Communication](#communication) → [Timeline](#timeline) |
 | Suspected host-side dispatch bottleneck | [Timeline](#timeline) → [Host Bound Problem Analysis Case](#host-bound-analysis-case) |
-| Reinforcement learning task idle bubbles or abnormal phase duration | [Reinforcement Learning (RL)](#rl) |
+| Reinforcement learning task idle gaps or abnormal phase duration | [Reinforcement Learning (RL)](#rl) |
 
 **Overview**
 
@@ -39,7 +39,7 @@ Profile data is classified into single-rank scenario and cluster scenario. For d
 |Scenario|Description|
 |--|--|
 |Single-rank scenario|You can import single-rank data into MindStudio Insight for analysis. When the single-rank data is imported, the **Timeline**, **Memory**, and **Operator** tab pages are displayed on MindStudio Insight.|
-|Cluster scenario|- Clusters are classified into small clusters and large clusters based on the number of cards. The GUI display varies depending on the imported data.<br> - Simplified cluster data. Cluster data is simplified to display only data of large communication operators and some computing operators.|
+|Cluster scenario|- Clusters are classified into small clusters and large clusters based on the number of ranks. The GUI display varies depending on the imported data.<br> - Simplified cluster data. Cluster data is simplified to display only data of large communication operators and some computing operators.|
 
 **Precautions**
 
@@ -52,10 +52,11 @@ Profile data is classified into single-rank scenario and cluster scenario. For d
 - You can import the operator dotting data file. For details about how to obtain the file, see "msprof\_tx" in "Ascend PyTorch Profiler" in the *Profiling Tool Guide*. After the file is imported, the dotting data is displayed on **Timeline**.
 - When cluster data is imported, if the profile data file contains the **cluster\_analysis\_output** directory file, related information is displayed on the **Summary** and **Communication** tab pages based on the **cluster\_analysis\_output** directory file after the import is successful. If the profile data file does not contain the **cluster\_analysis\_output** directory file, the corresponding **cluster\_analysis\_output** directory file is generated when data is imported to MindStudio Insight.
 - In the cluster scenario, if the profile data collected by Ascend PyTorch Profiler or MindSpore Profiler needs to be displayed using MindStudio Insight, you are advised to set **repeat** to **1**. The value **0** is not recommended. If **repeat** is greater than **1**, the collected profile data folder needs to be divided into **repeat** equal parts. The files need to be stored in different folders based on the timestamp in the folder name and re-imported. In this way, the data can be properly displayed.
-- If the msprof-analyze tool has been installed in Linux when you use MindStudio Insight to analyze cluster data, check the tool version and upgrade it to the latest version. For details about how to install the msprof-analyze tool of the latest version, see [msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/en/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7).
+- If the msprof-analyze tool has been installed in Linux when you use MindStudio Insight to analyze cluster data, check the tool version and upgrade it to the latest version. For details about how to install the msprof-analyze tool of the latest version, see [msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/en/install_guide/msprof-analyze_install_guide.md#5-upgrade).
 - A single JSON file containing ACLGraph graph construction process data can be imported.
 - If both single-rank data and cluster data exist in the directory of the imported data, MindStudio Insight parses and displays only the cluster data.
 - You can import both profile data (.text format and .db format) and ftrace data (.json format and .db format). First add a data project for one collection method, and then add data files from the other collection method within that project.
+- Supports the visual display of NPU data collected by PyTorch Profiler (based on the mspti + kineto plugin). The file format is `.pt.trace.json`. For multi-rank scenarios, importing multiple files from the same directory in batches is not supported at present; only single-rank append import is supported: import the `.pt.trace.json` files of other ranks into an already imported single-rank `.pt.trace.json` project to visualize the data.
 
 **Collection Configuration and Parameter Description**
 
@@ -73,7 +74,7 @@ When collecting profile data, different collection levels and parameter configur
 |ProfilerLevel.Level1|All Level0 files + communication.json, communication_matrix.json, kernel_details.csv (with AI Core performance metrics, requires the aic_metrics parameter)|All Level0 pages + Summary, Communication|Medium profiling level. Communication data and AI Core performance metrics are additionally collected.|
 |ProfilerLevel.Level2|All Level1 files + memory copy data|All Level1 pages + Memcpy Overall|Full profiling level. Includes memory copy data.|
 
->[!NOTE]
+> [!NOTE]
 >
 > - When importing single-rank scenario data, the **Summary** and **Communication** views are not displayed even if the profiling level is **Level1** or **Level2**.
 > - AI Core performance metrics in `kernel_details.csv` (such as `aicore_time`, `aic_mac_ratio`, etc.) are collected only when `aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization` is configured and the profiling level is **Level1** or higher.
@@ -147,7 +148,7 @@ Different collection parameter configurations affect how fields are displayed on
 |Communication|Communication Matrix|profiler_level >= Level1, and communication.json or communication_matrix.json must exist|
 |Communication|Communication Duration Analysis|profiler_level >= Level1, and communication data must exist|
 
->[!NOTE]
+> [!NOTE]
 >
 > - When single-rank scenario data is imported, the **Summary** and **Communication** pages are not displayed, even if the collection level is **Level1** or **Level2**.
 > - When task-time is configured as l0 (corresponding to `ProfilerLevel.Level0`) during data collection, fields such as Input Shapes and Input Data Types are not collected and are displayed as N/A.
@@ -159,7 +160,7 @@ In the single-rank scenario, profile data can be classified into the following t
 
 - PyTorch training/inference data: The profile data directory whose name ends with **ascend\_pt** can be imported. For details about the profile data files, see [**Table 6** PyTorch training/inference profile data files](#pytorch-training-inference-profile-data-files).
 
-    **Table 2** PyTorch training/inference profile data files <a id="pytorch-training-inference-profile-data-files"></a>
+    **Table 6** PyTorch training/inference profile data files <a id="pytorch-training-inference-profile-data-files"></a>
 
     |File|Description|GUI|
     |--|--|--|
@@ -176,7 +177,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |analysis.db|Indicates data files collected in multi-rank or cluster scenarios involving communication.|Timeline<br> Memory<br> Operator<br> Summary<br> Communication|
     |Note: The asterisk (*) indicates the timestamp.|-|-|
 
-- MindSpore training/inference data: MindSpore framework profile data can be imported. For details about how to obtain the data, see "Debugging and Tuning" > "\> Ascend Performance Tuning" in [Ascend Performance Tuning](https://www.mindspore.cn/tutorials/en/master/index.html).
+- MindSpore training/inference data: MindSpore framework profile data can be imported. For details about how to obtain the data, see the "Debugging and Tuning > [Ascend Performance Tuning](https://www.mindspore.cn/tutorials/en/r2.7.0/debug/profiler.html)" chapter in the *[MindSpore Tutorial](https://www.mindspore.cn/tutorials/en/r2.7.0/index.html)*.
 
     MindStudio Insight allows you to import the profile data directory whose name ends with **ascend\_ms**. For details about the profile data files, see [Table 7 MindSpore training/inference profile data files](#mindspore-training-inference-profile-data-files).
 
@@ -206,8 +207,8 @@ In the single-rank scenario, profile data can be classified into the following t
     |api_statistic_*.csv|Indicates time spent by API execution at the CANN layer.|Timeline|
     |memory_record_*.csv|Indicates process-level memory allocation information.|Memory|
     |operator_memory_*.csv|Indicates operator memory allocation information.|Memory|
-    |op_summary_*.csv|Indicates AI Core and AI CPU operator data.|Operator|
-    |op_statistic_*.csv|Indicates the number of times that the AI Core and AI CPU operators are called and the time consumption.|Operator|
+    |op_summary_*.csv|Indicates AI Core and AICPU operator data.|Operator|
+    |op_statistic_*.csv|Indicates the number of times that the AI Core and AICPU operators are called and the time consumption.|Operator|
     |prof_rule_0_*.json|Indicates profiling suggestions.|Timeline<br>Summary<br>Communication|
     |step_trace_*.csv|Indicates step trace data. This profile data file does not exist in single-operator scenarios.|-|
     |step_trace_*.json|Indicates step trace data, which records the time required for each step. This profile data file does not exist in single-operator scenarios.|-|
@@ -218,20 +219,18 @@ In the single-rank scenario, profile data can be classified into the following t
 - npumonitor data: Supports importing profile data collected by npumonitor. npumonitor is a lightweight online monitoring tool based on the dynolog open-source project, supporting two modes: NPU Monitor (routine monitoring) and NPU Trace-dump (precise collection). For collection methods and installation guides, see:
 
   - [npumonitor Tool Feature Description](https://gitcode.com/Ascend/msmonitor/blob/master/docs/en/user_guide/npumonitor_instruct.md)
-
   - [msMonitor Product Documentation](https://gitcode.com/Ascend/msmonitor/blob/master/docs/en/quick_start/msmonitor_quick_start.md)
-
   - [msMonitor Tool Download](https://gitcode.com/Ascend/msmonitor/blob/master/docs/en/install_guide/msmonitor_install_guide.md)
 
   For details about profile data files, see <a href="#profile-data-file-details">Table 9 Profile data file details</a>.
 
     **Table 9** Profile data file details <a id="profile-data-file-details"></a>
 
-  |File|Description|GUI|
-  |--|--|--|
-  |msmonitor_{pid}\_{timestamp}\_{rank_id}.db|DB file collected by npumonitor|Timeline|
+    |File|Description|GUI|
+    |--|--|--|
+    |msmonitor_{pid}\_{timestamp}\_{rank_id}.db|DB file collected by npumonitor|Timeline|
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > - *pid* indicates the process ID, and *timestamp* indicates the timestamp. For cluster data, *rank\_id* is a non-negative integer and starts from 0. For single-device data, *rank\_id* is **-1**.
     > - MindStudio Insight supports the import of a single DB file collected by npumonitor. You can also import the upper-level directory of the DB files, which will be displayed in tile mode. If the data volume is large, you are advised to import a single DB file each time. Importing all files at once can lead to slow parsing and potential out-of-memory errors.
@@ -240,14 +239,12 @@ In the single-rank scenario, profile data can be classified into the following t
 
 - The cluster scenario, also called the multi-rank scenario, refers to the cluster data composed of multiple multi-rank data. Cluster data can be classified into small cluster data and large cluster data. When MindStudio Insight is used to import data in different cluster scenarios, the data is different, as shown in [**Table 10** Cluster scenario description](#Cluster-scenario-description).
 
-    For a large cluster, importing all raw data collected by the performance tuning tool takes a long time. Therefore, you are not advised to directly import the raw data.
-
     **Table 10** Cluster scenario description <a id="Cluster-scenario-description"></a>
 
     |Scenario|Rank Count|Importing Data|GUI|
     |--|--|--|--|
-    |Small cluster|Up to 32 cards|All collected raw data can be imported.|Timeline<br>Memory<br>Operator<br>Summary<br>Communication|
-    |Large cluster|More than 32 cards, thousands of cards, and tens of thousands of cards.|Use the cluster analysis capability of msprof-analyze in the mstt toolset to preprocess the raw profile data, obtain the communication group-based communication analysis and step duration analysis results, and import the preprocessed data.<br> For details about how to download and use the msprof-analyze tool, see [msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/en/install_guide/msprof-analyze_install_guide.md).<br> 1. Save all directories whose names end with **ascend_pt** or **ascend_ms** to the same folder.<br> 2. Use the msprof-analyze tool to generate the communication-related **cluster_analysis_output** directory. For details about the data files in this directory, see [**Table 18** Files in the cluster\_analysis\_output directory](#directory-files).<br> 3. Copy the generated **cluster_analysis_output** directory to the local PC and import the directory to MindStudio Insight.<br> 4. Go to the **Communication** tab page, analyze the data, import the corresponding small cluster data or single-rank data, and analyze the data again.|Summary<br>Communication|
+    |Small cluster|Up to 32 ranks|All collected raw data can be imported.|Timeline<br>Memory<br>Operator<br>Summary<br>Communication|
+    |Large cluster|More than 32 ranks, thousands of ranks, and tens of thousands of ranks.|Use the cluster analysis capability of msprof-analyze in the mstt toolset to preprocess the raw profile data, obtain the communication group-based communication analysis and step duration analysis results, and import the preprocessed data.<br> For details about how to download and use the msprof-analyze tool, see [msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/en/install_guide/msprof-analyze_install_guide.md).<br> 1. Save all directories whose names end with **ascend_pt** or **ascend_ms** to the same folder.<br> 2. Use the msprof-analyze tool to generate the communication-related **cluster_analysis_output** directory. For details about the data files in this directory, see [**Table 18** Files in the cluster\_analysis\_output directory](#directory-files).<br> 3. Copy the generated **cluster_analysis_output** directory to the local PC and import the directory to MindStudio Insight.<br> 4. Go to the **Communication** tab page, analyze the data, import the corresponding small cluster data or single-rank data, and analyze the data again.|Summary<br>Communication|
 
     In a large cluster scenario, directly importing all raw data collected by the performance tuning tool is not recommended, as the parsing process is time-consuming.
 
@@ -287,10 +284,9 @@ In a cluster scenario, you need to first use the performance tuning tool to coll
 4. Import the generated cluster analysis data into the MindStudio Insight tool.
 
    - TEXT format: Place the `cluster_step_trace_time.csv`, `cluster_communication_matrix.json`, `cluster_communication.json`, and `communication_group.json` files in the same directory as the raw data of each rank, and then import them.
-
    - DB format: Place the `cluster_analysis.db` file in the same directory as the raw data of each Rank, and then import it.
 
->[!NOTE]
+> [!NOTE]
 >
 > - In large-scale cluster scenarios, it is recommended to use the filter_db mode to generate streamlined data before importing, so as to reduce the data volume and parsing time.
 > - The cluster analysis data must be in the same directory as the raw data of each rank; otherwise, MindStudio Insight cannot correctly associate the cluster data.
@@ -335,7 +331,7 @@ When `aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization` is set in the c
 |aiv_icache_miss_rate|AI Vector iCache Miss Rate|Vector instruction cache miss rate.|
 |cube_utilization(%)|Cube Utilization|Matrix multiplication unit utilization percentage, reflecting the usage efficiency of the Cube unit.|
 
->[!NOTE]
+> [!NOTE]
 >
 > - AI Core performance metrics apply to operators whose Accelerator Core is AI_CORE, and AI Vector Core performance metrics apply to operators whose Accelerator Core is AI_VECTOR_CORE or MIX_AIV.
 > - When aic_metrics is set to AiCoreNone (default), the above fields are not collected and are displayed as N/A in MindStudio Insight.
@@ -347,7 +343,7 @@ The raw profile data files imported by the MindStudio Insight tool contain multi
 
 **Table 13** `kernel_details.csv` field definitions<a id="kernel_detailscsv-field-definitions"></a>
 
-The `kernel_details.csv` file records information about all operators executed on the NPU. The field definitions are as follows:
+The `kernel_details.csv` file records information about all operators executed on the NPU. The field definitions are listed in the following table.
 
 |Field|Description|
 |--|--|
@@ -377,7 +373,7 @@ The `kernel_details.csv` file records information about all operators executed o
 
 **Table 14** `step_trace_time.csv` field definitions<a id="step_trace_timecsv-field-definitions"></a>
 
-The `step_trace_time.csv` file records the time statistics of computing and communication in iterations. The field definitions are as follows:
+The `step_trace_time.csv` file records the time statistics of computing and communication in iterations. The field definitions are listed in the following table.
 
 |Field|Description|
 |--|--|
@@ -394,7 +390,7 @@ The `step_trace_time.csv` file records the time statistics of computing and comm
 
 **Table 15** `operator_memory.csv` field definitions**<a id="operator_memorycsv-field-definitions"></a>
 
-The `operator_memory.csv` file records operator memory allocation details. The field definitions are as follows:
+The `operator_memory.csv` file records operator memory allocation details. The field definitions are listed in the following table.
 
 |Field|Description|
 |--|--|
@@ -412,11 +408,11 @@ The `operator_memory.csv` file records operator memory allocation details. The f
 |Release Total Reserved(MB)|Total reserved memory at release.|
 |Release Total Active(MB)|Total active memory at release.|
 |Stream Ptr|Stream pointer.|
-|Device Type|Device type (e.g., NPU:1).|
+|Device Type|Device type (for example, NPU:1).|
 
 **Table 16** `memory_record.csv` field definitions<a id="memory_recordcsv-field-definitions"></a>
 
-The `memory_record.csv` file records process-level memory allocation details. The field definitions are as follows:
+The `memory_record.csv` file records process-level memory allocation details. The field definitions are listed in the following table.
 
 |Field|Description|
 |--|--|
@@ -446,9 +442,9 @@ The MindStudio Insight tool supports importing profile data in TEXT format (CSV/
 |Memory Copy Information|Not supported|Supported, displayed based on the MEMCPY_INFO table|
 |GC Record|Not supported|Supported, displayed based on the GC_RECORD table|
 |Data Parsing Speed|Faster parsing for small data volumes|More efficient parsing for large data volumes|
-|Recommended Scenario|Single-card scenarios and scenarios with small data volumes|Multi-card/cluster scenarios and scenarios requiring complete data information|
+|Recommended Scenario|Single-rank scenarios and scenarios with small data volumes|Multi-rank/cluster scenarios and scenarios requiring complete data information|
 
->[!NOTE]
+> [!NOTE]
 >
 > - When export_type includes both Text and DB, MindStudio Insight preferentially parses data in DB format.
 > - Data tables in DB format (such as PYTORCH_API, CANN_API, TASK, etc.) are internal data structures. Users do not need to operate them directly; MindStudio Insight automatically parses and displays them.
@@ -475,15 +471,15 @@ In the Ascend heterogeneous compute architecture, MindStudio Insight displays th
 
 Check the time consumption and interval at each layer in the timeline view to determine whether the corresponding component and operator have performance problems. For example, check whether there is a bottleneck in operator delivery, whether there is a time-consuming kernel, and whether there are redundant conversion operators.
 
->[!NOTE]
+> [!NOTE]
 >
-> By default, the **Timeline** tab page displays a maximum of three minutes of data. If the imported data exceeds three minutes in duration, zooming out is not supported; only zooming in is available. To view other time ranges, pan left or right across the timeline.
+> By default, the **Timeline** tab page displays a maximum of three minutes of data. If the imported data exceeds three minutes in duration, zooming out is not supported; you can only zoom in and pan left or right to view other data in time.
 
 ### GUI Description
 
 **GUI Display**
 
-The **Timeline** tab page consists of the toolbar (area 1), timeline tree chart (area 2), graphical pane (area 3), and data pane (area 4), as shown in [Figure 1 Timeline page](#timeline-page).
+The **Timeline** tab page consists of the toolbar (area 1), the timeline tree view (area 2), the graphical pane (area 3), and the data pane (area 4), as shown in [**Figure 1** Timeline page](#timeline-page).
 
 **Figure 1** Timeline page<a id="timeline-page"></a>
 
@@ -491,8 +487,8 @@ The **Timeline** tab page consists of the toolbar (area 1), timeline tree chart 
 
 - Area 1: toolbar, which contains common shortcut keys. From left to right, the shortcut keys are **Marker List**, **Filter** (rank or unit), **Search**, **Flow Events**, **Reset** (page restoration), **Timeline Zoom Out**, and **Timeline Zoom In**.
 - Area 2: timeline tree chart. The display in the TEXT scenario is different from that in the DB scenario. For details about the unit information, see [Unit Information](#unit-information).
-  - TEXT scenario: displays the layer information of each device in the cluster scenario. The layer information is displayed by rank. The first layer is the rank ID, the second layer is the process or special layer, and the third layer is the thread name. The second layer includes the **Python** layer data (time consumption information of **PyTorch** and dotting data), **CANN** layer data (time consumption data of AscendCL, GE, and Runtime components), low-level **NPU** data (time consumption data and step trace data of each stream task flow under **Ascend Hardware**, communication data of **Communication** and **Overlap Analysis**, memory data, and other Ascend AI Processor system data), **AI Core Freq**, and other layers. The layer content varies with the imported data.
-  - DB scenario: displays information about each host. The first layer is the host name, and the second layer is **Host** and **Rank ID**. The **Host** level displays **PyTorch** and **CANN** data by process and thread. The **Rank ID** level includes the bottom-layer **NPU** data (including time consumption data and step trace data of each stream task flow under **Ascend Hardware**, communication data of **Communication** and **Overlap Analysis**, memory data, and other Ascend AI Processor system data), **AI Core Freq**, and other layers. The content of the level under the rank varies with the imported data.
+    - TEXT scenario: displays the layer information of each device in the cluster scenario. The layer information is displayed by rank. The first layer is the rank ID, the second layer is the process or special layer, and the third layer is the thread name. The second layer includes the **Python** layer data (time consumption information of **PyTorch** and dotting data), **CANN** layer data (time consumption data of AscendCL, GE, and Runtime components), low-level **NPU** data (time consumption data and step trace data of each stream task flow under **Ascend Hardware**, communication data of **Communication** and **Overlap Analysis**, memory data, and other Ascend AI Processor system data), **AI Core Freq**, and other layers. The layer content varies with the imported data.
+    - DB scenario: displays information about each host. The first layer is the host name, and the second layer is **Host** and **Rank ID**. The **Host** level displays **PyTorch** and **CANN** data by process and thread. The **Rank ID** level includes the bottom-layer **NPU** data (including time consumption data and step trace data of each stream task flow under **Ascend Hardware**, communication data of **Communication** and **Overlap Analysis**, memory data, and other Ascend AI Processor system data), **AI Core Freq**, and other layers. The content of the level under the rank varies with the imported data.
 
 - Area 3: graphical pane, which displays data of a step. The graphical pane corresponds to the timeline tree chart, which graphically displays the timeline row by row, including the execution sequence and duration of upper-level application operators, components, and APIs.
 - Area 4: data pane, which displays statistics or operator details. **Slice Detail** displays details about a selected operator. **Slice List** displays the operator list in the selected area of a unit. **System View** displays the summary information about a type of operators. **Find** displays the information about the searched operators.
@@ -515,12 +511,12 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky">Process</td>
     <td class="tg-0pky">Thread</td>
-    <td class="tg-0pky">This unit can be displayed only in DB files. TheThread unit contains the PyTorch, CANN, and MSTX units, which display the time consumed by upper-layer application threads in the PyTorch framework, time consumed by threads in the CANN framework, and dotting information, respectively.</td>
+    <td class="tg-0pky">This unit can be displayed only in DB files. The Thread unit contains the PyTorch, CANN, and MSTX units, which display the time consumed by upper-layer application threads in the PyTorch framework, time consumed by threads in the CANN framework, and dotting information, respectively.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Python</td>
     <td class="tg-0pky">Thread</td>
-    <td class="tg-0pky">Application layer data. Each sub-unit Thread contains the time consumed by the upper-layer application thread. The data is collected using PyTorch Profiler or msproftx. This unit can be displayed only in TEXT files.</td>
+    <td class="tg-0pky">Application layer data. Each sub-unit Thread contains the time consumed by the upper-layer application thread. The data is collected using PyTorch Profiler or `msprof_tx`. This unit can be displayed only in TEXT files.</td>
   </tr>
   <tr>
     <td class="tg-0pky">CANN</td>
@@ -555,10 +551,15 @@ The following table describes the unit information displayed on the **Timeline**
     <td class="tg-0pky">Step Trace</td>
     <td class="tg-0pky">Step trace data. This unit is displayed only when the **step_trace_*.json** file exists.</td>
   </tr>
+  <tr>
+    <td class="tg-0pky">DPU / DPU &lt;id&gt;</td>
+    <td class="tg-0pky">DPU Stream &lt;id&gt;</td>
+    <td class="tg-0pky">DPU tasks are mounted under the corresponding Thread according to globalTid, at the same level as units such as CANN, and task execution intervals are displayed in the hierarchy DPU / DPU &lt;id&gt; / DPU Stream &lt;id&gt;. After a task is selected, you can view its details in the data pane. Global search and locked-range search by task name are supported, and you can locate the corresponding task from the search results. This unit is displayed only for db-format files.</td>
+  </tr>
     <tr>
     <td class="tg-0pky">CCU</td>
     <td class="tg-0pky">Communication</td>
-    <td class="tg-0pky">Contains collective communication instruction data, including the start and end times of CCU tasks and the start and end times of first-level index instructions of CCU tasks, as well as synchronization and data transfer duration.<br>The CCU unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
+    <td class="tg-0pky">Contains collective communication instruction data, including the start and end times of CCU tasks and the start and end times of first-level index instructions of CCU tasks, as well as synchronization and data transfer duration.<br>The CCU unit only supports displaying profile data exported from <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
     <tr>
     <td class="tg-0pky" rowspan="4">Overlap Analysis</td>
@@ -580,7 +581,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="2">Communication</td>
     <td class="tg-0pky">Group &lt;id&gt; Communication</td>
-    <td class="tg-0pky">Communication operators within a communication domain. A rank can exist in different communication groups, and a Group identifies the behavior of the current card in the current communication domain.</td>
+    <td class="tg-0pky">Communication operators within a communication domain. A rank can exist in different communication groups, and a Group identifies the behavior of the current rank in the current communication domain.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Plane &lt;id&gt;</td>
@@ -589,19 +590,19 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="22">NPU Metrics</td>
     <td class="tg-0pky">Low Power</td>
-    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other data. By presenting frequency variation curves, it accurately identifies frequency changes during operator execution.<br>The Low Power unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
+    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other data. By presenting frequency variation curves, it accurately identifies frequency changes during operator execution.<br>The Low Power unit only supports displaying profile data exported from <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
-    <td class="tg-0pky">Presents the execution time of instructions such as SU, VEC, CUBE, and MTE, as well as instrumentation data.<br>The Biu Perf unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
+    <td class="tg-0pky">Presents the execution time of instructions such as SU, VEC, CUBE, and MTE, as well as instrumentation data.<br>The Biu Perf unit only supports displaying profile data exported from <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">Presents the overall UB transmit and receive bandwidth for two data types: UDMA and UNIC.<br>The UB unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
+    <td class="tg-0pky">Presents the overall UB transmit and receive bandwidth for two data types: UDMA and UNIC. In DB-format files, each Port corresponds to one UB Port &lt;id&gt; unit, which displays both Rx Bandwidth and Tx Bandwidth.<br>The UB unit only supports displaying profile data exported from <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Block Detail</td>
-    <td class="tg-0pky">Displays the execution time of each operator on the earliest and latest AI Core or AI Vector Core. When the operator is of the Mix type, it executes on both AI Core and AI Vector Core simultaneously.<br>The Block Detail unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
+    <td class="tg-0pky">Displays the execution time of each operator on the earliest and latest AI Core or AI Vector Core. When the operator is of the Mix type, it executes on both AI Core and AI Vector Core simultaneously.<br>The Block Detail unit only supports displaying profile data exported from <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">HBM</td>
@@ -633,7 +634,7 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">Displays the frequency changes of the AI Core chip during AI task execution.<br>The AI Core Freq unit only supports displaying profile data exported from <term>Atlas A2 Training Series/Atlas A2 Inference Series</term>.</td>
+    <td class="tg-0pky">Displays the frequency changes of the AI Core chip during AI task execution. When the DB-format file of <term>Ascend 950PR&950DT products</term> is imported, the AI Core Freq Die &lt;id&gt; unit is displayed for each Die ID.<br>The AI Core Freq unit supports displaying profile data exported from <term>Atlas A2 training products/Atlas A2 inference products</term> and <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">SIO</td>
@@ -641,7 +642,7 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>
-    <td class="tg-0pky">Device QoS bandwidth information.</td>
+    <td class="tg-0pky">Device QoS bandwidth information. When the DB-format file of <term>Ascend 950PR&950DT products</term> is imported, the QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth unit is displayed for each Die ID.</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>
@@ -649,7 +650,11 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">RoCE</td>
-    <td class="tg-0pky">RoCE communication interface bandwidth data. The RoCE unit is displayed only in text format files.</td>
+    <td class="tg-0pky">RoCE communication interface bandwidth data.</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">NetDev Stats</td>
+    <td class="tg-0pky">The hardware sampling bandwidth capability can partially identify communication problems. As an overview item, it helps preliminarily troubleshoot communication problems: if an abnormal communication duration occurs, check first whether network congestion is the cause. NetDev Stats data is displayed only for db-format files.</td>
   </tr>
   <tr>
     <td class="tg-0pky">PCIe</td>
@@ -676,9 +681,13 @@ The following table describes the unit information displayed on the **Timeline**
     <td class="tg-0pky">For details, see the "Stars Chip Trans" unit description in <a href="#NPU Metrics Unit Information">Table 2 NPU Metrics unit information</a>.</td>
   </tr>
   <tr>
-    <td class="tg-0pky" rowspan="4">CPU Metrics</td>
+    <td class="tg-0pky" rowspan="5">CPU Metrics</td>
     <td class="tg-0pky">CPU Usage</td>
-    <td class="tg-0pky">Host-side CPU utilization data.</td>
+    <td class="tg-0pky">CPU usage data on the host side.</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">CPU Freq</td>
+    <td class="tg-0pky">Frequency data of each CPU on the host side, in kHz.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Memory Usage</td>
@@ -703,7 +712,6 @@ The following table describes the unit information displayed on the **Timeline**
 
 <style type="text/css">
 </style>
-
 <table class="tg"><thead>
   <tr>
     <th class="tg-0pky">Second-level Unit Name</th>
@@ -711,25 +719,25 @@ The following table describes the unit information displayed on the **Timeline**
     <th class="tg-0pky">Description</th>
   </tr></thead>
 <tbody>
-  <tr>
+<tr>
     <td class="tg-0pky">Low Power</td>
     <td class="tg-0pky">-</td>
-    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other metrics, is presented through dynamic frequency scaling curves to accurately identify frequency changes during operator execution.<br>This unit displays only the profile data exported from the Ascend 950 products.</td>
+    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other metrics, is presented through dynamic frequency scaling curves to accurately identify frequency changes during operator execution.<br>This unit displays only the profile data exported from the Ascend 950PR&950DT products.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
     <td class="tg-0pky">Group&lt;id&gt;-aiv&lt;id&gt;</td>
-    <td class="tg-0pky">Execution time of instructions such as SU, VEC, CUBE, and MTE, and dotting data.<br>This unit displays only the profile data exported from the Ascend 950 products.</td>
+    <td class="tg-0pky">Execution time of instructions such as SU, VEC, CUBE, and MTE, and dotting data.<br>This unit displays only the profile data exported from the Ascend 950PR&950DT products.</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;</td>
-    <td class="tg-0pky">Overall receive and transmit bandwidth of the UB for the UDMA and UNIC data types.<br>This unit displays only the profile data exported from the Ascend 950 products.</td>
+    <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;<br>UB Port&lt;id&gt;</td>
+    <td class="tg-0pky">Overall receive and transmit bandwidth of the UB for the UDMA and UNIC data types. In DB-format files, each Port corresponds to one UB Port &lt;id&gt; unit, which displays both Rx Bandwidth and Tx Bandwidth.<br>This unit displays only the profile data exported from the Ascend 950PR&950DT products.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Block Detail</td>
     <td class="tg-0pky">AIC/AIV Earliest</td>
-    <td class="tg-0pky">Time when each operator is executed on the earliest AI Core or AI Vector Core. If the operator is of the Mix type, it is executed on both the AIC and AIV.<br>This unit displays only the profile data exported from the Ascend 950 products.</td>
+    <td class="tg-0pky">Time when each operator is executed on the earliest AI Core or AI Vector Core. If the operator is of the Mix type, it is executed on both the AIC and AIV.<br>This unit displays only the profile data exported from the Ascend 950PR&950DT products.</td>
   </tr>
     <tr>
     <td class="tg-0pky">AIC/AIV Latest</td>
@@ -756,11 +764,11 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="2">LLC</td>
     <td class="tg-0pky">LLC &lt;id&gt; Read/Hit Rate<br>LLC &lt;id&gt; Write/Hit Rate</td>
-    <td class="tg-0pky">L3 cache read/write speed data, L3 cache read and write throughputs.</td>
+    <td class="tg-0pky">L3 cache read and write hit rate.</td>
   </tr>
   <tr>
     <td class="tg-0pky">LLC &lt;id&gt; Read/Throughput<br>LLC &lt;id&gt; Write/Throughput</td>
-    <td class="tg-0pky">L3 cache read and write hit rates.</td>
+    <td class="tg-0pky">L3 cache read and write rate data, that is, the read and write throughput of the L3 cache.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="6">NPU_MEM</td>
@@ -769,11 +777,11 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">APP/HBM</td>
-    <td class="tg-0pky">Process-level on-chip memory usage, in KB.</td>
+    <td class="tg-0pky">Process-level HBM memory usage, in KB.</td>
   </tr>
   <tr>
     <td class="tg-0pky">APP/MEMORY</td>
-    <td class="tg-0pky">Sum of process-level DDR and on-chip memory usages, in KB.</td>
+    <td class="tg-0pky">Total process-level DDR and HBM memory usage, in KB.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Device/DDR</td>
@@ -781,25 +789,11 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">Device/HBM</td>
-    <td class="tg-0pky">Device-level HBM usage, in KB.</td>
+    <td class="tg-0pky">Device-level HBM memory usage, in KB.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Device/MEMORY</td>
-    <td class="tg-0pky">Device-level DDR and on-chip memory usage, in KB.</td>
-  </tr>
-  <tr>
-    <td class="tg-0pky">CCU</td>
-    <td class="tg-0pky">Communication</td>
-    <td class="tg-0pky">Collective communication instruction data, start and end time of the CCU task, start and end time of the level-1 index instruction of the CCU task, and synchronization and data transfer duration.<br>This unit displays only the profile data exported from the Atlas 350 accelerator card.</td>
-  </tr>
-  <tr>
-    <td class="tg-0pky" rowspan="2">Communication</td>
-    <td class="tg-0pky">Group &lt;id&gt; Communication</td>
-    <td class="tg-0pky">Communication operators in a communication group. A rank may exist in different communication groups, and a group identifies the behavior of the current rank in the current communication group.</td>
-  </tr>
-  <tr>
-    <td class="tg-0pky">Plane &lt;id&gt;</td>
-    <td class="tg-0pky">Collective communication operator information. Network plane ID. In terms of parallel scheduling and execution of multiple transmit and receive communication links, each plane is a concurrent communication dimension.</td>
+    <td class="tg-0pky">Total device-level DDR and HBM memory usage, in KB.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Stars Soc Info</td>
@@ -813,7 +807,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="4">acc_pmu</td>
     <td class="tg-0pky">Accelerator {accId}/readBwLevel</td>
-    <td class="tg-0pky">Read bandwidth of the DVPP and DSA accelerators<br>This unit is not supported by the Ascend 950 products.</td>
+    <td class="tg-0pky">Read bandwidth of the DVPP and DSA accelerators<br>This unit is not supported by the Ascend 950PR&950DT products.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Accelerator {accId}/readOstLevel</td>
@@ -838,40 +832,45 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">Frequency changes of AI Cores during AI task running.<br>This unit displays only the profile data exported from the <term>Atlas A2 training products/Atlas A2 inference products</term>.</td>
+    <td class="tg-0pky">AI Core Freq<br>AI Core Freq Die &lt;id&gt;</td>
+    <td class="tg-0pky">Frequency changes of AI Cores during AI task running. When the DB-format file of Ascend 950PR&950DT products is imported, the AI Core Freq Die &lt;id&gt; unit is displayed for each Die ID.<br>This unit supports displaying the profile data exported from Atlas A2 products and Ascend 950PR&950DT products.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>
-    <td class="tg-0pky">dat_rx, dat_tx</td>
-    <td class="tg-0pky">Rx and Tx bandwidths of the data stream channel. SIO units can be displayed only in text files.<br>This unit displays only the inter-die transmission bandwidth information of the <term>Atlas A2 training products/Atlas A2 inference products</term> and Ascend 950 products.</td>
+    <td class="tg-0pky">dat_rx, dat_tx<br>dat_rx/&lt;name&gt;, dat_tx/&lt;name&gt; (DB format)</td>
+    <td class="tg-0pky">Rx and Tx bandwidths of the data stream channel. The SIO unit can be displayed in text-format files and, for <term>Ascend 950PR&950DT products</term>, also in DB-format files. In DB format, "/&lt;name&gt;" is appended to the end of each sub-unit name to distinguish SIO channels.<br>The SIO unit supports displaying only the inter-die transmission bandwidth information of <term>Atlas A2 training products/Atlas A2 inference products</term> and <term>Ascend 950PR&950DT products</term>.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">req_rx, req_tx</td>
+    <td class="tg-0pky">req_rx, req_tx<br>req_rx/&lt;name&gt;, req_tx/&lt;name&gt; (DB format)</td>
     <td class="tg-0pky">Rx and Tx bandwidths of the request stream channel.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">rsp_rx, rsp_tx</td>
+    <td class="tg-0pky">rsp_rx, rsp_tx<br>rsp_rx/&lt;name&gt;, rsp_tx/&lt;name&gt; (DB format)</td>
     <td class="tg-0pky">Rx and Tx bandwidths of the response stream channel.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">rsp_rx, rsp_tx</td>
+    <td class="tg-0pky">snp_rx, snp_tx<br>snp_rx/&lt;name&gt;, snp_tx/&lt;name&gt; (DB format)</td>
     <td class="tg-0pky">Rx and Tx bandwidths of the monitor stream channel.</td>
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>
-    <td class="tg-0pky">QoS &lt;id&gt;:OTHERS</td>
-    <td class="tg-0pky">Device QoS bandwidth information.</td>
+    <td class="tg-0pky">QoS &lt;id&gt;:OTHERS<br>QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth</td>
+    <td class="tg-0pky">Device QoS bandwidth information. When the DB-format file of <term>Ascend 950PR&950DT products</term> is imported, the QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth unit is displayed for each Die ID.</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>
-    <td class="tg-0pky">Port &lt;id&gt;/Rx<br>Port &lt;id&gt;/Tx</td>
-    <td class="tg-0pky">Text scenario: network information on each time node<br>DB scenario: bandwidth information<br>The unit name varies according to the imported data.</td>
+    <td class="tg-0pky">For details about the units, see:<br>1. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references_db.md#nic">NIC</a>" section, field name column of "Table 1 Format" in the *DB Format Performance Data File Reference* document;<br>2. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references.md#nic-nic-summary">nic (NIC Summary)</a>" section of "Text Format Performance Data" in the *Performance Data File Reference* document, field name column of "Table 1 Field Description" and "Table 2 Field Description".</td>
+    <td class="tg-0pky">For the meaning of the units, see:<br>1. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references_db.md#nic">NIC</a>" section, meaning column of "Table 1 Format" in the *DB Format Performance Data File Reference* document;<br>2. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references.md#nic-nic-summary">nic (NIC Summary)</a>" section of "Text Format Performance Data" in the *Performance Data File Reference* document, meaning column of "Table 1 Field Description" and "Table 2 Field Description".</td>
   </tr>
   <tr>
     <td class="tg-0pky">RoCE</td>
-    <td class="tg-0pky">Port &lt;id&gt;/Rx<br>Port &lt;id&gt;/Tx</td>
-    <td class="tg-0pky">RoCE bandwidth. RoCE units can be displayed only in text files.</td>
+    <td class="tg-0pky">For details about the units, see:<br>1. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references_db.md#roce">ROCE</a>" section, field name column of "Table 1 Format" in the *DB Format Performance Data File Reference* document;<br>2. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references.md#roce-roce-bandwidth">roce (RoCE Bandwidth)</a>" section of "Text Format Performance Data" in the *Performance Data File Reference* document, field name column of "Table 1 Field Description" and "Table 2 Field Description".</td>
+    <td class="tg-0pky">For the meaning of the units, see:<br>1. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references_db.md#roce">ROCE</a>" section, meaning column of "Table 1 Format" in the *DB Format Performance Data File Reference* document;<br>2. The "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references.md#roce-roce-bandwidth">roce (RoCE Bandwidth)</a>" section of "Text Format Performance Data" in the *Performance Data File Reference* document, meaning column of "Table 1 Field Description" and "Table 2 Field Description".</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">NetDev Stats</td>
+    <td class="tg-0pky">For details about the units, see the "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references_db.md#netdev_stats">NETDEV_STATS</a>" section, field name column of "Table 1 Format" in the *DB Format Performance Data File Reference* document.</td>
+    <td class="tg-0pky">For the meaning of the units, see the "<a href="https://gitcode.com/Ascend/msprof/blob/master/docs/en/user_guide/profile_data_file_references_db.md#netdev_stats">NETDEV_STATS</a>" section, meaning column of "Table 1 Format" in the *DB Format Performance Data File Reference* document.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">PCIe</td>
@@ -884,7 +883,7 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">PCIe_nonpost_latency</td>
-    <td class="tg-0pky">Transmission latency in PCIe Non-Posted mode, in μs. `Tx` indicates transmit, and `Rx` indicates receive. `PCIe_nonpost_latency` does not involve `Tx`. The value is fixed at `0`.</td>
+    <td class="tg-0pky">Transmission latency in PCIe Non-Posted mode, in μs. `Tx` indicates transmit, and `Rx` indicates receive. `PCIe_nonpost_latency` does not involve `Rx`. The value is fixed at `0`.</td>
   </tr>
   <tr>
     <td class="tg-0pky">PCIe_post</td>
@@ -953,7 +952,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="4">Stars Chip Trans</td>
     <td class="tg-0pky">PA Link Rx</td>
-    <td class="tg-0pky">PA traffic receive level. When collective communication bandwidth is available, it is not recommended to refer to this field, as it provides only coarse-grained statistical data. Stars Chip Trans units are displayed only in text files and are not supported by the Ascend 950 products.</td>
+    <td class="tg-0pky">PA traffic receive level. When collective communication bandwidth is available, it is not recommended to refer to this field, as it provides only coarse-grained statistical data. Stars Chip Trans units are displayed only in text files and are not supported by the Ascend 950PR&950DT products.</td>
   </tr>
   <tr>
     <td class="tg-0pky">PA Link Tx</td>
@@ -986,9 +985,14 @@ The following table describes the unit information displayed on the **Timeline**
     <td class="tg-0pky">CPU usage on the host.</td>
   </tr>
   <tr>
+    <td class="tg-0pky">CPU Freq</td>
+    <td class="tg-0pky">CPU &lt;id&gt;</td>
+    <td class="tg-0pky">Frequency data of each CPU on the host side, in kHz.</td>
+  </tr>
+  <tr>
     <td class="tg-0pky">Memory Usage</td>
     <td class="tg-0pky">Memory Usage</td>
-    <td class="tg-0pky">Memory usage on the host.</td>
+    <td class="tg-0pky">Memory utilization data on the host side.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Disk Usage</td>
@@ -1002,6 +1006,10 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
 </tbody></table>
 
+> [!NOTE]
+>
+>In a single-rank multi-process scenario, the streams of all processes are merged under one Ascend Hardware unit, and Overlap Analysis displays data by device. (This feature applies only to DB-format data.)
+
 ### Usage Description
 
 #### Basic Functions
@@ -1010,7 +1018,7 @@ The following table describes the unit information displayed on the **Timeline**
 
 The **Timeline** interface supports adjusting the view through the mouse toolbar, as shown in [Figure 1 Floating toolbar](#Floating_Toolbar). The main functions are as follows:
 
-1. Default mode: The mouse can be used to click flexibly and freely select swimlanes by dragging a box.
+1. Default mode: The mouse can be used to click flexibly and freely select units by dragging a box.
 2. Drag mode: Freely drag the timeline chart horizontally to flexibly view and locate operators.
 3. Auto-fit unit height: The view automatically compresses blank and invalid areas based on window changes, making the display clearer.
 4. Floating toolbar guidance: Provides illustrated descriptions of the floating toolbar functions.
@@ -1032,9 +1040,9 @@ The **Timeline** tab page supports zooming in, zooming out, and moving left and 
 - Move the pointer to any position in the tree chart or graphical pane on the **Timeline** tab page, and hold down **Ctrl** and scroll the mouse wheel to zoom in or out.
 - In the graphical pane, hold down **Ctrl** and click the left mouse button to drag the unit chart leftward or rightward.
 
-    >[!NOTE]
+    > [!NOTE]
     >
-    > On macOS, you need to press the Command key on the keyboard and scroll the mouse wheel to zoom in or out, and press the Command key and left mouse button to drag the lane chart left or right.
+    > On macOS, you need to press the Command key on the keyboard and scroll the mouse wheel to zoom in or out, and press the Command key and left mouse button to drag the unit chart left or right.
 
 - In the graphical pane, right-click to zoom in or out. For details, see [**Table 1** Right-click menu functions](#right-click-menu-functions).
 
@@ -1062,7 +1070,8 @@ On the **Timeline** tab page, you can search for operators and APIs by name.
     ![Searching for operators](./figures/system_tuning/search_operators_2.png "Searching for operators")
 
 - Click ![icon](./figures/system_tuning/en-us_image_0000002500040294.png) on the toolbar in the upper left corner of the page and click ![icon](./figures/system_tuning/en-us_image_0000002531920185.png) and ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) on the left of the search box to enable case-sensitive matching and full-word matching, respectively.
-  - Click the dropdown menu in front of the search box to select different ranks for viewing, or select "ALL" to view all ranks. The system selects the first rank by default, as shown in [**Figure 2** Rank selection function](#rank-selection-function).
+
+    - Click the dropdown menu in front of the search box to select different ranks for viewing, or select "ALL" to view all ranks. The system selects the first rank by default, as shown in [**Figure 2** Rank selection function](#rank-selection-function).
 
       **Figure 2** Rank selection function<a id="rank-selection-function"></a>
 
@@ -1074,24 +1083,24 @@ On the **Timeline** tab page, you can search for operators and APIs by name.
 
       ![Enabling case-sensitive matching or whole word matching](./figures/system_tuning/enable_case_or_whole_word_matching_1.png "Enabling case-sensitive matching or whole word matching")
 
-  - Click ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) to enable whole word matching. In the displayed text box, enter the search term and press **Enter**. The system will match operators or APIs with names corresponding to the search term, ignoring case, as shown in [**Figure 3** Enabling case-sensitive matching or whole word matching](#enabling-case-sensitive-matching-or-full-word-matching).
-  - When both ![icon](./figures/system_tuning/en-us_image_0000002531920185.png) and ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) are selected, the **Match case** and **Words** functions are enabled. In the text box that is displayed, enter the search content and press **Enter**. The operator or API whose name is the same as the search item is matched.
+    - Click ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) to enable whole word matching. In the displayed text box, enter the search term and press **Enter**. The system will match operators or APIs with names corresponding to the search term, ignoring case, as shown in [**Figure 3** Enabling case-sensitive matching or whole word matching](#enabling-case-sensitive-matching-or-full-word-matching).
+    - When both ![](./figures/system_tuning/en-us_image_0000002531920185.png) and ![](./figures/system_tuning/en-us_image_0000002500040296.png) are selected, case matching and whole word matching are enabled. Enter the content to search in the pop-up input box and press Enter; operators or APIs whose names exactly match the search term are then matched.
 
-- Click `Open in Find Window` next to the search box. The **Find** tab page is displayed in the lower part of the page, showing the information about the search term, as shown in [**Figure 4** Open in the Find Window](#open-in-the-find-window). For details about the fields, see [Table 2 Fields on the Find tab page](#fields-on-the-find-tab-page). Click `Click` in the **Click to Timeline** column to go to the specific location of the operator or API in the timeline view.
+    - Click `Open in Find Window` next to the search box. The **Find** tab page is displayed in the lower part of the page, showing the information about the search term, as shown in [**Figure 4** Open in the Find Window](#open-in-the-find-window). For details about the fields, see [Table 2 Fields on the Find tab page](#fields-on-the-find-tab-page). Click `Click` in the **Click to Timeline** column to go to the specific location of the operator or API in the timeline view.
 
-    **Figure 4** Open in the Find Window <a id="open-in-the-find-window"></a>
+      **Figure 4** Open in the Find Window <a id="open-in-the-find-window"></a>
 
-    ![Open in the Find Window](./figures/system_tuning/open_in_search_window_1.png "Open in the Find Window")
+      ![Open in the Find Window](./figures/system_tuning/open_in_search_window_1.png "Open in the Find Window")
 
-    **Table 2** Fields on the Find tab page <a id="fields-on-the-find-tab-page"></a>
+      **Table 2** Fields on the Find tab page <a id="fields-on-the-find-tab-page"></a>
 
-    |Field|Description|
-    |--|--|
-    |Rank ID|Rank ID. You can select the rank to be viewed.|
-    |Name|Operator name. Click the filter icon behind the name to filter data by name.|
-    |Start Time|Start time of operator execution.|
-    |Duration(ns)|Total time of running the operator.|
-    |Click To Timeline|Click `Click` to go to the specific location of the operator or API in the timeline view.|
+      |Field|Description|
+      |--|--|
+      |Rank ID|Rank ID. You can select the rank to be viewed.|
+      |Name|Operator name. Click the filter icon behind the name to filter data by name.|
+      |Start Time|Start time of operator execution.|
+      |Duration(ns)|Total time of running the operator.|
+      |Click To Timeline|Click `Click` to go to the specific location of the operator or API in the timeline view.|
 
 #### Displaying Profile Data
 
@@ -1104,13 +1113,13 @@ On the **Timeline** tab page, you can search for operators and APIs by name.
 
     ![Timeline preview](./figures/system_tuning/timeline_interface_preview_1.png "timeline_interface_preview_1")
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > CPU, Memory, and Network usage data, that is, numeric events, are displayed in bar charts on the timeline and cannot be previewed, as shown by 3 in [**Figure 1** Timeline preview](#timeline-preview).
 
 **Displaying Data in the Cluster Scenario**
 
-You can import and display cluster data to MindStudio Insight without manually merging multiple single-rank data. MindStudio Insight supports multiple hosts and cards in the training scenario and multiple cards in the inference scenario. It can automatically identify all **trace\_view.json** and **msprof\*******.json** files in the imported folder. [**Figure 2** Timeline data in the cluster scenario](#timeline-data-in-the-cluster-scenario) uses 16 cards as an example.
+You can import and display cluster data to MindStudio Insight without manually merging multiple single-rank data. MindStudio Insight supports multiple hosts and ranks in the training scenario and multiple ranks in the inference scenario. It can automatically identify all **trace\_view.json** and **msprof\*******.json** files in the imported folder. [**Figure 2** Timeline data in the cluster scenario](#timeline-data-in-the-cluster-scenario) uses 16 ranks as an example.
 
 **Figure 2** Timeline data in the cluster scenario<a id="timeline-data-in-the-cluster-scenario"></a>
 
@@ -1126,7 +1135,7 @@ In a cluster scenario, you can hover the pointer over the rank number to quickly
 
 When cluster data is imported, a large amount of timeline information is displayed. To help users compare and analyze data, data can be filtered and displayed by rank or/and unit in MindStudio Insight.
 
->[!NOTE]
+> [!NOTE]
 >
 > When filtering data by rank and unit, you can select the rank and unit in sequence to display the filtering information.
 
@@ -1146,11 +1155,11 @@ When cluster data is imported, a large amount of timeline information is display
 
 - MindStudio Insight supports fixing and pinning units. You can drag the collapsed units to freely sort them, facilitating comparison with other levels of the same type.
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > If the level-2 and level-3 units in the pinned rank are also pinned, you can only drag and drop the rank-level units. Similarly, if the level-3 units in the pinned level-2 units are also pinned, you can only drag and drop the level-2 units.
 
-    For example, click ![](./figures/system_tuning/en-us_image_0000002532040217.png) next to a level-3 unit name in cards 0, 1, and 2 to pin the unit name. Click ![](./figures/system_tuning/en-us_image_0000002531920195.png) again to unpin the unit name, as shown in [**Figure 6** Pinning and comparing](#pinning-and-comparing).
+    For example, click ![](./figures/system_tuning/en-us_image_0000002532040217.png) next to a level-3 unit name in ranks 0, 1, and 2 to pin the unit name. Click ![](./figures/system_tuning/en-us_image_0000002531920195.png) again to unpin the unit name, as shown in [**Figure 6** Pinning and comparing](#pinning-and-comparing).
 
     **Figure 6** Pinning and comparing<a id="pinning-and-comparing"></a>
 
@@ -1158,33 +1167,33 @@ When cluster data is imported, a large amount of timeline information is display
 
 - MindStudio Insight also allows you to pin the communication units in the same communication group by one click.
 
-  Select the units with the same name that you want to pin, right-click any unit with the same name, and choose **Pin Same-named Lane (*unit name*)**. All units with the same name will be pinned together, facilitating viewing, comparison, and analysis of units with the same name. The following is an operation example of this feature:
+  Select the units with the same name that you want to pin, right-click any unit with the same name, and choose **Pin Same-named Unit (*unit name*)**. All units with the same name will be pinned together, facilitating viewing, comparison, and analysis of units with the same name. The following is an operation example of this feature:
 
-    Right-click on a child unit under a parent unit and select "Pin Same-named Lane (*unit name*)". All units with the same name under this communication group will be pinned to the top for easy viewing and comparison, as shown in [**Figure 7** Choosing Pin Same-named Lane](#pinning-lanes-with-the-same-name-to-top) and [**Figure 8** Pin Same-named Lane](#effect-of-pinning-lanes-with-the-same-name-to-top).
+    Right-click on a child unit under a parent unit and select "Pin Same-named Unit (*unit name*)". All units with the same name under this communication group will be pinned to the top for easy viewing and comparison, as shown in [**Figure 7** Choosing Pin Same-named Unit](#pinning-units-with-the-same-name-to-top) and [**Figure 8** Pin Same-named Unit](#effect-of-pinning-units-with-the-same-name-to-top).
 
-    **Figure 7** Choosing Pin Same-named Lane<a id="pinning-lanes-with-the-same-name-to-top"></a>
+    **Figure 7** Choosing Pin Same-named Unit<a id="pinning-units-with-the-same-name-to-top"></a>
 
     ![](./figures/system_tuning/pin_samename_lane_to_top_1.png "Pinning communication units to top")
 
-     **Figure 8** Pin Same-named Lane<a id="effect-of-pinning-lanes-with-the-same-name-to-top"></a>
+     **Figure 8** Pin Same-named Unit<a id="effect-of-pinning-units-with-the-same-name-to-top"></a>
 
     ![](./figures/system_tuning/pin_samename_lane_to_top_2.png "Effect of pinning communication units to top")
 
-    Right-click on a pinned unit and select "Unpin Same-named Lane (*unit name*)" or "Unpin (All)" to cancel unit pinning, as shown in [**Figure 9** Unpinning units with the same name](#unpinning-lanes-with-the-same-name). "Unpin Units with Same Name (Lane Name)" unpins all units under this communication domain (group), while "Unpin (All)" unpins all pinned units.
+    Right-click on a pinned unit and select "Unpin Same-named Unit (*unit name*)" or "Unpin (All)" to cancel unit pinning, as shown in [**Figure 9** Unpinning units with the same name](#unpinning-units-with-the-same-name). "Unpin Units with Same Name (Unit Name)" unpins all units under this communication domain (group), while "Unpin (All)" unpins all pinned units.
 
-    **Figure 9** Unpin Same-named Lane<a id="unpinning-lanes-with-the-same-name"></a>
+    **Figure 9** Unpin Same-named Unit<a id="unpinning-units-with-the-same-name"></a>
 
     ![](./figures/system_tuning/cancel_pin_to_top_1.png "Unpinning units with the same name")
 
-    >[!NOTE]
+    > [!NOTE]
     >
     >This feature only supports pinning to top the innermost sub-unit with the same name.
 
 **Aligning Single Rank and Unit Timeline**
 
->[!NOTE]
+> [!NOTE]
 >
-> - In the single-rank, cluster, and multi-model scenarios, the relative positions of timelines are automatically aligned. If automatic alignment is not required, right-click anywhere, choose **Recover cards default offset** from the shortcut menu to restore the default offsets of all cards and models, and manually align the relative positions.
+> - In the single-rank, cluster, and multi-model scenarios, the relative positions of timelines are automatically aligned. If automatic alignment is not required, right-click anywhere, choose **Recover ranks default offset** from the shortcut menu to restore the default offsets of all ranks and models, and manually align the relative positions.
 > - If an offset is set for a unit and the offset is not 0, a highlighted blue dot is displayed after the unit name.
 
 - Manually aligning the relative positions to the start position
@@ -1199,17 +1208,11 @@ When cluster data is imported, a large amount of timeline information is display
 
 - Manually setting the offset
 
-    In the multi-host multi-rank scenario, the time on the host may be inaccurate. As a result, the relative positions of timelines of multiple cards may be inaccurate. MindStudio Insight supports time calibration in the single-rank dimension, as shown in [**Figure 11** Single-rank time adjustment](#single-device-time-adjustment). You can set the offset to move the timeline of a single rank leftward or rightward to calibrate the time. The unit of the offset is ns. A negative value indicates rightward movement, and a positive value indicates leftward movement.
+    In the multi-host multi-rank scenario, the time on the host may be inaccurate. As a result, the relative positions of timelines of multiple ranks may be inaccurate. MindStudio Insight supports time calibration in the single-rank dimension, as shown in [**Figure 11** Single-rank time adjustment](#single-device-time-adjustment). You can set the offset to move the timeline of a single rank leftward or rightward to calibrate the time. The unit of the offset is ns. A negative value indicates rightward movement, and a positive value indicates leftward movement.
 
     **Figure 11** Single-rank time adjustment <a id="single-device-time-adjustment"></a>
 
     ![](./figures/system_tuning/single_card_time_adjustment_1.png "Single-rank time adjustment")
-
-    To calibrate time more flexibly, MindStudio Insight also supports time calibration by unit, as shown in [**Figure 12** Unit time adjustment](#Unit-time-adjustment). On the **Timeline** tab page, expand the rank, click `Offset` next to the required level-2 unit name, enter a value in the text box, and press **Enter** to adjust the unit time. In the DB scenario, you need to expand the host name and adjust the time on the level-2 units under host and each rank.
-
-    **Figure 12** Unit time adjustment <a id="Unit-time-adjustment"></a>
-
-    ![](./figures/system_tuning/lane_time_adjustment_1.png "Unit time adjustment")
 
 **Aligning Time**
 
@@ -1233,7 +1236,7 @@ To facilitate more intuitive data viewing and comparison, time alignment of oper
 
 **Displaying Multiple Hosts and Ranks**
 
-When multiple hosts and ranks are imported, data can be displayed by host in MindStudio Insight, as shown in [Figure 4 Displaying multiple hosts and ranks](#Displaying-multiple-hosts-and-cards).
+When multiple hosts and ranks are imported, data can be displayed by host in MindStudio Insight, as shown in [Figure 4 Displaying multiple hosts and ranks](#Displaying-multiple-hosts-and-ranks).
 
 - In the figure, **1** indicates the host name, which consists of **hostName** and **hostUid**.
 - In the figure, **2** indicates the rank layer, which displays the corresponding unit based on the rank sequence number of the current host.
@@ -1241,11 +1244,11 @@ When multiple hosts and ranks are imported, data can be displayed by host in Min
 
     If the imported DB file contains the **HOST\_INFO** table, this configuration item is displayed on the **System View** tab page (when **Stats System View** or **Expert System View** is selected) and the **Find** tab page on the **Timeline** tab page.
 
->[!NOTE]
+> [!NOTE]
 >
 > This function can be displayed only in the unified DB scenario.
 
-**Figure 4** Displaying multiple hosts and cards <a id="Displaying-multiple-hosts-and-cards"></a>
+**Figure 4** Displaying multiple hosts and ranks <a id="Displaying-multiple-hosts-and-ranks"></a>
 
 ![](./figures/system_tuning/multi_node_multi_card_display_1.png "Displaying multiple hosts and cards")
 
@@ -1283,11 +1286,11 @@ When multiple hosts and ranks are imported, data can be displayed by host in Min
 
     ![](./figures/system_tuning/view_marker_info_1.png "Viewing mark information")
 
-  - Click the ![](./figures/system_tuning/en-us_image_0000002532040225.png) icon corresponding to a marker to delete the marker.
-  - Click `Clear` in the lower part of the dialog box to delete all markers.
-  - Click a region marker. The **Slice Detail** tab page in the lower part of the page displays the duration information of the region.
-  - If a marker is not displayed on the current visualization page, click the ![](./figures/system_tuning/en-us_image_0000002531920203.png) icon corresponding to the marker to go to the marker page.
-  - Click the color icon corresponding to a marker to set the color to facilitate marker category management.
+    - Click the ![](./figures/system_tuning/en-us_image_0000002532040225.png) icon corresponding to a marker to delete the marker.
+    - Click **Clear All** in the lower part of the dialog box to delete all markers.
+    - Click a region marker. The **Slice Detail** tab page in the lower part of the page displays the duration information of the region.
+    - If a marker is not in the current visualization view, click the ![](./figures/system_tuning/en-us_image_0000002531920203.png) icon corresponding to the marker to jump directly to the marker view for easy viewing.
+    - Click the color icon corresponding to a marker to set the color to facilitate marker category management.
 
 **Displaying Operator Flows**
 
@@ -1299,14 +1302,14 @@ When multiple hosts and ranks are imported, data can be displayed by host in Min
 
         ![](./figures/system_tuning/operator_connection_relationship_1.png "Operator flows")
 
-        >[!NOTE]
+        > [!NOTE]
         >
         > - If the processes at the start point and end point of a flow are collapsed, the flow disappears.
         > - In MindStudio Insight, flows are connected only to the first operator delivered in the same batch. In the Ascend hardware unit, if you click an operator and find that the associated flow is connected to another operator, the two operators are delivered in the same batch.
 
 - MindStudio Insight supports full flows. You can click ![](./figures/system_tuning/en-us_image_0000002500200298.png) on the toolbar in the upper left corner of the page. In the dialog box that is displayed, you can select one or more flow types. Alternatively, you can search for a flow type by keyword in the search box and select the corresponding flow type. All flows of the corresponding type are displayed in the graphical pane, as shown in [**Figure 10** Full flows](#Full-flows).
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > A maximum of 10 flow types can be selected.
 
@@ -1316,26 +1319,26 @@ When multiple hosts and ranks are imported, data can be displayed by host in Min
 
     The mappings between the application-layer operators and the NPU operators delivered and executed through flows are as follows:
 
-  - HostToDevice
-    - Delivery and execution mappings from CANN-layer nodes (operators) to NPU operators on Ascend Hardware (host to device).
-    - Delivery and execution mappings from CANN-layer nodes (operators) to communication operators (host to device).
+    - HostToDevice
+        - Delivery and execution mappings from CANN-layer nodes (operators) to NPU operators on Ascend Hardware (host to device).
+        - Delivery and execution mappings from CANN-layer nodes (operators) to communication operators (host to device).
 
-  - async\_npu
-    - Delivery and execution mappings from application-layer operators to NPU operators on Ascend Hardware.
-    - Delivery and execution mappings from application-layer operators to communication operators.
+    - async\_npu
+        - Delivery and execution mappings from application-layer operators to NPU operators on Ascend Hardware.
+        - Delivery and execution mappings from application-layer operators to communication operators.
 
-  - async\_task\_queue: mappings from enqueue to dequeue at the application layer, which is used only in the PyTorch scenario.
-  - fwdbwd: mappings from the forward API to the backward API, which is used only in the PyTorch scenario.
-  - MSTX: delivery and execution mappings from dotting data to NPU operators on Ascend Hardware.
+    - async\_task\_queue: mappings from enqueue to dequeue at the application layer, which is used only in the PyTorch scenario.
+    - fwdbwd: mappings from the forward API to the backward API, which is used only in the PyTorch scenario.
+    - MSTX: delivery and execution mappings from dotting data to NPU operators on Ascend Hardware.
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > - Whether mappings between layers are displayed depends on whether the data is collected in a specific scenario.
     > - The flow between layers is associated with whether the layers are expanded. If a flow type is selected and the corresponding layer is not expanded, the flow of this type is not displayed.
 
 **Selectively Analyzing Multi-Rank Data**
 
-When data of more than 16 cards is imported to MindStudio Insight, you can selectively analyze the data on the **Timeline** tab page. You can perform one-click global analysis or partial analysis.
+When data of more than 16 ranks is imported to MindStudio Insight, you can selectively analyze the data on the **Timeline** tab page. You can perform one-click global analysis or partial analysis.
 
 - One-click global analysis: On the **Timeline** tab page, click `Start Global Analysis` to analyze all rank data, as shown in [**Figure 11** Global analysis](#Global-analysis). After all rank data is analyzed, the **Start Global Analysis** button disappears.
 
@@ -1343,25 +1346,25 @@ When data of more than 16 cards is imported to MindStudio Insight, you can selec
 
     ![](./figures/system_tuning/global_parsing_1.png "Global analysis")
 
-- Partial analysis: If you only need to analyze the data of some cards, click ![](./figures/system_tuning/en-us_image_0000002500040320.png) next to the rank number to analyze the data of the selected rank, as shown in [**Figure 12** Single-rank analysis](#Single-rank-analysis). After the rank data is analyzed, the button disappears, as shown in rank 0 and rank 1 in the figure.
+- Partial analysis: If you only need to analyze the data of some ranks, click ![](./figures/system_tuning/en-us_image_0000002500040320.png) next to the rank number to analyze the data of the selected rank, as shown in [**Figure 12** Single-rank analysis](#Single-rank-analysis). After the rank data is analyzed, the button disappears, as shown in rank 0 and rank 1 in the figure.
 
     **Figure 12** Single-rank analysis <a id="Single-rank-analysis"></a>
 
     ![](./figures/system_tuning/single_card_parsing_1.png "Single-rank analysis")
 
-    If a large number of cards are imported, you can use the rank filter function to locate the cards whose data needs to be analyzed. On the toolbar of the **Timeline** tab page, click ![](./figures/system_tuning/en-us_image_0000002532040213.png), select **Rank Filter**, click the text box next to it, and select the rank to be displayed from the drop-down list box. The corresponding information is displayed on the **Timeline** tab page. Click ![](./figures/system_tuning/en-us_image_0000002500040320.png) next to the rank number to analyse the data. As shown in [**Figure 13** Filtering, displaying, and analyzing](#Filtering-displaying-and-analyzing), cards 2, 5, and 7 are selected for analysis.
+    If a large number of ranks are imported, you can use the rank filter function to locate the ranks whose data needs to be analyzed. On the toolbar of the **Timeline** tab page, click ![](./figures/system_tuning/en-us_image_0000002532040213.png), select **Rank Filter**, click the text box next to it, and select the rank to be displayed from the drop-down list box. The corresponding information is displayed on the **Timeline** tab page. Click ![](./figures/system_tuning/en-us_image_0000002500040320.png) next to the rank number to analyse the data. As shown in [**Figure 13** Filtering, displaying, and analyzing](#Filtering-displaying-and-analyzing), ranks 2, 5, and 7 are selected for analysis.
 
     **Figure 13** Filtering, displaying, and parsing <a id="Filtering-displaying-and-analyzing"></a>
 
     ![](./figures/system_tuning/filter_display_and_parse_1.png "Filtering, displaying, and analyzing")
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > In the partial analysis scenario, click `Start Global Analysis`. All rank data is parsed.
 
-- Rank parsing in the same communication group: After a rank is parsed, right-click the **Group** sub-unit in the communication group and choose **Parse Cards of Related Group** from the shortcut menu. All cards related to the communication group of the unit are parsed, as shown in [**Figure 14** Parsing cards in the related communication group](#parsing-cards-in-the-related-communication-group). After the parsing is complete, the shortcut menu changes to **Parsed All Cards of Related Group** and is dimmed.
+- Rank parsing in the same communication group: After a rank is parsed, right-click the **Group** sub-unit in the communication group and choose **Parse Ranks of Related Group** from the shortcut menu. All ranks related to the communication group of the unit are parsed, as shown in [**Figure 14** Parsing ranks in the related communication group](#parsing-ranks-in-the-related-communication-group). After the parsing is complete, the shortcut menu changes to **Parsed All Ranks of Related Group** and is dimmed.
 
-    **Figure 14** Parsing cards in the related communication group <a id="parsing-cards-in-the-related-communication-group"></a>
+    **Figure 14** Parsing ranks in the related communication group <a id="parsing-ranks-in-the-related-communication-group"></a>
 
     ![](./figures/system_tuning/parse_cards_in_related_communication_domain_1.png "Parsing cards in the related communication group")
 
@@ -1389,7 +1392,7 @@ MindStudio Insight supports aligning the time of selected operators using the sh
 
         ![](./figures/system_tuning/align_operator_right_boundary_1.png "Aligning the right boundary of the operator")
 
-        >[!NOTE]
+        > [!NOTE]
         >
         > Regardless of whether the selected operator is left-aligned or right-aligned, the operator in the **NPU** unit whose device is the same as that of the selected operator also shifts.
 
@@ -1401,27 +1404,43 @@ MindStudio Insight supports aligning the time of selected operators using the sh
 
     ![](./figures/system_tuning/cancel_baseline_operator_1.png "Clearing the base slice")
 
-- **Recovering cards default offset**
+- **Recovering ranks default offset**
 
-    If the operator time alignment operation has been performed, right-click any position in the unit and choose **Recover cards default offset** from the shortcut menu to restore the default offset, as shown in [**Figure 19** Recovering cards default offset](#recovering-cards-default-offset).
+    If the operator time alignment operation has been performed, right-click any position in the unit and choose **Recover ranks default offset** from the shortcut menu to restore the default offset, as shown in [**Figure 19** Recovering ranks default offset](#recovering-ranks-default-offset).
 
-    **Figure 19** Recovering cards default offset <a id="recovering-cards-default-offset"></a>
+    **Figure 19** Recovering ranks default offset <a id="recovering-ranks-default-offset"></a>
 
     ![](./figures/system_tuning/reset_all_cards_to_default_offset_1.png "Recovering cards default offset")
 
+- **Support for Jump to Corresponding Stream**
+
+    Click the selected operator `MODEL_EXECUTE`, right-click, and choose **Jump to Corresponding Stream** to jump directly to the corresponding unit and highlight it, as shown in [**Figure 20** Jump to Corresponding Stream](#jump-to-corresponding-stream) and [**Figure 21** Effect of Jump to Corresponding Stream](#effect-of-jump-to-corresponding-stream).
+
+    **Figure 20** Jump to Corresponding Stream<a id="jump-to-corresponding-stream"></a>
+
+    ![](./figures/system_tuning/jump_to_stream_1.png "Jump to Corresponding Stream")
+
+    **Figure 21** Effect of Jump to Corresponding Stream<a id="effect-of-jump-to-corresponding-stream"></a>
+
+    ![](./figures/system_tuning/jump_to_stream_2.png "Effect of Jump to Corresponding Stream")
+
+    > [!NOTE]
+    >
+    >Currently, only the `MODEL_EXECUTE` operator supports the **Jump to Corresponding Stream** function.
+
 #### Displaying Page Optimization
 
-**Hide**
+**Unit Hiding Function**
 
-On the **Timeline** tab page, you can hide or expand a unit.
+On the **Timeline** tab page, units can be hidden and expanded.
 
-- Hiding units
+- Hide Unit
 
     On the **Timeline** tab page, hover the pointer over the unit to be hidden, select one or more units, or drag select multiple units. Automatically select the selected unit, right-click the unit, and choose **Hide** from the shortcut menu to hide the unit. The *x***units hidden** row is displayed under the layer, as shown in [**Figure 1** Hide](#Hide). *x* indicates the number of hidden units.
 
-    **Figure 1** Hide <a id="Hide"></a>
+    **Figure 1** Hide Unit <a id="Hide"></a>
 
-    ![](./figures/system_tuning/hide_lanes_1.png "Hide")
+    ![](./figures/system_tuning/hide_lanes_1.png "Hide Unit")
 
 - Displaying all hidden units
 
@@ -1523,7 +1542,7 @@ MindStudio Insight allows you to view operator statistics and details about a si
 
     You can move the cursor to the **Slice List** tab page and click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the **Slice List** tab page and paste the content to an Excel file for analysis.
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > When operators are selected across multiple units under a single rank, the selected parts of the HBM, LLC, NPU\_MEM, Stars Soc Info, and acc\_pmu histogram units are not counted on the **Slice List** tab page.
 
@@ -1558,7 +1577,6 @@ MindStudio Insight allows you to view operator statistics and details about a si
     3. Right-click and deselect **Operator Selection Mode**, or deselect it on the right of the title bar in the data pane to disable the function of selecting operators by depth.
 
         **Figure 2** Operator Selection Mode <a id="Operator-Selection-Mode"></a>
-
         ![](./figures/system_tuning/operator_selection_mode_1.png "Operator Selection Mode")
 
 - If you select a single operator, you can view the operator details in the **Slice Detail** area, as shown in [Figure 3 Slice Detail](#Slice-Detail). [Table 2 Slice Detail fields](#Slice-Detail-fields) describes the fields.
@@ -1566,7 +1584,6 @@ MindStudio Insight allows you to view operator statistics and details about a si
     Select a single operator and press **M** to select the **Timeline** area to which the operator belongs. Press **M** again to cancel the selection.
 
     **Figure 3** Slice Detail <a id="Slice-Detail"></a>
-
     ![](./figures/system_tuning/selected_details_1.png "Slice Detail")
 
     **Table 2** Slice Detail fields <a id="Slice-Detail-fields"></a>
@@ -1577,7 +1594,9 @@ MindStudio Insight allows you to view operator statistics and details about a si
     |Start|Start time.|
     |Start(Raw Timestamp)|Original start time of data collection.|
     |Wall Duration|Total duration.|
-    |Self Time|Total time (excluding sub-classes).|
+    |Transit Time(ms)|Transmission time of the HCCL Group communication operator recorded in Communication Analysis. This parameter is displayed only when the selected Group Slice can be uniquely associated with a communication analysis record.|
+    |Wait Time(ms)|Wait time of the HCCL Group communication operator recorded in Communication Analysis. This parameter is displayed only when the selected Group Slice can be uniquely associated with a communication analysis record.|
+    |Self Time|Total duration (excluding subclasses).|
     |Input Shapes|Input shape of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Input Data Types|Input data type of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Input Formats|Input format of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
@@ -1585,7 +1604,12 @@ MindStudio Insight allows you to view operator statistics and details about a si
     |Output Data Types|Output data type of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Output Formats|Output format of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Attr Info|Operator attributes. When **task-time** is set to **l0** or **l1** during data collection, this field is not collected and is displayed as **N/A**. This field is available only when **aclnn** is enabled and **task-time** is set to **l2**.|
-    |Args|Operator parameters.|
+    |Communication Bandwidth Info|Displays the RDMA, HCCS, PCIE, SDMA, and SIO communication bandwidth records that actually exist in Communication Analysis after the selected Group Slice is uniquely associated with a communication analysis record. Types that do not exist are not displayed.|
+    |Transport Type|Type of the communication bandwidth record. The value can be RDMA, HCCS, PCIE, SDMA, or SIO.|
+    |Transit Size(MB)|Transmitted data volume of the corresponding communication bandwidth record, in MB.|
+    |Transit Time(ms)|Transmission time of the corresponding communication bandwidth record, in ms.|
+    |Bandwidth(GB/s)|Bandwidth of the corresponding communication bandwidth record, in GB/s.|
+    |Args|Related parameter information of the operator.|
 
 **System View**
 
@@ -1609,7 +1633,6 @@ The information on the **System View** tab page can display only the information
     |Apply Time Range Analysis|After you select an operator or right-click an operator in the selected area, the **Apply Time Range Analysis** menu is displayed. After you select this menu, the **System View** tab page is displayed, showing the time range of the operator and the information about the time range.|
 
     **Figure 4** Time range analysis<a id="time-range-analysis-1"></a>
-
     ![Time range analysis](./figures/system_tuning/time_range_analysis_1.png "Time range analysis")
 
 3. After this function is enabled, you can right-click a unit and choose **Remove Time Range Analysis** from the shortcut menu to disable this function.
@@ -1618,24 +1641,23 @@ The information on the **System View** tab page can display only the information
 
 On the **System View** tab page, when you select **Stats System View**, the tab page contains **Rank ID**, **Overall Metrics**, **Memcpy Overall**, summary statistics of five types of operators, and **Kernel Details** (details about the operators on the NPU). You can select the rank to be viewed from the **Rank ID** selection box. In the DB scenario, select **Host Name** and **Rank ID** in sequence.
 
->[!NOTE]
+> [!NOTE]
 >
 > - When the imported data is non-Ftrace data, the statistical system view displays: overall metrics, memcpy overall, operator dispatch duration statistics, kernel details, and operator type (including Python API summary, CANN API summary, Ascend Hardware Task Summary, communication summary, and overlap analysis) data.
 > - When the imported data is Ftrace data, the statistical system view displays only **Ftrace Task Statistics** data.
->
+
 - Overall Metrics
 
   The **Overall Metrics** tab page displays the overall information about all operators, as shown in [**Figure 5** Overall Metrics](#overall-metrics). For details about the fields, see [**Table 4** Overall Metrics fields](#overall-metrics-fields). When you select a sub-layer in the **Computing Time** column, you can click any operator in the **More** area to go to the specific location of the operator in the timeline view.
 
   **Figure 5** Overall Metrics<a id="overall-metrics"></a>
-
   ![Overall Metrics](./figures/system_tuning/comprehensive_metrics_2.png "Overall Metrics")
 
   **Table 4** Overall Metrics fields <a id="overall-metrics-fields"></a>
 
   |Field|Description|
   |--|--|
-  |Category|Category.<br> Multi-level information can be displayed.<br> Parent layers: **Computing Time**, **Communication(Not Overlapped) Time**, **Free Time**, and **E2E Time**.<br> Child layers: **Computing Time** is further divided into the disassembling results of computing stream operators such as Flash Attention, Conv, Matmul, Cube, and Vector. **Forward** and **Backward** are used to distinguish the forward and backward propagation.<br> The child layers of **Communication(Not Overlapped) Time** are the grouping and disassembling results of each communication group. The waiting time and transmission time are the intersection results of the not-overlapped communication.|
+  |Category|Category.<br> Multi-level information can be displayed.<br> Parent layers: **Computing Time**, **Communication(Not Overlapped) Time**, **Free Time**, and **E2E Time**.<br> Child layers: **Computing Time** is further divided into the disassembling results of computing stream operators such as Flash Attention, Conv, Matmul, Cube, and Vector. **Forward** and **Backward** are used to distinguish the forward and backward propagation. You can click the ![](./figures/system_tuning/comprehensive_metrics_2_entrance.png) icon after the **Computing Time** category to add custom operator classification rules (up to 50).<br> The child layers of **Communication(Not Overlapped) Time** are the grouping and disassembling results of each communication group. The waiting time and transmission time are the intersection results of the not-overlapped communication.|
   |Total Time(μs)|Total time of the category.|
   |Time Ratio|Duration percentage of the category.|
   |Number|Number of operators of the category.|
@@ -1646,14 +1668,13 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
 
 - Memcpy Overview
 
-  >[!NOTE]
+  > [!NOTE]
   >
-  > The memory copy data can be collected only when the `profiler_level` parameter is set to `Level2`. For details, see [Ascend PyTorch profiling data collection](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#%E9%87%87%E9%9B%86%E5%92%8C%E8%87%AA%E5%8A%A8%E8%A7%A3%E6%9E%90).
+  > The memory copy data can be collected only when the `profiler_level` parameter is set to `Level2`. For details, see [Ascend PyTorch profiling data collection](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#profiling-and-automatic-parsing).
 
   The **Memcpy Overall** tab page displays details about the memory copy operator, as shown in [**Figure 6** Memcpy Overview](#memcpy-overview). For details about the fields, see [**Table 5** Memcpy Overview fields](#memcpy-overview-fields). When you select a category, you can click any memory copy operator in the **More** area to go to the specific location of the operator in the timeline view.
 
   **Figure 6** Memcpy Overview<a id="memcpy-overview"></a>
-
   ![Memcpy Overview](./figures/system_tuning/memory_copy_overview_2.png "Memcpy Overview")
 
   **Table 5** Memcpy Overview Fields<a id="memcpy-overview-fields"></a>
@@ -1677,7 +1698,6 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   The operator types include **Python API Summary**, **CANN API Summary**, **Ascend HardWare Task Summary**, **Communication Summary**, and **Overlap Analysis**, as shown in [**Figure 7** Operator type summary tab page](#operator-summary-tab-page). For details about the fields, see [**Table 6** Stats System View fields](#stats-system-view-fields).
 
   **Figure 7** Operator type summary tab page<a id="operator-summary-tab-page"></a>
-
   ![Operator summary tab page](./figures/system_tuning/operator_summary_tab_2.png "Operator summary tab page")
 
   **Table 6** Operator type fields <a id="stats-system-view-fields"></a>
@@ -1692,28 +1712,11 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Min(μs)|Minimum time of the category.|
   |Max(μs)|Maximum time of the category.|
 
-- Free Time Attribution
-
-  Select **Free Time Attribution** in **Stats System View** to inspect the PyTorch Host APIs associated with Free events on the selected rank. The analysis follows the first computation or communication behavior after each Free event, finds device operators with the same start time, and traces their flows back to Host APIs. Results are for reference only and should be verified against the actual execution in Timeline.
-
-  |Field|Description|
-  |--|--|
-  |Host API|Groups APIs by their complete names. Free events without a complete, unique association are shown in unresolved, incomplete, or ambiguous groups.|
-  |Total Free Duration (μs)|Sum of the complete durations of associated Free events, rather than API durations.|
-  |Free Operator Count|Number of Free operators in this group. Each Free operator is counted once.|
-
-  Expand a group to inspect API and Free start times, durations, subsequent behaviors, and association status. Separate actions locate the API or Free event in Timeline. When several API candidates exist, each can be located separately. Summary and detail tables support sorting, pagination, and copying their current page independently.
-
-  API name, start time, and duration in the detail table can be sorted using the associated API or candidate APIs. For multiple candidates, values in the selected column are arranged in ascending order and compared one by one. The first differing value determines the row order; when one list is a prefix of the other, the shorter list comes first in ascending order. Descending order reverses this comparison. Numeric columns use their original numeric values. Sorting does not change the association status or the displayed order of candidate APIs.
-
-  Time Range Analysis includes Free events intersecting the selected range, including events touching its endpoints, and counts their complete durations. The total may therefore exceed the range length. After applying the device time offset, a selection entirely before the original time origin returns no results. A selection that only touches the origin includes only Free events intersecting that boundary; it does not switch to full-data analysis. APIs and subsequent operators may lie outside the range; locating an event preserves the analysis range. Collected data must include CPU (framework-side), NPU, and corresponding flow data.
-
 - Operator Trace
 
   Operator Trace includes Python API Trace, CANN API Trace, Ascend Hardware Task Trace, and Communication Trace. The operator information is shown in [**Figure 8** Operator Trace](#operator-trace), and the field descriptions are provided in [**Table 7** Operator Trace field description](#operator-trace-field-description).
 
   **Figure 8** Operator Trace<a id="operator-trace"></a>
-
   ![](./figures/system_tuning/operator_trace_tab_2.png "Operator Trace")
 
   **Table 7** Operator Trace field description<a id="operator-trace-field-description"></a>
@@ -1729,7 +1732,6 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   The statistical results of the operator detail table summarized by type. The collected items are the same as those in the operator detail table. The operator information is shown in [**Figure 9** Operator Type Summary (by Type)](#operator-type-summary), and the field description is shown in [**Table 8** Operator Type Summary (by Type) field description](#operator-type-summary-field-description).
 
   **Figure 9** Operator Type Summary (by Type)<a id="operator-type-summary"></a>
-
   ![](./figures/system_tuning/operator_type_summary_2.png "Operator Type Summary (by Type)")
 
   **Table 8** Field description of operator type summary (by type)<a id="operator-type-summary-field-description"></a>
@@ -1737,7 +1739,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Field|Description|
   |--|--|
   |Type|Operator type.|
-  |Accelerator Core|AI accelerator core type, including AI Core, AI CPU, etc.|
+  |Accelerator Core|AI accelerator core type, including AI Core, AICPU, etc.|
   |Count|Operator execution count.|
   |Total Time(μs)|Total operator execution time.|
   |Avg Time(μs)|Average operator execution time.|
@@ -1750,7 +1752,6 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   The **Kernel Details** area displays the details of the operator on the NPU, as shown in [**Figure 10** Kernel Details](#kernel-details). For details about the fields, see [**Table 9** Kernel Details fields](#kernel-details-fields). Click `Click` in the `Click to Timeline` column to go to the specific location of the operator in the timeline view. Area 4 (data pane) displays the details of the operator. You can click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to a field name in the operator details table to perform fuzzy search on the related field.
 
   **Figure 10** Kernel Details<a id="kernel-details"></a>
-
   ![Kernel Details](./figures/system_tuning/operator_detail_display_2.png "Kernel Details")
 
   **Table 9** Kernel Details fields <a id="kernel-details-fields"></a>
@@ -1778,7 +1779,6 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   **Ftrace Task Summary** provides statistical information on scheduling, context switch count, interrupt preemption count, and duration from Ftrace-collected data. It is used to help quickly identify key metrics such as top CPU-side time-consuming processes, top interrupt sources, and process preemption frequency, as shown in [**Figure 11** Ftrace Task Summary](#ftrace-task-summary). For field descriptions, see [**Table 10** Ftrace Task Summary field description](#ftrace-task-statistics-field-description).
 
   **Figure 11** Ftrace Task Summary<a id="ftrace-task-summary"></a>
-
   ![](./figures/system_tuning/ftrace_task_summary_1.png "Ftrace Task Summary")
 
   **Table 10** Ftrace task statistics field description<a id="ftrace-task-statistics-field-description"></a>
@@ -1802,7 +1802,6 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   Operator dispatch issues are common and typical Host Bound problems. The tool supports breakdown analysis of primary and secondary pipeline durations, helping tuning personnel quickly locate dispatch anomalies, as shown in [**Figure 12** Operator dispatch duration statistics](#operator-dispatch-duration-statistics). For field descriptions, see [**Table 11** Operator dispatch duration statistics field description](#operator_dispatch_duration_statistics_fields).
 
   **Figure 12** Operator dispatch duration statistics<a id="operator-dispatch-duration-statistics"></a>
-
   ![](./figures/system_tuning/operator_kernel_time_1.png "Operator dispatch duration statistics")
 
   **Table 11** Description of operator dispatch duration statistics fields<a id="operator_dispatch_duration_statistics_fields"></a>
@@ -1819,9 +1818,35 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Launch Time|PythonCall parent item: aggregated Launch duration of all leaf items; CANN API parent item: aggregated Launch duration of child leaf items; full-link leaf item/Launch leaf item: Launch end time - Launch start time (empty if no Launch).|
   |E2E Time|PythonCall parent item: maximum E2E duration among all leaf items; CANN API parent item: maximum E2E duration among child leaf items; full-link leaf item/Launch leaf item: Launch end time - Python API start time (when Launch end time does not exist, dequeue end time is used for calculation).|
 
+- Operator MFU Analysis
+
+  Operator MFU analysis analyzes the model FLOPs utilization (MFU) of operators from profiling data to help identify whether core compute operators make full use of the theoretical computing power of the chip. The data is generated by msprof-analyze and shows the OperatorMFU table of cluster_analysis.db, as shown in [**Figure 13** Operator MFU Analysis](#operator-mfu-analysis). For details about the fields, see [**Table 12** Operator MFU Analysis fields](#operator-mfu-analysis-fields).
+
+  **Figure 13** Operator MFU Analysis<a id="operator-mfu-analysis"></a>
+
+  ![](./figures/system_tuning/operator_mfu_analysis_1.png "Operator MFU Analysis")
+
+  **Table 12** Operator MFU Analysis fields<a id="operator-mfu-analysis-fields"></a>
+
+  |Field|Description|
+  |--|--|
+  |Rank ID|Rank ID.|
+  |Operator Name|Operator name on the framework side.|
+  |Kernel Name|Kernel name on the device side.|
+  |Kernel Start Time(ns)|Kernel start time, in ns.|
+  |Kernel End Time(ns)|Kernel end time, in ns.|
+  |Kernel Duration(ns)|Kernel execution duration, in ns.|
+  |MFU(ratio)|MFU ratio.|
+  |Actual TFLOPS|Actual TFLOPS calculated based on the current kernel duration.|
+  |Chip Peak TFLOPS|Theoretical chip peak matched according to the kernel input data type, in TFLOPS.|
+  |FLOPs|Operator FLOPs recorded on the collection side.|
+  |FLOPs Operator Name|Name of the operator corresponding to the FLOPs recorded on the collection side.|
+  |Input Shape|Kernel input shape.|
+  |Output Shape|Kernel output shape.|
+
 **Expert System View**<a id="expert-system-view"></a>
 
-On the **System View** tab page, when you select **Expert System View**, the **Rank ID** selection box, **Expert Analysis**, and six advice system tabs are displayed. You can select the rank to be viewed from the **Rank ID** selection box. In the DB scenario, select **Host Name** and **Rank ID** in sequence.
+On the **System View** tab, when **Expert System View** is selected, the page contains a rank selection box, an expert analysis tab, and six types of expert suggestion system tabs, and you can select the rank to view in the rank selection box. In the db scenario, select the machine name and then the rank ID in sequence.
 
 The **Expert Analysis** tab page displays the abnormal metrics in the unit.
 
@@ -1876,7 +1901,7 @@ On the **Timeline** tab page, right-click the required unit and choose **Show in
 |Rank ID|Rank ID of the operator. This field is available when you select the **Ascend Hardware**, **Communication**, and **Overlap Analysis** units and their sub-units.|
 |Click To Timeline|Click `Click` to go to the specific position of the operator in the timeline view. The operator details are displayed on the **Slice Detail** tab page.|
 
->[!NOTE]
+> [!NOTE]
 >
 > - This function is not supported at the rank level.
 > - This function is not supported in the **HBM**, **LLC**, **NPU\_MEM**, **Stars Soc Info**, and **acc\_pmu** histogram units.
@@ -1890,7 +1915,7 @@ The **Memory** tab page displays the memory information collected during the col
 
 **Precautions**
 
-For more than 3 million data records, the Largest Triangle Three Buckets (LTTB) algorithm is used to perform downsampling to improve the memory curve rendering performance. Therefore, when the data volume is large, only the sampling result is displayed. When the chart is zoomed in to a small range, all data points can be displayed.
+For data with more than 3 million entries, the LTTB (Largest Triangle Three Buckets) algorithm is used for downsampling when the memory line chart is rendered to improve rendering performance. Therefore, when the data volume is large, only the sampling result is displayed; when the chart is zoomed in to a small range, the data points are displayed in full.
 
 ### GUI Description
 
@@ -1903,16 +1928,16 @@ The **Memory** tab page consists of the parameter configuration area (area 1), o
 ![Memory dynamic curve](./figures/system_tuning/dynamic_graph_memory_interface_1.png "Memory dynamic curve")
 
 - Area 1: parameter configuration area.
-  - **Rank ID**: You can switch the options to view the memory information of different cards. The entire page is refreshed in real time after the switch.
-  - **Group By**: You can switch different dimensions to display memory information. The dimensions include **Overall**, **Stream**, and **Component**.
-  - **Host Name**: This parameter is available only when the imported DB file contains the **HOST\_INFO** table.
+    - **Rank ID**: You can switch the options to view the memory information of different ranks. The entire page is refreshed in real time after the switch.
+    - **Group By**: You can switch different dimensions to display memory information. The dimensions include **Overall**, **Stream**, and **Component**.
+    - **Host Name**: This parameter is available only when the imported DB file contains the **HOST\_INFO** table.
 
 - Area 2: operator memory curve. The **Region Marker** box above the curve displays the region marker names in the timeline. These marks are displayed in the corresponding regions on the memory curve based on the configured colors. If you delete a marker from the region mark box, the marker is removed from the memory curve, but is not deleted from the timeline.
-  - The **Operator Allocated** curve indicates the change trend of the allocated memory collected when the operator allocates or releases memory, that is, the total allocated memory of all operators. The collected memory data is allocated by PyTorch and Graph Engine (GE).
-  - The **Operator Reserved** curve indicates the change trend of the reserved memory collected when the operator allocates or releases memory, that is, the total reserved memory of all operators. The collected memory data is allocated by PyTorch and GE.
-  - The **Operator Activated** curve indicates the total memory held, including the memory that is reused by other streams but is not released. The collected memory data is allocated by streams in PyTorch. If no stream information is available, no **Operator Activated** curve is displayed.
-  - The **APP Reserved** curve indicates the memory trend reserved by the entire process.
-  - When **Group By** is set to **Component**, the curve displays the memory usage of PyTorch operators and GE.
+    - The **Operator Allocated** curve indicates the change trend of the allocated memory collected when the operator allocates or releases memory, that is, the total allocated memory of all operators. The collected memory data is allocated by PyTorch and Graph Engine (GE).
+    - The **Operator Reserved** curve indicates the change trend of the reserved memory collected when the operator allocates or releases memory, that is, the total reserved memory of all operators. The collected memory data is allocated by PyTorch and GE.
+    - The **Operator Activated** curve indicates the total memory held, including the memory that is reused by other streams but is not released. The collected memory data is allocated by streams in PyTorch. If no stream information is available, no **Operator Activated** curve is displayed.
+    - The **APP Reserved** curve indicates the memory trend reserved by the entire process.
+    - When **Group By** is set to **Component**, the curve displays the memory usage of PyTorch operators and GE.
 
 - Area 3: memory allocation/release details table, which displays the memory information of each operator. The table supports searching, sorting, pagination, and redirection. You can click the table header of each column to display data in ascending, descending, or default order. You can click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
 
@@ -1924,7 +1949,7 @@ The **Memory** tab page consists of the parameter configuration area (area 1), o
 
 ![Memory static curve](./figures/system_tuning/static_graph_memory_interface_1.png "Memory static curve")
 
-- Area 1: parameter configuration area. You can set **Rank ID** and **Group By** to view the memory information of different cards. After the setting, the entire page is refreshed immediately.
+- Area 1: parameter configuration area. You can set **Rank ID** and **Group By** to view the memory information of different ranks. After the setting, the entire page is refreshed immediately.
 - Area 2: operator memory curve, which consists of a dynamic curve and a static curve. The static curve exists only in the MindSpore data scenario.
     1. Dynamic curve: The **Region Marker** box above the curve displays the region marker names in the timeline. These marks are displayed in the corresponding regions on the memory curve based on the configured colors. If you delete a marker from the region mark box, the marker is removed from the memory curve, but is not deleted from the timeline.
         - The **Operator Allocated** curve indicates the change trend of the allocated memory collected when the operator allocates or releases memory, that is, the total allocated memory of all operators. The collected memory data is allocated by PyTorch and Graph Engine (GE).
@@ -1973,7 +1998,7 @@ In the curve, click and drag the mouse to the end point to be zoomed in and rele
 
 ![Selected zoom-in region](./figures/system_tuning/selected_zoom_region_1.png "Selected zoom-in region")
 
->[!NOTE]
+> [!NOTE]
 >
 > - Click ![icon](./figures/system_tuning/en-us_image_0000002500040358.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
 > - Click ![icon](./figures/system_tuning/en-us_image_0000002532040259.png) in the upper right corner of the curve. The curve is restored to the initial state.
@@ -1982,7 +2007,7 @@ In the curve, click and drag the mouse to the end point to be zoomed in and rele
 
 In the memory allocation/release details table, operators can be searched in dynamic and static curve scenarios. The procedure is as follows:
 
->[!NOTE]
+> [!NOTE]
 >
 > - In the MindSpore static curve scenario, the memory allocation/release details table of operators in the static curve is displayed. In other scenarios, the memory allocation/release details table of operators in the dynamic curve is displayed.
 > - When **Group By** is set to **Component**, the operator search function is not supported.
@@ -2027,14 +2052,14 @@ In the memory allocation/release details table, operators can be searched in dyn
 
     **Table 2** Static curve fields <a id="static-curve-fields"></a>
 
-  |Field|Description|
-  |--|--|
-  |Device ID|Sequence number of the device that allocates memory. The default value is **host**.|
-  |Name|Operator name.|
-  |Node Index Start|Search start node.|
-  |Node Index End|Search end node.<br> The value **4294967295** is the final end node of the index. In the static curve, the value of this node is the actual end node plus 1. For example, if the actual end node is 32, the index of the node in the horizontal coordinate in the static curve is 33, and the end value of the node index in the table is **4294967295**.|
-  |Size(MB)|Size of the memory to be allocated, in MB.|
-  |Operation|Click `Show in Timeline` to view the corresponding operator on the timeline page.|
+    |Field|Description|
+    |--|--|
+    |Device ID|Sequence number of the device that allocates memory. The default value is **host**.|
+    |Name|Operator name.|
+    |Node Index Start|Search start node.|
+    |Node Index End|Search end node.<br> The value **4294967295** is the final end node of the index. In the static curve, the value of this node is the actual end node plus 1. For example, if the actual end node is 32, the index of the node in the horizontal coordinate in the static curve is 33, and the end value of the node index in the table is **4294967295**.|
+    |Size(MB)|Size of the memory to be allocated, in MB.|
+    |Operation|Click `Show in Timeline` to view the corresponding operator on the timeline page.|
 
 - When **Group By** is set to **Component**, the operator search function is not supported. [**Figure 6** Component-level memory allocation/release details](#component-level-memory-application-release-details) shows the page. [**Table 3** Field description](#field-description) describes the fields.
 
@@ -2088,18 +2113,18 @@ The **Operator** tab page consists of the parameter configuration area (area 1),
 
 - Area 1: parameter configuration area. [**Table 1** Parameter configuration](#parameter-configuration) describes the parameters.
 
-  **Table 1** Parameter configuration <a id="parameter-configuration"></a>
+    **Table 1** Parameter configuration <a id="parameter-configuration"></a>
 
   |Parameter|Description|
   |--|--|
-  |Group by|- **Computing Operator**: displays details about all computing operators, helping developers locate time-consuming computing operators.<br> - **Computing Operator Type**: collects statistics on computing operators of the same type, calculates the total time, maximum time, and average time, and allows you to view details about computing operators of a specific type, helping developers quickly identify performance bottlenecks of computing operators of a specific type, such as AI CPU operators.<br> - **Computing Operator Name and Input Shape**: collects statistics on operators of the same type and input shape, calculates the total time, maximum time, and average time, and allows you to view details about operators of a specific type, helping developers quickly identify performance bottlenecks of operators of a specific type with a specific input.<br> - **Communication Operator**: displays details about all communication operators, helping developers locate time-consuming communication operators.<br> - **Communication Operator Type**: collects statistics on communication operators of the same type, calculates the total time, maximum time, and average time, and allows you to view details about communication operators of a specific type, helping developers quickly identify performance bottlenecks of communication operators of a specific type.|
+  |Group by|- **Computing Operator**: displays details about all computing operators, helping developers locate time-consuming computing operators.<br> - **Computing Operator Type**: collects statistics on computing operators of the same type, calculates the total time, maximum time, and average time, and allows you to view details about computing operators of a specific type, helping developers quickly identify performance bottlenecks of computing operators of a specific type, such as AICPU operators.<br> - **Computing Operator Name and Input Shape**: collects statistics on operators of the same type and input shape, calculates the total time, maximum time, and average time, and allows you to view details about operators of a specific type, helping developers quickly identify performance bottlenecks of operators of a specific type with a specific input.<br> - **Communication Operator**: displays details about all communication operators, helping developers locate time-consuming communication operators.<br> - **Communication Operator Type**: collects statistics on communication operators of the same type, calculates the total time, maximum time, and average time, and allows you to view details about communication operators of a specific type, helping developers quickly identify performance bottlenecks of communication operators of a specific type.|
   |Rank ID|Operator profile data can be displayed by a single rank.|
   |Top|You can set **Top** to display the top *N* records with the longest total duration. The default value is **15**. If you select **Custom**, you can customize the number of records.|
   |Host Name|This parameter is available only when the imported DB file contains the **HOST_INFO** table.|
 
 - Area 2: duration percentage pie chart.
-  - When **Group By** is set to **Computing Operator**, **Computing Operator Type**, or **Computing Operator Name and Input Shape**, two pie charts are displayed. The left pie chart shows the duration percentage of different computing operator types. This view is affected by the **Top** configuration in area 1 and displays only the percentage of top *N* or all computing operators or computing operator types. The right pie chart shows the duration percentage of top *N* or all computing operators or computing operator types by accelerator core, such as AI Core and AI CPU.
-  - If **Group By** is set to **Communication Operator or Communication Operator Type**, a pie chart is displayed, showing the time consumption of different communication operator types. This view is affected by the **Top** configuration in area 1 and displays only the time consumption of top *N* or all communication operators or communication operator types.
+    - When **Group By** is set to **Computing Operator**, **Computing Operator Type**, or **Computing Operator Name and Input Shape**, two pie charts are displayed. The left pie chart shows the duration percentage of different computing operator types. This view is affected by the **Top** configuration in area 1 and displays only the percentage of top *N* or all computing operators or computing operator types. The right pie chart shows the duration percentage of top *N* or all computing operators or computing operator types by accelerator core, such as AI Core and AICPU.
+    - When **Group By** is set to **Communication Operator** or **Communication Operator Type**, one pie chart is displayed, showing the duration percentage of different communication operator types. This view is affected by the **Top** configuration in area 1 and displays only the percentage of top *N* or all communication operators or communication operator types.
 
 - Area 3: duration statistics and details data table, which displays operator statistics or details. You can click `See more` to view details. You can also click `Export` in the upper right corner of the table to export all data in the operator details table to a .csv file.
 
@@ -2119,7 +2144,7 @@ This page is displayed when **Group By** is set to **Computing Operator**. You c
 |--|--|
 |Name|Operator name.|
 |Type|Operator type.|
-|Accelerator Core|AI accelerator core type, including AI Core and AI CPU.|
+|Accelerator Core|AI accelerator core type, including AI Core and AICPU.|
 |Start Time(ms)|Operator execution start time.|
 |Duration(μs)|Execution duration of the current operator.|
 |Wait Time(μs)|Waiting time for executing the operator.|
@@ -2131,7 +2156,7 @@ This page is displayed when **Group By** is set to **Computing Operator**. You c
 |Output Data Types|Output data type of the operator.|
 |Output Formats|Output format of the operator.|
 
->[!NOTE]
+> [!NOTE]
 >
 > If `aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization` is set in the collection configuration and the `profiler_level` is `Level1` or above, the computing operator details will display AI Core and AI Vector Core performance metric fields. For detailed field descriptions, see [AI Core/AI Vector Core Performance Metric Field Description](#ai-core-performance-metric-field-description).
 
@@ -2148,7 +2173,7 @@ This page is displayed when **Group By** is set to **Computing Operator Type**. 
 |Field|Description|
 |--|--|
 |Type|Operator type.|
-|Accelerator Core|AI accelerator core type, including AI Core and AI CPU.|
+|Accelerator Core|AI accelerator core type, including AI Core and AICPU.|
 |Count|Number of operator executions.|
 |Total Time(μs)|Total operator execution time.|
 |Avg Time(μs)|Average operator execution time.|
@@ -2170,7 +2195,7 @@ This page is displayed when **Group By** is set to **Computing Operator Name and
 |--|--|
 |Name|Operator name.|
 |Shape|Operator input shape.|
-|Accelerator Core|AI accelerator core type, including AI Core and AI CPU.|
+|Accelerator Core|AI accelerator core type, including AI Core and AICPU.|
 |Count|Number of operator executions.|
 |Total Time(μs)|Total operator execution time.|
 |Avg Time(μs)|Average operator execution time.|
@@ -2232,13 +2257,13 @@ The operator details table displays the difference between two ranks. You can cl
 
 ### Function Description
 
-The **Summary** tab page provides the communication group identification, division, and time breakdown and analysis functions. Communication groups can be automatically identified or configured by users. Users can compare the duration of stages, computation, and communication in a communication group to analyze whether the division in the same communication group is even and whether there are slow cards and slow links, helping developers quickly identify problems.
+The **Summary** tab page provides the communication group identification, division, and time breakdown and analysis functions. Communication groups can be automatically identified or configured by users. Users can compare the duration of stages, computation, and communication in a communication group to analyze whether the division in the same communication group is even and whether there are slow ranks and slow links, helping developers quickly identify problems.
 
 **Precautions**
 
 - To ensure that the communication time can be correctly split by communication group (TP-communication time, PP-communication time, MP-communication time, DP-communication time, and CP-communication time in the performance metrics), ensure that the parallel strategy parameter value is the same as the parallel parameter configuration during actual model training or inference. You can confirm the parallel parameters with the model developers.
 - If a .db file is imported, the **Communication Detail (Rank ***ID***)** area is not displayed.
-- Rule for setting the parallel strategy: Parallel strategy value = PP Size × TP Size × CP Size × DP Size ≥ Number of cards imported.
+- Rule for setting the parallel strategy: Parallel strategy value = PP Size × TP Size × CP Size × DP Size ≥ Number of ranks imported.
 - If data that has been imported is imported to MindStudio Insight, the parallel strategy value is remembered and the previously set parallel strategy value is displayed by default.
 - When **CP Size** is set to 1, the **DP + PP** and **DP + PP + TP** parallel dimensions are displayed, and **Context Parallel Size** is not displayed in each dimension.
 
@@ -2270,13 +2295,13 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
 
     |Field|Description|
     |--|--|
-    |Algorithm|- **Megatron-LM (tp-cp-ep-dp-pp)**: This arrangement is based on Megatron-Core. The priority order is TP > CP > DP > PP, with EP spanning above DP without participating in or affecting the priority (requiring that DP must be exactly divisible by EP). PP is located after DP and is most used for cross-node communication, which requires low bandwidth.<br> - **Megatron-LM (tp-cp-pp-ep-dp)**: This arrangement is also based on Megatron-Core and is rarely used. The priority order is TP > CP > PP > DP. It is used in scenarios where PP requires relatively high bandwidth.<br> - **MindSpeed (tp-cp-ep-dp-pp)**: This arrangement is based on MindSpeed-Core. The priority order is TP > CP > DP > PP. The EP spans across CP and DP and does not participate in or affect the priority (requiring that CP × DP must be exactly divisible by EP).<br> - **MindIE-LLM (tp-dp-ep-pp-moetp)**: This arrangement is based on MindIE-LLM (DeepSeek V3 uses a similar arrangement). For non-MoE layers, the priority order is TP > DP > PP. For MoE layers, the priority order is MOE_TP > EP > PP. When **MOE_TP=1**, an MoE EP solution that spans the same stage of PP is formed.<br> - **vLLM (tp-pp-dp-ep)**: This arrangement is based on vLLM. The priority order is TP > PP > DP. The EP spans TP and DP and does not participate in or affect the priority (requiring that TP × DP must be exactly divided by EP). An MoE EP solution is formed (that is, EP must be exactly divisible by TP). When the **vLLM (tp-pp-dp-ep)** algorithm is selected, PP size × TP size × DP size ≥ Number of imported cards.|
-    |PP Size|Pipeline parallel size. You can set it to a value ranging from 1 to 10000.<br> **Pipeline Parallel** distributes different layers of a model to different cards for execution. When one rank executes the current batch of data, another rank can process the next batch of data.|
-    |TP Size|Tensor parallel size. You can set it to a value ranging from 1 to 10000.<br> **Tensor Parallel** is a technique that divides model parameters into multiple parts and distributes them to different cards for computation.|
-    |CP Size|Context parallel size. You can set it to a value ranging from 1 to 10000.<br> **Context Parallel** divides training samples into different batches based on the sequence length and dimension and allocates the batches to different cards for computation. **Context Parallel** (CP) splits the network input and all activations, which is an improved version of **Sequence Parallelism** (SP).|
-    |DP Size|Data parallel size. You can set it to a value ranging from 1 to 10000.<br> **Data Parallel** divides the training dataset into multiple batches and allocates the batches to different cards for calculation.|
-    |EP Size|Expert parallel size. You can set it to a value ranging from 1 to 10000.<br> **Expert Parallel** is a parallel method designed for Mixture of Experts (MoE) models. Experts are allocated to different computing cards. Each rank processes some training samples, and each rank can contain one or more experts.<br> - When the **Megatron-LM** algorithm is selected, the EP size must be less than or equal to the DP size, and the DP size must be exactly divisible by the EP size.<br> - When the **MindSpeed** algorithm is selected, DP x CP must be exactly divisible by EP.|
-    |MoE-TP Size|This parameter is available only when the **MindIE-LLM (tp-dp-ep-pp-moetp)** algorithm is used.<br> TP size of the MoE layer in the inference parallel strategy, which is different from the TP of the non-MoE layer. You can set it to a value ranging from 1 to 10000. The values must meet the following requirements:<br> - PP Size × TP Size × DP Size = Number of imported cards<br> - TP Size × DP Size = MoE-TP Size × EP Size|
+    |Algorithm|- **Megatron-LM (tp-cp-ep-dp-pp)**: This arrangement is based on Megatron-Core. The priority order is TP > CP > DP > PP, with EP spanning above DP without participating in or affecting the priority (requiring that DP must be exactly divisible by EP). PP is located after DP and is most used for cross-node communication, which requires low bandwidth.<br> - **Megatron-LM (tp-cp-pp-ep-dp)**: This arrangement is also based on Megatron-Core and is rarely used. The priority order is TP > CP > PP > DP. It is used in scenarios where PP requires relatively high bandwidth.<br> - **MindSpeed (tp-cp-ep-dp-pp)**: This arrangement is based on MindSpeed-Core. The priority order is TP > CP > DP > PP. The EP spans across CP and DP and does not participate in or affect the priority (requiring that CP × DP must be exactly divisible by EP).<br> - **MindIE-LLM (tp-dp-ep-pp-moetp)**: This arrangement is based on MindIE-LLM (DeepSeek V3 uses a similar arrangement). For non-MoE layers, the priority order is TP > DP > PP. For MoE layers, the priority order is MOE_TP > EP > PP. When **MOE_TP=1**, an MoE EP solution that spans the same stage of PP is formed.<br> - **vLLM (tp-pp-dp-ep)**: This arrangement is based on vLLM. The priority order is TP > PP > DP. The EP spans TP and DP and does not participate in or affect the priority (requiring that TP × DP must be exactly divided by EP). An MoE EP solution is formed (that is, EP must be exactly divisible by TP). When the **vLLM (tp-pp-dp-ep)** algorithm is selected, PP size × TP size × DP size ≥ Number of imported ranks.|
+    |PP Size|Pipeline parallel size. You can set it to a value ranging from 1 to 10000.<br> **Pipeline Parallel** distributes different layers of a model to different ranks for execution. When one rank executes the current batch of data, another rank can process the next batch of data.|
+    |TP Size|Tensor parallel size. You can set it to a value ranging from 1 to 10000.<br> **Tensor Parallel** is a technique that divides model parameters into multiple parts and distributes them to different ranks for computation.|
+    |CP Size|Context parallel size. You can set it to a value ranging from 1 to 10000.<br> **Context Parallel** divides training samples into different batches based on the sequence length and dimension and allocates the batches to different ranks for computation. **Context Parallel** (CP) splits the network input and all activations, which is an improved version of **Sequence Parallelism** (SP).|
+    |DP Size|Data parallel size. You can set it to a value ranging from 1 to 10000.<br> **Data Parallel** divides the training dataset into multiple batches and allocates the batches to different ranks for calculation.|
+    |EP Size|Expert parallel size. You can set it to a value ranging from 1 to 10000.<br> **Expert Parallel** is a parallel method designed for Mixture of Experts (MoE) models. Experts are allocated to different computing ranks. Each rank processes some training samples, and each rank can contain one or more experts.<br> - When the **Megatron-LM** algorithm is selected, the EP size must be less than or equal to the DP size, and the DP size must be exactly divisible by the EP size.<br> - When the **MindSpeed** algorithm is selected, DP x CP must be exactly divisible by EP.|
+    |MoE-TP Size|This parameter is available only when the **MindIE-LLM (tp-dp-ep-pp-moetp)** algorithm is used.<br> TP size of the MoE layer in the inference parallel strategy, which is different from the TP of the non-MoE layer. You can set it to a value ranging from 1 to 10000. The values must meet the following requirements:<br> - PP Size × TP Size × DP Size = Number of imported ranks<br> - TP Size × DP Size = MoE-TP Size × EP Size|
     |Performance Metric|You can display the parallel strategy chart by performance metrics. The available performance metric parameters vary according to the selected domain dimension.<br> If **None** is selected, no performance metric is displayed. That is, the rank information on the parallel strategy chart is in the default state.<br> If you select other parameters, **Visible Range (μs)** and color bar of the parameter are displayed next to the check box. The filter range is the minimum and maximum values of the parameter. The rank on the parallel policy graph is rendered and filled with colors according to the corresponding values. You can view the performance of each rank.|
     |Target Index|Enter the target index in the selected dimension to accurately locate the required number.|
     |Advice|The built-in expert analysis function of MindStudio Insight analyzes data, provides suggestions, and lists the top 3 groups and slow ranks, making it easier for developers to spot performance issues.|
@@ -2311,7 +2336,7 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
 
   |Field|Description|
   |--|--|
-  |Accelerator Core|AI accelerator core type, including AI Core and AI CPU.|
+  |Accelerator Core|AI accelerator core type, including AI Core and AICPU.|
   |Accelerator Core Durations(μs)|Total duration of the accelerator core.|
   |Name|Operator name.|
   |Type|Operator type.|
@@ -2336,7 +2361,7 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
 
   |Field|Description|
   |--|--|
-  |Accelerator Core|AI accelerator core type, including AI Core and AI CPU.|
+  |Accelerator Core|AI accelerator core type, including AI Core and AICPU.|
   |Communication(Not Overlapped) Durations(μs)|Not overlapped communication time, which refers to the pure communication duration.|
   |Communication(Overlapped) Durations(μs)|Overlapped communication duration.|
   |Name|Communication operator name.|
@@ -2361,7 +2386,7 @@ You can select **Profiling** or **Dump** for **Data Version** in the parameter c
 
 If **Profiling** is selected, the expert distribution heatmap is displayed. The heatmap is based on Profiling and collects statistics on the time consumed by the GroupedMatmul operator in each MoE layer. Since the GroupedMatmul operator is the core of MoE model computation, its performance directly affects how quickly experts respond.
 
-If **Dump** is selected, the MoE model expert load balancing heatmap is displayed. The heatmap is based on Dump and collects statistics on the number of tokens processed by each expert in each MoE layer. You can select **Dump unbalanced** or **Dump Balance** and click ![icon](./figures/system_tuning/en-us_image_0000002532040275.png) to import the corresponding file. The MoE model expert load balancing heatmap is displayed, as shown in [**Figure 7** MoE expert load balancing analysis](#moe-model-load-balancing-analysis). For details about the parameters, see [**Table 5** Parameters for MoE expert load balancing analysis](#parameters-for-moe-expert-load-balancing-analysis). For details about how to collect data files before and after dump balancing, see "Feature Introduction" \> "[Load Balancing](https://www.hiascend.com/document/detail/en/mindie/300/mindiellm/llmdev/user_guide/feature/expert_parallelism_load_balancer.md)" in *MindIE LLM Development Guide*.
+If **Dump** is selected, the MoE model expert load balancing heatmap is displayed. The heatmap is based on Dump and collects statistics on the number of tokens processed by each expert in each MoE layer. You can select **Dump unbalanced** or **Dump Balance** and click ![icon](./figures/system_tuning/en-us_image_0000002532040275.png) to import the corresponding file. The MoE model expert load balancing heatmap is displayed, as shown in [**Figure 7** MoE expert load balancing analysis](#moe-model-load-balancing-analysis). For details about the parameters, see [**Table 5** Parameters for MoE expert load balancing analysis](#parameters-for-moe-expert-load-balancing-analysis). For details about how to collect data files before and after dump balancing, see "Feature Introduction" \> "[Load Balancing](https://www.hiascend.com/document/detail/en/mindie/latest/mindiellm/llmdev/user_guide/feature/expert_parallelism_load_balancer.md)" in *MindIE LLM Development Guide*.
 
 **Figure 7** MoE expert load balancing analysis<a id="moe-model-load-balancing-analysis"></a>
 
@@ -2479,7 +2504,7 @@ MindStudio Insight allows developers to compare cluster data to intuitively and 
 
 In comparison mode, the **Base Info** area on the **Summary** tab page displays the comparison data and baseline data information.
 
-In the **Parallel Strategy Analysis** area, the parallel strategy configuration parameters must be set according to the rules. The number of imported cards is determined by the maximum number of devices in the comparison data or baseline data. When you select the target index in the parallel strategy chart, the details displayed indicate the comparison data and the data in the brackets indicates the difference.
+In the **Parallel Strategy Analysis** area, the parallel strategy configuration parameters must be set according to the rules. The number of imported ranks is determined by the maximum number of devices in the comparison data or baseline data. When you select the target index in the parallel strategy chart, the details displayed indicate the comparison data and the data in the brackets indicates the difference.
 
 In the bar chart details in the **Computation/Communication Overview** area, the difference between the comparison data and baseline data is displayed, as shown in [**Figure 8** Comparison mode on the overview page](#comparison-mode-on-the-overview-page).
 
@@ -2527,18 +2552,18 @@ The **Communication Matrix** tab page displays information about communication o
 
 **Table 1** Communication Matrix fields <a id="communication-matrix-fields"></a>
 
-||Field|Description|
-|--|--|--|
-||Cluster|Cluster name. You can select a cluster from the drop-down list when importing cluster data.|
-||Step|Step ID. You can select a step from the drop-down list.|
-||Communication Group|Communication group. You can select one, multiple, or all nodes from the drop-down list. The nodes are displayed on the vertical coordinate.|
-||Operator Name|Communication operator name. You can select **Total Op info** or a type of operator from the drop-down list.<br> The data of communication operators are grouped by type, like "allreduce-total" for easier viewing. When you select the **top**, **bottom**, or **middle** type, move the pointer to the communication matrix heatmap and click a cell to see the specific communication operator name.<br> - **Total Op info**: data of all communication operators in the selected Step and communication group.<br> - **total**: average bandwidth of the communication operators (total transmission volume of a type of communication operators/total transmission time). You are advised to view this type first.<br> - **top**: communication operators with the highest bandwidth. Top *N* indicates the **N** highest bandwidths.<br> - **middle**: communication operators with the median bandwidth.<br> - **bottom**: communication operators with the lowest bandwidth. Bottom *N* indicates the **N** lowest bandwidths.|
-||Matrix Model|Communication matrix heatmap.|
-||Communication Matrix Type|Communication matrix type.<br> - **Bandwidth (GB/s)**: bandwidth (GB/s).<br> - **Transit Size(MB)**: communication size.<br> - **Transport Type**: link type.<br> - **Transit Time(ms)**: communication duration.|
-||Show Inner Communication|Communication data in the rank. This option is not selected by default.|
-||Visible Range|Visible range of data. By default, all data is displayed. You can manually set the data display range.|
-|Src Rank Id|Src Rank Id|Source Rank ID. The horizontal coordinate is the ID of the source rank in the link information.|
-|Dst Rank Id|Dst Rank Id|Destination Rank ID. The vertical coordinate is the ID of the destination rank in the link information.|
+|Field|Description|
+|--|--|
+|Cluster|Cluster name. You can select a cluster from the drop-down list when importing cluster data.|
+|Step|Step ID. You can select a step from the drop-down list.|
+|Communication Group|Communication group. You can select one, multiple, or all nodes from the drop-down list. The nodes are displayed on the vertical coordinate.|
+|Operator Name|Communication operator name. You can select **Total Op info** or a type of operator from the drop-down list.<br> The data of communication operators are grouped by type, like "allreduce-total" for easier viewing. When you select the **top**, **bottom**, or **middle** type, move the pointer to the communication matrix heatmap and click a cell to see the specific communication operator name.<br> - **Total Op info**: data of all communication operators in the selected Step and communication group.<br> - **total**: average bandwidth of the communication operators (total transmission volume of a type of communication operators/total transmission time). You are advised to view this type first.<br> - **top**: communication operators with the highest bandwidth. Top *N* indicates the **N** highest bandwidths.<br> - **middle**: communication operators with the median bandwidth.<br> - **bottom**: communication operators with the lowest bandwidth. Bottom *N* indicates the **N** lowest bandwidths.|
+|Matrix Model|Communication matrix heatmap.|
+|Communication Matrix Type|Communication matrix type.<br> - **Bandwidth (GB/s)**: bandwidth (GB/s).<br> - **Transit Size(MB)**: communication size.<br> - **Transport Type**: link type.<br> - **Transit Time(ms)**: communication duration.|
+|Show Inner Communication|Communication data in the rank. This option is not selected by default.|
+|Visible Range|Visible range of data. By default, all data is displayed. You can manually set the data display range.|
+|Src Rank Id|Source Rank ID. The horizontal coordinate is the ID of the source rank in the link information.|
+|Dst Rank Id|Destination Rank ID. The vertical coordinate is the ID of the destination rank in the link information.|
 
 **Communication Duration Analysis**
 
@@ -2568,9 +2593,9 @@ The **Communication Matrix** tab page displays information about communication o
 |Rank ID|Rank ID.|
 |Elapsed Time(ms)|Total time of all communication operator events.|
 |Transit Time(ms)|Communication duration, which indicates the communication duration of the communication operator, which is the total duration of communication operators on SDMA links (communication within a server) and RDMA links (communication between servers). If the communication duration is too long, a link may be faulty.|
-|Synchronization Time(ms)|Synchronization duration, which is required for synchronization between nodes before the first communication between cards. This parameter is used to determine whether the long waiting time is caused by a slow node or a slow link.|
+|Synchronization Time(ms)|Synchronization duration, which is required for synchronization between nodes before the first communication between ranks. This parameter is used to determine whether the long waiting time is caused by a slow node or a slow link.|
 |Wait Time(ms)|Waiting duration. Synchronization is performed before two nodes communicate with each other to ensure that communication is established after the two nodes are synchronized.|
-|Synchronization Time Ratio|Synchronization duration ratio. **Synchronization Time Ratio** = **Synchronization Time**/(**Synchronization Time** + **Transit Time**). A larger synchronization duration ratio before communication indicates a lower communication efficiency, which may be caused by slow cards.|
+|Synchronization Time Ratio|Synchronization duration ratio. **Synchronization Time Ratio** = **Synchronization Time**/(**Synchronization Time** + **Transit Time**). A larger synchronization duration ratio before communication indicates a lower communication efficiency, which may be caused by slow ranks.|
 |Wait Time Ratio|Wait time ratio of a communication operator. **Wait Time Ratio** = **Wait Time**/(**Wait Time** + **Transit Time**). A larger wait time ratio indicates that the wait time of the node accounts for a larger proportion of the total communication duration, and the communication efficiency is lower.|
 |Idle Time(ms)|Duration for communication operator delivery. **Idle Time** = **Elapsed Time** – **Transit Time** – **Wait Time**|
 |SDMA BW(GB)|SDMA bandwidth.|
@@ -2594,6 +2619,7 @@ The bandwidth analysis page displays the communication performance of network-wi
 |Transport Type|Link mode.|
 |SDMA|SDMA links (communication links between devices in a node), including HCCS, PCIe, and SIO links.|
 |RDMA|RDMA links (inter-node device communication links).|
+|UB|UB links (Device-to-Device communication links within a SuperPoD).|
 |Transit Size(MB)|Size of communication packets within one communication process.|
 |Transit Time(ms)|Duration of one communication process.|
 |Bandwidth(GB/s)|Bandwidth. The bandwidth equals the traffic divided by the communication duration. Empirical bandwidth reference values: **RDMA_Bandwidth** = **12.5**; **HCCS_Bandwidth** = **18**; and **PCIe_Bandwidth** = **20**.|
@@ -2623,9 +2649,11 @@ This column displays communication performance by operator, including the commun
 
 The advice provides data analysis including bandwidth description, byte alignment analysis, communication retransmission analysis, and communication packet analysis, and suggestions. You can further locate the slow rank and specific operator based on the advice in the parallel strategy analysis on the overview page.
 
-**Communication Link Type Description**<a id="communication-link-type-description"></a>
+-
 
 > The following content is sourced from the communication link type chapter of *Performance Tuning Tool Guide*. In case of updates, refer to the source document.
+
+> The following content is sourced from the "Communication Link Type" chapter of the *Performance Tuning Tool Guide*. If it is updated, the source document prevails.
 
 In communication analysis, data transmission is completed through different link types. The description of each link type is shown in [**Table 19** Communication link type description](#communication-link-type-description).
 
@@ -2638,8 +2666,9 @@ In communication analysis, data transmission is completed through different link
 |PCIe|Peripheral Component Interconnect Express|A subtype of SDMA, an intra-node communication link based on the PCIe bus.|Communication between NPUs connected via PCIe within the same server.|20|
 |SIO|Serial Input/Output|A subtype of SDMA, an intra-node communication link based on serial input/output.|Intra-node communication under specific hardware topologies.|-|
 |RDMA|Remote Direct Memory Access|Cross-node inter-device communication link, i.e., direct memory access between NPUs on different servers.|Multi-machine multi-rank scenario, communication between NPUs across servers.|12.5|
+|UB|Unified Bus|A high-speed interconnect dedicated to Ascend SuperPoDs for communication between devices in the same SuperPoD.|NPU communication over UB within the same SuperPoD.|-|
 
->[!NOTE]
+> [!NOTE]
 >
 > - SDMA includes three subtypes: HCCS, PCIe, and SIO. The MindStudio Insight tool automatically identifies the subtype used based on the actual hardware topology.
 > - The empirical bandwidth reference values are typical values of theoretical peak bandwidth. Actual bandwidth is affected by factors such as hardware configuration, network topology, and communication mode, and is provided for reference only.
@@ -2659,28 +2688,28 @@ Bandwidth description: displays the maximum, minimum, and average values of the 
 **Displaying and Zooming In on Communication Operator Thumbnails**
 
 - The **Communication** tab page supports the display of communication operator thumbnails.
-  - On the **Communication** tab page, select the required information from the drop-down lists in the upper part of the page. The corresponding communication operator thumbnail is displayed.
-  - Click a single operator in the communication operator thumbnail. The rank ID, operator name, start time, and elapsed time of the operator are displayed, as shown in [**Figure 1** Communication operator thumbnail](#communication-operator-thumbnail). For details about the fields in the figure, see [**Table 1** Operator fields displayed in the hover box](#operator-fields-displayed-in-the-hover-box).
+    - On the **Communication** tab page, select the required information from the drop-down lists in the upper part of the page. The corresponding communication operator thumbnail is displayed.
+    - Click a single operator in the communication operator thumbnail. The rank ID, operator name, start time, and elapsed time of the operator are displayed, as shown in [**Figure 1** Communication operator thumbnail](#communication-operator-thumbnail). For details about the fields in the figure, see [**Table 1** Operator fields displayed in the hover box](#operator-fields-displayed-in-the-hover-box).
 
-     **Figure 1** Communication operator thumbnail<a id="communication-operator-thumbnail"></a>
+        **Figure 1** Communication operator thumbnail<a id="communication-operator-thumbnail"></a>
 
         ![Communication operator thumbnail](./figures/system_tuning/communication_operator_thumbnail_1.png "Communication operator thumbnail")
 
-    **Table 1** Operator fields displayed in the hover box <a id="operator-fields-displayed-in-the-hover-box"></a>
+        **Table 1** Operator fields displayed in the hover box <a id="operator-fields-displayed-in-the-hover-box"></a>
 
-    |Field|Description|
-    |--|--|
-    |Rank ID|Rank ID of the communication operator.|
-    |Operator Name|Communication operator name.|
-    |Start Time|Start time of the communication operator.|
-    |Elapsed Time|Total execution duration of the communication operator.|
+      |Field|Description|
+      |--|--|
+      |Rank ID|Rank ID of the communication operator.|
+      |Operator Name|Communication operator name.|
+      |Start Time|Start time of the communication operator.|
+      |Elapsed Time|Total execution duration of the communication operator.|
 
 - You can zoom in or out on, move left or right, and move up or down an communication operator thumbnail. The operations are as follows:
-  - Drag the slider below the thumbnail or the slider on the right to zoom in or out.
-  - Move the pointer to any position of the communication operator thumbnail and hold down **Ctrl** and scroll the mouse wheel to zoom in or out.
-  - Drag the slider below the communication operator thumbnail to move the thumbnail leftward or rightward.
-  - If the communication operator thumbnail is not displayed in the default state, you can hold down **Shift** and press the left or right arrow key to move the thumbnail leftward or rightward.
-  - Drag the slider on the right of the communication operator thumbnail to move the thumbnail upward or downward to view the operator.
+    - Drag the slider below the thumbnail or the slider on the right to zoom in or out.
+    - Move the pointer to any position of the communication operator thumbnail and hold down **Ctrl** and scroll the mouse wheel to zoom in or out.
+    - Drag the slider below the communication operator thumbnail to move the thumbnail leftward or rightward.
+    - If the communication operator thumbnail is not displayed in the default state, you can hold down **Shift** and press the left or right arrow key to move the thumbnail leftward or rightward.
+    - Drag the slider on the right of the communication operator thumbnail to move the thumbnail upward or downward to view the operator.
 
 Click the communication operator thumbnail to use the following shortcuts. A rounded border indicates focus, and the question mark next to the title explains the controls.
 
@@ -2706,7 +2735,7 @@ On the **Communication** tab page, right-click a single operator in the communic
 
 On the **Timeline** tab page, right-click a communication operator and choose **Find in Communication** from the shortcut menu. The communication operator thumbnail is displayed on the **Communication** tab page. The filter box automatically matches the operator information, as shown in [**Figure 3** Find in Communication](#find-in-communication).
 
->[!NOTE]
+> [!NOTE]
 >
 > The communication operator in the **Plane** unit does not support the **Find in Communication** function. The communication operator thumbnail on the **Communication** tab page cannot be displayed.
 
@@ -2744,7 +2773,7 @@ MindStudio Insight automatically checks if slow ranks and abnormal operator exis
 
 ![Slow rank list](./figures/system_tuning/slow_card_list_1.png "Slow rank list")
 
->[!NOTE]
+> [!NOTE]
 >
 > - When **Operator Name** is set to **Total Op Info**, the slow rank and abnormal operator list can be displayed in the **Communication** thumbnail. Otherwise, the list is not displayed.
 > - The communication analysis is not supported for the communication group that contains the P2P or alltoallv operator, and the slow rank and abnormal operator list is not displayed.
@@ -2803,7 +2832,7 @@ The **RL** tab page displays the pipeline of each phase in the RL process, enabl
 
 **Precautions**
 
-- The **Task Trace Timeline** area is displayed only when control flow data collected using mstx is imported. For details about how to collect data using mstx, see [Ascend PyTorch Profiling Tool](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#%E9%87%87%E9%9B%86%E5%B9%B6%E8%A7%A3%E6%9E%90%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AEtorch_npuprofilerprofile).
+- The **Task Trace Timeline** area is displayed only when control flow data collected using mstx is imported. For details about how to collect data using mstx, see [Ascend PyTorch Profiling Tool](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#profile-and-parse-performance-data-torch_npuprofilerprofile).
 - When importing profile data of Volcano Engine Reinforcement Learning for LLMs (VerL) and MindSpeed, keep their files in different folders. Do not mix them together during import.
 
 ### GUI Description
@@ -2815,7 +2844,7 @@ The **RL** page consists of the parameter configuration area (area 1) and the ta
 ![](./figures/system_tuning/reinforcement_learning_interface_1.png "RL")
 
 - Area 1: In the parameter configuration area, the **Framework** and **Algorithm** of the imported data are automatically identified and displayed. If the data of more than 16 ranks is imported, the data may not be completely displayed on the **RL** tab page. You can click `Refresh` to parse all data and refresh the task trace timeline.
-- Area 2: The **Task Trace Timeline** area displays the execution time of each task on each rank. The horizontal coordinate is the timeline, and the vertical coordinate is the rank ID of each device. Different colors represent different tasks. Forward and backward micro batch marks are available in blue blocks, helping locate fine-grained performance issues during training.
+- Area 2: task execution timeline, which displays the execution time of each task on each rank. The horizontal axis is the time axis, and the vertical axis is the RankID corresponding to each device. Different colors represent different tasks. The blue blocks provide Forward and Backward micro batch markers to help locate fine-grained performance problems in the training phase.
 
     You can zoom in or out and move the timeline by dragging the sliders at the right and bottom of the timeline, or by holding down **Ctrl** and scrolling the mouse wheel.
 

@@ -1,32 +1,26 @@
 # Timeline Design Document
 
-<!-- md-trans-meta sourceCommit=49122e1f1d6621e5b8a8bbc1c0fdae9583659f48 translatedAt=2026-08-12T11:43:09.895Z pushedAt=2026-08-12T11:57:31.113Z -->
-
 ## 1. Concept Description
 
-In the Ascend heterogeneous computing architecture, the MindStudio Insight tool presents the detailed runtime conditions on the host and device sides during training/inference on a time axis in the form of a Timeline, intuitively displaying the API time consumption on the host side and the task time consumption on the device side, and correlating the host and device for presentation, helping users quickly identify host bottlenecks or device bottlenecks, while also providing various filtering and classification functions, expert suggestions, and other capabilities to support users in performing deep tuning.
+In the Ascend heterogeneous computing architecture, the MindStudio Insight tool presents the detailed runtime conditions on the host and device sides during training/inference on a time axis in the form of a Timeline,
+intuitively displaying the API time consumption on the host side and the task time consumption on the device side, and correlating the host and device for presentation, helping users quickly identify host bottlenecks or device bottlenecks,
+while also providing various filtering and classification functions, expert suggestions, and other capabilities to support users in performing deep tuning.
 
 **Basic Concepts:**
 
 1. Unit: Represents a device, process, thread, task flow, etc.
-
     1. CardUnit
-
         1. ProcessUnit and LabelUnit (the main difference lies in whether preview information is available)
-
             1. ThreadUnit and CounterUnit (the smallest units, corresponding to the two data display modes of the Timeline respectively)
-
 2. Slice: represents an action, event, operator, etc.
 
    ![image](./figures/timeline/3fc49b58-9b42-43a9-80e0-fcfc374a7b43.png)
 
 3. Data Scenario: the data on the Timeline page can come from two scenarios.
-
     1. TEXT scenario: refers to the data source being a `json` file in `Google Trace Format`.
-
     2. DB scenario: refers to the data source being the `ascend_profiler_output.db` file collected and parsed by the msprof tool.
 
-    The data structures of the two scenarios differ, so the backend has two separate sets of logic to process each type of data.
+   The data structures of the two scenarios differ, so the backend has two separate sets of logic to process each type of data.
 
 ## II. Interface Introduction
 
@@ -36,7 +30,7 @@ The Timeline interface consists of four parts: the toolbar (Area 1), the timelin
 
 ### Area 1: Toolbar
 
-Contains common shortcut buttons, which are, from left to right: Marker List, Filter (supports filtering display by card or by unit), Search, Connection Event, Restore (page restoration), and Timeline zoom in/out buttons.
+Contains common shortcut buttons, which are, from left to right: Marker List, Filter (supports filtering display by rank or by unit), Search, Connection Event, Restore (page restoration), and Timeline zoom in/out buttons.
 
 ![image](./figures/timeline/6699ff0c-3211-4f7b-b5d9-af81867ed589.png)
 
@@ -45,21 +39,16 @@ Contains common shortcut buttons, which are, from left to right: Marker List, Fi
 > The display differs between the TEXT scenario and the DB scenario.
 
 - TEXT scenario: Displays the hierarchical information of each "Card" in the cluster scenario, presented by the Rank dimension. The first level is the Rank ID, the second level is the process or specialized layer, and the third level is the thread or other names.
-
 - DB scenario: Displays the information under each machine. The first level is the machine name, and the second level includes Host and "Card".
 
     - The Host level displays PyTorch and CANN data by the process and thread dimensions;
-
     - The "Card" level includes:
 
         - Underlying data, including:
 
             - Duration data and iteration trace data of each Stream task flow under Ascend Hardware
-
             - HCCL and Overlap Analysis communication data
-
             - Memory data
-
             - Other Ascend hardware system data
 
         - AI Core Freq and other levels.
@@ -81,11 +70,8 @@ A display area for statistical information or operator detail information.
 **Specifically includes the following tabs:**
 
 1. Slice Detail: detailed information of a single selected operator.
-
 2. Slice List: operator list information of the selected region in a unit row.
-
 3. System View is the summary information of a certain type of operators.
-
 4. Find is the information of the searched operators.
 
 ![image](./figures/timeline/b115b6a8-ae77-4149-8746-a32cac7bd924.png)
@@ -96,7 +82,7 @@ A display area for statistical information or operator detail information.
 |:---|:--------------|:------------------|:---------------------------|
 | 1  | Tile training/inference process     | Display units and slices           | /                          |
 | 2  | Marker list          | Mark and save the selected area      | /                          |
-| 3  | Tree diagram filtering         | Filter by card              | /                          |
+| 3  | Tree diagram filtering         | Filter by rank              | /                          |
 | 4  |               | Filter by unit             | /                          |
 | 5  | Operator search          | Graphical window selection            | /                          |
 | 6  |               | Jump to data window discovery          | Same-name operator discovery                     |
@@ -135,7 +121,7 @@ A display area for statistical information or operator detail information.
 | 39 |               | Jump to data window selection list        | /                          |
 | 40 | Graphical window select Slice   | View Slice details         | /                          |
 | 41 |               | Jump to data window selection details        | /                          |
-| 42 | Data window system view      | Statistics system view            | View by machine name and card serial number                |
+| 42 | Data window system view      | Statistics system view            | View by machine name and rank serial number                |
 | 43 |               |                   | View comprehensive metrics                     |
 | 44 |               |                   | View Python API summary           |
 | 45 |               |                   | View CANN API summary             |
@@ -144,7 +130,7 @@ A display area for statistical information or operator detail information.
 | 48 |               |                   | View coverage analysis                     |
 | 49 |               |                   | View operator details                     |
 | 50 |               |                   | Click to jump to specific operator in Timeline graphical window     |
-| 51 | Data window system view      | Expert system view            | View by machine name and card serial number                |
+| 51 | Data window system view      | Expert system view            | View by machine name and rank serial number                |
 | 52 |               |                   | View affinity API                   |
 | 53 |               |                   | View affinity optimizer                    |
 | 54 |               |                   | View AICPU operator                |
@@ -153,8 +139,8 @@ A display area for statistical information or operator detail information.
 | 57 |               |                   | Click to jump to specific operator in Timeline graphical window     |
 | 58 |               | Event view              | View all operator details in unit                 |
 | 59 |               |                   | Click to jump to specific operator in Timeline graphical window     |
-| 60 | Data comparison          | Set baseline card             | /                          |
-| 61 |               | Set comparison card             | /                          |
+| 60 | Data comparison          | Set baseline rank             | /                          |
+| 61 |               | Set comparison rank             | /                          |
 
 ## 4. Development Knowledge
 
@@ -382,7 +368,6 @@ interface MovingState {
 | 3  | `moved`   | Moved state  |
 
 - `startX` `startY` records the mouse position relative to the viewport when the movement starts, used to determine whether the drag behavior is valid.
-
 - `screenX` `screenY` records the mouse position relative to the window when the movement starts, to prevent the window from being moved.
 
 ##### 4.3.2.2 mousedown
@@ -444,7 +429,7 @@ const getHandleMouseDown = (dragDirection: DragDirection, draggable: React.RefOb
 
 ##### 4.3.2.3 mousemove
 
-The event triggered during mouse movement. The following is the approximate source code and interpretation:
+The event triggered during mouse movement. The following is the approximate source code and interpretation.
 
 ![image](./figures/timeline/dee8c49c-e640-42fb-9eaf-3d37552c0479.png)
 
@@ -639,8 +624,8 @@ The current HTML
 
 ```react
 <Container>
-    <div className="topC">主内容</div>
-    <div className="bottomC">可拖动组件</div>
+    <div className="topC">Main content</div>
+    <div className="bottomC">Draggable component</div>
 </Container>
 ```
 
@@ -654,12 +639,12 @@ Taking <code>DragDirection.LEFT</code> as an example:
 
 > Applying <code>flex-direction: row-reverse;</code> does not change the position of child elements or the parent container relative to the viewport. That is, if the flex container is originally located at a certain position on the page (for example, 50 pixels from the top), then even if you change the arrangement order of the internal child elements, the position of this container and its content relative to the viewport remains unchanged.
 
-Diagram:
+Diagram
 ![image](./figures/timeline/26c0143e-30ad-4d64-9f0e-f3db473c0edd.png)
 
 ### 4.4 Graphical Pane Event Design
 
-Graphical pane events primarily control the user's action of selecting a rectangular area on the graphical pane by dragging a box. As shown in the figure:
+Graphical pane events primarily control the user's action of selecting a rectangular area on the graphical pane by dragging a box. As shown in the figure.
 
 ![alt text](./figures/timeline/4.4.1-rectangle-select.png)
 
@@ -699,16 +684,16 @@ export interface DomainRange {
 ##### 4.4.1.3 InteractorMouseState
 
 | Serial Number | Name       | Type                                        | Function                              |
-|---:|:-----------|:-------------------------------------------|:--------------------------------------|
+|---:|:-----------|:-------------------------------------------|:-----------|
 |  1 | clickPos   | `React.MutableRefObject<Pos \| undefined>` | Position of the first mouse click     |
 |  2 | lastPos    | `React.MutableRefObject<Pos \| undefined>` | Position where the mouse last moved to |
 |  3 | wheelEvent | `{ ctrlKey: boolean; deltaY: number }`     | Mouse wheel event parameters          |
 
 #### 4.4.2 Drag Behavior
 
-Logically, the event sequence of the drag behavior is: `Mouse Press -> Mouse Move -> Mouse Release`
+The logical event order of a drag action is: `press -> move -> release`
 
-In practice, however, the mouse must first be moved into the pane before pressing within the pane area. Therefore, the actual event sequence is: `Mouse Move -> Mouse Press -> Mouse Move -> Mouse Release`
+In practice, however, the cursor must be moved into the pane before the mouse button is pressed in the pane area, so the actual event order is: `move -> press -> move -> release`
 
 ##### 4.4.2.1 Mouse Press
 
@@ -846,7 +831,7 @@ const moveDomain = (session: Session, direction: number): void => {
 
 ### 4.5 Counter-Type Unit Data Design
 
-The Counter unit is shown in the following figure:
+The Counter unit is shown in the following figure.
 ![alt text](./figures/timeline/4.5.1-counter-units.png)
 
 #### 4.5.1 Core Interface
@@ -920,29 +905,27 @@ resp:
 ##### 4.5.2.1 Related Data Table
 
 | #  | Type                 | Data Table                 | Attribute Joined with the id Attribute of STRING_IDS | startTime   | processName | args                                                                                      | Search Limit Required Parameters                                   |
-|:---|:-------------------|:--------------------|:---------------------------------------------|:------------|:------------|:------------------------------------------------------------------------------------------|:-------------------------------------------|
-| 1  | `HBM`              | HBM                 | type                                         | timestampNs | `A*`        | value,bandwidth                                                                           | deviceId,processName,startTime,timestampNs |
-| 2  | `LLC`              | LLC                 | mode                                         | timestampNs | `B*`        | throughput,hitRate                                                                        | deviceId,startTime,processName             |
-| 3  | `DDR`              | DDR                 | /                                            | timestampNs | /           | read,write                                                                                | deviceId,startTime                         |
-| 4  | `STARS_SOC`        | SOC_BANDWIDTH_LEVEL | /                                            | timestampNs | /           | l2BufferBwLevel,mataBwLevel                                                               | deviceId,startTime                         |
-| 5  | `ACC_PMU`          | ACC_PMU             | /                                            | timestampNs | /           | readBwLevel,writeBwLevel,readOstLevel,writeOstLevel,accId                                 | deviceId,startTime                         |
-| 6  | `NPU_MEM`          | NPU_MEM             | type                                         | timestampNs | /           | ddr,hbm,                                                                                  | deviceId,type,startTime                    |
-| 7  | `SAMPLE_PMU`       | SAMPLE_PMU_TIMELINE | coreType                                     | timestampNs | `C*`        | freq,usage, totalCycle                                                                    | deviceId,value,coreId,startTime            |
-| 8  | `ROCE`,`ROH`,`NIC` | RoCE,RoH,NIC        | /                                            | timestampNs | `D*`        | rxByteRate,bandwidth,rxPackets,rxErrors,rxDropped,txByteRate,txPackets,txErrors,txDropped | deviceId,funcId,startTime                  |
-| 9  | `HCCS`             | HCCS                | /                                            | timestampNs | /           | txThroughput,rxThroughput                                                                 | deviceId,startTime                         |
-| 10 | `PCIE`             | PCIE                | /                                            | timestampNs | /           | txPostAvg,rxPostAvg,txNonpostAvg,rxNonpostAvg,txCplAvg,rxCplAvg,txNonpostLatencyAvg       | deviceId,startTime                         |
-| 11 | `AI_CORE`          | AICORE_FREQ         | /                                            | timestampNs | /           | freq                                                                                      | deviceId,startTime                         |
+|:---|:-------------------|:--------------------|:-----------------------------|:------------|:------------|:------------------------------------------------------------------------------------------|:-------------------------------------------|
+| 1  | `HBM`              | HBM                 | type                         | timestampNs | `A*`        | value,bandwidth                                                                           | deviceId,processName,startTime,timestampNs |
+| 2  | `LLC`              | LLC                 | mode                         | timestampNs | `B*`        | throughput,hitRate                                                                        | deviceId,startTime,processName             |
+| 3  | `DDR`              | DDR                 | /                            | timestampNs | /           | read,write                                                                                | deviceId,startTime                         |
+| 4  | `STARS_SOC`        | SOC_BANDWIDTH_LEVEL | /                            | timestampNs | /           | l2BufferBwLevel,mataBwLevel                                                               | deviceId,startTime                         |
+| 5  | `ACC_PMU`          | ACC_PMU             | /                            | timestampNs | /           | readBwLevel,writeBwLevel,readOstLevel,writeOstLevel,accId                                 | deviceId,startTime                         |
+| 6  | `NPU_MEM`          | NPU_MEM             | type                         | timestampNs | /           | ddr,hbm,                                                                                  | deviceId,type,startTime                    |
+| 7  | `SAMPLE_PMU`       | SAMPLE_PMU_TIMELINE | coreType                     | timestampNs | `C*`        | freq,usage, totalCycle                                                                    | deviceId,value,coreId,startTime            |
+| 8  | `ROCE`,`ROH`,`NIC` | RoCE,RoH,NIC        | /                            | timestampNs | `D*`        | rxByteRate,bandwidth,rxPackets,rxErrors,rxDropped,txByteRate,txPackets,txErrors,txDropped | deviceId,funcId,startTime                  |
+| 9  | `HCCS`             | HCCS                | /                            | timestampNs | /           | txThroughput,rxThroughput                                                                 | deviceId,startTime                         |
+| 10 | `PCIE`             | PCIE                | /                            | timestampNs | /           | txPostAvg,rxPostAvg,txNonpostAvg,rxNonpostAvg,txCplAvg,rxCplAvg,txNonpostLatencyAvg       | deviceId,startTime                         |
+| 11 | `AI_CORE`          | AICORE_FREQ         | /                            | timestampNs | /           | freq                                                                                      | deviceId,startTime                         |
 
 `A*`: "hbmId||'/'|| case when value='read' then 'Read' else 'Write' end"
 
 - `{hbmId}/Read`
-
 - `{hbmId}/Write`
 
 `B*`: "glob(modeName||'\*', processName)", "format('%s %s', llcId, case when value='read' then 'Read' else 'Write' end) as modeName"
 
 - `{llcId} Read*`
-
 - `{llcId} Write*`
 
 `C*`: "format('%s Core %s', value, coreId)"
@@ -1007,7 +990,6 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `llcId || ' ' || case when value='read' then 'Read' else 'Write' end || '/Throughput' as processName`, using the llcId and mode fields
-
 2. `llcId || ' ' || case when value='read' then 'Read' else 'Write' end || '/Hit Rate' as processName`, using the llcId and mode fields
 
 ###### 3. DDR Type
@@ -1033,7 +1015,6 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `Read`
-
 2. `Write`
 
 ###### 4. STARS_SOC Type
@@ -1059,7 +1040,6 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `L2 Buffer Bw Level`
-
 2. `Meta Bw Level`
 
 ###### 5. ACC_PMU Type
@@ -1079,11 +1059,8 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `readBwLevel`
-
 2. `writeBwLevel`
-
 3. `readOstLevel`
-
 4. `writeOstLevel`
 
 ###### 6. NPU_MEM Type
@@ -1102,15 +1079,10 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:** Related to type
 
 1. `APP/DDR`
-
 2. `APP/HBM`
-
 3. `APP/MEMORY`
-
 4. `Device/DDR`
-
 5. `Device/HBM`
-
 6. `Device/MEMORY`
 
 ###### 7. SAMPLE_PMU Type
@@ -1160,7 +1132,6 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `format('Port %s/rx', funcId)`, using the funcId field: 1
-
 2. `format('Port %s/tx', funcId)`, using the funcId field: 2
 
 ###### 9. HCCS Type
@@ -1204,11 +1175,8 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `PCIe_post`: 1
-
 2. `PCIe_nonpost`: 1
-
 3. `PCIe_cpl`: 1
-
 4. `PCIe_nonpost_latency`: 2
 
 ###### 11. AI_CORE Type
@@ -1226,6 +1194,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 **processName:** `AI Core Freq`
 
+---
 </details>
 
 #### 4.5.3 Text Scenario
@@ -1405,7 +1374,7 @@ RepositoryFactory::RepositoryFactory()
 
 ##### 4.6.2.2 Related Logic of `unit/one/kernelDetail`
 
-> NOTE
+> Note: The ID obtained for the HCCL Group type is COMMUNICATION_OP.rowId, not COMMUNICATION_OP.opId.
 
 | Serial Number | Type               | Query or Not | Data Table              | ID             | Remarks        |
 |:---|:-----------------|:-----|:-----------------|:---------------|:----------|
@@ -1454,7 +1423,8 @@ Core logic: `TraceDatabaseHelper::QueryThreadSameOperatorsDetails`
 
 The Expert Suggestion module is newly added and overlaid on top of the existing functionality. The overall feature uses the current data as a basis to further analyze potential issues in the data. In terms of the workflow, the original profiling file parsing and querying remain unchanged, and data query-related operations are newly added. Therefore, the code implementation essentially involves no code refactoring, but the implementation files related to data queries, such as `VirtualTraceDatabase.cpp/h`, will be modified.
 
-In terms of specific business scenarios, Expert Suggestions can be broadly divided into single-rank expert suggestions and cluster expert suggestions. Single-card expert suggestions are primarily displayed together with the Timeline interface, while cluster expert suggestions need to be displayed on cluster interfaces (such as the Summary interface and the Communication interface). Among the above requirements, except for the "Support cluster slow card and slow link cause identification" requirement, all others are single-rank expert suggestions. The implementation approach is analyzed in detail below.
+In terms of specific business scenarios, Expert Suggestions can be broadly divided into single-rank expert suggestions and cluster expert suggestions. Single-rank expert suggestions are primarily displayed together with the Timeline interface, while cluster expert suggestions need to be displayed on cluster interfaces (such as the Summary interface and the Communication interface). Among the above requirements, except for the "Support cluster slow rank and slow link cause identification" requirement, all others are single-rank expert suggestions.
+The implementation approach is analyzed in detail below.
 
 #### 4.8.2 Function Implementation Design
 
@@ -1488,7 +1458,7 @@ In the sequence diagram above:
 
 Directly read the SQL query result.
 
-###### AI CPU Operator Identification
+###### AICPU Operator Identification
 
 ![alt text](./figures/timeline/4.8.4-ai-cpu-kernel-flowchart.png)
 
@@ -1498,7 +1468,8 @@ The process is the same as that of the Affinity Optimizer, with the only differe
 
 ###### Fusion Operator Identification
 
-Fusion operator identification implements the matching of consecutively matching operator sequences within the same stream. SQL can be used to query consecutive matching sequences, but the lengths of matching rules may vary, so only one rule can be matched at a time. Consecutive matching sequences can be implemented using joins, for example:
+Fusion operator identification implements the matching of consecutively matching operator sequences within the same stream. SQL can be used to query consecutive matching sequences, but the lengths of matching rules may vary, so only one rule can be matched at a time.
+Consecutive matching sequences can be implemented using joins, for example:
 
 ```sql
 SELECT kd1.* FROM kernel_detail kd1
@@ -1511,13 +1482,9 @@ WHERE kd1.name = 'AA';
 The Advisor module involves five new frontend/backend request/response messages:
 
 1. `QueryAffinityAPIAdvice`: Affinity API Identification
-
 2. `QueryAffinityOptimizerAdvice`: Affinity Optimizer Identification
-
-3. `QueryAiCpuOpAdviceHandler`: AI CPU Operator Identification
-
+3. `QueryAiCpuOpAdviceHandler`: AICPU Operator Identification
 4. `QueryAclnnOpAdvisorHandler`: ACLNN Operator Identification
-
 5. `QueryFusedOperatorAdviceHandler`: Fusion Operator Identification
 
 #### 4.8.4 Overall Overview
@@ -1529,9 +1496,7 @@ For single-rank expert suggestions, the main body will be placed within the Time
 A new Advisor module is added, which includes the `AdvisorModule` class and three packages: `handler`, `process`, and `protocol`:
 
 1. The `handler` package contains handlers that process frontend requests. Different interfaces are implemented in separate files, making them independent of each other and extensible in the future. In addition to defining the basic information of the `Advisor` class, the `AdvisorModule` class also registers the aforementioned handlers with the global message interface management instance.
-
 2. The `process` package implements the processing of expert suggestions. It is called by the `handler` layer above and invokes various database query interfaces below. In addition to performing data queries, it also handles data assembly, sorting, filtering, and other processing tasks.
-
 3. The `protocol` package implements the protocol format and protocol conversion for frontend-backend interaction. In addition to defining the data structures of the interfaces, it also includes the conversion of frontend request JSON into request data structures and the conversion of backend response data structures into JSON to be returned to the frontend. The aforementioned protocol conversion implementations are registered with the global protocol conversion management instance according to the interface fields.
 
 ### 4.9 Full Connection Design
