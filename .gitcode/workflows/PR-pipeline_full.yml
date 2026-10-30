@@ -2,9 +2,11 @@ name: PR-pipeline_msinsight
 
 on:
   # PR 流水线通过 PR 评论 /compile 触发 ，不在 PR 打开/更新时自动运行
-  # pull_request:
-  #   types: [open, update]
-  #   branches: [ '*' ]
+  pull_request:
+    types: [open, update]
+    branches: [ 'master' ]
+    paths:
+      - ".gitcode/**"
   pr_comment:
     types: [created]
     keyword: '^compile$'
@@ -142,7 +144,7 @@ stages:
               ln -sf /usr/local/bin/python3.11 /usr/bin/python
               python --version
           - name: run pre-commit
-            uses: openlibing/pre-commit-action@v1.0.0
+            uses: openlibing/pre-commit-action@v1.0.3
             env:
               SKIP: clang-tidy
 
