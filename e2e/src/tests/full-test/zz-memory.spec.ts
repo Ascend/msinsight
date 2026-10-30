@@ -452,7 +452,7 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
         await frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_0).click();
         await expect(memoryPage.memoryFrame.getByTestId('memory-range-navigation'))
             .toHaveAttribute('data-rank-id', 'node18899436934890168541_0 0');
-        await expect(memoryPage.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+        await memoryPage.waitForRangeNavigation();
     });
 
     // 测试从多机多卡db类型数据切换到单机多卡text类型数据
@@ -513,7 +513,7 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
             await expect(navigation).toHaveAttribute('data-rank-id', curve.params.rankId);
             await expect(navigation).toHaveAttribute('data-start-ms', String(Number(lines[0][0])));
             await expect(navigation).toHaveAttribute('data-end-ms', String(Number(lines[lines.length - 1][0])));
-            await expect(memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+            await new MemoryPage(page).waitForRangeNavigation();
             // 等待 echarts 动画结束
             await page.waitForTimeout(2000);
             await expect(memoryFrame.locator('.mi-page')).toHaveScreenshot('pytorch-text-to-db.png', {
@@ -844,7 +844,7 @@ test.describe('Memory(RangeNavigation)', () => {
             await select.open();
             await select.selectOption(label);
         }
-        await expect(memory.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+        await memory.waitForRangeNavigation();
         await expect.poll(async () => rankLabel(await memory.memoryFrame.getByTestId('memory-range-navigation')
             .getAttribute('data-rank-id') ?? '')).toBe(label);
     }
@@ -866,7 +866,7 @@ test.describe('Memory(RangeNavigation)', () => {
         const navigation = memory.memoryFrame.getByTestId('memory-range-navigation');
         await expect(navigation).toHaveAttribute('data-start-ms', String(Number(lines[0][0])));
         await expect(navigation).toHaveAttribute('data-end-ms', String(Number(lines[lines.length - 1][0])));
-        await expect(memory.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true })).toBeEnabled();
+        await memory.waitForRangeNavigation();
         return result;
     }
 
@@ -881,7 +881,7 @@ test.describe('Memory(RangeNavigation)', () => {
         await expect(memory.memoryFrame.locator('.mi-collapsible-panel').first()).toHaveScreenshot(`${snapshotName}-memory.png`, {
             maxDiffPixels: 500,
         });
-        await memory.memoryFrame.getByRole('button', { name: 'Show current range in Timeline', exact: true }).click();
+        await memory.navigateRangeToTimeline();
         await expect(page.locator('#Timeline')).toBeVisible();
         const timeline = new TimelinePage(page);
         // Assert the rendered viewport and selection independently; a correct duration alone can hide a shifted range.
@@ -955,6 +955,12 @@ test.describe('Memory(RangeNavigation)', () => {
                 const second = await zoomMemory(page, curves, '0');
                 expect(Number(second.params.start)).toBeGreaterThan(Number(first.params.start));
                 expect(Number(second.params.end)).toBeLessThan(Number(first.params.end));
+                const memory = new MemoryPage(page);
+                await expect(memory.memoryFrame.getByRole('button', { name: 'Go to Timeline', exact: true }))
+                    .toHaveCount(0);
+                await memory.hoverRangeNavigation();
+                await expect(memory.memoryFrame.locator('.mi-collapsible-panel').first())
+                    .toHaveScreenshot(`${snapshotPrefix}-toolbar-tip.png`, { maxDiffPixels: 100 });
                 await jumpAndCheck(page, second, `${snapshotPrefix}-refined`);
                 const duration = Number(await timeline.mainContainer.getAttribute('data-domain-end')) -
                     Number(await timeline.mainContainer.getAttribute('data-domain-start'));

@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import type { FrameLocator, Locator, Page } from '@playwright/test';
+import { expect, type FrameLocator, type Locator, type Page } from '@playwright/test';
 import { FrameworkPage } from './framework';
 
 export class MemoryPage {
@@ -56,5 +56,25 @@ export class MemoryPage {
         await frameworkPage.goto();
         await frameworkPage.clickTab('memory');
         await this.page.mouse.move(0,0);
+    }
+
+    async waitForRangeNavigation(): Promise<void> {
+        await expect(this.memoryFrame.getByTestId('memory-range-navigation')).toHaveAttribute('data-can-locate', 'true');
+    }
+
+    async hoverRangeNavigation(): Promise<void> {
+        await this.waitForRangeNavigation();
+        await this.usageChart.scrollIntoViewIfNeeded();
+        const box = await this.usageChart.boundingBox();
+        if (box === null) { throw new Error('Memory chart is missing'); }
+        // 跳转图标位于最右侧，工具栏为原生提示保留了 50px 的右边距。
+        await this.usageChart.hover({ position: { x: box.width - 62.5, y: 32.5 } });
+    }
+
+    async navigateRangeToTimeline(): Promise<void> {
+        await this.hoverRangeNavigation();
+        const box = await this.usageChart.boundingBox();
+        if (box === null) { throw new Error('Memory chart is missing'); }
+        await this.usageChart.click({ position: { x: box.width - 62.5, y: 32.5 } });
     }
 }

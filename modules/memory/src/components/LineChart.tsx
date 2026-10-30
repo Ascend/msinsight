@@ -36,6 +36,7 @@ const SHOW_ALL_SYMBOL_THRESHOLD = 1000;
  * 自定义 toolbox 工具（my*）无法引用内置图标名，只能复用该 path。
  */
 const ECHARTS_DATA_ZOOM_BACK_ICON = 'M22,1.4L9.9,13.5l12.3,12.3 M10.3,13.5H54.9v44.6 H10.3v-26';
+const TIMELINE_RANGE_ICON = 'path://M21,3V21M3,12H16M10,6L16,12L10,18';
 const ChartDesc = styled.div`
     color: ${(props): string => props.theme.textColor};
     margin-bottom: 24px;
@@ -48,6 +49,8 @@ interface IProps {
     onSelectionChanged?: (start: number, end: number) => void;
     /** 服务端抽样场景下，右键/工具栏「回退上次状态」逐级回退；不传则沿用客户端 dataZoom back 语义。还原(restore)始终回到全量 */
     onZoomBack?: () => void;
+    onLocateRange?: () => void;
+    canLocateRange?: boolean;
     record?: any;
     isDark: boolean;
     isStatic: boolean;
@@ -77,7 +80,8 @@ const _getZoomBackTitle = (locale: string): string => (
     locale === 'zh' ? '回退上次状态' : 'Back'
 );
 
-const _getOriginOption = (props: IProps, theme: Theme, locale: string): echarts.EChartsOption => {
+const _getOriginOption = (propsRef: React.MutableRefObject<IProps>, theme: Theme, locale: string, t: TFunction): echarts.EChartsOption => {
+    const props = propsRef.current;
     const { isStatic, isDark, hAxisTitle, vAxisTitle, onZoomBack } = props;
     const legendDatas = _getLegendData(props.graph.columns);
     // 服务端抽样后图表会重建，ECharts 内置缩放历史为空，原生 back 不会有效显示/工作；
@@ -103,6 +107,20 @@ const _getOriginOption = (props: IProps, theme: Theme, locale: string): echarts.
     toolboxFeature.restore = {
         emphasis: { iconStyle: { textPosition: 'top' } },
     };
+    if (props.onLocateRange) {
+        toolboxFeature.myLocateRange = {
+            show: true,
+            title: t('Go to Timeline'),
+            icon: TIMELINE_RANGE_ICON,
+            iconStyle: { opacity: props.canLocateRange ? 1 : 0.3 },
+            onclick: (): void => {
+                // ECharts 会保留首次注册的回调，点击时必须读取最新状态。
+                const current = propsRef.current;
+                if (current.canLocateRange) { current.onLocateRange?.(); }
+            },
+            emphasis: { iconStyle: { textPosition: 'top' } },
+        };
+    }
     return {
         textStyle: getDefaultChartOptions().textStyle,
         title: { text: '' },
@@ -137,7 +155,8 @@ const _getOriginOption = (props: IProps, theme: Theme, locale: string): echarts.
         toolbox: {
             feature: toolboxFeature as echarts.ToolboxComponentOption['feature'],
             top: 20,
-            right: 10,
+            // 为末尾跳转图标的原生上方提示留出空间，避免触发右侧边界避让。
+            right: props.onLocateRange ? 50 : 10,
         },
         backgroundColor: 'transparent',
     };
@@ -249,10 +268,11 @@ const _handleOption = (option: echarts.EChartsOption, graph: Graph, chartWidth: 
 };
 
 const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefObject<number[]>,
-    props: IProps, theme: Theme, chartWidth: number, locale: string): number => {
+    propsRef: React.MutableRefObject<IProps>, theme: Theme, chartWidth: number, locale: string, t: TFunction): number => {
+    const props = propsRef.current;
     const { graph, onSelectionChanged, onZoomBack, rangeFlagData } = props;
 
-    let option = _getOriginOption(props, theme, locale);
+    let option = _getOriginOption(propsRef, theme, locale, t);
     option = _handleOption(option, graph, chartWidth, rangeFlagData);
 
     // 自定义回退按钮点击后保持框选缩放模式（与右键回退一致）
@@ -408,7 +428,7 @@ export const LineChart: React.FC<IProps> = (props) => {
             }
             const myChart = echarts.init(element, isDark ? 'dark' : 'customed', { locale });
             chartRef.current = myChart;
-            animationFrame = _showGraph(myChart, selectedPoints, propsRef.current, theme, element.clientWidth - 200, locale);
+            animationFrame = _showGraph(myChart, selectedPoints, propsRef, theme, element.clientWidth - 200, locale, t);
             _handleEvents(myChart, propsRef.current, selectedPoints, graph, t);
         };
         const resizeObserver = new ResizeObserver(resizeChart);
@@ -424,6 +444,21 @@ export const LineChart: React.FC<IProps> = (props) => {
             element.oncontextmenu = null;
         };
     }, [graph, isDark, locale, rangeFlagData]);
+
+    React.useEffect(() => {
+        if (!props.onLocateRange) { return; }
+        // 不重建图表，仅更新可用状态；实际点击始终使用首次注册的回调。
+        const frame = requestAnimationFrame(() => chartRef.current?.setOption({
+            toolbox: {
+                feature: {
+                    myLocateRange: {
+                        iconStyle: { opacity: props.canLocateRange ? 1 : 0.3 },
+                    },
+                },
+            },
+        }));
+        return () => cancelAnimationFrame(frame);
+    }, [props.onLocateRange, props.canLocateRange]);
 
     React.useEffect(() => {
         if (!graphRef.current?.clientWidth || !graphRef.current.clientHeight) {

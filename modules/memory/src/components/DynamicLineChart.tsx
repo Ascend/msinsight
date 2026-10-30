@@ -19,7 +19,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { runInAction } from 'mobx';
-import { Spin, CollapsiblePanel, Select, Button } from '@insight/lib/components';
+import { Spin, CollapsiblePanel, Select } from '@insight/lib/components';
 import { StyledEmpty, customConsole as console } from '@insight/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { Graph } from '../entity/memory';
@@ -196,12 +196,10 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
                     {lineChartData
                         ? <>
                             <div data-testid="memory-range-navigation" data-start-ms={startMs} data-end-ms={endMs}
+                                data-can-locate={canLocateRange}
                                 data-rank-id={curveRankId}
                                 style={{ paddingBottom: 20, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
                                 <RangeFlagSelect memorySession={memorySession} rankOffsetNs={rankOffsetNs} callback={setRangeFlagData}/>
-                                <Button disabled={!canLocateRange} onClick={locateRange}>
-                                    {t('Show current range in Timeline')}
-                                </Button>
                             </div>
                             <LineChart
                                 hAxisTitle={t('Time (ms)')}
@@ -209,6 +207,8 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
                                 graph={lineChartData}
                                 onSelectionChanged={onSelectedRangeChanged}
                                 onZoomBack={onZoomBack}
+                                onLocateRange={locateRange}
+                                canLocateRange={canLocateRange}
                                 record={memorySession.selectedRecord}
                                 isDark={isDark}
                                 isStatic={false}

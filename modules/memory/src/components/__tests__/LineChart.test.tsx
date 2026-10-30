@@ -124,8 +124,79 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 describe('LineCharts', () => {
+    it('adds range navigation to the toolbox with a localized hover tip', async () => {
+        const onLocateRange = jest.fn();
+        render(<LineChart {...defaultProps} onLocateRange={onLocateRange} canLocateRange onZoomBack={jest.fn()} />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenCalled());
+        const option = mockEChartsInstance.setOption.mock.calls.find(([value]) => value.toolbox?.feature?.myLocateRange?.icon)?.[0];
+        const feature = option.toolbox.feature.myLocateRange;
+        expect(feature.title).toBe('Go to Timeline');
+        expect(feature.icon).toMatch(/^path:\/\//);
+        expect(Object.keys(option.toolbox.feature)).toEqual(['dataZoom', 'myZoomBack', 'restore', 'myLocateRange']);
+        expect(option.toolbox.right).toBe(50);
+        expect(feature.iconStyle).toEqual({ opacity: 1 });
+        expect(feature.emphasis).toEqual(option.toolbox.feature.restore.emphasis);
+        feature.onclick();
+        expect(onLocateRange).toHaveBeenCalledTimes(1);
+    });
+
+    it('disables navigation while loading and uses the latest callback without rebuilding the chart', async () => {
+        const previous = jest.fn();
+        const current = jest.fn();
+        const { rerender } = render(<LineChart {...defaultProps} onLocateRange={previous} canLocateRange />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenCalled());
+        // ECharts 5.5.1 保留首次创建工具时的回调，不会使用后续 setOption 中的 onclick。
+        const feature = mockEChartsInstance.setOption.mock.calls.find(([value]) => value.toolbox?.feature?.myLocateRange?.icon)?.[0]
+            .toolbox.feature.myLocateRange;
+        rerender(<LineChart {...defaultProps} onLocateRange={current} canLocateRange={false} />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenLastCalledWith(expect.objectContaining({
+            toolbox: { feature: { myLocateRange: { iconStyle: { opacity: 0.3 } } } },
+        })));
+        feature.onclick();
+        expect(previous).not.toHaveBeenCalled();
+        expect(current).not.toHaveBeenCalled();
+        rerender(<LineChart {...defaultProps} onLocateRange={current} canLocateRange />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenLastCalledWith(expect.objectContaining({
+            toolbox: { feature: { myLocateRange: { iconStyle: { opacity: 1 } } } },
+        })));
+        feature.onclick();
+        expect(current).toHaveBeenCalledTimes(1);
+        expect(previous).not.toHaveBeenCalled();
+        expect(echarts.init).toHaveBeenCalledTimes(1);
+    });
+
+    it('enables the original click handler when a chart created during loading becomes ready', async () => {
+        const onLocateRange = jest.fn();
+        const { rerender } = render(<LineChart {...defaultProps} onLocateRange={onLocateRange} canLocateRange={false} />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenCalled());
+        const feature = mockEChartsInstance.setOption.mock.calls.find(([value]) => value.toolbox?.feature?.myLocateRange?.icon)?.[0]
+            .toolbox.feature.myLocateRange;
+        feature.onclick();
+        expect(onLocateRange).not.toHaveBeenCalled();
+        rerender(<LineChart {...defaultProps} onLocateRange={onLocateRange} canLocateRange />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenLastCalledWith(expect.objectContaining({
+            toolbox: { feature: { myLocateRange: { iconStyle: { opacity: 1 } } } },
+        })));
+        feature.onclick();
+        expect(onLocateRange).toHaveBeenCalledTimes(1);
+        expect(echarts.init).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses the translated range navigation tip', async () => {
+        mockT.mockImplementation(key => key === 'Go to Timeline' ? '跳转到 Timeline' : key);
+        render(<LineChart {...defaultProps} onLocateRange={jest.fn()} canLocateRange />);
+        await waitFor(() => expect(mockEChartsInstance.setOption).toHaveBeenCalledWith(expect.objectContaining({
+            toolbox: expect.objectContaining({
+                feature: expect.objectContaining({
+                    myLocateRange: expect.objectContaining({ title: '跳转到 Timeline' }),
+                }),
+            }),
+        }), expect.anything()));
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
+        mockT.mockImplementation(key => key);
         mockUseTranslation.mockReturnValue({
             t: mockT,
             i18n: mockI18n,
@@ -248,6 +319,7 @@ describe('LineCharts', () => {
         expect(setOptionCall.toolbox.feature.dataZoom).toBeDefined();
         expect(setOptionCall.toolbox.feature.dataZoom.icon?.back).not.toBe('none');
         expect(setOptionCall.toolbox.feature.myZoomBack).toBeUndefined();
+        expect(setOptionCall.toolbox.feature.myLocateRange).toBeUndefined();
     });
 
     it('should show custom zoom-back toolbox button that calls onZoomBack', async () => {
@@ -421,7 +493,7 @@ describe('LineCharts', () => {
         await waitFor(() => {
             expect(mockEChartsInstance.dispatchAction).toHaveBeenCalledWith({
                 type: 'highlight',
-                seriesName: undefined,
+                seriesName: 'Operators Allocated',
                 dataIndex: [1, 2],
             });
         });
@@ -437,7 +509,7 @@ describe('LineCharts', () => {
         await waitFor(() => {
             expect(mockEChartsInstance.dispatchAction).toHaveBeenCalledWith({
                 type: 'downplay',
-                seriesName: undefined,
+                seriesName: 'Operators Allocated',
                 dataIndex: [],
             });
         });
@@ -491,7 +563,7 @@ describe('LineCharts', () => {
             // 应该只调用 downplay，不调用 highlight
             expect(mockEChartsInstance.dispatchAction).toHaveBeenCalledWith({
                 type: 'downplay',
-                seriesName: undefined,
+                seriesName: 'Operators Allocated',
                 dataIndex: [],
             });
         });
