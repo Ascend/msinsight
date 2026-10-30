@@ -1,8 +1,6 @@
 # Quick Start (System Tuning)
 
-<!-- md-trans-meta sourceCommit=4d31aa7808cfa63b1e9a65d9252c982b334ca6f5 translatedAt=2026-08-12T11:44:14.805Z pushedAt=2026-08-12T11:57:31.124Z -->
-
-MindStudio Insight supports importing system profile data of models running on Ascend AI Processors, collected by the [msProf](https://gitcode.com/Ascend/msprof/blob/master/docs/en/quick_start/msprof_quick_start.md) tool. Based on the key performance metrics displayed, you can quickly identify software and hardware performance bottlenecks of the model and perform system performance tuning.
+MindStudio Insight supports importing system profile data of models running on Ascend AI Processors, collected by the [msProf](https://gitcode.com/Ascend/msprof) tool. Based on the key performance metrics displayed, you can quickly identify software and hardware performance bottlenecks of the model and perform system performance tuning.
 
 This document uses two-server 16-rank sample data as an example to demonstrate how to progressively locate system performance bottlenecks caused by fast/slow ranks (i.e., performance imbalance among ranks) from the **Summary**, **Communication**, and **Timeline** tabs.
 
@@ -13,14 +11,11 @@ This document uses two-server 16-rank sample data as an example to demonstrate h
 This document is intended for developers who want to quickly experience the system tuning capabilities of MindStudio Insight, focusing on the following workflow:
 
 1. Import system profile data collected by msProf.
-
 2. Observe overall resource utilization on the **Summary** tab.
-
 3. Identify potential performance bottleneck ranks on the **Communication** tab.
-
 4. Further verify the idle and computing distribution on the **Timeline** page.
 
->[!NOTE]
+> [!NOTE]
 >
 > This document uses prepared sample data to demonstrate the analysis path, without elaborating on msProf data collection commands. If you need to collect real system data, refer to the data description in [MindStudio Insight System Tuning](../user_guide/system_tuning.md) and the msProf tool documentation.
 
@@ -29,7 +24,7 @@ This document is intended for developers who want to quickly experience the syst
 | Check Item | Requirement |
 | --- | --- |
 | Tool installation | MindStudio Insight has been installed. For the installation method, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md). |
-| Version compatibility | The versions of MindStudio Insight, CANN, and the collection tool must be compatible. For version relationships, see [Release Notes](../release_notes/release_notes.md). |
+| Version compatibility | The versions of MindStudio Insight, CANN, and the collection tool must be compatible. For version relationships, see [Release Notes](https://gitcode.com/Ascend/msinsight/releases). |
 | Sample data | The system performance sample data provided in this document has been downloaded and is accessible locally. |
 | Data source | The sample data is collected by [msProf](https://gitcode.com/Ascend/msprof) and contains the information required by **Summary**, **Communication**, and **Timeline**. |
 | Applicable scenario | Applicable to introductory system performance analysis in multi-rank training or inference scenarios, especially suitable for learning fast/slow rank analysis, communication latency analysis, and idle time analysis. |
@@ -185,11 +180,7 @@ Observe the **Slice List** section after the selection. The Free time is approxi
 ## 4. More Information
 
 - For data import, opening views, and basic operations: see [MindStudio Insight Basic Operations](../user_guide/basic_operations.md).
-
 - For in-depth learning of system tuning capabilities: see [MindStudio Insight System Tuning](../user_guide/system_tuning.md).
-
 - For common **Timeline** units and interactions: see [Timeline Unit Introduction](../best_practices/Timeline_Common_Lanes_and_Interface.md).
-
 - For further understanding of host-side idle and bottleneck analysis: see [Host Bound Analysis Based on Linux Kernel Trace](../best_practices/host_bound_analysis_with_linux_kernel_trace.md).
-
 - If you encounter import or interface anomalies, see [FAQs](../support/faq.md).

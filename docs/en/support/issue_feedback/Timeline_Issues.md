@@ -1,7 +1,5 @@
 # Timeline Issues
 
-<!-- md-trans-meta sourceCommit=e99edc859b9c75396352963171ba410aa66e4e0d translatedAt=2026-08-12T11:46:36.822Z pushedAt=2026-08-12T11:57:31.156Z -->
-
 ## Opening Two Pages to View Profiling Results in Inability to Collect Statistics and Incorrect Time Consumption Display
 
 ### Problem Description
@@ -21,6 +19,8 @@ The two profiling results are stored in the same folder, causing them to read fr
 
 [Resolution]
 Delete the DB file, separate the multiple files into different folders, and re-import them.
+
+---
 
 ## Timeline Overall Metric No Data
 
@@ -45,6 +45,8 @@ Upon inspecting the source file, it was found that the user modified **Device Ty
 
 **9** is the global rank ID. The **Device Type** should be changed to the local ID within the node (that is, if a single node has 8 ranks and two nodes have 16 ranks in total, the global rank ID ranges from 0 to 15, while the device ID ranges from 0 to 7). `RankId=9` corresponds to rank 1 of the second node, so the **Device Type** should be changed to **NPU:1**.
 
+---
+
 ## Inconsistency Between the Displayed Duration of the Box Selection Time in Timeline and the Total Duration in the Selected List
 
 ### Problem Description
@@ -55,7 +57,9 @@ The total duration in the selected list is more than twice the duration displaye
 
 ### Solution
 
-This is normal behavior. The time displayed in **Totals** for the selected area is the sum of the durations of the selected items. Since the selected <code>Communication</code> and <code>Communication(Not Overlapped)</code> have the same duration, the time of the communication operator is counted twice in **Totals**, resulting in a discrepancy with the duration of the selected area.
+This is normal behavior. The time displayed in **Totals** for the selected area is the sum of the durations of the selected items. Since the selected `Communication` and `Communication(Not Overlapped)` have the same duration, the time of the communication operator is counted twice in **Totals**, resulting in a discrepancy with the duration of the selected area.
+
+---
 
 ## Unit Sorting Control
 
@@ -69,6 +73,8 @@ When a self-generated JSON file is imported into MindStudio Insight, how can the
 
 Add the `thread_sort_index` of all units and update the version. The version must be 20250930 or later.
 
+---
+
 ## Insight Slice Color Customization
 
 ### Problem Description
@@ -80,6 +86,8 @@ The colors of entries in msInsight cannot be easily distinguished, as both compu
 ### Solution
 
 Color changes are not currently supported. To view the compute and free ratios, use the **Overall Metrics** feature under **System View**.
+
+---
 
 ## Overall Metric Shows No Data When Opening Profile Data
 
@@ -98,6 +106,8 @@ Data issue: The content in the device Type column of the `operator_memory.csv` f
 1. Manually modify the **Device Type** column.
 
 2. Update to a TorchNPU version later than 8.6.
+
+---
 
 ## msInsight Timeline Shows ProfilerStep Not in the First Row
 
@@ -119,6 +129,8 @@ If you want to see what ProfilerStep looks like in the first row, right-click th
 
 Regarding the second issue, "Does the upstream timeline also show multiple steps?" — these steps are merely call stack hints indicating that the Python code calls the step method of `torch_npu/npu/amp/grad_scaler.py`. They have no relationship with the relative position of ProfilerStep.
 
+---
+
 ## Timeline Stack and Operator Information Not Displayed
 
 ### Problem Description
@@ -136,6 +148,8 @@ A data entry in the JSON file has a ts value of 0, causing an abnormal timeline 
 
 [Solution]
 Delete the data entry with ts set to 0, and the timeline will display normally.
+
+---
 
 ## On a Single Node with 16 Ranks, Only Rank 0 Displays "Ascend Hardware" and "Communication", While Other Ranks Have Data but Lack These Two Values
 
@@ -156,12 +170,13 @@ It was found that the **deviceid** values in the `RANK_DEVICE_MAP` table of othe
 **[Solution**]
 The PTA package and CANN version are too old. Update them to the latest versions and collect data again.
 
+---
+
 ## Collective Communication Operator Alignment Failure
 
 ### Problem Description
 
 1. The positions of the same communication operator deviate significantly, which may indicate an incorrect communication operator name. ![image.png](figures/Timeline_Issues/multi-card-timeline-misaligned.png)
-
 2. The communication overview is disordered. Even after using one-click alignment, some communication operators still cannot be aligned. ![image.png](figures/Timeline_Issues/communication-overview-misaligned.png)
 
 ### Solution
@@ -178,6 +193,8 @@ Take the following data as an example. The two operators appear to be the same c
 
 [Future Modification Plan] When parsing data, the profiler should first correctly filter out the communication duration in the warmup phase and then start counting from 0. This has been transferred to an internal task for tracking, and the tuning team will follow up on the modification progress.
 
+---
+
 ## No Communication Data for Specific Steps Visible During Profiling
 
 ### Problem Description
@@ -190,6 +207,8 @@ When using the PyTorch Lightning library, specific step-level communication data
 
 After analyzing the data, it was found that only steps 2, 3, and 4 were collected, while the main operators were in step 0. The data from step 0 must also be collected during profiling.
 
+---
+
 ## Clicking Communication Operator Shows No Operator Flows
 
 ### Problem Description
@@ -201,6 +220,8 @@ Tool Version: Insight 8.1
 ### Solution
 
 Update to Insight 8.2 or later.
+
+---
 
 ## Significant Discrepancy in Operator Duration Between Timeline and Communication
 
@@ -222,6 +243,8 @@ This is a data issue. 1. The data on the **Communication** tab comes from the `c
 [Resolution]
 The collection team recommends using a newer TorchNPU version to re-collect and parse the data.
 
+---
+
 ## Multi-Rank Timeline Misalignment in Cluster Scenarios, with a Discrepancy Exceeding the Minute Level
 
 ### Problem Description
@@ -241,6 +264,8 @@ The time on the machines corresponding to the 64 ranks in this data may be incon
 2. Alternatively, if you only want to view the alignment of communication operators, you can right-click an operator you wish to align on the **Communication** page and select "Align by Selected Operator" to align the communication operators across all ranks.
 
     ![image.png](figures/Timeline_Issues/align-by-selected-operator.png)
+
+---
 
 ## When Using msInsight for Profiling Analysis, the Operation Causing Free Time Cannot Be Identified
 

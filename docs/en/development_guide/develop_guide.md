@@ -1,13 +1,10 @@
 # **Development Guide**
 
-<!-- md-trans-meta sourceCommit=49122e1f1d6621e5b8a8bbc1c0fdae9583659f48 translatedAt=2026-08-12T11:43:00.418Z pushedAt=2026-08-12T11:57:31.106Z -->
-
 ## 1. Code Repository Directory Description
 
 ### 1.1 Top-Level Directory Structure
 
 ```text
-​```
 ├── build                              # Build scripts
 ├── docs                               # Project documentation
 ├── e2e                                # End-to-end test cases
@@ -48,7 +45,6 @@
     │   ├── test                       # Backend developer tests
     │   └── utils                      # Utilities
     └── third_party                    # Third-party dependencies
-​```
 ```
 
 ### 1.2 Frontend Module Description
@@ -67,7 +63,7 @@
 
 ### 1.3 Developer Documentation Map
 
-It is recommended to read the developer documentation in the following order:
+It is recommended to read the developer documentation in the following order.
 
 | Scenario | Recommended Reading |
 | --- | --- |
@@ -86,7 +82,7 @@ MindStudio Insight is a cross-platform tool. This document uses the **Linux deve
 
 ### 2.1 Preparing Basic Dependencies
 
-The following tools are recommended for local Linux development:
+The following tools are recommended for local Linux development.
 
 | Software Name | Version Requirement | Purpose |
 | --- | --- | --- |
@@ -543,7 +539,7 @@ server
 
 Write JSON protocol handling and response passing here:
 
-```c++
+```cpp
 struct JsonResponse : public Response {
     explicit JsonResponse(const std::string &command) : Response(command) {}
     [[nodiscard]] virtual std::optional<document_t> ToJson() const = 0;
@@ -763,7 +759,7 @@ export const addDataPath = async function(project: Project, action: ProjectActio
 }
 ```
 
-**4. The microservice processes data to generate card/unit menus**.
+**4. The microservice processes data to generate rank/unit menus**.
 
 **Code source:** `modules/timeline/src/connection/handler.ts`
 
@@ -778,7 +774,7 @@ export const importRemoteHandler: NotificationHandler = async (data): Promise<vo
 }
 ```
 
-**5. The microservice receives and processes the card parsing result.**
+**5. The microservice receives and processes the rank parsing result.**
 
 **Code source:** `modules/timeline/src/connection/handler.ts`
 
@@ -894,7 +890,7 @@ Indicates which tables need to be displayed as pure tables.
 
 ![structure_dataTable](./figures/structure_dataTable.png)
 
-Table field description:
+Table field description
 
 ![structure_filed_description](./figures/structure_filed_description.png)
 
@@ -968,10 +964,8 @@ CREATE TABLE "translate" (
 #### 4.1.1 Test Framework and Build Mode
 
 - Test framework: GoogleTest + GMock
-
 - Mock framework: mockcpp (automatically built via ExternalProject)
-
-- Two build modes:
+- Two build modes.
 
 | Build Mode | Trigger Method | Coverage Instrumentation | Applicable Scenario |
 | --- | --- | --- | --- |
@@ -1014,26 +1008,18 @@ server/src/test/
 #### 4.1.3 Test Naming Conventions
 
 - **Fixture naming**: `<ModuleName><ComponentName>Test`, such as `MemoryHandlerTest` and `CommunicationProtocolRequestTest`
-
 - **Test case naming**:
-- Functional style: `QueryComputeStatisticsData` (describes the function under test)
-
-- Scenario style: `TestFindSliceByAllocationTimeHandlerWhenTimelineNotExist` (describes the test scenario)
-
-- Parameter validation style: `OperatorDetailsParamTest` (validates parameter boundaries)
-
-- Security injection style: `TestOpenDbWithPathInject` (validates security issues such as path injection)
-
+  - Functional style: `QueryComputeStatisticsData` (describes the function under test)
+  - Scenario style: `TestFindSliceByAllocationTimeHandlerWhenTimelineNotExist` (describes the test scenario)
+  - Parameter validation style: `OperatorDetailsParamTest` (validates parameter boundaries)
+  - Security injection style: `TestOpenDbWithPathInject` (validates security issues such as path injection)
 - **Stateless utility test**: Use `TEST(UtilName, FunctionName)`, for example, `TEST(StringUtil, IntToString)`
 
 #### 4.1.4 Steps for Adding a New Test Case
 
 1. **Create a test file**: Create a test file under `server/src/test/modules/<module name>/`, for example, `<module name><component>Test.cpp`.
-
 2. **Write test fixtures and cases**: Use the `TEST_F(FixtureName, CaseName)` macro to write them.
-
 3. **Update CMakeLists.txt**: Add a new `aux_source_directory` entry in `server/src/test/CMakeLists.txt`.
-
 4. **Build and run**: After reloading the CMake project, build `insight_test` and execute the test for verification.
 
 **Common commands:**
@@ -1055,19 +1041,14 @@ For more usage, see the [GoogleTest official documentation](https://google.githu
 #### 4.1.5 Test Data Management
 
 - Test data is located in the `server/src/test/test_data/` directory. Create module subdirectories as needed.
-
 - Use the `DtFramework` tool to obtain the test data path:
-
   - `SRC_TEST_DATA`: data under `server/src/test/test_data/`
-
   - `ROOT_TEST`: data under the project root directory `test/`
-
 - `TestSuit::SetUpTestSuite()` parses real profiler data such as `test_rank_0/` when the test suite is initialized.
 
 #### 4.1.6 Coverage
 
 - **Coverage requirements**: line coverage must reach **80%**, and branch coverage must reach **60%**.
-
 - On Linux, run the following commands to generate coverage:
 
 ```bash
@@ -1076,36 +1057,24 @@ bash cpp_coverage.sh
 ```
 
 - `cpp_coverage.sh` execution flow:
-
   1. Preprocess third-party dependencies.
-
   2. Use `-D_PROJECT_TYPE=test` to build `insight_test` with coverage instrumentation.
-
   3. Run `insight_test` to generate `.gcda` coverage data.
-
   4. Use lcov to filter out the `include/test/third_party` directory and generate coverage information.
-
   5. Use genhtml to generate an HTML report.
-
-  6. Summarize coverage for each directory under `server/src/modules/<module>`.
-
-  7. Push the report to `msinsight-org/qa-test-assets` and post the summary as an MR comment by default. The step is skipped when the token is missing. Set `COVERAGE_ASSET=off` or `COVERAGE_COMMENT=off` to disable each part.
-
+  6. Summarize coverage for each module under `server/src/modules/<module>`.
+  7. By default, submit the report to `msinsight-org/qa-test-assets` and post the summary as an MR comment. If the token is missing, this step is skipped. Set `COVERAGE_ASSET=off` or `COVERAGE_COMMENT=off` to disable report submission or commenting separately.
 - Coverage report path: `build_llt/output/cpp_coverage/result/index.html`
-
 - Module summary: `build_llt/output/cpp_coverage/coverage_summary.md`
-
-- Archive path: `server/cpp-ut/coverage-reports/<YYYY-MM-DD>_pr<MR>_<short-sha>/`
+- Archive path: `server/cpp-ut/coverage-reports/<YYYY-MM-DD>_pr<MR>_<short-commit>/`
 
 ### 4.2 GUI Developer Test
 
 #### 4.2.1 Test Framework and Configuration
 
 - Test framework: Playwright 1.57 + TypeScript
-
 - Test code is located in the project root directory `e2e/`.
-
-- Configuration file: `e2e/playwright.config.ts`. Key configurations are as follows:
+- Configuration file: `e2e/playwright.config.ts`. Key configurations are as follows.
 
 | Configuration Item | Value | Description |
 | --- | --- | --- |
@@ -1120,9 +1089,7 @@ bash cpp_coverage.sh
 Playwright automatically starts the frontend and backend services, so manual startup is not required. The `profiler_server` binary path is automatically selected based on the operating system:
 
 - Windows: `../server/output/win_mingw64/bin/profiler_server.exe`
-
 - macOS: `../server/output/darwin/bin/profiler_server`
-
 - Linux: `../server/output/linux-{arch}/bin/profiler_server`
 
 #### 4.2.2 Test Directory Structure
@@ -1142,9 +1109,7 @@ e2e/src/
 #### 4.2.3 Steps for Adding a GUI Test Case
 
 1. **Creating a Page Object** (skip if the module already exists): Create a module page class under `e2e/src/page-object/`, encapsulating iframe positioning and module operations.
-
 2. **Creating a spec file**: Create a `.spec.ts` file in the corresponding subdirectory under `e2e/src/tests/`.
-
 3. **Defining a test Fixture**: Extend Playwright's `test` object to inject the Page Object and WebSocket connection.
 
 ```typescript
@@ -1165,16 +1130,13 @@ const test = baseTest.extend<TestFixtures>({
 ```
 
 1. **Write test cases**: Use `test.describe` to organize test case groups, `test.beforeEach` for data preparation, and `test` to write specific scenarios.
-
 2. **Export** the new Page Object **in `page-object/index.ts.`**
-
 3. **Run verification.**
 
 #### 4.2.4 Test Data Management
 
 - The test data path is defined in `e2e/src/utils/constants.ts`.
-
-- Main data directories:
+- Main data directories.
 
 | Constant | Path | Purpose |
 | --- | --- | --- |
@@ -1182,8 +1144,7 @@ const test = baseTest.extend<TestFixtures>({
 | `SMOKE_DATA` | `../../test/st/level2` | CI smoke test data (relative path) |
 | `JOINT_DATA` | `/home/profiler_performance/task` | Joint test data (Linux path) |
 
-- Test data can be downloaded from the data repository: `https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo.git`
-
+- Test data can be downloaded from the data repository: [Download test data](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo.git)
 - Modify the path in `constants.ts` to the actual local path.
 
 #### 4.2.5 Common Test Commands
@@ -1230,7 +1191,6 @@ npm run lint
 ##### Linux Environment (Docker)
 
 - It is recommended to use the official Playwright Docker image ([reference](https://playwright.dev/docs/docker)), with the image tag `v1.57.0-jammy`.
-
 - After creating a container from the image, install other dependencies required by the frontend and backend.
 
 ```bash
@@ -1244,7 +1204,6 @@ bash build/mindstudio_insight_gui_run.sh
 ```
 
 - `gui_set_environment.sh`: Installs gcc-11, cmake, ninja, pnpm, and Python dependencies.
-
 - `gui_run.sh`: Build backend → Build frontend → Execute `npm run test:smoke`
 
 ##### Windows Environment
@@ -1265,27 +1224,22 @@ npm run test:smoke
 5. **Narrow snapshot scope:** Keep snapshot assertions scoped to functional impact areas as tightly as possible, and move the mouse off the region before capturing (`page.mouse.move(0, 0)`).
 6. **Serial execution:** Tests run in parallel by default. To enforce sequential execution, set `test.describe.configure({ mode: 'serial' })` inside `test.describe`.
 
-### 5. PR Submission Process
+## 5. PR Submission Process
 
 ### 5.1 Pre-Submission Checks
 
 Before submitting a PR, ensure the following:
 
 1. The code passes local compilation and build.
-
 2. **All pre-commit code checks pass** (see [2.6 Configuring pre-commit](#26-configuring-pre-commit)).
-
 3. Backend code changes must include DT, with line coverage >= 80% and branch coverage >= 60%.
-
 4. Frontend and backend code changes must pass the pre-smoke test (see [4.2.6 Pre-smoke Test (CI Environment)](#426-pre-smoke-test-ci-environment))
-
 5. For changes involving user-facing features, update the corresponding user and developer documentation accordingly.
-
 6. Each PR must contain only **one commit** (if there are multiple commits, squash them first).
 
 ### 5.2 PR Title Specification
 
-Add an appropriate prefix before the PR title to indicate the PR type:
+Add an appropriate prefix before the PR title to indicate the PR type.
 
 | Prefix | Description |
 | --- | --- |
@@ -1301,16 +1255,14 @@ Add an appropriate prefix before the PR title to indicate the PR type:
 | `[Source]` | Operator tuning related |
 | `[Servitization]` | Servitization tuning related |
 
-Example: `[Timeline]`: Added xxx unit support.
+Example: `[Timeline] Add support for the xxx unit`
 
 ### 5.3 PR Template
 
 Follow the [Pull Request template](https://gitcode.com/Ascend/msinsight/blob/master/.gitcode/PULL_REQUEST_TEMPLATE.md) and fill in the following:
 
 - **PR description**: Describes the changes and the reasons for them, and associates the issue number (if any).
-
 - **User-facing changes**: Whether API, UI, or other behavioral changes are included.
-
 - **Feature verification**: Self-test screenshots and UT coverage description.
 
 ### 5.4 Squashing Multiple Commits into a Single Commit
@@ -1354,17 +1306,47 @@ git push --force-with-lease origin your-branch-name
 ### 5.5 Submitting and Merging Code
 
 1. After completing the preparations above, submit the code.
-
 2. Enter the `compile` command to trigger the bot build pipeline.
-
 3. After the pipeline build passes, contact the [repository management and maintenance members](https://gitcode.com/Ascend/msinsight/member) for review and merging.
 
 ### 5.6 Finding Issues to Contribute To
 
 - [good-first-issue](https://gitcode.com/Ascend/msinsight/issues?state=all&scope=all&page=1&categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22797,%22name%22:%22good-first-issue%22%257D%255D,%22label%22:%22good-first-issue%22%257D%255D)
-
 - [help-wanted](https://gitcode.com/Ascend/msinsight/pulls?categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22796,%22name%22:%22help-wanted%22%257D%255D,%22label%22:%22help-wanted%22%257D%255D&state=opened&scope=all&page=1)
-
 - [RFC](https://gitcode.com/Ascend/msinsight/issues?state=all&scope=all&page=1&categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:25328,%22name%22:%22rfc%22%257D%255D,%22label%22:%22rfc%22%257D%255D)
-
 - [Roadmap](https://gitcode.com/Ascend/msinsight/issues?state=all&scope=all&page=1&categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22807,%22name%22:%22roadmap%22%257D%255D,%22label%22:%22roadmap%22%257D%255D)
+
+## 6. Rust Platform Logs (release/default Desktop Entry)
+
+The following description applies only to the **release + default feature** desktop entry. After the existing `cache_path` is created successfully, the Rust log opens the fixed file `cache_path/msinsight.log` in `create + append` mode; existing files are not cleared or deleted at startup, and logs produced by later processes are appended to the end of the existing content. This file shares the same cache directory with the `profiler_server` log. The default level is `INFO`, which outputs `INFO`, `WARN`, and `ERROR`; the `DEBUG` level additionally outputs `DEBUG` and never outputs `TRACE`. The append strategy is adopted here; no startup override, rotation, compression, or automatic cleanup is provided.
+
+Only the following two exact parameters are accepted at startup:
+
+```text
+--rust-log-level=INFO
+--rust-log-level=DEBUG
+```
+
+If the parameter value is invalid, the level safely falls back to `INFO` and the original value is not exposed. The separated form `--rust-log-level <LEVEL>` is not supported.
+
+Before adjusting the level, fully exit MindStudio Insight and restart it with the parameter. The parameter is read only when a new process starts; on macOS, closing the window does not necessarily quit the application, and running `open` again while the application is still running cannot change the log level of the current process.
+
+Windows: open PowerShell in the installation directory and run:
+
+```powershell
+.\MindStudio-Insight.exe --rust-log-level=DEBUG
+```
+
+macOS: after installing the application, run the following in a terminal:
+
+```bash
+open -a "MindStudioInsight" --args --rust-log-level=DEBUG
+```
+
+If the system cannot find the application by this name, replace `"MindStudioInsight"` with the full path of the actual `.app`. To restore `INFO`, fully exit the application and start it normally, or change the parameter in the above command to `--rust-log-level=INFO`.
+
+You can open the log directory through **Show Logs in Explorer** in the application. In the new startup record at the end of `msinsight.log`, `event="logging_initialized" level="DEBUG" source="command_line"` indicates that the DEBUG parameter has taken effect. Old startup records are retained, so check the logs after the most recent startup.
+
+release/default does not additionally enable DevTools. The existing `setRustLogLevel|DEBUG` and `setRustLogLevel|INFO` IPC commands are retained, but no new GUI entry is provided; for daily operations, use the exit and restart method described above. These level settings affect only the Rust process and do not change the log level of `profiler_server` or C++.
+
+Logs record whitelisted events and fixed enumeration and numeric fields; when resource reading succeeds or fails, the `resource_name` under the application's frontend static resource directory is additionally recorded, for example `index.html` and `main.7d331fa9.js`, containing only the file name. Directory navigation, non-frontend resource paths, or requests with abnormal characters record only the fixed value `<redacted>`. Complete or partial directory paths, original URLs, file names of user-imported data, raw IPC, other user input, and error bodies are not recorded. `backend_started` indicates only that spawn succeeded, not that the process is healthy, still alive, or has exited.

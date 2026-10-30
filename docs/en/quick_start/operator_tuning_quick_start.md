@@ -1,7 +1,5 @@
 # Quick Start (Operator Tuning)
 
-<!-- md-trans-meta sourceCommit=4d31aa7808cfa63b1e9a65d9252c982b334ca6f5 translatedAt=2026-08-12T11:44:04.336Z pushedAt=2026-08-12T11:57:31.117Z -->
-
 MindStudio Insight supports importing operator profile data collected by the [msOpProf](https://gitcode.com/Ascend/msopprof) tool and running on Ascend AI Processors. Based on the displayed key operator performance indicators, users can quickly identify software and hardware performance bottlenecks of operators and perform operator tuning.
 
 This document uses the `matmul_leakyrelu` operator as an example to demonstrate how to identify performance anomalies from on-board data and then locate the user code lines that may require optimization through simulation data.
@@ -13,12 +11,10 @@ This document uses the `matmul_leakyrelu` operator as an example to demonstrate 
 This document is intended for developers who want to quickly experience the operator tuning capabilities of MindStudio Insight. It focuses on demonstrating the following process:
 
 1. Import the on-board data collected by msOpProf to view the overall operator duration and pipeline ratio.
-
 2. Import the simulation data collected by msOpProf to view Timeline and Source information.
-
 3. Identify user code locations that may cause performance bottlenecks based on hotspot behavior.
 
->[!NOTE]
+> [!NOTE]
 >
 > This document uses prepared sample data to demonstrate the analysis path, without elaborating on msOpProf data collection commands. If you need to collect real operator data, refer to the data description in [MindStudio Insight Operator Tuning](../user_guide/operator_tuning.md) and the msOpProf tool documentation.
 
@@ -27,9 +23,9 @@ This document is intended for developers who want to quickly experience the oper
 | Check Item | Requirement |
 | --- | --- |
 | Tool installation | MindStudio Insight has been installed. For the installation method, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md). |
-| Version compatibility | The versions of MindStudio Insight, CANN, and the collection tool must be compatible. For version relationships, see [Release Notes](../release_notes/release_notes.md). |
+| Version compatibility | The versions of MindStudio Insight, CANN, and the collection tool must be compatible. For version relationships, see [Release Notes](https://gitcode.com/Ascend/msinsight/releases). |
 | Sample data | The operator sample data provided in this document has been downloaded and is accessible locally. |
-| Data source | The sample data is collected by [msOpProf](https://gitcode.com/Ascend/msopprof/blob/master/docs/en/quick_start/msopprof_quick_start.md) and includes on-board data and simulation data. |
+| Data source | The sample data is collected by [msOpProf](https://gitcode.com/Ascend/msopprof) and includes on-board data and simulation data. |
 | Applicable scenario | Suitable for getting started with Ascend operator performance analysis, especially for learning the positioning relationships among the Details, Timeline, and Source tabs. |
 
 ### 1.3 Sample Data
@@ -52,7 +48,6 @@ After downloading, verify that the directory contains the following two types of
 The following sections will import them respectively:
 
 - `msprof-op/details/visualize_data.bin`: View on-board data.
-
 - `msprof-op-simulator/visualize_data.bin`: View the simulation data.
 
 ### 1.4 Terminology
@@ -83,7 +78,7 @@ In the basic information section, the operator duration is found to be approxima
 
 Based on the prior baseline of this sample, when computing a small FP16 matrix (`1024 × 1024 × 1024`) on the Ascend 910, the expected time of the `matmul_leakyrelu` operator typically falls within the range of **16–30 μs**. The current sample takes approximately **90+ μs**, which is significantly higher than expected. Therefore, it can be preliminarily determined that there is room for optimization in this operator.
 
->[!NOTE]
+> [!NOTE]
 >
 > The expected duration is affected by the hardware model, CANN/msOpProf version, operator implementation, and input scale. The values in this document are used to illustrate the analysis method. In actual services, the judgment should be based on the baseline or optimization target in the same environment.
 
@@ -121,7 +116,7 @@ You can locate the user code position from the details area. An example path is 
 /path/to/samples/operator/ascendc/0_introduction/13_matmulleakyrelu_kernellaunch/MatmulLeakyReluInvocationAsync/matmul_leakyrelu_custom.cpp:206
 ```
 
->[!NOTE]
+> [!NOTE]
 >
 > The actual path varies depending on where the sample code is stored. During analysis, prioritize the user source file and line number in the path rather than the toolchain internal file paths.
 
@@ -149,9 +144,6 @@ You can locate the user code position from the details area. An example path is 
 ## 4. More Information
 
 - To learn about data import, opening views, and basic operations, see [MindStudio Insight Basic Operations](../user_guide/basic_operations.md).
-
 - To gain in-depth knowledge of operator tuning capabilities, see [MindStudio Insight Operator Tuning](../user_guide/operator_tuning.md).
-
 - To learn about common Timeline units and interactions, see [Timeline Unit Introduction](../best_practices/Timeline_Common_Lanes_and_Interface.md).
-
 - If you encounter import or UI issues, see [FAQs](../support/faq.md).

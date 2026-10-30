@@ -443,9 +443,9 @@ MindStudio Insight支持指令统计信息和单个指令详情信息查看。
 - 区域一：基础信息（Base Info），如[**图 1** 基础信息](#基础信息)所示。
 - 区域二：核间负载分析（Core Occupancy），如[**图 2** 核间负载分析](#核间负载分析)所示。
 - 区域三：Roofline瓶颈分析（Roofline），如[**图 3** Roofline瓶颈分析-内存单元](#内存单元)所示。
-- 区域四：计算工作负载分析（Compute Workload Analysis），如[**图 4** 计算工作负载分析](#计算工作负载分析)所示。
-- 区域五：Top Warp Stall Season，如[**图 5** Top Warp Stall Season](#TopWarpStallSeason)所示。
-- 区域六：内存负载分析（Memory Workload Analysis），如[**图 6** 内存负载分析](#内存负载分析)所示。
+- 区域四：计算工作负载分析（Compute Workload Analysis），如[**图 7** 计算工作负载分析](#计算工作负载分析)所示。
+- 区域五：Top Warp Stall Season，如[**图 8** Top Warp Stall Season](#TopWarpStallSeason)所示。
+- 区域六：内存负载分析（Memory Workload Analysis），如[**图 9** 内存负载分析](#内存负载分析)所示。
 
 **基础信息（Base Info）**
 

@@ -1,13 +1,9 @@
 # Timeline Unit Overview
 
-<!-- md-trans-meta sourceCommit=e99edc859b9c75396352963171ba410aa66e4e0d translatedAt=2026-08-12T11:38:01.286Z pushedAt=2026-08-12T11:57:31.077Z -->
-
 This document addresses the following questions in system tuning scenarios:
 
 1. What are the common units and interfaces of Timeline, and how do they relate to each other?
-
 2. What is Overlap Analysis?
-
 3. What issues is Timeline commonly used to observe?
 
 ## What Are the Common Units and Interfaces of Timeline?
@@ -32,7 +28,7 @@ During model execution, operators are dispatched from the Python layer (First-Le
 
 ![image.png](figures/Timeline_Common_Lanes_and_Interface/async-task-queue-connection.png)
 
-Subsequently, operators are dispatched from the CANN layer (Second-Level Pipeline) to the NPU layer, namely the Ascend Hardware unit. By viewing the HostToDevice connections, the operator dispatch relationships can be observed:
+Subsequently, operators are dispatched from the CANN layer (Second-Level Pipeline) to the NPU layer, namely the Ascend Hardware unit. By viewing the HostToDevice connections, the operator dispatch relationships can be observed.
 
 ![image.png](figures/Timeline_Common_Lanes_and_Interface/host-to-device-connection.png)
 
@@ -46,7 +42,7 @@ Events at the NPU layer (i.e., the Ascend Hardware layer) can be broadly classif
 
 ![image.png](figures/Timeline_Common_Lanes_and_Interface/overlap-computing.png)
 
-Communication represents the vertical projection of communication operators. (Note: For communication operators, it is more intuitive to directly view the Communication unit (formerly known as the HCCL unit), which records NPU-layer communication events and corresponds one-to-one with the communication sub-units of Ascend Hardware. These events are reported by components such as HCCL.):
+Communication represents the vertical projection of communication operators. (Note: For communication operators, it is more intuitive to directly view the Communication unit (formerly known as the HCCL unit), which records NPU-layer communication events and corresponds one-to-one with the communication sub-units of Ascend Hardware. These events are reported by components such as HCCL.).
 
 ![image.png](figures/Timeline_Common_Lanes_and_Interface/overlap-communication.png)
 
@@ -68,12 +64,10 @@ The specific identification process is as follows:
 
 1. In the communication operator thumbnails on the Communication tab, identify the ranks and communication operators with significant time consumption differences, and navigate to the Timeline interface based on the communication operators.
 
-   ![image.png](./figures/Timeline_Common_Lanes_and_Interface/fast-slow-card-communication-thumbnail.png)
-
+   ![image.png](figures/Timeline_Common_Lanes_and_Interface/fast-slow-card-communication-thumbnail.png)
 2. Pin and compare the Overlap Analysis units of the fast rank and the slow rank respectively to identify the source of the difference at the Ascend Hardware layer (NPU layer).
 
    ![image.png](figures/Timeline_Common_Lanes_and_Interface/fast-slow-card-overlap-comparison.png)
-
 3. In the Timeline interface, select the <code>async_npu</code> dispatch connection line, and trace upward from the NPU layer through the connection relationships to identify the source of the difference at the Python layer.
 
    For a specific case of using the Timeline to locate fast/slow ranks, refer to: [Timeline Operation Case for Fast/Slow Rank Locating - MindStudio 8.1.RC1 - Ascend Community](https://www.hiascend.com/document/detail/en/mindstudio/81RC1/practicalcases/GeneralPerformanceIssue/toolsample6_034.html)
@@ -84,14 +78,13 @@ The Timeline is a powerful tool for observing dispatch issues. In an ideal scena
 
 The typical manifestations of a dispatch bottleneck on the Timeline are as follows.
 
-1. In the Overlap Analysis, the Free Time proportion far exceeds that of Computing and Communication, as shown in the following figure:
+1. In the Overlap Analysis, the Free Time proportion far exceeds that of Computing and Communication, as shown in the following figure.
 
-   ![/ccb7cfa9-de12-4970-867b-c731dac957f4.png](figures/Timeline_Common_Lanes_and_Interface/dispatch-bottleneck-free-time-1.png)
+![/ccb7cfa9-de12-4970-867b-c731dac957f4.png](figures/Timeline_Common_Lanes_and_Interface/dispatch-bottleneck-free-time-1.png)
 
-   ![/fac56df4-c29c-46f6-8370-3c6744ff62f5.png](figures/Timeline_Common_Lanes_and_Interface/dispatch-bottleneck-free-time-2.png)
-
-2. The `async_npu` dispatch connection is nearly vertical, as shown in the following figure:
+![/fac56df4-c29c-46f6-8370-3c6744ff62f5.png](figures/Timeline_Common_Lanes_and_Interface/dispatch-bottleneck-free-time-2.png)
+2. The `async_npu` dispatch connection is nearly vertical, as shown in the following figure.
 
 ![/ad4f2978-a0c3-4ddb-bea8-2ac5754b4cb8.png](figures/Timeline_Common_Lanes_and_Interface/dispatch-bottleneck-async-npu.png)
 
-For dispatch bottlenecks, refer to [Scheduling Optimization](https://www.hiascend.com/document/detail/en/Pytorch/latest/ptmoddevg/trainingmigrguide/FrameworkPTAdapter/26.0.0/en/pytorch_model_migration_fine_tuning/pipeline_opt.md) for general optimization approaches in PyTorch scenarios, and refer to [Dispatch Anomaly Analysis](https://gitcode.com/Ascend/docs/blob/master/MindStudio/26.0.0/cases/general_performance_issue_troubleshooting_guide/solution_to_top3.md#dispatch-anomaly-analysis) for troubleshooting approaches.
+For dispatch bottlenecks, refer to [Scheduling Optimization](https://www.hiascend.com/document/detail/en/Pytorch/latest/ptmoddevg/trainingmigrguide/FrameworkPTAdapter/26.0.0/en/pytorch_model_migration_fine_tuning/pipeline_opt.md) for general optimization approaches in PyTorch scenarios, and refer to [Delivery Exception Analysis](https://gitcode.com/Ascend/docs/blob/master/MindStudio/26.2.0/en/cases/general_performance_issue_troubleshooting_guide/solution_to_top3.md#delivery-exception-analysis) for troubleshooting approaches.

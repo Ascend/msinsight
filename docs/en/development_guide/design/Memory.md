@@ -1,15 +1,11 @@
 # Memory Module Design Document
 
-<!-- md-trans-meta sourceCommit=63323a8f22b6b37afd86f8821f5e7972ffe625b0 translatedAt=2026-08-12T11:38:36.251Z pushedAt=2026-08-12T11:57:31.075Z -->
-
 ## 1. Document Objectives and Scope
 
 This document describes the data flow, main views, data sources, and query capabilities of the Memory page frontend and backend, intended for developers who need to maintain memory tuning, comparison, and filtering capabilities.
 
 - Both TEXT and DB data scenarios are supported.
-
 - Dynamic graph, static graph, and component-level views are supported.
-
 - The screenshots in this document are for illustration only. The key data sources and handlers are subject to the main text and source code.
 
 ## 2. Memory Frontend Logic
@@ -17,9 +13,7 @@ This document describes the data flow, main views, data sources, and query capab
 The Memory interface consists of three main parts: View Selection, line chart, and table.
 
 - View Selection: Select `rankId` and grouping mode; in the DB scenario, `hostName` can also be selected.
-
 - Line chart: Displays the trend of memory changes over time. The number of charts differs between dynamic graphs and static graphs, but they use the same data organization approach.
-
 - Table: Displays the detailed data corresponding to CSV/DB, supporting filtering by conditions such as name and size. The Component View does not support queries.
 
 Related interface illustration:
@@ -51,7 +45,6 @@ Related interface illustration:
 The file parsing entry point of MindStudio Insight is `ImportActionHandler`. Different data formats invoke different parsers:
 
 - TEXT: `Memory::MemoryParse::Instance().Parse()`
-
 - DB: `FullDb::FullDbParser::Instance().Parse()`
 
 **TEXT File Parsing Sequence Diagram**
@@ -69,21 +62,15 @@ After a query request is initiated from the frontend, the result is returned thr
 ![memory_sequence_diagram](./figures/memory_request_sequence_diagram.png)
 
 - `server/src/modules/memory/protocol`: Responsible for converting between JSON and request/response structs.
-
 - `server/src/modules/memory/database`: Responsible for querying `TextMemoryDataBase` and `DbMemoryDataBase`.
-
 - `server/src/modules/memory/handler`: Responsible for specific business query and comparison logic.
 
 The handlers that can be confirmed as supported in the current document include:
 
 - `QueryMemoryOperatorHandler`: dynamic graph table
-
 - `QueryMemoryStaticOperatorListHandler`: static graph table
-
 - `QueryMemoryViewHandler`: dynamic graph line chart
-
 - `QueryMemoryStaticOperatorGraphHandler`: static graph line chart
-
 - `QueryMemoryComponentHandler`: component-level table
 
 ### 3.3 Notes
@@ -98,22 +85,18 @@ The handlers that can be confirmed as supported in the current document include:
 
 ### 4.1 View Selection
 
-In the View Selection section, you can select `rankId` and a grouping method from the dropdown list; for DB-format data, you can also select `hostName`. The combination of `hostName` and `rankId` can locate a single card.
+In the View Selection section, you can select `rankId` and a grouping method from the dropdown list; for DB-format data, you can also select `hostName`. The combination of `hostName` and `rankId` can locate a single rank.
 
 The grouping methods include:
 
 - Global
-
 - Stream
-
 - Component
 
 ### 4.2 Data Sources
 
 - Dynamic graph: The line chart is sourced from `memory_record.csv`, and the table is sourced from `operator_memory.csv`.
-
 - Static graph: The line chart is sourced from `memory_record.csv` and `static_op_mem.csv`, and the table is sourced from `static_op_mem.csv`.
-
 - Component View: The line chart is sourced from `memory_record.csv`, and the table is sourced from `npu_module_mem.csv`.
 
 ### 4.3 Line Chart
@@ -125,18 +108,15 @@ The legend is represented by `std::vector<std::string> legends`, and the lines a
 The table supports:
 
 - Fuzzy name query
-
 - Size upper and lower bound filtering
-
 - Time range selection linkage
-
 - Sorting
 
 After box selection on the dynamic graph, the time range is displayed; for the static graph, the corresponding node index range is displayed. When "Only show allocated or released within the selected interval" is checked, only operators related to allocation or release within the selected interval are displayed.
 
 ### 4.5 Comparison Function
 
-The comparison function screenshots in the document are retained for reference:
+The comparison function screenshots in the document are retained for reference.
 
 ![comparison_function](./figures/comparison_function.png)
 
@@ -145,9 +125,6 @@ The specific comparison algorithms, field semantics, and exception handling are 
 ## 5. Verification Method
 
 - Import TEXT and DB data, and check whether View Selection, line charts, and tables are available.
-
 - Verify whether the name, size, box selection, sorting, and comparison functions meet expectations.
-
 - Verify whether the dynamic graph, static graph, and Component View use the corresponding data sources.
-
 - For newly added fields or filter items, update the parser / database / handler first, and then synchronize the frontend column configuration and text.

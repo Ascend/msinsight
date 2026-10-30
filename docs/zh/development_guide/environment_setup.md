@@ -562,7 +562,6 @@ Python 运行时依赖：
 
 ```text
 click
-tabulate
 networkx
 jinja2
 PyYAML
@@ -639,7 +638,6 @@ Python 运行时依赖：
 
 ```text
 click
-tabulate
 networkx
 jinja2
 PyYAML

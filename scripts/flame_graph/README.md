@@ -52,7 +52,7 @@ python3 flamegraph.py /path/to/ascend_pytorch_profiler_0.db --output /path/to/ou
 
 生成完成后，使用浏览器打开：
 
-```shell
+```text
 /path/to/output_dir/flamegraph.html
 ```
 

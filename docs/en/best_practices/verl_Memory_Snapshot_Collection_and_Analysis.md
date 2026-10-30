@@ -1,7 +1,5 @@
 # Snapshot Data Collection and Analysis Case in verl
 
-<!-- md-trans-meta sourceCommit=a024cad74dd87f18eb03b7912eccb97ff269e7c7 translatedAt=2026-08-12T11:38:13.296Z pushedAt=2026-08-12T11:57:31.074Z -->
-
 ## Background
 
 In verl training tasks under scenarios such as PPO/RLHF, memory pressure is typically concentrated in stages including rollout generation, actor updates, reference logprob computation, critic updates, reward model inference, and checkpoint saving. To identify the source of peak memory usage, observe whether memory grows continuously across steps, and compare memory allocation differences between different ranks, the built-in `torch_memory` profiler in verl can be used to collect PyTorch memory snapshots.
@@ -11,20 +9,22 @@ This document describes the method for collecting snapshot data in verl and prov
 ## Identification Approach
 
 1. Prioritize using minimal collection parameters to verify that the snapshot link is functional.
-
 2. In single-rank scenarios, collect data from rank 0 and limit the number of collection steps to reduce runtime overhead.
-
 3. In multi-rank scenarios, prioritize collecting data from representative ranks; enable all-rank collection only when it is necessary to observe differences across all ranks.
-
 4. After collection is complete, check the output directory to confirm that the snapshot file has been generated and is non-empty.
-
 5. Subsequently, use the MindStudio Insight analysis tool to perform issue analysis.
 
 ## Snapshot Data Collection
 
+### Verification Environment and Memory Description
+
+The 7B single-rank example commands and the subsequent snapshot analysis cases in this document have been verified in a single-rank Ascend 910B2 (HBM 64 GiB) environment. The model, dataset, and output directory in the commands are example configurations. Replace them according to your actual environment; do not apply them to other devices without adjustment.
+
+For devices with HBM 32 GiB such as Ascend 910B4, do not copy and run the single-rank 7B commands directly, because the combination of the model, batch size, rollout, and other configurations may cause insufficient memory. Start with a smaller model (for example, 0.5B) and reduce `data.train_batch_size`, `actor_rollout_ref.rollout.n`, and the related micro batch parameters according to the remaining device memory, and then verify the snapshot collection and analysis pipeline. The specific parameters must be adjusted according to the actual model, input length, and training task.
+
 ### Collection Parameter Description
 
-The core parameters for enabling memory snapshot collection in verl are as follows:
+The core parameters for enabling memory snapshot collection in verl are as follows.
 
 | Name | Description |
 | --- | --- |
@@ -45,14 +45,14 @@ For single-rank tasks, only rank 0 needs to be collected. The following command 
 ```bash
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/home/chenyan/verl_data/train.parquet \
-    data.val_files=/home/chenyan/verl_data/test.parquet \
+    data.train_files=/path/to/verl_data/train.parquet \
+    data.val_files=/path/to/verl_data/test.parquet \
     data.train_batch_size=16 \
     data.max_prompt_length=512 \
     data.max_response_length=128 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
-    actor_rollout_ref.model.path=/data/models/Qwen/Qwen2.5-7B-Instruct \
+    actor_rollout_ref.model.path=/path/to/models/Qwen/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
@@ -64,13 +64,13 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
-    trainer.default_local_dir=/home/chenyan/verl_outputs \
+    trainer.default_local_dir=/path/to/verl_outputs \
     trainer.device=npu \
     global_profiler.tool=torch_memory \
     actor_rollout_ref.actor.profiler.ranks='[0]' \
     actor_rollout_ref.actor.profiler.enable=True \
     global_profiler.steps=[1,2,3,4,5,6,7,8,9,10] \
-    global_profiler.save_path=/home/chenyan/verl_outputs/mem_snapshots_single \
+    global_profiler.save_path=/path/to/verl_outputs/mem_snapshots_single \
     global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries=100000 \
     global_profiler.global_tool_config.torch_memory.stack_depth=32
 ```
@@ -82,14 +82,14 @@ For multi-rank tasks, it is recommended to first collect data from a small numbe
 ```bash
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/home/chenyan/verl_data/train.parquet \
-    data.val_files=/home/chenyan/verl_data/test.parquet \
+    data.train_files=/path/to/verl_data/train.parquet \
+    data.val_files=/path/to/verl_data/test.parquet \
     data.train_batch_size=16 \
     data.max_prompt_length=512 \
     data.max_response_length=128 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
-    actor_rollout_ref.model.path=/data/models/Qwen/Qwen2.5-7B-Instruct \
+    actor_rollout_ref.model.path=/path/to/models/Qwen/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
@@ -101,13 +101,13 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
-    trainer.default_local_dir=/home/chenyan/verl_outputs \
+    trainer.default_local_dir=/path/to/verl_outputs \
     trainer.device=npu \
     global_profiler.tool=torch_memory \
     actor_rollout_ref.actor.profiler.ranks='[0,1]' \
     actor_rollout_ref.actor.profiler.enable=True \
     global_profiler.steps=[1,2,3,4,5,6,7,8,9,10] \
-    global_profiler.save_path=/home/chenyan/verl_outputs/mem_snapshots_selected_ranks \
+    global_profiler.save_path=/path/to/verl_outputs/mem_snapshots_selected_ranks \
     global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries=100000 \
     global_profiler.global_tool_config.torch_memory.stack_depth=32
 ```
@@ -119,14 +119,14 @@ If it is necessary to compare peak memory usage, allocation stacks, or inter-ste
 ```bash
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/home/chenyan/verl_data/train.parquet \
-    data.val_files=/home/chenyan/verl_data/test.parquet \
+    data.train_files=/path/to/verl_data/train.parquet \
+    data.val_files=/path/to/verl_data/test.parquet \
     data.train_batch_size=16 \
     data.max_prompt_length=512 \
     data.max_response_length=128 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
-    actor_rollout_ref.model.path=/data/models/Qwen/Qwen2.5-7B-Instruct \
+    actor_rollout_ref.model.path=/path/to/models/Qwen/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
@@ -138,13 +138,13 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
-    trainer.default_local_dir=/home/chenyan/verl_outputs \
+    trainer.default_local_dir=/path/to/verl_outputs \
     trainer.device=npu \
     global_profiler.tool=torch_memory \
     actor_rollout_ref.actor.profiler.all_ranks=True \
     actor_rollout_ref.actor.profiler.enable=True \
     global_profiler.steps=[1,2,3,4,5,6,7,8,9,10] \
-    global_profiler.save_path=/home/chenyan/verl_outputs/mem_snapshots_all_ranks \
+    global_profiler.save_path=/path/to/verl_outputs/mem_snapshots_all_ranks \
     global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries=100000 \
     global_profiler.global_tool_config.torch_memory.stack_depth=32
 ```
@@ -177,9 +177,7 @@ Download and install the MindStudio Insight tool. For details, see [MindStudio I
 ### Importing Data
 
 1. Open MindStudio Insight.
-
 2. Import the snapshot data file.
-
 3. Open the "PyTorch Snapshot Data Memory Details (Memory Snapshot)" page under "Leaks".
 
 ### Memory Block Lifetime Graph Analysis
@@ -187,9 +185,7 @@ Download and install the MindStudio Insight tool. For details, see [MindStudio I
 In the "Memory Block Lifetime Graph," prioritize observing the trend of the Operator Allocated curve within the step 3 collection window.
 
 1. If the graph rises continuously without falling back, it indicates that tensors may be persistently retained or not released across stages within the collection window.
-
 2. If the graph exhibits periodic rises and falls, it indicates that memory is being allocated and released normally during phases such as forward, backward, and optimizer step.
-
 3. If the graph shows a significant jump at a certain point in time, click the corresponding memory block or event at that position to further inspect the associated call stack in the "Memory Pool Status Graph" and the "memory details table."
 
 ![Memory Block Lifetime Graph 1](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-graph1.png)
@@ -207,9 +203,7 @@ However, some brief large memory allocations are present. If memory bottleneck i
 In the "Memory Pool Status Graph," after selecting a block in the lifetime graph or an event in the left-side event list, the splitting status of each segment in the memory pool can be viewed. The memory pool state can be observed according to the following approach:
 
 1. Examine the ratio of `active_allocated` to `inactive` blocks in each segment to determine how much of the reserved memory is still occupied by tensors.
-
 2. Check whether large `inactive` blocks have been split into multiple small blocks to determine whether significant fragmentation exists.
-
 3. If an OOM event occurs, locate the memory pool state at the time of the OOM to determine whether the allocation failure was caused by high reserved memory but insufficient available contiguous blocks.
 
 In the current case, memory allocation and deallocation are normal, and no specific analysis is performed.
@@ -239,7 +233,5 @@ In the "Event View," focus on the `Action`, `Size(KBytes)`, `Allocated(KBytes)`,
 Based on this snapshot data, the following conclusions can be drawn:
 
 1. No OOM events were recorded in the current snapshot.
-
 2. In the memory lifetime, the graph exhibits periodic rises and falls, indicating that memory allocation and deallocation proceed normally.
-
 3. To further locate the source of peak memory usage, you can click the largest memory block or the peak time point in MindStudio Insight and trace the call stack to identify the phase and cause of its occurrence.

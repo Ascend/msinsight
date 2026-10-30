@@ -1,7 +1,5 @@
 # **Introduction**
 
-<!-- md-trans-meta sourceCommit=49122e1f1d6621e5b8a8bbc1c0fdae9583659f48 translatedAt=2026-08-12T11:47:49.568Z pushedAt=2026-08-12T11:57:31.154Z -->
-
 ## Overview
 
 MindStudio Insight is a visualization tuning tool for Ascend developers. It supports system, operator, serving, and memory tuning, enable developers to quickly tune performance in training, inference, and operator development scenarios.
@@ -13,15 +11,10 @@ MindStudio Insight provides a rich set of tuning analysis methods, visually pres
 When using MindStudio Insight for performance analysis, follow the process below:
 
 1. **Install the tool**: Complete the installation by following the [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
-
 2. **Collect data**: Use msProf, msOpProf, msMemScope, or the serving profiling tool to collect profile data.
-
 3. **Import data**: Import the corresponding file or directory into MindStudio Insight. For basic operations, see [MindStudio Insight Basic Operations](./basic_operations.md).
-
 4. **Select a scenario**: Based on the issue type, enter the System Tuning, Operator Tuning, Service-oriented Tuning, or Memory Tuning interface.
-
 5. **Locate bottlenecks**: Identify issues by combining the Timeline, detail tables, communication analysis, memory view, or source code view.
-
 6. **Handle exceptions**: If the import fails or no data is displayed on the interface, first check the [FAQs](../support/faq.md).
 
 ## Scenario Selection Guide
@@ -38,7 +31,7 @@ When using MindStudio Insight for performance analysis, follow the process below
 | Resource | Description |
 | --- | --- |
 | [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md) | Installation, upgrade, uninstallation, and integrity check. |
-| [Release Notes](../release_notes/release_notes.md) | Version compatibility between MindStudio Insight and components such as CANN. |
+| [Release Notes](https://gitcode.com/Ascend/msinsight/releases) | Version compatibility between MindStudio Insight and components such as CANN. |
 | [FAQ](../support/faq.md) | Common issues regarding import, display, dependencies, network disks, and JupyterLab. |
 | [Quick Start](../quick_start/system_tuning_quick_start.md) | Quickly experience the system tuning analysis path using sample data. |
 
@@ -57,7 +50,7 @@ MindStudio Insight supports system, operator, serving, and memory tuning, and vi
   MindStudio Insight provides the timeline view, memory, operator duration, and communication bottleneck analysis to allow developers to quickly locate model performance bottlenecks and perform in-depth tuning.
 
   | Function Interface             | Description                                                        | Scenario Description                        |
-  | --------------------- | ------------------------------------------------------------ | -------------------------------- |
+  | --------------------- |------------------------------------------------------------------------------------| -------------------------------- |
   | Timeline|Displays the running status of the entire online inference and training process in the timeline view based on the scheduling process, and provides functions such as cluster timeline display and system view details viewing.|-                                |
   | Memory|Provides visualized display of memory information during collection. Displays the operator memory trend in an operator memory curves.|-                                |
   | Operator|Provides operator duration statistics and analysis.|-                                |
@@ -70,11 +63,11 @@ MindStudio Insight supports system, operator, serving, and memory tuning, and vi
   MindStudio Insight provides the instruction pipeline view, operator-source code view, and operator running load analysis view to display the key performance metrics of operators running on the Ascend AI Processor in a visualized manner, helping developers quickly locate software and hardware performance bottlenecks of operators and improve operator performance analysis efficiency.
 
   | Function Interface          | Description                                                        | Remarks                                    |
-  | ------------------ | ------------------------------------------------------------ | ---------------------------------------- |
-  | Timeline| Displays the running status of instructions on the Ascend AI Processor in a timeline view, displays the overall running status based on the scheduling process, and allows users to view instruction details and search for instructions.| -                                        |
-  | Source    | Displays the operator instruction heatmap, and allows developers to view the mapping between the operator source code and instruction sets as well as the time consumption.| BIN files of operator profiling collected by msProf are supported.|
-  | Details   | Displays the basic operator information, computing workload analysis, and memory workload analysis, as well as the analysis results in charts and data panes. | BIN files of operator profiling collected by msProf are supported.|
-  | Cache     | Displays the L2 cache access of kernel functions in user programs, helping users optimize the cache hit rate.| BIN files of operator profiling collected by msProf are supported.|
+    | ------------------ | ------------------------------------------------------------ | ---------------------------------------- |
+    | Timeline| Displays the running status of instructions on the Ascend AI Processor in a timeline view, displays the overall running status based on the scheduling process, and allows users to view instruction details and search for instructions.| -                                        |
+    | Source    | Displays the operator instruction heatmap, and allows developers to view the mapping between the operator source code and instruction sets as well as the time consumption.| BIN files of operator profiling collected by msProf are supported.|
+    | Details   | Displays the basic operator information, computing workload analysis, and memory workload analysis, as well as the analysis results in charts and data panes. | BIN files of operator profiling collected by msProf are supported.|
+    | Cache     | Displays the L2 cache access of kernel functions in user programs, helping users optimize the cache hit rate.| BIN files of operator profiling collected by msProf are supported.|
 
 - Serving tuning
 

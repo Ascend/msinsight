@@ -1,17 +1,12 @@
 # Compute Design Document
 
-<!-- md-trans-meta sourceCommit=49122e1f1d6621e5b8a8bbc1c0fdae9583659f48 translatedAt=2026-08-12T11:40:26.859Z pushedAt=2026-08-12T11:57:31.087Z -->
-
 ## Document Purpose and Scope
 
 This document describes the development conventions for Compute (operator tuning) related data import, binary data blocks, Timeline view, Hotspot Instruction view, and Memory Load view.
 
 - JSON data primarily reuses the Trace Event Format.
-
 - Bin data is differentiated by data block encoding for different page data.
-
 - The 0x0A Memory Read/Write Timing Diagram and 0x0B L2Cache Chart are currently documented as POC capabilities, and their stability is subject to implementation and testing.
-
 - The example paths in this document are all sanitized paths. Actual paths are subject to the imported data.
 
 ## Business Process Overview
@@ -74,12 +69,9 @@ Content example:
 #### Bin File
 
 File format: *.bin
-
 Determination logic: Import a single file && ends with *.bin
 Content format:
-
-The operator bin file uses a binary format, where each data unit takes the following form:
-
+The operator bin file uses a binary format, where each data unit takes the following form.
 ![compute_bin](./figures/compute_bin.png)
 
 Principles for assigning data types to data blocks in visualize_data.bin:
@@ -104,10 +96,10 @@ Principles for assigning data types to data blocks in visualize_data.bin:
 
 Example of JSON data content:
 0x01 Code File:
-Feature page:
+Feature page
  ![compute_json_1](./figures/compute_json.png)
 
-The code file contains partial binary content, and its structure is as follows:
+The code file contains partial binary content, and its structure is as follows.
  ![compute_json_2](./figures/compute_json_binary.png)
 
 A 4096-byte additional data block (storing file path information):
@@ -123,17 +115,17 @@ Data block content description (i.e., the C++ source code content):
 ```
 
 0x03 source code line information
-Feature page:
+Feature page
  ![compute_source](./figures/compute_source.png)
 
-Binary structure description:
+Binary structure description
  ![alt text](./figures/compute_source_binary.png)
 
 Data block content:
 
 ```json
 {
-  "Cores": [ // Compute cores that execute the operator, e.g., "core0.cubecore0", "core0.veccore0"
+  "Cores": [ // Compute cores that execute the operator, for example, "core0.cubecore0", "core0.veccore0"
     string
   ],
   "Files Dtype": { // Specify column names and data types
@@ -174,17 +166,17 @@ Data block content:
 ```
 
  0x04 Instruction Information
-Feature Page:
+Feature Page
  ![compute_instruction](./figures/compute_instruction.png)
 
-Binary Structure:
+Binary Structure
  ![compute_instruction_binary](./figures/compute_instruction_binary.png)
 
 Data Content:
 
 ```json
 {
-  "Cores": [ // Compute cores that execute operators, e.g., "core0.cubecore0", "core0.veccore0"
+  "Cores": [ // Compute cores that execute operators, for example, "core0.cubecore0", "core0.veccore0"
     string
   ],
 "Instructions Dtype": { // Specifies column names and data types
@@ -206,19 +198,19 @@ Data Content:
 },
   "Instructions": [
     {
-      "Address": string,    // Offset address of the instruction, e.g., "0x1269f000"
-      "AscendC Inner Code": string, // Source code file path and code line number, e.g., "/home/xxx.cpp:23"
+      "Address": string,    // Offset address of the instruction, for example, "0x1269f000"
+      "AscendC Inner Code": string, // Source code file path and code line number, for example, "/home/xxx.cpp:23"
       "Cycles": [      // Clock cycles consumed by the instruction on each compute core
         int
       ],
       "Instructions Executed": [  // Number of times the instruction is executed on each compute core
         int
       ],
-      "Pipe": string,     // Instruction queue to which the instruction belongs, e.g., "SCALAR"
+      "Pipe": string,     // Instruction queue to which the instruction belongs, for example, "SCALAR"
       "TheoreticalStallCycles": [                    // Expected stall time
         int
       ],
-      "Source": string,     // Instruction content, e.g., "MOV_XD_IMM XD:X29,IMM"
+      "Source": string,     // Instruction content, for example, "MOV_XD_IMM XD:X29,IMM"
       "RealStallCycles": [                    // Actual stall cycles.
         int
       ]
@@ -228,10 +220,10 @@ Data Content:
 ```
 
 0x02 Timeline Information
-Feature page:
+Feature page
  ![compute_timeline](./figures/compute_timeline.png)
 
-Binary structure:
+Binary structure
  ![compute_timeline_binary](./figures/compute_timeline_binary.png)
 
 Data content:
@@ -287,15 +279,14 @@ Data content:
 }
 ```
 
-NOTE
-The data source is tracing.json, which complies with the Trace Event Format requirements.
+Note: The data source is tracing.json, which complies with the Trace Event Format requirements.
 
 0x05 Operator Basic Information
 
-Feature Page:
+Feature Page
  ![compute_operator](./figures/compute_operator.png)
 
-Binary Structure:
+Binary Structure
  ![compute_operator_binary](./figures/compute_operator_binary.png)
 
 Data Content:
@@ -333,10 +324,10 @@ Data Content:
 
 0x06 Compute Load Chart
 
-Feature Page:
+Feature Page
  ![compute_calculate_load](./figures/compute_calculate_load.png)
 
-Binary Structure:
+Binary Structure
  ![compute_calculate_load_binary](./figures/compute_calculate_load_binary.png)
 
 Data Content:
@@ -361,10 +352,10 @@ Data Content:
 
 0x07 Compute Load Chart:
 
-Feature Page:
+Feature Page
  ![compute_overload](./figures/compute_overload.png)
 
-Binary Structure:
+Binary Structure
  ![compute_overload_binary](./figures/compute_overload_binary.png)
 
 Data block content:
@@ -389,10 +380,10 @@ Data block content:
 
 0x08 Memory Access Heatmap
 
-Feature Page:
+Feature Page
  ![compute_heat_diagram](./figures/compute_heat_diagram.png)
 
-Binary Structure:
+Binary Structure
  ![compute_heat_diagram_binary](./figures/compute_heat_diagram_binary.png)
 
 Data Content:
@@ -445,10 +436,10 @@ Data Content:
 
 0x09 Memory Access Heatmap Table
 
-Feature Page:
+Feature Page
  ![compute_heat_table](./figures/compute_heat_table.png)
 
-Binary Structure:
+Binary Structure
  ![compute_heat_table_binary](./figures/compute_heat_table_binary.png)
 
 Data Block Content:
@@ -488,10 +479,10 @@ Data Block Content:
 
 0x0A Memory Read/Write Timing Diagram (POC)
 
-Feature Page:
+Feature Page
  ![compute_memory_timing_diagram](./figures/compute_memory_timing_diagram.png)
 
-Binary Structure:
+Binary Structure
  ![compute_memory_timing_diagram_binary_1](./figures/compute_memory_timing_diagram_binary_1.png)
 
 Data Block Content Structure:
@@ -525,7 +516,7 @@ struct TraceRecord {
 };
 ```
 
-TraceRecord struct field description:
+TraceRecord struct field description.
 
 | Name | Description |
 |---|---|
@@ -538,7 +529,7 @@ TraceRecord struct field description:
 |memSize | Memory length operated by this memory event |
 |pc | PC address corresponding to the code location where this memory event occurred |
 
-The call stack information mapping table (CallStack map) is designed as a JSON object. The field types and descriptions are as follows:
+The call stack information mapping table (CallStack map) is designed as a JSON object. The field types and descriptions are as follows.
 
 | Name | Type | Description |
 |---|---|---|
@@ -588,10 +579,10 @@ An example of the call stack information mapping table is as follows:
 
 0x0B L2Cache Chart (POC)
 
-Feature Page:
+Feature Page
  ![compute_L2Cache](./figures/compute_L2Cache.png)
 
-Binary Structure:
+Binary Structure
  ![compute_L2Cache_binary](./figures/compute_L2Cache_binary.png)
 
 Data Block Content:
@@ -610,7 +601,7 @@ struct CacheRecord {
 };
 ```
 
-Field Description:
+Field Description
 
 | Name | Description |
 | --- | --- |
@@ -626,10 +617,10 @@ Hit rate calculation formula: count of each dimension / (loadCount + storeCount)
 
 0x0C Inter-Core Load
 
-Feature Page:
+Feature Page
  ![compute_innerCore_load](./figures/compute_innerCore_load.png)
 
-Binary Structure:
+Binary Structure
  ![compute_innerCore_load_binary](./figures/compute_innerCore_load_binary.png)
 
 Data Content:
@@ -672,10 +663,10 @@ Data Content:
 
 0x0D roofline
 
-Feature Page:
+Feature Page
  ![compute_roofline](./figures/compute_roofline.png)
 
-Binary Structure:
+Binary Structure
  ![compute_roofline_binary](./figures/compute_roofline_binary.png)
 
 Data Block Content Format:
@@ -1076,7 +1067,7 @@ This document describes the structure and content of the relevant data body in t
 ### Data Types
 
 If the 9th byte of the data block is an integer 1, 3, or 4, it indicates that the data body content is information related to the hotspot instruction view.
-Definition in the code:
+Definition in the code.
 
 ![compute_hot_instructions_data_type](./figures/compute_hot_instructions_data_type.png)
 
@@ -1092,7 +1083,7 @@ Data Type Table
 
 #### SOURCE
 
-Binary Structure Description:
+Binary Structure Description
 ![compute_hot_instructions_source_binary](./figures/compute_hot_instructions_source_binary.png)
 4096-byte additional data block (stores file path information):
 
@@ -1108,14 +1099,14 @@ Data Block Content Description (i.e., cpp source code content):
 
 #### API_FILE
 
-Binary Structure Description:
+Binary Structure Description
 
 ![compute_hot_instructions_api_file_binary](./figures/compute_hot_instructions_api_file_binary.png)
 Data Block Content Description (i.e., the files section in api.json):
 
 ```json
 {
-  "Cores": [ // Compute cores that execute operators, e.g., "core0.cubecore0", "core0.veccore0".
+  "Cores": [ // Compute cores that execute operators, for example, "core0.cubecore0", "core0.veccore0".
     string
   ],
   "Files Dtype": { // Specify column names and data types.
@@ -1157,14 +1148,14 @@ Data Block Content Description (i.e., the files section in api.json):
 
 #### API_INSTR
 
-Binary Structure Description:
+Binary Structure Description
 
 ![compute_hot_instructions_api_instr_binary](./figures/compute_hot_instructions_api_instr_binary.png)
 Data Block Content Description (i.e., the Instructions section in api.json):
 
 ```json
 {
-  "Cores": [ // Compute cores that execute the operator, e.g., "core0.cubecore0", "core0.veccore0"
+  "Cores": [ // Compute cores that execute the operator, for example, "core0.cubecore0", "core0.veccore0"
     string
   ],
 "Instructions Dtype": { // Specify column names and data types.
@@ -1186,19 +1177,19 @@ Data Block Content Description (i.e., the Instructions section in api.json):
 },
   "Instructions": [
     {
-      "Address": string,    // Offset address of the instruction, e.g., "0x1269f000".
-      "AscendC Inner Code": string, // Source code file path and line number, e.g., "/home/xxx.cpp:23"
+      "Address": string,    // Offset address of the instruction, for example, "0x1269f000".
+      "AscendC Inner Code": string, // Source code file path and line number, for example, "/home/xxx.cpp:23"
       "Cycles": [      // Clock cycles consumed by the instruction on each compute core
         int
       ],
       "Instructions Executed": [  // Number of times the instruction is executed on each compute core
         int
       ],
-      "Pipe": string,     // Instruction queue to which the instruction belongs, e.g., "SCALAR"
+      "Pipe": string,     // Instruction queue to which the instruction belongs, for example, "SCALAR"
       "TheoreticalStallCycles": [                    // Expected stall cycles
         int
       ],
-      "Source": string,     // Instruction content, e.g. "MOV_XD_IMM XD:X29,IMM"
+      "Source": string,     // Instruction content, for example "MOV_XD_IMM XD:X29,IMM"
       "RealStallCycles": [                    // Actual stall cycles
         int
       ]
@@ -1597,7 +1588,7 @@ Data Block Content Description (i.e., the Instructions section in api.json):
 #### Data Type
 
 If the 9th byte of the data block is an integer from 5 to 9, it indicates that the data body content is memory access load information.
-Definition in the code:
+Definition in the code.
 
 ![compute_memory_view](./figures/compute_memory_view.png)
 
@@ -1617,7 +1608,7 @@ The data source is tracing.json, which must comply with the Trace Event Format r
 
 ##### DETAILS_BASE_INFO
 
-Binary Structure Description:
+Binary Structure Description
 
 ![compute_details_base_info_binary](./figures/compute_details_base_info_binary.png)
 
@@ -1656,7 +1647,7 @@ JSON Format Description:
 
 ##### DETAILS_COMPUTE_LOAD_GRAPH
 
-Binary Structure Description:
+Binary Structure Description
 
 ![compute_load_graph_binary](./figures/compute_load_graph_binary.png)
 JSON Structure Description:
@@ -1684,7 +1675,7 @@ JSON Structure Description:
 
 ##### DETAILS_COMPUTE_LOAD_TABLE
 
-Binary Structure Description:
+Binary Structure Description
 
 ![compute_load_table_binary](./figures/compute_load_table_binary.png)
 
@@ -1712,7 +1703,7 @@ JSON Structure Description:
 
 ##### DETAILS_MEMORY_GRAPH
 
-Binary structure description:
+Binary structure description
 
 ![compute_memory_graph_binary](./figures/compute_memory_graph_binary.png)
 
@@ -1750,7 +1741,7 @@ JSON structure description
 
 ##### DETAILS_MEMORY_TABLE
 
-Binary structure description:
+Binary structure description
 
 ![compute_memory_table_binary](./figures/compute_memory_table_binary.png)
 
@@ -1791,7 +1782,7 @@ JSON structure description:
 
 ## Memory Read/Write Timing Diagram Data Structure (POC)
 
-The content format of the unified binary deliverable is as follows:
+The content format of the unified binary deliverable is as follows.
 ![compute_memory_rw_time_diagram](./figures/compute_memory_rw_time_diagram.png)
 
 File protocol header structure design:
@@ -1822,7 +1813,7 @@ struct TraceRecord {
 
 ```
 
-TraceRecord struct field description:
+TraceRecord struct field description.
 
 | Name       | Description                                                                 |
 |------------|----------------------------------------------------------------------|
@@ -1835,7 +1826,7 @@ TraceRecord struct field description:
 | memSize    | Memory length operated by this memory event, in units as recorded by the data producer                                        |
 | pc         | PC address corresponding to the code location where this memory event occurs                                  |
 
-The Call Stack Information Mapping Table (CallStack map) is designed as a JSON object. The field types and descriptions are as follows:
+The Call Stack Information Mapping Table (CallStack map) is designed as a JSON object. The field types and descriptions are as follows.
 
 | Field       | Type   | Description                                                                 |
 |------------|--------|----------------------------------------------------------------------|
@@ -1885,7 +1876,7 @@ An example of the Call Stack Information Mapping Table is as follows:
 
 ## Cache Hit Rate Chart Data Structure (POC)
 
-Binary bin file data block structure:
+Binary bin file data block structure.
 ![compute_cache_hit_binary](./figures/compute_cache_hit_binary.png)
 
 Cache information record struct design:
@@ -1903,7 +1894,7 @@ struct CacheRecord {
 };
 ```
 
-Field description:
+Field description
 
 | Name | Description |
 |------------------|----------------------------------------------------------------------|

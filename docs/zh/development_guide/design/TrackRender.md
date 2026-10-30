@@ -121,7 +121,7 @@ width（区域宽度）、domainStart、domainEnd、 session.timelineMarker.refr
 
 这两个画布中定义鼠标事件、键盘事件通过 useImperativeHandle 向外暴露，实际绑定在 ChartContainer 组件上。
 
-[画布](./figures/track-render/content-4.png)
+![画布](./figures/track-render/content-4.png)
 
 ## 6、交互
 
