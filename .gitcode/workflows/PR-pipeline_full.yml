@@ -158,7 +158,7 @@ stages:
           - name: checkout
             uses: checkout
           - name: Run SCA PR scan
-            uses: openlibing/sca-action/sca-pr-action@v1.0.3
+            uses: openlibing/sca-action/sca-pr-action@v1.0.0
             with:
               project-name: MindStudio
 
