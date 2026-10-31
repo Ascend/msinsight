@@ -326,7 +326,7 @@ Insight Web Agent 是一个独立 Node ESM runtime，承载 ACP（Agent Control 
 
 ```bash
 cd modules/insight_web_agent
-pnpm server
+pnpm run server
 ```
 
 ```bash
