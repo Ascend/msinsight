@@ -134,11 +134,16 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 
 在 Windows 系统上安装 MindStudio Insight 时，选择勾选“Run MindStudio Insight“自动打开MindStudio Insight的情况下，拖入文件显示禁用。
 
+**原因分析**
+
+如果工具以管理员权限启动（例如安装程序勾选“Run MindStudio Insight”后直接启动，或手动以管理员身份运行），Windows 的用户界面特权隔离（UIPI）机制会阻止普通权限的资源管理器向管理员权限窗口拖拽文件，因此拖入文件时显示禁用符。关闭后从快捷方式重新打开，工具以当前用户权限运行，拖拽即可恢复正常。
+
 **解决方案**
 
 1. 关闭当前已打开的 MindStudio Insight。
 2. 双击桌面的“MindStudio Insight”快捷方式图标，或安装目录下的“MindStudio-Insight.exe”，重新打开 MindStudio Insight。
 3. 拖入文件，即可正常显示。
+4. 如果重新打开后仍显示禁用，请右键单击快捷方式并选择“属性 > 兼容性”，确认未勾选“以管理员身份运行此程序”，然后再次打开工具。
 
 ## 8. Linux 启动时出现 swrast_dri.so 缺失报错怎么办？
 

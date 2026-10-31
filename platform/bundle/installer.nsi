@@ -12,7 +12,16 @@ Name "MindStudio Insight"
 
 !define REGKEY "Software\huawei\MindStudio Insight"
 
-!define MUI_FINISHPAGE_RUN  "$INSTDIR\MindStudio-Insight.exe"
+; Launch the application through the desktop shell instead of starting it as a
+; child of this installer. The installer runs elevated (it writes to
+; $PROGRAMFILES and HKLM), so Exec would give the application an elevated token
+; as well. Windows UIPI then rejects file drag-and-drop from the non-elevated
+; Explorer and the cursor shows the "forbidden" sign until the application is
+; restarted without elevation. explorer.exe forwards the request to the already
+; running shell and the application starts with the logged-on user's token,
+; exactly like it does from the Start Menu shortcut.
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchMindStudioInsight
 
 ; Modern UI settings
 !define MUI_ICON "resources\images\icons\mindstudio.ico"
@@ -54,13 +63,13 @@ UninstPage custom un.onCustomUninstallPage un.onCustomUninstallPageLeave
 Var RemoveCacheData
 Function un.onCustomUninstallPage
     !insertmacro MUI_HEADER_TEXT "Whether To Delete Cache Files" "eg log,setting..."
-    
+
     nsDialogs::Create 1018
     Pop $0
-    
+
     ${NSD_CreateCheckbox} 0 30u 100% 10u "Remove cache data"
     Pop $1
-    
+
     nsDialogs::Show
 FunctionEnd
 
@@ -95,6 +104,12 @@ Function .onInit
   ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Install\MindStudio Insight" "InstallPath"
   StrCmp $0 "" +2 0
   StrCpy $INSTDIR $0
+FunctionEnd
+
+; Used by the finish page when "Run MindStudio Insight" is checked.
+Function LaunchMindStudioInsight
+  SetOutPath "$INSTDIR"
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\MindStudio-Insight.exe"'
 FunctionEnd
 
 ; Components
@@ -142,17 +157,17 @@ Section "MindStudio Insight" Secascend_insight
 
   StrCpy $1 $INSTDIR
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Install\MindStudio Insight" "InstallPath" $1
-  
-  ; 
+
+  ;
   WriteRegStr HKLM "${REGKEY}" "Version" "${CURRENT_VERSION}"
- 
+
 SectionEnd
 
 ; Uninstaller
 Section "Uninstall"
   nsProcessW::_FindProcess "MindStudio-Insight.exe" $R0
   Pop $0
-  ${If} $0 = "0" 
+  ${If} $0 = "0"
     MessageBox MB_OK "MindStudio-Insight.exe is running. Please close it first."
     Abort
   ${EndIf}
@@ -189,8 +204,8 @@ Section "Uninstall"
 
   ; Remove control panel entry
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MindStudio Insight"
-  
-  
+
+
 
   ; Remove registry key
   DeleteRegKey HKLM "${REGKEY}"
