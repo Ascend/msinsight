@@ -134,11 +134,16 @@ The overall memory of the computer system is insufficient.
 
 When MindStudio Insight is installed in the Windows OS and **Run MindStudio Insight** is selected for automatic start of MindStudio Insight, the file drag and drop is disabled.
 
+**Possible Causes**
+
+If the tool is started with administrator privileges (for example, when the installer starts it automatically after **Run MindStudio Insight** is selected, or when it is started manually as administrator), Windows User Interface Privilege Isolation (UIPI) blocks the standard user's File Explorer from dropping files onto an elevated window, so the cursor shows a "no drop" sign. When the tool is closed and reopened from the shortcut, it runs with the current user's privileges and drag and drop works again.
+
 **Solution**
 
 1. Close the opened MindStudio Insight.
 2. Double-click the MindStudio Insight shortcut icon on the desktop or **MindStudio-Insight.exe** in the installation directory to open MindStudio Insight again.
 3. Drag the file into the tool again.
+4. If file drag and drop is still disabled, right-click the shortcut, choose **Properties > Compatibility**, make sure **Run this program as an administrator** is cleared, and open the tool again.
 
 ## 8. What should I do if I encounter a swrast_dri.so missing error when starting on Linux?
 
