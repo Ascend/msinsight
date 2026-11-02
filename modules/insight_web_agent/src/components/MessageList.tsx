@@ -808,13 +808,18 @@ export const MessageList = ({ messages, notices = [], pendingPrompt, onPermissio
                                 {message.permission
                                     ? <PermissionCard message={message} onDecision={onPermissionDecision} />
                                     : null}
+                                {message.activity === 'compacting'
+                                    ? <div className="model-retry-alert" role="status">{t('compactingContext')}</div>
+                                    : null}
                                 {typeof message.activity === 'object' && message.activity.type === 'model_retry'
                                     ? <div className="model-retry-alert" role="status">
-                                        {t(message.activity.retryAt !== undefined && now >= message.activity.retryAt ? 'modelRetryConnecting' : message.activity.reason === 'connection' ? 'modelConnectionRetrying' : 'modelRetrying', {
-                                            attempt: message.activity.attempt,
-                                            maxAttempts: message.activity.maxAttempts,
-                                            wait: message.activity.retryAt !== undefined && now >= message.activity.retryAt ? t('modelRetryWaitUnknown') : formatRetryWait(message.activity.retryAt === undefined ? message.activity.retryAfterSeconds : Math.max(0, Math.ceil((message.activity.retryAt - now) / 1000)), t),
-                                        })}
+                                        {message.activity.retryAt !== undefined && now >= message.activity.retryAt
+                                            ? t('modelRetryConnecting', { attempt: message.activity.attempt, maxAttempts: message.activity.maxAttempts })
+                                            : t('modelRetrying', {
+                                                seconds: Math.max(0, Math.ceil(((message.activity.retryAt ?? (now + (message.activity.retryAfterSeconds ?? 0) * 1000)) - now) / 1000)),
+                                                attempt: message.activity.attempt,
+                                                maxAttempts: message.activity.maxAttempts,
+                                            })}
                                     </div>
                                     : null}
                             </article>
@@ -1278,16 +1283,6 @@ const useToolClock = (enabled: boolean): number => {
         return () => window.clearInterval(timer);
     }, [enabled]);
     return enabled ? Date.now() : now;
-};
-
-const formatRetryWait = (seconds: number | undefined, t: TFunction): string => {
-    if (seconds === undefined) return t('modelRetryWaitUnknown');
-    if (seconds < 60) return t('modelRetryWaitSeconds', { count: seconds });
-    const minutes = Math.floor(seconds / 60);
-    const remainder = seconds % 60;
-    return remainder
-        ? t('modelRetryWaitMinutesSeconds', { minutes, seconds: remainder })
-        : t('modelRetryWaitMinutes', { count: minutes });
 };
 
 const formatToolDuration = (toolCall: ToolCallItem, now: number): string | undefined => {

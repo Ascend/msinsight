@@ -31,6 +31,11 @@ const NATIVE_CONFIG_FILE = "msinsight-native.json";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 const DEFAULT_PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_CONTEXT_BUDGET_TOKENS = 200000;
+// 预算只有两档，避免用户填出模型实际不支持的容量。
+const LONG_CONTEXT_BUDGET_TOKENS = 1000000;
+const CONTEXT_BUDGET_OPTIONS = [DEFAULT_CONTEXT_BUDGET_TOKENS, LONG_CONTEXT_BUDGET_TOKENS];
+const DEFAULT_AUTO_COMPACT_THRESHOLD = 80;
 
 export const createAgentConfigService = ({
     rootDir,
@@ -203,6 +208,8 @@ const normalizeBuiltinAgent = (config = {}) => ({
     model: String(config.model ?? ""),
     baseUrl: String(config.baseUrl ?? ""),
     apiKey: isTransitEnvelope(config.apiKey) ? config.apiKey : String(config.apiKey ?? ""),
+    contextBudgetTokens: normalizePositiveInteger(config.contextBudgetTokens, DEFAULT_CONTEXT_BUDGET_TOKENS),
+    autoCompactThreshold: normalizePositiveInteger(config.autoCompactThreshold, DEFAULT_AUTO_COMPACT_THRESHOLD),
 });
 
 const normalizeAgentServers = (servers) => Array.isArray(servers)
@@ -236,6 +243,12 @@ const normalizeSessionConfig = (config = {}) => ({
 const normalizeTimeout = (value, fallback) => {
     const timeout = Number(value ?? fallback);
     return Number.isFinite(timeout) && timeout > 0 ? timeout : fallback;
+};
+
+const normalizePositiveInteger = (value, fallback) => {
+    if (value === undefined || value === null || value === "") return fallback;
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : value;
 };
 
 const secretError = (error) => {
@@ -290,6 +303,8 @@ const validateBuiltinConfig = (input) => {
         models: config.models,
         baseUrl: config.baseUrl,
         apiKey: config.apiKey,
+        contextBudgetTokens: config.contextBudgetTokens,
+        autoCompactThreshold: config.autoCompactThreshold,
     } };
 };
 
@@ -341,6 +356,13 @@ const validateBuiltinAgent = (input, errors) => {
     }
     if (!config.model.trim()) errors.push({ field: "builtinAgent.model", message: "model is required" });
     if (!config.baseUrl.trim()) errors.push({ field: "builtinAgent.baseUrl", message: "base URL is required" });
+    // 显式非法值必须报错，不能静默回退。
+    if (!CONTEXT_BUDGET_OPTIONS.includes(config.contextBudgetTokens)) {
+        errors.push({ field: "builtinAgent.contextBudgetTokens", message: "context budget must be 200000 or 1000000 tokens" });
+    }
+    if (!Number.isSafeInteger(config.autoCompactThreshold) || config.autoCompactThreshold < 1 || config.autoCompactThreshold > 100) {
+        errors.push({ field: "builtinAgent.autoCompactThreshold", message: "auto compact threshold must be an integer from 1 to 100" });
+    }
     return config;
 };
 

@@ -275,6 +275,15 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             return;
         }
 
+        if (kind === "context_usage_update") {
+            const contextUsage = normalizeContextUsage(update.contextUsage);
+            if (contextUsage) {
+                sessionContext.contextUsage = contextUsage;
+                eventBus.broadcast({ type: "context_usage", sessionId, contextUsage });
+            }
+            return;
+        }
+
         const content = extractContent(update);
         if (!content.length) return;
 
@@ -391,7 +400,7 @@ const normalizeAvailableSkills = (skills) => Array.isArray(skills)
     : [];
 
 const normalizeAgentActivity = (activity) => {
-    if (activity === "analyzing_tool_results") return activity;
+    if (activity === "analyzing_tool_results" || activity === "compacting") return activity;
     if (activity?.type !== "model_retry") return undefined;
     return {
         type: "model_retry",
@@ -400,6 +409,21 @@ const normalizeAgentActivity = (activity) => {
         maxAttempts: finiteNumber(activity.maxAttempts),
         retryAfterSeconds: finiteNumber(activity.retryAfterSeconds),
     };
+};
+
+/** 功能：规范化上下文使用率通知，只接受有限非负数值并由 Host 重算百分比。 */
+const CONTEXT_BLOCKED_REASONS = new Set(["no_history", "compaction_input_too_large", "retained_context_too_large"]);
+const normalizeContextUsage = (usage) => {
+    const rawTokens = finiteNumber(usage?.tokens);
+    const rawBudget = finiteNumber(usage?.budget);
+    if (rawTokens === undefined || rawBudget === undefined) return undefined;
+    const tokens = Math.max(0, Math.round(rawTokens));
+    const budget = Math.round(rawBudget);
+    if (budget <= 0) return undefined;
+    const percent = Math.min(100, Math.round(tokens / budget * 100));
+    const blockedReason = CONTEXT_BLOCKED_REASONS.has(usage.blockedReason) ? usage.blockedReason : undefined;
+    const thresholdPercent = Math.min(100, Math.max(1, finiteNumber(usage.thresholdPercent) ?? 80));
+    return { tokens, budget, percent, blockedReason, thresholdPercent };
 };
 
 const normalizeToolCall = (update) => {

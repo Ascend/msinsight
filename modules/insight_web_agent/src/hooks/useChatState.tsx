@@ -33,7 +33,7 @@ import { downloadSessionExport } from '../sessionExportDownload';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { subscribeEvents } from '../eventStream';
 import { shouldPersistSessionExport } from '../env';
-import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, RagStatus, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ContextUsage, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, RagStatus, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
     ragStatus?: RagStatus;
@@ -60,6 +60,7 @@ interface ChatStateValue {
     scrollToLatestRequest: number;
     welcomeAnimationRequest: number;
     pendingPrompt: boolean;
+    contextUsage?: ContextUsage;
     queuedCount: number;
     queuedPrompts: QueuedPrompt[];
     sessions: SessionItem[];
@@ -370,6 +371,15 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 messages: record.messages.map((message) => message.id === event.id
                     ? { ...message, content: updateToolContent(message.content, event.toolCall) }
                     : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'context_usage' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                contextUsage: event.contextUsage,
                 loaded: true,
             }));
             return;
@@ -985,6 +995,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         scrollToLatestRequest,
         welcomeAnimationRequest,
         pendingPrompt: activePendingPrompt(state),
+        contextUsage: activeContextUsage(state),
         queuedCount: activeQueuedCount(state),
         queuedPrompts: activeQueuedPrompts(state),
         sessions: state.sessions,
@@ -1070,6 +1081,11 @@ const flattenConfigValues = (options: ConfigOptionValue[]): ConfigOptionValue[] 
 const activePendingPrompt = (state: ChatState): boolean => {
     if (state.isDraftSession || !state.activeSessionId) return state.draftPendingPrompt;
     return getSessionRecord(state, state.activeSessionId).pendingPrompt;
+};
+
+const activeContextUsage = (state: ChatState): ContextUsage | undefined => {
+    if (state.isDraftSession || !state.activeSessionId) return undefined;
+    return state.sessionRecords[state.activeSessionId]?.contextUsage;
 };
 
 const getActiveConfigOptions = (state: ChatState): ConfigOption[] => {

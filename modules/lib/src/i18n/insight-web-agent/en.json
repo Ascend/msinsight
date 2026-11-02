@@ -1,5 +1,16 @@
 {
   "insightWebAgent": {
+    "compactingContext": "Compacting conversation context...",
+    "contextBudgetLabel": "Context budget",
+    "contextBudgetInvalid": "Context budget must be either 200K or 1M.",
+    "autoCompactThresholdLabel": "Auto-compact threshold (%)",
+    "autoCompactThresholdHint": "Compact older history when usage reaches this share of the budget. Default 80%.",
+    "autoCompactThresholdInvalid": "Auto-compact threshold must be an integer from 1 to 100.",
+    "contextUsage": "Context {{percent}}%",
+    "contextBlocked_no_history": "Cannot compact: no history to compact",
+    "contextBlocked_compaction_input_too_large": "Cannot compact: history to compact too large",
+    "contextBlocked_retained_context_too_large": "Cannot compact: current non-compactable content too large",
+    "contextUsageHint": "Used {{tokens}} of {{budget}} budget (estimated)",
     "fetchModelsFromService": "Fetch models from service",
     "fetchingModels": "Fetching models…",
     "modelListTruncated": "Model list limit reached. Add further models with Configure custom model.",
@@ -14,7 +25,6 @@
     "defaultModelCannotDelete": "The default model cannot be deleted. Select another model first.",
     "lastModelCannotDelete": "Keep at least one model candidate.",
     "modelCandidates": "Model candidates",
-
     "agentError": "Agent error",
     "nodeBackendUnavailableTitle": "Node.js runtime unavailable",
     "nodeBackendUnavailableDescription": "The local Node.js service could not be reached. Node.js may not be installed, or the backend may have failed to start.",
@@ -193,13 +203,8 @@
     "thinkingCompleted": "Thought completed",
     "thinkingAnswering": "Thought completed, starting answer:",
     "analyzingToolResults": "Analyzing tool results...",
-    "modelRetrying": "The model service is rate limited. Request {{attempt}}/{{maxAttempts}} is in progress; recovery is expected in {{wait}}...",
-    "modelRetryConnecting": "Retry {{attempt}}/{{maxAttempts}} in progress; waiting for model response...",
-    "modelConnectionRetrying": "Model connection interrupted or timed out. Retry {{attempt}}/{{maxAttempts}} (backoff {{wait}}); retaining existing output...",
-    "modelRetryWaitUnknown": "a while",
-    "modelRetryWaitSeconds": "{{count}} seconds",
-    "modelRetryWaitMinutes": "{{count}} minutes",
-    "modelRetryWaitMinutesSeconds": "{{minutes}} minutes {{seconds}} seconds",
+    "modelRetrying": "Retrying in {{seconds}}s · attempt {{attempt}}/{{maxAttempts}}",
+    "modelRetryConnecting": "Connecting · attempt {{attempt}}/{{maxAttempts}}",
     "toolRunning": "Running",
     "toolCompleted": "Completed",
     "toolFailed": "Failed",
@@ -264,6 +269,7 @@
     "envValueLabel": "Env value {{index}}",
     "newAgentArgLabel": "New agent arg {{index}}",
     "newAgentEnvKeyLabel": "New agent env key {{index}}",
-    "newAgentEnvValueLabel": "New agent env value {{index}}"
+    "newAgentEnvValueLabel": "New agent env value {{index}}",
+    "useLongContextBudget": "Use a 1M context budget"
   }
 }

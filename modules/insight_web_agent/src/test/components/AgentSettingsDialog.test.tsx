@@ -35,6 +35,9 @@ jest.mock('antd', () => ({
 jest.mock('@insight/lib/components', () => ({
     Alert: ({ message }: any) => <div role="alert">{message}</div>,
     Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    Checkbox: ({ children, checked, onChange }: any) => (
+        <label><input checked={checked} onChange={(event) => onChange({ target: { checked: event.target.checked } })} type="checkbox" />{children}</label>
+    ),
     Input: (props: any) => <input {...props} />,
     InputNumber: ({ onChange, value, ...props }: any) => <input {...props} onChange={(event) => onChange(Number(event.target.value))} type="number" value={value} />,
     PasswordInput: (props: any) => <input {...props} type="password" />,

@@ -35,7 +35,7 @@ export interface PermissionRequestItem {
 }
 
 export type ToolCallStatus = 'in_progress' | 'completed' | 'failed';
-export type AgentActivity = 'analyzing_tool_results' | {
+export type AgentActivity = 'analyzing_tool_results' | 'compacting' | {
     type: 'model_retry';
     reason?: 'connection' | 'rate_limit';
     retryAt?: number;
@@ -177,6 +177,19 @@ export interface BuiltinAgentConfig {
     models?: Array<{ id: string; name?: string }>;
     baseUrl: string;
     apiKey: string;
+    /** Estimated input-context budget in tokens; not a discovered model window. */
+    contextBudgetTokens?: number;
+    /** Percentage of the budget at which automatic compaction starts. */
+    autoCompactThreshold?: number;
+}
+
+export interface ContextUsage {
+    tokens: number;
+    budget: number;
+    percent: number;
+    thresholdPercent?: number;
+    /** Set when the context is over budget but cannot be compacted automatically. */
+    blockedReason?: 'no_history' | 'compaction_input_too_large' | 'retained_context_too_large';
 }
 
 export interface AgentSessionConfig {
@@ -294,6 +307,7 @@ export interface SessionRecord {
     queuedPrompts: QueuedPrompt[];
     notices?: ConversationNotice[];
     status: SessionStatus;
+    contextUsage?: ContextUsage;
 }
 
 export interface SessionConfigUpdateResult {
@@ -321,6 +335,7 @@ export type ServerEvent =
     | { type: 'message_content_added'; sessionId?: string; id: string; block: MessageContentBlock }
     | { type: 'message_tool_call'; sessionId?: string; id: string; toolCall: ToolCallItem }
     | { type: 'message_activity'; sessionId?: string; id: string; activity?: AgentActivity }
+    | { type: 'context_usage'; sessionId?: string; contextUsage: ContextUsage }
     | { type: 'message_removed'; sessionId?: string; id: string }
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
     | { type: 'permission_request'; sessionId: string; requestId: string; kind?: 'filesystem' | 'bash' | 'tool'; title?: string; target?: string; path?: string; details?: Record<string, unknown>; actions: PermissionDecision[] }

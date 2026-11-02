@@ -39,12 +39,22 @@ export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
     if (!context) return;
     let message = context.messages[context.messages.length - 1];
     if (!message || message.role !== "assistant") {
-        if (activity === undefined) return;
+        if (activity === undefined) {
+            // 无内容的一轮会移除该消息，改按记录的 id 清除残留状态。
+            const targetId = context.activityMessageId;
+            if (!targetId) return;
+            context.activityMessageId = undefined;
+            const target = context.messages.find((item) => item.id === targetId);
+            if (target) target.activity = undefined;
+            eventBus.broadcast({ type: "message_activity", sessionId, id: targetId, activity: undefined });
+            return;
+        }
         message = { id: crypto.randomUUID(), role: "assistant", content: [] };
         context.messages.push(message);
         eventBus.broadcast({ type: "message_added", sessionId, message });
     }
     message.activity = activity;
+    context.activityMessageId = activity === undefined ? undefined : message.id;
     eventBus.broadcast({ type: "message_activity", sessionId, id: message.id, activity });
 };
 
