@@ -23,6 +23,7 @@ export const createAcpSessionNotifier = (output = process.stdout) => ({
     sendSessionThinkingChunk: (sessionId, text) => sendSessionContentChunk(output, sessionId, "agent_thought_chunk", text),
     sendSessionContentChunk: (sessionId, kind, text) => sendSessionContentChunk(output, sessionId, kind, text),
     sendAgentActivityUpdate: (sessionId, activity) => sendAgentActivityUpdate(output, sessionId, activity),
+    sendContextUsageUpdate: (sessionId, usage) => sendContextUsageUpdate(output, sessionId, usage),
     sendToolCallUpdate: (sessionId, kind, toolCall) => sendToolCallUpdate(output, sessionId, kind, toolCall),
 });
 
@@ -56,6 +57,21 @@ const sendAgentActivityUpdate = (output, sessionId, activity) => {
             update: {
                 kind: "agent_status_update",
                 activity,
+            },
+        },
+    });
+};
+
+/** 功能：构造并输出会话上下文使用率通知，供前端展示输入预算占用。 */
+const sendContextUsageUpdate = (output, sessionId, usage) => {
+    writeJson(output, {
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: {
+            sessionId,
+            update: {
+                kind: "context_usage_update",
+                contextUsage: usage,
             },
         },
     });

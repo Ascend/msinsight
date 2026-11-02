@@ -21,8 +21,9 @@ import type { KeyboardEvent } from 'react';
 import { ArrowUpOutlined } from '@ant-design/icons';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { Tooltip } from '@insight/lib/components';
 import { createImeCompositionTracker } from '../imeComposition';
-import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
+import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue, ContextUsage } from '../types';
 import { useChatState } from '../hooks/useChatState';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import closeIcon from '../icons/close.svg';
@@ -374,6 +375,42 @@ const Container = styled.div`
         flex: 1 1 auto;
     }
 
+    .context-usage {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 11px;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        cursor: default;
+    }
+
+    .context-usage-ring {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        display: block;
+    }
+
+    .context-usage-ring-track {
+        stroke: ${(props): string => props.theme.borderColorLight};
+    }
+
+    .context-usage-ring-value {
+        stroke: ${(props): string => props.theme.primaryColor};
+        transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+    }
+
+    .context-usage-ring-value.warning {
+        stroke: ${(props): string => props.theme.warningColor};
+    }
+
+    .context-usage-ring-value.blocked {
+        stroke: ${(props): string => props.theme.dangerColor};
+    }
+
     .send-button {
         width: 30px;
         height: 30px;
@@ -434,7 +471,7 @@ export const Composer = (): JSX.Element => {
     const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
     const [queueExpanded, setQueueExpanded] = useState(true);
     const { t } = useTranslation('insightWebAgent');
-    const { activeAgentName, addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, composerRef, configOptions, configOptionsLoading, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
+    const { activeAgentName, addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, composerRef, configOptions, configOptionsLoading, contextUsage, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     useLayoutEffect(() => {
         const textarea = composerRef?.current;
         if (!textarea) return undefined;
@@ -633,6 +670,13 @@ export const Composer = (): JSX.Element => {
                     <div className="model-picker">
                         {modelPicker}
                     </div>
+                    {contextUsage ? (
+                        <Tooltip title={contextUsageHint(contextUsage, t)}>
+                            <span aria-label={contextUsageHint(contextUsage, t)} className="context-usage" role="status" tabIndex={0}>
+                                <ContextRing usage={contextUsage} />
+                            </span>
+                        </Tooltip>
+                    ) : null}
                     <span className="shortcut-hint" />
                     <button
                         aria-label={showStop ? t('cancel') : t('send')}
@@ -650,8 +694,36 @@ export const Composer = (): JSX.Element => {
     );
 };
 
-const getQueuedPromptPreview = (prompt: { text: string; images: unknown[] }, t: TFunction): string => {
-    const text = prompt.text.trim().replace(/\s+/g, ' ');
+const formatTokens = (tokens: number): string => tokens >= 1000 ? `${Math.round(tokens / 1000)}K` : String(tokens);
+
+const contextUsageHint = (usage: ContextUsage, t: TFunction): string => {
+    const hint = `${usage.percent}% · ${formatTokens(usage.tokens)}`;
+    return usage.blockedReason ? `${hint} ${t(`contextBlocked_${usage.blockedReason}`)}` : hint;
+};
+
+// 用 SVG 圆环代替整行文字，占用宽度固定在 18px，避免把输入框其他控件挤开。
+const RING_RADIUS = 7;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const ContextRing = ({ usage }: { usage: ContextUsage }): JSX.Element => {
+    const state = usage.tokens / usage.budget * 100 >= (usage.thresholdPercent ?? 80)
+        ? (usage.blockedReason ? 'blocked' : 'warning')
+        : '';
+    return (
+        <svg aria-hidden="true" className="context-usage-ring" viewBox="0 0 18 18">
+            <circle className="context-usage-ring-track" cx="9" cy="9" r={RING_RADIUS} fill="none" strokeWidth="2.5" />
+            <circle
+                className={`context-usage-ring-value ${state}`}
+                cx="9" cy="9" r={RING_RADIUS} fill="none" strokeWidth="2.5"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={RING_CIRCUMFERENCE * (1 - Math.min(100, Math.max(0, usage.percent)) / 100)}
+                transform="rotate(-90 9 9)"
+            />
+        </svg>
+    );
+};
+
+const getQueuedPromptPreview = (prompt: { text: string; images: unknown[] }, t: TFunction): string => {    const text = prompt.text.trim().replace(/\s+/g, ' ');
     if (text && prompt.images.length) return `${text} (${t('imageAttachment', { count: prompt.images.length })})`;
     if (text) return text;
     return prompt.images.length === 1 ? t('image') : t('images', { count: prompt.images.length });

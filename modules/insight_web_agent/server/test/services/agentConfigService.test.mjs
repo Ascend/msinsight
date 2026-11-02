@@ -144,6 +144,8 @@ test("reads a normalized agent and session config snapshot", async () => {
             models: [{ id: "cx/gpt-5.5", name: "cx/gpt-5.5" }],
             baseUrl: "http://127.0.0.1:19099/v1",
             apiKey: "",
+            contextBudgetTokens: 200000,
+            autoCompactThreshold: 80,
         },
         catalogAgents: presentCatalogAgents(),
         sessionConfig: {
@@ -177,6 +179,21 @@ test("native model lists round trip, deduplicate, validate default membership an
         assert.equal(rejected.error, "validation_failed");
     }
     assert.deepEqual((await fixture.service.readSnapshot()).builtinAgent.models, models.slice(0, 2));
+});
+
+test("context budget defaults to 200K and only allows 200K or 1M", async (t) => {
+    const fixture = await createFixture();
+    t.after(() => rm(fixture.rootDir, { recursive: true, force: true }));
+    const old = (await fixture.service.readSnapshot()).builtinAgent;
+    // Configs written before these fields existed still load with defaults.
+    assert.equal(old.contextBudgetTokens, 200000);
+    assert.equal(old.autoCompactThreshold, 80);
+    assert.equal((await fixture.service.saveBuiltinAgent({ ...old, contextBudgetTokens: 1000000 })).ok, true);
+    assert.equal((await fixture.service.readSnapshot()).builtinAgent.contextBudgetTokens, 1000000);
+    // Arbitrary sizes are rejected so a budget can never exceed what the model accepts.
+    for (const contextBudgetTokens of [5000, 0]) {
+        assert.equal((await fixture.service.saveBuiltinAgent({ ...old, contextBudgetTokens })).error, "validation_failed");
+    }
 });
 
 test("normalizes an omitted docs allowlist flag to false", async () => {

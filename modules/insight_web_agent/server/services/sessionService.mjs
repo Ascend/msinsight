@@ -248,8 +248,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             pendingPrompt: false,
             configOptions: [],
             replayingHistory: false,
-            createdAt: Date.now(),
-        };
+            createdAt: Date.now(),        };
         state.sessionContexts.set(sessionId, context);
         return context;
     };

@@ -7,7 +7,7 @@
  * -------------------------------------------------------------------------
  */
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -20,6 +20,7 @@ const createNotifier = () => {
         sendSessionChunk: (sessionId, text) => updates.push({ type: "text", sessionId, text }),
         sendSessionThinkingChunk: (sessionId, text) => updates.push({ type: "thinking", sessionId, text }),
         sendAgentActivityUpdate: (sessionId, activity) => updates.push({ type: "activity", sessionId, activity }),
+        sendContextUsageUpdate: (sessionId, usage) => updates.push({ type: "usage", sessionId, usage }),
         sendToolCallUpdate: (sessionId, kind, toolCall) => updates.push({ type: "tool", sessionId, kind, toolCall: { ...toolCall } }),
     };
 };
@@ -174,8 +175,8 @@ test("AI SDK runtime streams ordered content, executes native tools, and restore
     assert.equal(session.messages[0].content[0].text, "find leaks");
     assert.equal(capturedOptions.system.includes("Use Read, Glob, and Grep"), false);
     assert.equal(await capturedOptions.stopWhen({ steps: Array.from({ length: 8 }) }), true);
-    assert.equal(capturedOptions.prepareStep({ stepNumber: 6 }).system, capturedOptions.system);
-    const finalStep = capturedOptions.prepareStep({ stepNumber: 7 });
+    assert.equal((await capturedOptions.prepareStep({ stepNumber: 6, messages: capturedOptions.messages })).system, capturedOptions.system);
+    const finalStep = await capturedOptions.prepareStep({ stepNumber: 7, messages: capturedOptions.messages });
     assert.equal(finalStep.toolChoice, "none");
     assert.ok(finalStep.system.startsWith(capturedOptions.system));
     assert.match(finalStep.system, /including help/);
@@ -452,6 +453,70 @@ test("rate-limited replies persist only visible user text", async (t) => {
     const restoredSession = createSession();
     await runtime.restoreSession(restoredSession);
     assert.equal(restoredSession.messages[0].content[0].text, "Visible request");
+});
+
+for (const failure of ["length", "disk"]) {
+    test(`summary ${failure} keeps prior checkpoint and raw history`, async (t) => {
+        const root = await mkdtemp(join(tmpdir(), "native-compaction-failure-"));
+        t.after(() => rm(root, { recursive: true, force: true }));
+        const raw = Array.from({ length: 5 }, () => [
+            { role: "user", content: "question" }, { role: "assistant", content: "x".repeat(3000) },
+        ]).flat();
+        const session = { ...createSession(), runtimeSession: { kind: "ai-sdk", modelMessages: raw, uiMessages: [] } };
+        const runtime = createRuntime({
+            env: { MSINSIGHT_NATIVE_COMPACTION_INPUT_BUDGET: "3000" },
+            aiSdkStoragePath: root, notifier: createNotifier(), toolRegistry: { list: () => [] }, createModel: () => ({}),
+            streamTextImpl: (options) => {
+                if (options.system.startsWith("Summarize the supplied")) return {
+                    fullStream: asAsyncStream(async function* () {
+                        if (failure === "disk") await writeFile(join(root, "sessions"), "not a directory");
+                        yield { type: "text-delta", text: "short" };
+                    }),
+                    finishReason: Promise.resolve(failure === "length" ? "length" : "stop"),
+                };
+                return { fullStream: asAsyncStream(async function* () {
+                    await options.prepareStep({ stepNumber: 0, messages: options.messages });
+                    yield { type: "text-delta", text: "answer" };
+                }), response: Promise.resolve({ messages: [{ role: "assistant", content: "answer" }] }) };
+            },
+        });
+        await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "continue", controller: new AbortController() });
+        // A rejected summary must never advance the checkpoint or leak its text into UI history.
+        assert.equal(session.runtimeSession.compaction, undefined);
+        assert.deepEqual(session.runtimeSession.modelMessages.slice(0, 10), raw.slice(0, 10));
+        assert.doesNotMatch(JSON.stringify(session.messages), /short/);
+    });
+}
+
+test("an oversized current turn stops with an actionable budget message and no model request", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "native-context-hard-budget-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    let modelRequests = 0;
+    const runtime = createRuntime({
+        env: { MSINSIGHT_NATIVE_COMPACTION_INPUT_BUDGET: "1500" },
+        aiSdkStoragePath: root,
+        notifier: createNotifier(),
+        toolRegistry: { list: () => [] },
+        modelCatalog: { defaultModelId: "test-model", models: [{ id: "test-model", name: "Test" }] },
+        createModel: () => ({}),
+        streamTextImpl: (options) => ({
+            fullStream: asAsyncStream(async function* () {
+                await options.prepareStep({ stepNumber: 0, messages: options.messages });
+                modelRequests += 1;
+            }),
+            response: Promise.resolve({ messages: [] }),
+        }),
+    });
+    const session = createSession();
+    const result = await runtime.runPrompt({ session, sessionId: session.sessionId, userText: "x".repeat(30000), controller: new AbortController() });
+    assert.equal(result.ok, false);
+    // The message must state the amount, the fixed overhead, the cause and the fix.
+    assert.match(result.reason, /上下文超出预算（\d+ \/ 1500/);
+    assert.match(result.reason, /工具定义/);
+    assert.match(result.reason, /没有可压缩的历史/);
+    assert.match(result.reason, /切换到 1M 上下文预算/);
+    assert.equal(modelRequests, 0);
+    assert.equal(session.runtimeSession.compaction, undefined);
 });
 
 test("AI SDK runtime reports unsupported providers before making a request", () => {

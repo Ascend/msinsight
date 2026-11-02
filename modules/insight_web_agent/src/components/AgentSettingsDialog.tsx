@@ -21,7 +21,8 @@ import { Drawer, type InputProps, message, Modal } from 'antd';
 import { isEqual } from 'lodash';
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Button, Input, InputNumber, PasswordInput, Tooltip } from '@insight/lib/components';
+import type { TFunction } from 'i18next';
+import { Alert, Button, Checkbox, Input, InputNumber, PasswordInput, Tooltip } from '@insight/lib/components';
 import { copyToClipboard } from '@insight/lib/utils';
 import { resolveAgentKind } from '../agentBrand';
 import { AgentKindIcon } from './AgentKindIcon';
@@ -512,6 +513,12 @@ const Container = styled.div`
         font-size: 14px;
     }
 
+    .settings-static-value {
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+    }
+
     .settings-select .agent-select-trigger {
         height: 32px;
         box-sizing: border-box;
@@ -765,6 +772,21 @@ const EMPTY_DRAFT = (): DraftAgent => ({
 
 type SettingsNavigation = { type: 'select'; agentName: string } | { type: 'create' } | { type: 'copy' } | { type: 'close' };
 
+// 预算只有两档，避免填出模型不支持的容量；压缩比例仍可调。
+const DEFAULT_CONTEXT_BUDGET_TOKENS = 200000;
+const LONG_CONTEXT_BUDGET_TOKENS = 1000000;
+
+const formatContextBudget = (tokens: number | undefined): string =>
+    `${Math.round((tokens ?? DEFAULT_CONTEXT_BUDGET_TOKENS) / 1000)}K tokens`;
+
+const validateCompactFields = (config: Record<string, unknown>, t: TFunction): { contextBudgetTokens: number; autoCompactThreshold: number } => {
+    const budget = config.contextBudgetTokens === undefined ? DEFAULT_CONTEXT_BUDGET_TOKENS : Number(config.contextBudgetTokens);
+    if (budget !== DEFAULT_CONTEXT_BUDGET_TOKENS && budget !== LONG_CONTEXT_BUDGET_TOKENS) throw new Error(t('contextBudgetInvalid'));
+    const threshold = config.autoCompactThreshold === undefined ? 80 : Number(config.autoCompactThreshold);
+    if (!Number.isSafeInteger(threshold) || threshold < 1 || threshold > 100) throw new Error(t('autoCompactThresholdInvalid'));
+    return { contextBudgetTokens: budget, autoCompactThreshold: threshold };
+};
+
 const findExternalAgent = (source: AgentConfigSnapshot | null | undefined, agentName: string | null | undefined) => {
     if (!source || !agentName) return undefined;
     return source.catalogAgents?.find((agent) => agent.name === agentName)
@@ -935,9 +957,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         });
     };
 
-    const getBuiltinScriptConfig = (): Record<string, unknown> => {
-        const { provider = '', model = '', models, baseUrl = '', apiKey = '' } = snapshot?.builtinAgent ?? {};
-        return { provider, model, models: models ?? (model ? [{ id: model, name: model }] : []), baseUrl, apiKey };
+    const getBuiltinScriptConfig = (builtin = snapshot?.builtinAgent): Record<string, unknown> => {
+        const { provider = '', model = '', models, baseUrl = '', apiKey = '', contextBudgetTokens = 200000, autoCompactThreshold = 80 } = builtin ?? {};
+        return { provider, model, models: models ?? (model ? [{ id: model, name: model }] : []), baseUrl, apiKey, contextBudgetTokens, autoCompactThreshold };
     };
 
     const getExternalScriptConfig = (agent: { name?: string; command: string; args: string[]; env: Record<string, string> }, includeName: boolean): Record<string, unknown> => ({
@@ -974,6 +996,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             const config = parsed as Record<string, unknown>;
             if (isBuiltinSelected) {
                 if (['provider', 'model', 'baseUrl', 'apiKey'].some((key) => typeof config[key] !== 'string')) throw new Error(t('builtinJsonInvalid'));
+                const compactFields = validateCompactFields(config, t);
                 if (config.models !== undefined && (!Array.isArray(config.models) || !config.models.length || !config.models.every((item) =>
                     item && typeof item === 'object' && typeof item.id === 'string' && item.id.trim()
                     && (item.name === undefined || (typeof item.name === 'string' && item.name.trim()))))) throw new Error(t('builtinJsonInvalid'));
@@ -986,6 +1009,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                         models: config.models as AgentConfigSnapshot['builtinAgent']['models'],
                         baseUrl: config.baseUrl as string,
                         apiKey: config.apiKey as string,
+                        ...compactFields,
                     },
                 }) : current);
             } else {
@@ -1092,9 +1116,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         }
         const { agentName } = destination;
         if (configMode === 'script') {
-            const { provider = '', model = '', models, baseUrl = '', apiKey = '' } = source?.builtinAgent ?? {};
             const nextConfig = agentName === 'msinsight-native'
-                ? { provider, model, models: models ?? (model ? [{ id: model, name: model }] : []), baseUrl, apiKey }
+                ? getBuiltinScriptConfig(source?.builtinAgent)
                 : getExternalScriptConfig(findExternalAgent(source, agentName) ?? { command: '', args: [], env: {} }, false);
             setScriptValue(JSON.stringify(nextConfig, null, 2));
         }
@@ -1158,6 +1181,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             fieldErrors['builtin-model'] = t('defaultModelNotInCatalog');
         }
         if (!snapshot.builtinAgent.baseUrl.trim()) fieldErrors['builtin-base-url'] = t('baseUrlRequired');
+        const threshold = Number(snapshot.builtinAgent.autoCompactThreshold ?? 80);
+        if (!Number.isSafeInteger(threshold) || threshold < 1 || threshold > 100) fieldErrors['builtin-compact-threshold'] = t('autoCompactThresholdInvalid');
     } else if (editingAgent && !isReadOnlyAgent) {
         if (draftAgent) {
             if (!draftAgent.name.trim()) fieldErrors['new-agent-name'] = t('newAgentNameRequired');
@@ -1249,10 +1274,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             // Reject stale results if fields changed while the network request was pending.
             setSnapshot((current) => current && isEqual(current.builtinAgent, requested)
                 ? { ...current, builtinAgent } : current);
-            if (configMode === 'script') setScriptValue(JSON.stringify({
-                provider: builtinAgent.provider, model: builtinAgent.model, models,
-                baseUrl: builtinAgent.baseUrl, apiKey: builtinAgent.apiKey,
-            }, null, 2));
+            if (configMode === 'script') setScriptValue(JSON.stringify(getBuiltinScriptConfig(builtinAgent), null, 2));
             if (result.truncated) message.warning(t('modelListTruncated'));
         } catch {
             if (requestId === modelRequestRef.current) setError(t('modelListFetchFailed'));
@@ -1542,6 +1564,49 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                         {renderFieldError('builtin-model')}
                                     </div>
                                     <div className="hint">{t('modelListDraftHint')}</div>
+                                </div>
+                                <div className="row">
+                                    <div className="model-field-header">
+                                        <label htmlFor="builtin-context-budget">{t('contextBudgetLabel')}</label>
+                                        <Checkbox
+                                            checked={snapshot.builtinAgent.contextBudgetTokens === LONG_CONTEXT_BUDGET_TOKENS}
+                                            onChange={(event) => setSnapshot((current) => current ? ({
+                                                ...current,
+                                                builtinAgent: {
+                                                    ...current.builtinAgent,
+                                                    contextBudgetTokens: event.target.checked
+                                                        ? LONG_CONTEXT_BUDGET_TOKENS
+                                                        : DEFAULT_CONTEXT_BUDGET_TOKENS,
+                                                },
+                                            }) : current)}
+                                        >
+                                            {t('useLongContextBudget')}
+                                        </Checkbox>
+                                    </div>
+                                    <div className="field-control">
+                                        <span className="settings-static-value" id="builtin-context-budget">
+                                            {formatContextBudget(snapshot.builtinAgent.contextBudgetTokens)}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="row">
+                                    <label htmlFor="builtin-compact-threshold">{t('autoCompactThresholdLabel')}</label>
+                                    <div className="field-control">
+                                        <InputNumber
+                                            className="session-number"
+                                            id="builtin-compact-threshold"
+                                            max={100}
+                                            min={1}
+                                            onChange={(value) => setSnapshot((current) => current ? ({
+                                                ...current,
+                                                builtinAgent: { ...current.builtinAgent, autoCompactThreshold: Number(value ?? 80) },
+                                            }) : current)}
+                                            step={5}
+                                            value={snapshot.builtinAgent.autoCompactThreshold ?? 80}
+                                        />
+                                        {renderFieldError('builtin-compact-threshold')}
+                                        <div className="hint">{t('autoCompactThresholdHint')}</div>
+                                    </div>
                                 </div>
                                 </> : editingAgent ? <>
                                 <div className="row">

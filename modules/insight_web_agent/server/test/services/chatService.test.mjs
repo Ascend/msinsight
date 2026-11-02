@@ -306,6 +306,20 @@ test("prompt completion clears the current agent activity", async () => {
     assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).completionStatus, "completed");
 });
 
+test("compacting activity normalizes and clears without adding summary text", async () => {
+    let finishPrompt;
+    const { service, state, events } = createPromptTestService("", () => new Promise((resolve) => { finishPrompt = resolve; }));
+    await service.prompt("analyze", { sessionId: "session-1" });
+    service.handleAcpNotification({
+        method: "session/update",
+        params: { sessionId: "session-1", update: { kind: "agent_status_update", activity: "compacting" } },
+    });
+    assert.equal(state.sessionContexts.get("session-1").messages.at(-1).activity, "compacting");
+    finishPrompt({ stopReason: "end_turn" });
+    await waitForPromptCompletion(state);
+    assert.equal(events.filter((event) => event.type === "message_activity").at(-1).activity, undefined);
+});
+
 test("prompt and hidden context do not invoke or embed RAG automatically", async () => {
     let retrievals = 0;
     const ragService = { retrieve: async () => { retrievals += 1; } };

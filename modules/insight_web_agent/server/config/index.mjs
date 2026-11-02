@@ -37,6 +37,8 @@ const DEFAULT_NATIVE_CONFIG = {
     models: [{ id: "deepseek-flash", name: "DeepSeek-V4.1-Flash" }],
     baseUrl: "https://api.deepseek.com/v1",
     apiKey: "",
+    contextBudgetTokens: 200000,
+    autoCompactThreshold: 80,
 };
 
 const defaultRootDir = (() => {
@@ -348,6 +350,8 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
             MSINSIGHT_NATIVE_MODEL: String(persistedNative.model ?? ""),
             MSINSIGHT_NATIVE_BASE_URL: String(persistedNative.baseUrl ?? ""),
             MSINSIGHT_NATIVE_API_KEY: secretCrypto.openAtRest(persistedNative.apiKey, nativeApiKeyAad()),
+            MSINSIGHT_NATIVE_COMPACTION_INPUT_BUDGET: String(persistedNative.contextBudgetTokens ?? 200000),
+            MSINSIGHT_NATIVE_COMPACTION_THRESHOLD: String(persistedNative.autoCompactThreshold ?? 80),
         },
     }, "builtin");
     const agentServers = [builtinAgentServer, ...configuredAgentServers];

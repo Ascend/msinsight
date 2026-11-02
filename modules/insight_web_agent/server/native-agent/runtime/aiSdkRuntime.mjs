@@ -29,6 +29,7 @@ import { normalizeModelCatalog, resolveSessionModel } from "../config/modelCatal
 import { getNativeConfigurationError } from "../config/modelConfiguration.mjs";
 
 import { createInterruptedHistory } from "./interruptedHistory.mjs";
+import { acceptSummary, estimateContextTokens, planCompaction, projectMessages, SUMMARY_SYSTEM, validateCheckpoint } from "./contextCompaction.mjs";
 
 const STATE_VERSION = 1;
 
@@ -43,6 +44,14 @@ export const createRuntime = ({
     retrySleep = sleep,
 }) => {
     const sessionStateDir = join(aiSdkStoragePath, "sessions");
+    const writes = new Map();
+    // 用户设定的输入预算，不是探测到的模型窗口，也不扣输出预留。
+    const inputBudget = readPositiveInteger(env.MSINSIGHT_NATIVE_COMPACTION_INPUT_BUDGET, 200000);
+    const thresholdPercent = Math.min(100, readPositiveInteger(env.MSINSIGHT_NATIVE_COMPACTION_THRESHOLD, 80));
+    const getToolBudget = () => Object.fromEntries(toolRegistry.list().map((definition) => [definition.name, {
+        description: definition.description,
+        inputSchema: definition.inputSchema ?? { type: "object", properties: {} },
+    }]));
 
     const runPrompt = async ({ session, sessionId, userText, visibleUserText = userText, pageObservation, controller }) => {
         let model;
@@ -68,6 +77,106 @@ export const createRuntime = ({
         let historyCommitted = false;
         const maxSteps = readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_STEPS, 100);
         const system = createNativeSystemPrompt(session);
+        const turnStart = state.modelMessages.length;
+        const tools = createAiSdkTools(toolRegistry);
+        const toolBudget = getToolBudget();
+        let failedCompactionBoundary;
+        // 锚定上次完成请求的真实用量；模型、system、工具或检查点变化即失效。
+        let usageAnchor;
+        let pendingAnchor;
+        // 仅超预算且压不动时提示；达到触发线仍会自动恢复。
+        const blockedLabel = (plan) => plan.needed && !plan.canSummarize
+            ? (plan.blockedReason ?? "unknown")
+            : undefined;
+        // 收尾时按最终历史重算占用，保证与下一轮一致。
+        const reportFinalUsage = async () => {
+            const finalTokens = estimateContextTokens({
+                messages: projectMessages(state.modelMessages, state.compaction),
+                system: createNativeSystemPrompt(session),
+                tools: toolBudget,
+            });
+            const plan = planCompaction({
+                messages: state.modelMessages, checkpoint: state.compaction,
+                turnStart: state.modelMessages.length, budget: inputBudget, thresholdPercent,
+                system: createNativeSystemPrompt(session), tools: toolBudget,
+            });
+            reportUsage(sessionId, notifier, finalTokens, inputBudget, true, blockedLabel(plan), thresholdPercent);
+        };
+        const prepareContext = async (messages, currentSystem, stepNumber = 0) => {
+            controller.signal.throwIfAborted();
+            const planOptions = {
+                messages, checkpoint: state.compaction, turnStart, budget: inputBudget, thresholdPercent,
+                system: currentSystem, tools: toolBudget, anchor: usageAnchor,
+            };
+            const plan = planCompaction(planOptions);
+            reportUsage(sessionId, notifier, plan.size, inputBudget, false, blockedLabel(plan), thresholdPercent);
+            let failure;
+            if (plan.needed && plan.canSummarize && plan.coveredMessageCount !== failedCompactionBoundary) {
+                const report = () => notifier.sendAgentActivityUpdate(sessionId, "compacting");
+                rateLimit.setCompacting(true);
+                report();
+                const heartbeat = setInterval(report, 5000);
+                try {
+                    const summaryResult = streamTextImpl({
+                        model,
+                        system: SUMMARY_SYSTEM,
+                        messages: plan.summaryMessages,
+                        maxOutputTokens: 2048,
+                        maxRetries: 2,
+                        abortSignal: controller.signal,
+                    });
+                    // 先挂上 rejection，避免取消时产生未处理拒绝。
+                    const finishReason = Promise.resolve(summaryResult.finishReason);
+                    void finishReason.catch(() => {});
+                    void Promise.resolve(summaryResult.response).catch(() => {});
+                    // 消费独立摘要流，不把摘要正文转发到 UI。
+                    let text = "";
+                    for await (const event of summaryResult.fullStream) {
+                        controller.signal.throwIfAborted();
+                        if (event.type === "text-delta") text += event.text;
+                        if (event.type === "error") throw normalizeError(event.error);
+                        if (event.type === "abort") throw new Error("Context summary aborted");
+                        if (!["text-delta", "text-start", "text-end", "reasoning-start", "reasoning-delta", "reasoning-end", "start", "start-step", "finish", "finish-step", "raw"].includes(event.type)) {
+                            throw new Error("Unexpected context summary event");
+                        }
+                    }
+                    controller.signal.throwIfAborted();
+                    const candidate = acceptSummary({
+                        text, finishReason: await finishReason, plan, messages,
+                        budget: inputBudget, system: currentSystem, tools: toolBudget, anchor: usageAnchor,
+                    });
+                    if (!candidate) throw new Error("Context summary was incomplete, empty, or did not reduce the request within budget");
+                    // rename 为提交点：落盘成功后才发布到内存，之后的取消不回滚。
+                    await saveSessionState(session, state, candidate, controller.signal);
+                    // 检查点变更后投影前缀不同，旧锚点随之失效。
+                    usageAnchor = undefined;
+                } catch (error) {
+                    controller.signal.throwIfAborted();
+                    failure = error;
+                    failedCompactionBoundary = plan.coveredMessageCount;
+                } finally {
+                    clearInterval(heartbeat);
+                    rateLimit.setCompacting(false);
+                    notifier.sendAgentActivityUpdate(sessionId, undefined);
+                }
+            }
+            controller.signal.throwIfAborted();
+            const remaining = planCompaction({ ...planOptions, checkpoint: state.compaction });
+            const budgetExceeded = remaining.size >= inputBudget;
+            // 超预算且无法压缩时持续上报原因，避免本轮结束后提示消失。
+            reportUsage(sessionId, notifier, remaining.size, inputBudget, false, blockedLabel(remaining), thresholdPercent);
+            // 仅初始步且无可压缩历史时才报错；会话中途超预算转为收尾步。
+            if (budgetExceeded && stepNumber === 0 && messages.length <= 1 && !state.compaction) {
+                throw new Error(contextBudgetError({
+                    size: remaining.size, budget: inputBudget, compressible: remaining.coveredMessageCount !== undefined, failure,
+                }));
+            }
+            return {
+                messages: projectMessages(messages, state.compaction),
+                budgetExceeded,
+                budgetSize: remaining.size,
+            };
+        };
         session.runtimeSession.activeController = controller;
         const originalMessages = [...state.modelMessages];
         const persist = async () => {
@@ -99,13 +208,26 @@ export const createRuntime = ({
                         messages: [...originalMessages, userMessage, ...retained, ...(recovering ? [{ role: "user", content: "Runtime recovery after interrupted transport, not a new human request. Continue after the retained reply without repeating it. Continue the unfinished task using the retained tool results. Do not repeat completed operations merely because transport failed; use tools for remaining work and verification. Never claim unknown operations succeeded." }] : [])],
                         tools: createAiSdkTools(toolRegistry, streamState),
                         stopWhen: stepCountIs(maxSteps),
-                        // Reserve the last step for a summary, not another page-changing tool.
-                        prepareStep: ({ stepNumber }) => {
+                        // 投影只影响真实请求，SDK 仍累积原始消息供重试使用。
+                        prepareStep: async ({ stepNumber, messages }) => {
                             const currentSystem = createNativeSystemPrompt(session);
-                            return stepNumber >= maxSteps - 1 ? {
-                                toolChoice: "none",
-                                system: `${currentSystem}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results and clearly state any unfinished work. Do not claim completion without evidence.`,
-                            } : { system: currentSystem };
+                            const { messages: projected, budgetExceeded, budgetSize } = await prepareContext(messages, currentSystem, stepNumber);
+                            const finalStep = stepNumber >= maxSteps - 1 || budgetExceeded;
+                            const stepSystem = finalStep
+                                ? `${currentSystem}\nThis is the final step of this turn. Do not call any more tools, including help. Summarize the observed results so far and clearly state any unfinished work. Do not claim completion without evidence.${budgetExceeded ? ` The context budget has been reached (${budgetSize}/${inputBudget} tokens); conclude the response now.` : ''}`
+                                : currentSystem;
+                            const overrides = finalStep ? { toolChoice: "none", system: stepSystem } : { system: stepSystem };
+                            pendingAnchor = { messageCount: messages.length, modelId: session.modelId, system: stepSystem };
+                            return { ...overrides, messages: projected };
+                        },
+                        // 真实 usage 锚定后续估算；inputTokens 已含缓存，不再重复相加。
+                        onStepFinish: (step) => {
+                            const anchorRequest = pendingAnchor;
+                            pendingAnchor = undefined;
+                            if (!anchorRequest || anchorRequest.modelId !== session.modelId) return;
+                            const inputTokens = step?.usage?.inputTokens;
+                            if (!Number.isFinite(inputTokens) || inputTokens <= 0) return;
+                            usageAnchor = { inputTokens, messageCount: anchorRequest.messageCount };
                         },
                         maxOutputTokens: readPositiveInteger(env.MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS, 100000),
                         maxRetries: 0,
@@ -161,6 +283,7 @@ export const createRuntime = ({
             if (observationContext) session.lastPageObservationFingerprint = observationContext.fingerprint;
             await saveSessionState(session, state);
             rateLimit.clear();
+            await reportFinalUsage();
             return { ok: true };
         } catch (error) {
             if (historyCommitted) return { ok: false, reason: `AI SDK runtime failed: ${error.message}` };
@@ -189,6 +312,19 @@ export const createRuntime = ({
     const restoreSession = async (session) => {
         const state = await getSessionState(session);
         session.messages = state.uiMessages;
+        const toolBudget = getToolBudget();
+        const finalTokens = estimateContextTokens({
+            messages: projectMessages(state.modelMessages, state.compaction),
+            system: createNativeSystemPrompt(session),
+            tools: toolBudget,
+        });
+        const plan = planCompaction({
+            messages: state.modelMessages, checkpoint: state.compaction,
+            turnStart: state.modelMessages.length, budget: inputBudget, thresholdPercent,
+            system: createNativeSystemPrompt(session), tools: toolBudget,
+        });
+        const blocked = plan.needed && !plan.canSummarize ? (plan.blockedReason ?? "unknown") : undefined;
+        reportUsage(session.sessionId, notifier, finalTokens, inputBudget, true, blocked, thresholdPercent);
     };
 
     const deleteSession = async (session) => {
@@ -220,21 +356,39 @@ export const createRuntime = ({
             kind: "ai-sdk",
             modelMessages: stored?.modelMessages ?? [],
             uiMessages: stored?.uiMessages ?? [],
+            compaction: validateCheckpoint(stored?.compaction, stored?.modelMessages ?? []),
             activeController: undefined,
         };
         return session.runtimeSession;
     };
 
-    const saveSessionState = async (session, state) => {
-        await mkdir(sessionStateDir, { recursive: true });
-        const filePath = stateFilePath(session.sessionId);
-        const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-        await writeFile(tempPath, JSON.stringify({
-            version: STATE_VERSION,
-            modelMessages: state.modelMessages,
-            uiMessages: state.uiMessages,
-        }), "utf8");
-        await rename(tempPath, filePath);
+    const saveSessionState = (session, state, candidate, signal) => {
+        const previous = writes.get(session.sessionId) ?? Promise.resolve();
+        const write = previous.catch(() => {}).then(async () => {
+            // 在真正执行时串行，避免较早的快照覆盖较新的检查点。
+            signal?.throwIfAborted();
+            await mkdir(sessionStateDir, { recursive: true });
+            const filePath = stateFilePath(session.sessionId);
+            const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+            try {
+                await writeFile(tempPath, JSON.stringify({
+                    version: STATE_VERSION,
+                    modelMessages: state.modelMessages,
+                    uiMessages: state.uiMessages,
+                    ...((candidate ?? state.compaction) ? { compaction: candidate ?? state.compaction } : {}),
+                }), "utf8");
+                signal?.throwIfAborted();
+                await rename(tempPath, filePath);
+                if (candidate) state.compaction = candidate;
+            } finally {
+                await unlink(tempPath).catch(() => {});
+            }
+        });
+        writes.set(session.sessionId, write);
+        void write.finally(() => {
+            if (writes.get(session.sessionId) === write) writes.delete(session.sessionId);
+        }).catch(() => {});
+        return write;
     };
 
     return { runPrompt, restoreSession, deleteSession, abortSession };
@@ -419,6 +573,7 @@ const setInferredActivity = ({ state, sessionId, notifier }, activity) => {
 const createRateLimitObserver = ({ sessionId, notifier }) => {
     let attempt = 0;
     let latestRateLimit;
+    let compacting = false;
     const fetch = async (...args) => {
         const response = await globalThis.fetch(...args);
         if (response.status === 429) {
@@ -432,13 +587,19 @@ const createRateLimitObserver = ({ sessionId, notifier }) => {
         } else if (latestRateLimit) {
             attempt = 0;
             latestRateLimit = undefined;
-            notifier.sendAgentActivityUpdate(sessionId, undefined);
+            if (!compacting) notifier.sendAgentActivityUpdate(sessionId, undefined);
         }
         return response;
     };
     return {
         fetch,
         latest: () => latestRateLimit,
+        setCompacting: (value) => {
+            compacting = value;
+            // 摘要阶段的失败不能被当成普通轮次的限流回复。
+            attempt = 0;
+            latestRateLimit = undefined;
+        },
         clear: () => notifier.sendAgentActivityUpdate(sessionId, undefined),
     };
 };
@@ -516,3 +677,37 @@ export const createPageContextPrompt = (userText, context) => [
 ].join("\n");
 
 const normalizeError = (error) => error instanceof Error ? error : new Error(String(error));
+
+/**
+ * 功能：说明上下文超预算的构成与可选处置，避免用户只看到一句英文失败。
+ * 覆盖两种成因：没有可压缩的历史，或摘要本身失败。
+ */
+const contextBudgetError = ({ size, budget, compressible, failure }) => {
+    const overhead = "system 提示、工具定义和当前轮消息";
+    const reason = failure
+        ? "自动压缩失败，已保留原上下文。"
+        : compressible
+            ? "压缩后仍超出预算，可能是保留的近期历史本身过大。"
+            : "当前会话没有可压缩的历史（本轮之前没有完整的已完成步骤），固定开销与当前轮已超出预算，压缩无法降低占用。";
+    return `上下文超出预算（${size} / ${budget} 估算 tokens，估算包含${overhead}）。${reason} 请切换到 1M 上下文预算后重试，或新建会话。`;
+};
+
+/**
+ * 功能：上报上下文占用与无法自动压缩的原因。
+ * blockedReason 为 undefined 表示未受阻；否则前端据此提示具体原因而非静默显示 100%。
+ */
+const lastUsage = new Map();
+const reportUsage = (sessionId, notifier, tokens, budget, force = false, blockedReason = undefined, thresholdPercent = 80) => {
+    const percent = budget > 0 ? Math.min(100, Math.round(tokens / budget * 100)) : 0;
+    const last = lastUsage.get(sessionId);
+    if (!force && last && last.tokens === tokens && last.percent === percent && last.blockedReason === blockedReason && last.thresholdPercent === thresholdPercent) return;
+    lastUsage.set(sessionId, { tokens, percent, blockedReason, thresholdPercent });
+    notifier.sendContextUsageUpdate?.(sessionId, { tokens, budget, percent, blockedReason, thresholdPercent });
+};
+
+const formatWaitTime = (seconds) => {
+    if (seconds < 60) return `${seconds} seconds`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return remainder ? `${minutes} minutes ${remainder} seconds` : `${minutes} minutes`;
+};
