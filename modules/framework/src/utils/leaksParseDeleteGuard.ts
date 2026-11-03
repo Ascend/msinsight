@@ -19,7 +19,7 @@
 import { message as Message } from 'antd';
 import i18n from '@insight/lib/i18n';
 import connector from '@/connection';
-import { MEM_SCOPE_MODULE_NAME } from '@/moduleConfig';
+import { getMemoryApplicationName, type MemoryApplicationName } from '@/moduleConfig';
 
 const QUERY_TIMEOUT_MS = 2000;
 
@@ -28,8 +28,14 @@ export interface LeaksDeleteTarget {
     projectNames?: readonly unknown[];
 }
 
+interface LeaksDeleteSession {
+    isLeaks?: boolean;
+    module?: string;
+    activeDataSource?: { projectName?: string; selectedFilePath?: string };
+}
+
 export const shouldQueryLeaksParseStatus = (
-    session: { isLeaks?: boolean; activeDataSource?: { projectName?: string } } | undefined,
+    session: LeaksDeleteSession | undefined,
     target: LeaksDeleteTarget,
 ): boolean => {
     if (session?.isLeaks !== true) {
@@ -45,7 +51,7 @@ export const shouldQueryLeaksParseStatus = (
     return target.projectName === activeName;
 };
 
-export const queryLeaksParseComplete = (): Promise<boolean> =>
+export const queryLeaksParseComplete = (application: MemoryApplicationName): Promise<boolean> =>
     new Promise((resolve) => {
         let settled = false;
         const finish = (complete: boolean): void => {
@@ -58,28 +64,29 @@ export const queryLeaksParseComplete = (): Promise<boolean> =>
             resolve(complete);
         };
         const listener = connector.addListener('leaksParseStatus', (event: MessageEvent<{ body?: { complete?: boolean } }>) => {
-            finish(event.data?.body?.complete !== false);
+            finish(event.data?.body?.complete === true);
         });
         const timer = window.setTimeout(() => {
-            finish(true);
+            finish(false);
         }, QUERY_TIMEOUT_MS);
         connector.send({
             event: 'getLeaksParseStatus',
-            to: MEM_SCOPE_MODULE_NAME,
+            to: application,
             body: {},
         }, () => {
-            finish(true);
+            finish(false);
         });
     });
 
 export const warnIfLeaksParseBlocksDelete = async (
-    session: { isLeaks?: boolean; activeDataSource?: { projectName?: string } } | undefined,
+    session: LeaksDeleteSession | undefined,
     target: LeaksDeleteTarget,
 ): Promise<boolean> => {
     if (!shouldQueryLeaksParseStatus(session, target)) {
         return false;
     }
-    const complete = await queryLeaksParseComplete();
+    const application = getMemoryApplicationName(session?.module ?? '', session?.activeDataSource?.selectedFilePath);
+    const complete = await queryLeaksParseComplete(application);
     if (complete) {
         return false;
     }

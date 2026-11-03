@@ -43,7 +43,7 @@ export const FilePath = {
     DETAILS_ROOFLINE: `${DATA_PATH}\\operator\\msprof-op\\roofline\\visualize_data.bin`,
     DETAILS_CORE: `${DATA_PATH}\\operator\\msprof-op\\core_inter_load\\visualize_data.bin`,
     REINFORCEMENT_LEARNING: `${DATA_PATH}\\training\\reinforcement-learning\\verl`,
-    LEAKS_DUMP: `${DATA_PATH}\\memscope\\leaks_dump_20250806.db`,
+    MEMSCOPE_DB: `${DATA_PATH}\\memscope\\leaks_dump_20250806.db`,
     SNAPSHOT_PKL: `${DATA_PATH}\\memscope\\snapshot_expandable.pkl`,
     SNAPSHOT_PKL_SLICE_WINDOW: `${DATA_PATH}\\memscope\\memory0.pickle`,
 

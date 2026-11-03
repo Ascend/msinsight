@@ -73,6 +73,7 @@
       "Details": "详情",
       "CacheFrame": "缓存",
       "Statistic": "折线图",
+      "MemSnapshot": "内存快照",
       "MemScope": "内存详情",
       "RL": "强化学习",
       "On-Chip Memory": "片上内存",
@@ -88,6 +89,7 @@
       "DetailsTooltip": "可视化呈现算子基础信息、计算单元负载和Roofline瓶颈分析等信息，来源为bin文件",
       "CacheFrameTooltip": "可视化呈现用户程序Kernel函数内的L2Cache访问信息，来源为bin文件",
       "StatisticTooltip": "以图表形式展示服务化调优的具体数据变化，来源为profiler.db文件",
+      "MemSnapshotTooltip": "展示内存快照的分配状态、事件与调用栈，来源为 pkl 或 pickle 文件",
       "MemScopeTooltip": "展示内存调优过程中内存变化详情，来源为memscope_dump_*.db(或旧版本leaks_dump_*.db)",
       "RLTooltip": "基于采集数据进行高层次抽象，可视化展示控制流的时序关系，帮助快速定位耗时任务与空泡，并支持进一步的性能分析",
       "On-Chip MemoryTooltip": "展示Triton算子调优过程中内存变化详情"

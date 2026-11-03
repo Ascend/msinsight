@@ -10,13 +10,14 @@
 | 命令 | 用途 |
 | --- | --- |
 | `pnpm test` | 单次运行整个工作区的 UT，默认使用两个 worker 进程 |
+| `pnpm test --module memscope --module memsnapshot` | 运行两个独立内存应用的 UT |
 | `pnpm test --module memory` | 运行指定模块的测试，包含其 Node 环境测试 |
 | `pnpm test --module timeline --module lib` | 运行多个指定模块的测试 |
 | `pnpm test --module timeline --testPathPattern=unitFunc` | 按路径筛选一组测试 |
 | `pnpm test:watch --module memory` | 启动交互式监听模式 |
 | `pnpm test:ci` | 运行全部 UT，生成覆盖率、JUnit XML 和运行摘要 |
 | `pnpm test:infra` | 检查模块发现、测试项目划分及覆盖率聚合逻辑 |
-| `pnpm test:browser` | 在 Chromium 中运行现有的 24 个 tooltip 布局回归场景 |
+| `pnpm test:browser` | 分别运行 MemScope 和 MemSnapshot 的 tooltip 布局回归，每个应用 24 个场景 |
 
 在仓库根目录执行 `npm test` 或 `npm run test:ci`，也会转发到同一测试运行器。
 各模块目录内的 `pnpm test` 同样使用该运行器。支持 `--runInBand`、`--maxWorkers=4`

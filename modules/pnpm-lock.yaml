@@ -6,6 +6,10 @@ settings:
 
 importers:
 
+  memscope: {}
+
+  memsnapshot: {}
+
   .:
     dependencies:
       '@emotion/react':
@@ -174,8 +178,6 @@ importers:
   compute: {}
 
   framework: {}
-
-  leaks: {}
 
   lib: {}
 

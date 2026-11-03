@@ -27,10 +27,6 @@ jest.mock('@/connection', () => ({
     },
 }), { virtual: true });
 
-jest.mock('@/moduleConfig', () => ({
-    MEM_SCOPE_MODULE_NAME: 'MemScope',
-}), { virtual: true });
-
 jest.mock('@insight/lib/i18n', () => ({
     __esModule: true,
     default: { t: (key: string) => key },

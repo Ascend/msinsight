@@ -3,7 +3,6 @@ packages:
   - 'compute'
   - 'cluster'
   - 'framework'
-  - 'leaks'
   - 'memory'
   - 'operator'
   - 'statistic'
@@ -11,3 +10,5 @@ packages:
   - 'reinforcement-learning'
   - 'memory-on-chip'
   - 'numa'
+  - 'memscope'
+  - 'memsnapshot'

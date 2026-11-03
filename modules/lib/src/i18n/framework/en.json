@@ -73,6 +73,7 @@
       "Details": "Details",
       "CacheFrame": "Cache",
       "Statistic": "Curve",
+      "MemSnapshot": "MemSnapshot",
       "MemScope": "MemScope",
       "RL": "RL",
       "On-Chip Memory": "On-Chip Memory",
@@ -88,6 +89,7 @@
       "DetailsTooltip": "Visualizes operator basic information, computing unit workload, and Roofline bottleneck analysis metrics, sourced from .bin files",
       "CacheFrameTooltip": "Visualizes L2 Cache access patterns within user program kernel functions via heatmap, sourced from .bin files",
       "StatisticTooltip": "Visualizes dynamic metrics of service-oriented tuning in line charts and tables, sourced from profiler.db files",
+      "MemSnapshotTooltip": "Visualizes allocation states, events and call stacks from pkl or pickle memory snapshots",
       "MemScopeTooltip": "Visualizes memory usage trends during memory tuning processes, sourced from memscope_dump_*.db(or the old version leaks_dump_*.db)",
       "RLTooltip": "Visualize control flow timelines from collected data to quickly spot long-running tasks and bubbles, enabling deeper performance analysis.",
       "On-Chip MemoryTooltip": "Visualizes memory dynamics during Triton operator tuning"
