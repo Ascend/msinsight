@@ -139,7 +139,6 @@ void WsSessionImpl::SendBaseResponse(std::unique_ptr<Protocol::Response> respons
         document_t json(kObjectType);
         ProtocolUtil::SetResponseJsonBaseInfo(*responsePtr.get(), json);
         std::string responseStr = JsonUtil::JsonDump(json);
-        responseStr = StringUtil::ToUtf8Str(responseStr);
         SendResponse(*responsePtr.get(), responseStr);
     }
 }
@@ -173,7 +172,6 @@ void WsSessionImpl::SendResponse(const Protocol::Response &response) {
         return;
     }
     std::string responseStr = JsonUtil::JsonDump(json.value());
-    responseStr = StringUtil::ToUtf8Str(responseStr);
     SendResponse(response, responseStr);
 }
 
@@ -203,7 +201,6 @@ void WsSessionImpl::SendEvent(Protocol::Event &event) {
         return;
     }
     std::string eventStr = JsonUtil::JsonDump(json.value());
-    eventStr = StringUtil::ToUtf8Str(eventStr);
     std::string traceId = TraceIdManager::GetTraceId();
     std::weak_ptr<WsSessionImpl> weakSelf = shared_from_this();
     loop->defer([weakSelf, eventStr, event, traceId]() {

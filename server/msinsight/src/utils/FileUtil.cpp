@@ -277,7 +277,7 @@ bool FileUtil::CheckPathComm(const std::string &path, CheckResult &result) {
 void FileUtil::SetStrictMode(bool strictModeValue) { strictMode = strictModeValue; }
 
 bool FileUtil::CheckFilePathExist(const std::string &filePath) {
-    if (access(filePath.c_str(), R_OK) == -1) {
+    if (!CheckDirAccess(filePath, R_OK)) {
         Server::ServerLog::Error("Check file path exist cannot read file path");
         return false;
     }

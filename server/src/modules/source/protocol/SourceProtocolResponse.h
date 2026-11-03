@@ -190,7 +190,7 @@ struct MemoryUnit {
     std::string bandwidth;
     std::string bandwidthSuffix;
     std::string peakRatio;
-    bool display;
+    bool display = false;
 };
 
 struct L2Cache {

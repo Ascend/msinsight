@@ -33,27 +33,31 @@ const static std::string EXT = ".so";
 
 void AddPathEnv(const std::string &newDir) {
 #ifdef _WIN32
-    char buffer[32767]; // PATH 的最大长度通常为 32767 字符
-    DWORD length = GetEnvironmentVariable("PATH", buffer, sizeof(buffer));
+    const std::wstring wideDir = StringUtil::String2WString(newDir);
+    if (wideDir.empty()) {
+        return;
+    }
+    wchar_t buffer[32767]; // PATH 的最大长度通常为 32767 字符
+    DWORD length = GetEnvironmentVariableW(L"PATH", buffer, sizeof(buffer) / sizeof(buffer[0]));
     if (length == 0) {
         return;
     }
-    std::string path;
+    std::wstring path;
     if (length != 0) {
-        // 将 PATH 转换为 std::string
+        // 将 PATH 转换为 std::wstring
         path.assign(buffer, length);
         // 检查新目录是否已经存在于 PATH 中
-        if (path.find(newDir) != std::string::npos) {
+        if (path.find(wideDir) != std::wstring::npos) {
             return;
         }
     }
 
     // 追加新目录到 PATH
-    if (!path.empty() && path.back() != ';') {
-        path += ";"; // 添加分隔符
+    if (!path.empty() && path.back() != L';') {
+        path += L";"; // 添加分隔符
     }
-    path += newDir;
-    SetEnvironmentVariable("PATH", path.c_str());
+    path += wideDir;
+    SetEnvironmentVariableW(L"PATH", path.c_str());
 #endif
 }
 
@@ -69,8 +73,8 @@ bool PluginsManager::RegisterPlugin(std::unique_ptr<BasePlugin> plugin) {
     return true;
 }
 void PluginsManager::LoadPlugins() {
-    std::string tempPath = StringUtil::ToUtf8Str(FileUtil::SplicePath(FileUtil::GetCurrPath(), "plugins"));
-    if (!FileUtil::CheckPathSecurity(StringUtil::ToLocalStr(tempPath))) {
+    std::string tempPath = FileUtil::SplicePath(FileUtil::GetCurrPath(), "plugins");
+    if (!FileUtil::CheckPathSecurity(tempPath)) {
         return;
     }
     auto pluginsDir = fs::u8path(tempPath);
@@ -81,20 +85,20 @@ void PluginsManager::LoadPlugins() {
         if (!is_directory(dir)) {
             continue;
         }
-        std::string dirPath = StringUtil::ToLocalStr(dir.path().string());
+        std::string dirPath = dir.path().u8string();
         if (!FileUtil::CheckPathSecurity(dirPath)) {
             continue;
         }
         for (auto &file : fs::directory_iterator(dir)) {
-            std::string filePath = StringUtil::ToLocalStr(file.path().string());
-            if (is_directory(file) || file.path().extension().string() != EXT ||
+            std::string filePath = file.path().u8string();
+            if (is_directory(file) || file.path().extension().u8string() != EXT ||
                 !FileUtil::CheckPathSecurity(filePath, CHECK_FILE_READ) ||
                 !FileUtil::CheckWritableByOtherOrGroup(filePath)) {
                 continue;
             }
             AddPathEnv(dirPath);
 #ifdef _WIN32
-            if (LoadLibraryA(filePath.c_str()) == nullptr) {
+            if (LoadLibraryW(FileUtil::ConvertToLongPathW(filePath).c_str()) == nullptr) {
                 std::cerr << "Load " << filePath << " failed, err=" << GetLastError() << std::endl;
             }
 #else

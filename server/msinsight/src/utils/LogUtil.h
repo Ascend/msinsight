@@ -91,13 +91,6 @@ class LogUtil {
         return *this;
     }
 
-    inline LogUtil &SetFilePath(const std::string &logFilePath) {
-        if (this->filePath != logFilePath) {
-            this->filePath = logFilePath;
-        }
-        return *this;
-    }
-
     inline LogUtil &SetLogLevel(const LogLevel &logLevel) {
         if (this->level != logLevel) {
             this->level = logLevel;
@@ -308,8 +301,7 @@ class LogUtil {
     }
 
     static inline int GetFileSize(const std::string &path) {
-        std::ifstream fr;
-        fr.open(path, std::ios::in | std::ios::binary);
+        std::ifstream fr = FileUtil::OpenRead(path, std::ios::in | std::ios::binary);
         int result = 0;
         if (fr.is_open()) {
             fr.seekg(0, std::ifstream::end);
@@ -331,16 +323,16 @@ class LogUtil {
         filePath.insert(filePath.find_last_of('.'), "_" + wsPort + "_" + std::to_string(++count));
         if (isAppend) {
             currentSize = GetFileSize(filePath);
-            ofs.open(filePath, std::ios::out | std::ios::app);
+            ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::app);
         } else {
-            ofs.open(filePath, std::ios::out | std::ios::trunc);
+            ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::trunc);
             currentSize = 0;
         }
 #if defined(__linux__) || defined(__APPLE__)
         ofs.close(); // 关闭文件以设置权限
         mode_t mode = 0640; // 业务数据权限要求设置为0640 （rw-r-----）
         FileUtil::ModifyFilePermissions(filePath, mode);
-        ofs.open(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
+        ofs = FileUtil::OpenWrite(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
 #endif
     }
 
@@ -356,7 +348,7 @@ class LogUtil {
         if (!wsPort.empty() && wsPort != "-1" && ofs.is_open()) {
             ofs.close();
             currentSize = GetFileSize(filePath);
-            ofs.open(filePath, std::ios::out | std::ios::app);
+            ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::app);
         }
     }
 

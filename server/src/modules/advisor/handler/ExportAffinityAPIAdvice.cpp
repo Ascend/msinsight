@@ -134,7 +134,7 @@ bool ExportAffinityAPIAdvice::CreateCsvFile(
         ServerLog::Error("[Advisor] File path is invalid in export affinity API.");
         return false;
     }
-    ofs.open(filePath, std::ios::out | std::ios::trunc);
+    ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::trunc);
     if (!ofs.is_open()) {
         ServerLog::Error("[Advisor] Failed to open file for export affinity API: ", filePath);
         return false;
@@ -145,7 +145,7 @@ bool ExportAffinityAPIAdvice::CreateCsvFile(
     ofs.close();
     mode_t mode = 0640;
     FileUtil::ModifyFilePermissions(filePath, mode);
-    ofs.open(filePath, std::ofstream::out | std::ofstream::app);
+    ofs = FileUtil::OpenWrite(filePath, std::ofstream::out | std::ofstream::app);
 #endif
     return true;
 }

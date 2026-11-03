@@ -88,8 +88,7 @@ class FreeAttributionDatabaseTest : public testing::TestWithParam<DataType> {
 
     void Exec(const std::string &path, const std::string &sql) {
         sqlite3 *database = nullptr;
-        const auto sqlitePath = StringUtil::ToUtf8Str(path);
-        ASSERT_EQ(sqlite3_open(sqlitePath.c_str(), &database), SQLITE_OK);
+        ASSERT_EQ(sqlite3_open(path.c_str(), &database), SQLITE_OK);
         char *message = nullptr;
         const auto status = sqlite3_exec(database, sql.c_str(), nullptr, nullptr, &message);
         const std::string detail = message ? message : "";
@@ -166,13 +165,11 @@ class FreeAttributionDatabaseTest : public testing::TestWithParam<DataType> {
     std::filesystem::path directory;
 };
 
-TEST_P(FreeAttributionDatabaseTest, SupportsNativeEncodedChinesePathsForSummaryDetailsAndRefresh) {
-    const auto file = directory / std::filesystem::u8path(u8"\u5f52\u56e0\u6d4b\u8bd5") / "trace.db";
+TEST_P(FreeAttributionDatabaseTest, SupportsUtf8ChineseAndEmojiPathsForSummaryDetailsAndRefresh) {
+    const auto file = directory / std::filesystem::u8path(u8"\u5f52\u56e0\u6d4b\u8bd5\U0001f600") / "trace.db";
 #ifdef _WIN32
-    const auto localPath = StringUtil::WString2String(file.native());
-    if (StringUtil::String2WString(localPath) != file.native()) {
-        GTEST_SKIP() << "The current Windows code page cannot represent this Chinese path.";
-    }
+    const auto utf8Path = StringUtil::WString2String(file.native());
+    ASSERT_EQ(StringUtil::String2WString(utf8Path), file.native());
 #endif
     ASSERT_TRUE(std::filesystem::create_directory(file.parent_path()));
     const auto path = SourceAt(file);

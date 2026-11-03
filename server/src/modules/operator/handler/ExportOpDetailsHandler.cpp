@@ -409,14 +409,14 @@ bool ExportOpDetailsHandler::CreateCsvFile(
         ServerLog::Error("[Operator]File path is invalid in export op detail.");
         return false;
     }
-    ofs.open(filePath, std::ios::out | std::ios::trunc);
+    ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::trunc);
     response.filePath = filePath;
     currentFileSize = 0;
 #if defined(__linux__) || defined(__APPLE__)
     ofs.close(); // 关闭文件以设置权限
     mode_t mode = 0640; // 业务数据权限要求设置为0640 （rw-r-----）
     FileUtil::ModifyFilePermissions(filePath, mode);
-    ofs.open(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
+    ofs = FileUtil::OpenWrite(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
 #endif
     return true;
 }

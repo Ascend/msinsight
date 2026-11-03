@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include "utils/Utf8TestUtil.h"
 #include <gtest/gtest.h>
 #include "Database.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
@@ -716,4 +717,27 @@ TEST_F(DataBaseTest, TestSetAttrsMixedWithSingleSetExpectCorrect) {
     EXPECT_EQ(database.GetAttr("db.subtype"), "cluster");
     EXPECT_EQ(database.GetAttr("db.version"), "1.0.0");
     EXPECT_EQ(database.GetAttr("db.source"), "db");
+}
+
+TEST_F(DataBaseTest, Utf8DatabasePathTextAndTranslationRoundTrip) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"练 😀.db");
+    std::recursive_mutex mutex;
+    Dic::Module::Database database(mutex);
+    ASSERT_TRUE(database.OpenDb(path, false));
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE translate (key TEXT, value_en TEXT, value_zh TEXT)"));
+    const std::string text = u8"练 Русский 日本語 😀";
+    {
+        auto insert = database.CreatPreparedStatement("INSERT INTO translate VALUES (?, ?, ?)");
+        ASSERT_NE(insert, nullptr);
+        insert->BindParams("key", "English", text);
+        ASSERT_TRUE(insert->Execute());
+    }
+    EXPECT_EQ(database.QueryTranslate(true).at("key"), text);
+    EXPECT_EQ(database.QueryTranslate(false).at("key"), "English");
+    database.CloseDb();
+    ASSERT_TRUE(database.OpenDb(path, false));
+    EXPECT_EQ(database.QueryTranslate(true).at("key"), text);
+    database.CloseDb();
+    EXPECT_TRUE(Dic::FileUtil::CheckFilePathExist(path));
 }

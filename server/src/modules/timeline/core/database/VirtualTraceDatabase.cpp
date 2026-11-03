@@ -119,7 +119,7 @@ void VirtualTraceDatabase::ExecuteQueryCommunicationSummaryData(
     const std::vector<Protocol::ThreadTraces> &uncovered) {
     size_t index = 0;
     while (resultSet->Next()) {
-        std::string threadName = StringUtil::FixGbkMojibakeStr(resultSet->GetString("threadName"));
+        std::string threadName = resultSet->GetString("threadName");
         Protocol::ThreadTraces ele = {.name = resultSet->GetString("name"),
             .duration = resultSet->GetUint64("duration"),
             .startTime = resultSet->GetUint64("startTime"),

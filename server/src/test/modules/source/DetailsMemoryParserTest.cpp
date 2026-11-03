@@ -16,6 +16,9 @@
  * -------------------------------------------------------------------------
  */
 
+#include "utils/Utf8TestUtil.h"
+#include "SafeFile.h"
+#include "BinFileParseUtil.h"
 #include "DetailsMemoryParserTest.h"
 #include "DetailsMemoryParser.h"
 #include "SourceProtocol.h"
@@ -67,4 +70,21 @@ TEST_F(DetailsMemoryParserTest, testGetDetailsBaseInfoWithValidData) {
 
     // 删除bin文件
     generator.RemoveFile(binFilePath);
+}
+
+TEST_F(DetailsMemoryParserTest, Utf8UnitsAndBinaryJsonContentsArePreserved) {
+    class ExposedParser : public DetailsMemoryParser {
+      public:
+        using DetailsMemoryParser::GetUnitType;
+    };
+    EXPECT_EQ(ExposedParser::GetUnitType(0), u8"Duration(μs)");
+    EXPECT_TRUE(ExposedParser::GetUnitType(99).empty());
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"练 😀.bin");
+    const std::string json = u8"{\"name\":\"练 😀\"}";
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(path, "header" + json));
+    auto input = Dic::OpenReadFileSafely(path, std::ios::binary);
+    ASSERT_TRUE(input.good());
+    Position position{6, static_cast<int64_t>(6 + json.size())};
+    EXPECT_EQ(BinFileParseUtil::GetContentStr(input, position), json);
 }

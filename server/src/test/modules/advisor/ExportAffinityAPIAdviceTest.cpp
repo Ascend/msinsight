@@ -23,6 +23,8 @@
 #include "TestSuit.h"
 #include "ProjectExplorerManager.h"
 #include "AffinityAPIAdvisor.h"
+#include "utils/Utf8TestUtil.h"
+#include "ExportOpDetailsHandler.h"
 #include <filesystem>
 #include <fstream>
 
@@ -162,6 +164,50 @@ TEST_F(ExportAffinityAPIIntegrationTest, ExportFailsWhenProjectDirectoryDoesNotE
     RegisterProject((exportDir / "missing").string());
     ExportAffinityAPIAdvice handler;
     EXPECT_FALSE(handler.HandleRequest(RequestForExport()));
+}
+
+TEST_F(ExportAffinityAPIIntegrationTest, Utf8ExportDirectoryProducesCsv) {
+    Dic::Test::Utf8TempDirectory directory;
+    RegisterProject(FileUtil::GetParentPath(directory.Path()));
+    ExportAffinityAPIAdvice handler;
+    ASSERT_TRUE(handler.HandleRequest(RequestForExport()));
+    std::vector<std::filesystem::path> files;
+    const auto nativeDirectory = Dic::Test::Utf8TempDirectory::NativePath(directory.Path());
+    for (const auto &entry : std::filesystem::directory_iterator(nativeDirectory)) {
+        if (entry.path().extension() == ".csv") {
+            files.push_back(entry.path());
+        }
+    }
+    ASSERT_EQ(files.size(), 1U);
+    std::ifstream stream(files.front(), std::ios::binary);
+    ASSERT_TRUE(stream.good());
+    const std::string bytes{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+    EXPECT_EQ(bytes.substr(0, 3), "\xEF\xBB\xBF");
+    EXPECT_NE(bytes.find("Name,Origin API,Replacement API,Start Time,Duration(ns),Process Id,Thread Id,Notes"),
+        std::string::npos);
+}
+
+TEST_F(ExportAffinityAPIIntegrationTest, Utf8OperatorExportDirectoryProducesCsv) {
+    Dic::Test::Utf8TempDirectory directory;
+    RegisterProject(FileUtil::GetParentPath(directory.Path()));
+    auto request = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
+    request->projectName = projectName;
+    request->params.rankId = "0";
+    request->params.group = "Operator Type";
+    Dic::Module::Operator::ExportOpDetailsHandler handler;
+    ASSERT_TRUE(handler.HandleRequest(std::move(request)));
+    std::vector<std::filesystem::path> files;
+    const auto nativeDirectory = Dic::Test::Utf8TempDirectory::NativePath(directory.Path());
+    for (const auto &entry : std::filesystem::directory_iterator(nativeDirectory)) {
+        if (entry.path().extension() == ".csv") {
+            files.push_back(entry.path());
+        }
+    }
+    ASSERT_EQ(files.size(), 1U);
+    std::ifstream stream(files.front(), std::ios::binary);
+    ASSERT_TRUE(stream.good());
+    const std::string bytes{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+    EXPECT_NE(bytes.find("opType"), std::string::npos);
 }
 
 } // Dic::Module::Advisor

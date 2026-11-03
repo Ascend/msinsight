@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include "Utf8TestUtil.h"
 #include <gtest/gtest.h>
 #include <unordered_map>
 #include "../TestSuit.h"
@@ -462,4 +463,18 @@ TEST(JsonUtil, MapAndVectorConversions) {
     document_t objectDoc;
     objectDoc.Parse(R"({"name": "rank0"})");
     EXPECT_TRUE(JsonUtil::JsonToVector(objectDoc).empty());
+}
+
+TEST(JsonUtil, Utf8JsonRawAndEscapedTextAreEquivalent) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto rawPath = directory.Path(u8"练 😀.json");
+    const auto escapedPath = directory.Path(u8"转义.json");
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(rawPath, u8"{\"name\":\"练😀\"}"));
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(escapedPath, R"({"name":"\u7ec3\ud83d\ude00"})"));
+    auto raw = JsonUtil::ReadJsonFromFile(rawPath);
+    auto escaped = JsonUtil::ReadJsonFromFile(escapedPath);
+    ASSERT_TRUE(raw.IsObject());
+    ASSERT_TRUE(escaped.IsObject());
+    EXPECT_EQ(JsonUtil::GetString(raw, "name"), u8"练😀");
+    EXPECT_EQ(JsonUtil::GetString(raw, "name"), JsonUtil::GetString(escaped, "name"));
 }

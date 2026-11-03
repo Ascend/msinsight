@@ -1781,7 +1781,7 @@ void DbTraceDataBase::InitStringsCache() {
         return;
     }
     while (result->Next()) {
-        stringsCache[path].emplace(result->GetString("id"), StringUtil::FixGbkMojibakeStr(result->GetString("value")));
+        stringsCache[path].emplace(result->GetString("id"), result->GetString("value"));
     }
 }
 
@@ -2513,10 +2513,10 @@ void DbTraceDataBase::ProcessThreadUnit(std::unique_ptr<Protocol::UnitTrack> &pr
     if (threadId.find(WRONG_THREAD_ID) != std::string::npos) {
         return;
     }
-    const std::string threadName = StringUtil::FixGbkMojibakeStr(resultSet->GetString("name"));
+    const std::string threadName = resultSet->GetString("name");
     // 在 metaVersion 版本高于 '1.0' 的情况下，type == PROCESS_TYPE::HCCL 时
     if (!std::empty(metaVersion) && !StringUtil::StartWith(metaVersion, "1.0") && type == PROCESS_TYPE::HCCL) {
-        const std::string groupNameValue = StringUtil::FixGbkMojibakeStr(resultSet->GetString("groupNameValue"));
+        const std::string groupNameValue = resultSet->GetString("groupNameValue");
         if (!StringUtil::StartWith(threadName, "Plane") &&
             TraceDatabaseHelper::IsValidHCCLGroupNameValue(groupNameValue)) {
             thread->metaData.groupNameValue = groupNameValue;

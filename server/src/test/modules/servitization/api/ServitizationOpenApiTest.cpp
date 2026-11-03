@@ -26,6 +26,7 @@
 #include "ParserStatusManager.h"
 #include "ServitizationOpenApi.h"
 #include "ServitizationContext.h"
+#include "utils/Utf8TestUtil.h"
 using namespace Dic::Module::IE;
 class ServitizationOpenApiTest : public ::testing::Test {
   public:
@@ -165,9 +166,10 @@ TEST_F(ServitizationOpenApiFileTest, CreatesCurveOnlyForValidCurveScript) {
     EXPECT_EQ(ReadInteger(dbPath, "SELECT amount FROM sample_curve;"), 42);
 }
 
-TEST_F(ServitizationOpenApiFileTest, MergesDistributedServiceTables) {
-    const auto parsed = Dic::FileUtil::SplicePath(folder, "ms_service_parsed.db");
-    const auto distributed = Dic::FileUtil::SplicePath(folder, "ms_service_111.db");
+TEST_F(ServitizationOpenApiFileTest, Utf8MergesDistributedServiceTables) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto parsed = directory.Path("ms_service_parsed.db");
+    const auto distributed = directory.Path("ms_service_111.db");
     ASSERT_TRUE(CreateDatabase(parsed, "CREATE TABLE metadata(value INTEGER);"));
     ASSERT_TRUE(CreateDatabase(distributed,
         "CREATE TABLE slice(id INTEGER); INSERT INTO slice VALUES(7);"

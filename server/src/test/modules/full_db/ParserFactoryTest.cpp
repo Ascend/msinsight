@@ -682,6 +682,24 @@ TEST_F(ParserFactoryTest, ParserBaseSendFail) {
     EXPECT_EQ(ProjectParserBase::GetDbPath("test", 0), "test_0.db");
 }
 
+TEST_F(ParserFactoryTest, Utf8MetadataNamesAreNotGuessedOrConverted) {
+    class ExposedParser : public ProjectParserBase {
+      public:
+        using ProjectParserBase::ProcessMetadata;
+    };
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metadata;
+    auto process = std::make_unique<Dic::Protocol::UnitTrack>();
+    auto thread = std::make_unique<Dic::Protocol::UnitTrack>();
+    const std::string name = u8"练 😀 unknown-group";
+    thread->metaData.threadName = name;
+    thread->metaData.groupNameValue = name;
+    process->children.emplace_back(std::move(thread));
+    metadata.emplace_back(std::move(process));
+    ExposedParser::ProcessMetadata(metadata);
+    EXPECT_EQ(metadata.front()->children.front()->metaData.threadName, name);
+    EXPECT_EQ(metadata.front()->children.front()->metaData.groupNameValue, name);
+}
+
 namespace {
 namespace Global = Dic::Module::Global;
 class CapturingImportSession : public Dic::Module::Timeline::Test::CapturingTimelineSession {

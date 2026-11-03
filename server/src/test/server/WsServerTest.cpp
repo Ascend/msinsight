@@ -19,6 +19,8 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #endif
+#include "GlobalProtocolRequest.h"
+#include "ProtocolMessageBuffer.h"
 #include <gtest/gtest.h>
 #include <functional>
 #include "GlobalProtocolEvent.h"
@@ -502,7 +504,7 @@ TEST_F(WsSessionImplTest, OnResponseSerializesAndSendsResponse) {
     std::string error;
     auto json = Dic::Protocol::ProtocolManager::Instance().ToJson(*response, error);
     ASSERT_TRUE(json.has_value());
-    const auto expected = StringUtil::ToUtf8Str(JsonUtil::JsonDump(*json));
+    const auto expected = JsonUtil::JsonDump(*json);
     ExpectWebSocketPayload([](WsSessionImplDerived &session) { session.OnResponse(MakeResponse()); }, expected);
 }
 
@@ -525,7 +527,7 @@ TEST_F(WsSessionImplTest, SendBaseResponseSendsBaseFieldsWithoutModuleSerializer
         [response](WsSessionImplDerived &session) {
             session.SendBaseResponse(std::make_unique<Dic::Protocol::Response>(response));
         },
-        StringUtil::ToUtf8Str(JsonUtil::JsonDump(json)));
+        JsonUtil::JsonDump(json));
 }
 
 TEST_F(WsSessionImplTest, OnEventIgnoresNullEvent) {
@@ -547,7 +549,7 @@ TEST_F(WsSessionImplTest, OnEventSerializesAndSendsEvent) {
         [event](WsSessionImplDerived &session) {
             session.OnEvent(std::make_unique<Dic::Protocol::ReadFileFailEvent>(event));
         },
-        StringUtil::ToUtf8Str(JsonUtil::JsonDump(*json)));
+        JsonUtil::JsonDump(*json));
 }
 
 TEST_F(WsSessionImplTest, SendReturnsFalseWithoutChannel) {
@@ -667,4 +669,75 @@ TEST_F(WsSessionImplTest, StopClosesAndClearsChannel) {
             });
         },
         "", true);
+}
+
+TEST_F(WsSessionImplTest, Utf8NormalResponsePreservesPath) {
+    const std::string path = u8"D:\\练 😀 space";
+    auto makeResponse = [&path]() {
+        auto response = std::make_unique<Dic::Protocol::FilesGetResponse>();
+        response->moduleName = "global";
+        response->body.path = path;
+        response->body.exist = true;
+        return response;
+    };
+    std::string error;
+    auto json = Dic::Protocol::ProtocolManager::Instance().ToJson(*makeResponse(), error);
+    ASSERT_TRUE(json.has_value());
+    const auto expected = JsonUtil::JsonDump(*json);
+    const auto parsed = JsonUtil::TryParse<rapidjson::kParseValidateEncodingFlag>(expected, error);
+    ASSERT_TRUE(parsed.has_value()) << error;
+    EXPECT_EQ(JsonUtil::GetString((*parsed)["body"], "path"), path);
+    EXPECT_NE(expected.find(u8"练 😀"), std::string::npos);
+    ExpectWebSocketPayload([&](WsSessionImplDerived &session) { session.OnResponse(makeResponse()); }, expected);
+}
+
+TEST_F(WsSessionImplTest, Utf8ErrorResponseAndEventPreserveText) {
+    Dic::Protocol::Response response("ut/base");
+    response.moduleName = "global";
+    response.error = Dic::Protocol::ErrorMessage{4003, u8"读取练 😀失败"};
+    document_t json(kObjectType);
+    Dic::Protocol::ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    const auto expectedError = JsonUtil::JsonDump(json);
+    std::string parseError;
+    ASSERT_TRUE(JsonUtil::TryParse<rapidjson::kParseValidateEncodingFlag>(expectedError, parseError).has_value())
+        << parseError;
+    EXPECT_NE(expectedError.find(u8"读取练 😀失败"), std::string::npos);
+    ExpectWebSocketPayload(
+        [&](WsSessionImplDerived &session) {
+            session.SendBaseResponse(std::make_unique<Dic::Protocol::Response>(response));
+        },
+        expectedError);
+
+    Dic::Protocol::ReadFileFailEvent event;
+    event.moduleName = "global";
+    event.body.filePath = u8"D:\\练 😀.json";
+    event.body.error = u8"读取练 😀失败";
+    std::string error;
+    auto eventJson = Dic::Protocol::ProtocolManager::Instance().ToJson(event, error);
+    ASSERT_TRUE(eventJson.has_value());
+    const auto expectedEvent = JsonUtil::JsonDump(*eventJson);
+    ASSERT_TRUE(JsonUtil::TryParse<rapidjson::kParseValidateEncodingFlag>(expectedEvent, error).has_value()) << error;
+    EXPECT_NE(expectedEvent.find(u8"练 😀"), std::string::npos);
+    ExpectWebSocketPayload(
+        [&](WsSessionImplDerived &session) {
+            session.OnEvent(std::make_unique<Dic::Protocol::ReadFileFailEvent>(event));
+        },
+        expectedEvent);
+}
+
+TEST_F(WsSessionImplTest, SendPreservesUtf8MessageBytes) {
+    ExpectWebSocketPayload([](WsSessionImplDerived &session) { EXPECT_TRUE(session.Send(u8"练 😀")); }, u8"练 😀");
+}
+
+TEST(ProtocolMessageBufferUtf8, PreservesUtf8RequestPath) {
+    Dic::Protocol::ProtocolMessageBuffer buffer;
+    const std::string request = u8R"({"id":1,"type":"request","moduleName":"global",
+        "command":"files/get","params":{"path":"D:/练 😀"}})";
+    buffer << request;
+    auto message = buffer.Pop();
+    ASSERT_NE(message, nullptr);
+    auto *parsed = dynamic_cast<Dic::Protocol::FilesGetRequest *>(message.get());
+    ASSERT_NE(parsed, nullptr);
+    EXPECT_EQ(parsed->params.path, u8"D:/练 😀");
+    EXPECT_EQ(buffer.Pop(), nullptr);
 }

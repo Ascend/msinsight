@@ -644,8 +644,6 @@ void ProjectParserBase::ProcessMetadata(std::vector<std::unique_ptr<UnitTrack>> 
             if (thread->metaData.groupNameValue.empty()) {
                 continue;
             }
-            thread->metaData.groupNameValue = StringUtil::FixGbkMojibakeStr(thread->metaData.groupNameValue);
-            thread->metaData.threadName = StringUtil::FixGbkMojibakeStr(thread->metaData.threadName);
             // 判断是否为group内容，此处进行了一个拆分判断，是由于数据中可能存在将一个通信甬道拆分成两个的情况（mc2算子）
             // 这个场景会在真正的通信域后加上“Aicpu”进行区分，需要将该字段去掉才能与metadata中通信域的数据相匹配
             std::vector<std::string> groupNameSplit = StringUtil::Split(thread->metaData.groupNameValue, " ");
@@ -654,7 +652,7 @@ void ProjectParserBase::ProcessMetadata(std::vector<std::unique_ptr<UnitTrack>> 
             if (!groupInfoOpt.has_value()) {
                 continue;
             }
-            std::string groupName = StringUtil::FixGbkMojibakeStr(groupInfoOpt.value().groupName);
+            std::string groupName = groupInfoOpt.value().groupName;
             thread->metaData.threadName = groupName + ":" + thread->metaData.threadName;
             thread->metaData.rankList = groupInfoOpt.value().globalRanks;
         }

@@ -76,6 +76,26 @@
 
 阅读设计文档时，请优先确认文档中的代码路径、接口命令和数据结构是否仍与源码一致。若修改接口、数据字段或页面交互，应同步更新对应设计文档。
 
+### 1.4 后端文本与 Windows 边界编码
+
+后端业务文本、路径字符串以及前后端 JSON 消息统一使用 UTF-8，通常使用 `std::string`。
+Windows 文件、插件、命令行和环境变量接口在适配边界显式转换为 UTF-16；宽字符名称和路径返回业务层时转换回 UTF-8。
+`StringUtil::String2WString`、`WString2String` 在 Windows 下分别执行 UTF-8 → UTF-16 和 UTF-16 → UTF-8，
+使用严格转换，空输入返回空串，非法输入或转换失败也返回空串。
+
+- SQLite 文件名、文本绑定和查询结果使用其 UTF-8 接口，不按 Windows 本地代码页转换。
+- JSON 文件和二进制格式中的 JSON 片段按 UTF-8 字节处理；宽字符路径只影响文件打开方式，普通文件流和二进制数据不转码。
+- 文件流统一通过 `FileUtil::OpenRead`、`FileUtil::OpenWrite` 打开，C 标准库文件接口使用
+  `FileUtil::OpenCFile`，调用方继续显式调用 `fclose()`。路径参数统一为 UTF-8；保留调用方的打开模式，文件内容不转码。
+  基础打开接口不执行安全检查、不调用日志系统；业务代码保留已有路径校验，需要安全读取时继续使用
+  `OpenReadFileSafely`。业务层不重复编写 `ConvertToLongPathW` 配合文件流 `open()` 或 `_wfopen()` 的平台分支。
+  少数直接调用 Win32 API 的位置继续使用 `ConvertToLongPathW`；现有长路径前缀规则保持不变。
+- 请求按 UTF-8 直接解析，普通响应、基础错误响应和事件直接序列化为 UTF-8。
+  WebSocket 发送层直接发送序列化结果，依照业务层的 UTF-8 约定，不再扫描消息编码。
+- 日志及 CSV 导出保留 UTF-8 业务文本；子进程重定向输出保持原始字节，其编码应依据具体程序约定单独处理。
+  Snapshot 进度日志由 `scripts/MemSnapDump/util/logger.py` 明确使用 UTF-8 写入；集群分析的重定向日志不做通用转码。
+- 不依赖修改系统代码页或全局 locale；Windows 边界通过已有的严格 UTF-8/UTF-16 转换接口处理转换失败。
+
 ## 2. Linux 环境快速搭建与运行
 
 MindStudio Insight 是跨平台工具，本文默认以 **Linux 开发环境** 为主线说明本地开发、调试和提交流程。Windows、macOS、CLion 工具链配置以及各平台出包环境准备请参见[开发环境搭建](./environment_setup.md)。

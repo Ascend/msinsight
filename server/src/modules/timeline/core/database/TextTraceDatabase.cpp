@@ -1120,7 +1120,7 @@ std::map<std::string, std::vector<Thread>> TextTraceDatabase::QueryAllThreadInfo
         thread.trackId = resultSet->GetUint64("track_id");
         thread.tid = resultSet->GetString("tid");
         thread.pid = resultSet->GetString("pid");
-        thread.threadName = StringUtil::FixGbkMojibakeStr(resultSet->GetString("thread_name"));
+        thread.threadName = resultSet->GetString("thread_name");
         thread.sortIndex = resultSet->GetUint32("thread_sort_index");
         res[thread.pid].emplace_back(thread);
     }
@@ -1179,7 +1179,7 @@ std::map<std::pair<std::string, std::string>, std::string> TextTraceDatabase::Qu
     }
     while (resultSet->Next()) {
         std::string pid = resultSet->GetString("pid");
-        std::string name = StringUtil::FixGbkMojibakeStr(resultSet->GetString("name"));
+        std::string name = resultSet->GetString("name");
         std::string args = resultSet->GetString("args");
         res[{pid, name}] = args;
     }

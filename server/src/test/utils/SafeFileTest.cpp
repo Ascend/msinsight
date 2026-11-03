@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 #include "SafeFile.h"
+#include "Utf8TestUtil.h"
 
 class SafeFileTest : public ::testing::Test {};
 
@@ -55,4 +56,16 @@ TEST_F(SafeFileTest, testOpenWithReadMode) {
     // 读取文件并比较内容
     auto in = Dic::OpenReadFileSafely(path, std::ios::out);
     EXPECT_FALSE(in);
+}
+
+TEST_F(SafeFileTest, ReadsUtf8PathAsUnmodifiedBinaryBytes) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"练 😀.json");
+    const std::string bytes = std::string(u8"{\"name\":\"练 😀\"}\r\n") + std::string("a\0b", 3);
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(path, bytes));
+    auto input = Dic::OpenReadFileSafely(path, std::ios::binary);
+    ASSERT_TRUE(input.good());
+    const std::string actual{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    EXPECT_EQ(actual, bytes);
+    EXPECT_FALSE(Dic::OpenReadFileSafely(directory.Path("missing.json")));
 }

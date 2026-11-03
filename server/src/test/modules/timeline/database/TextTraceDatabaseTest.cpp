@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include "utils/Utf8TestUtil.h"
 #include <gtest/gtest.h>
 #include "TextTraceDatabase.h"
 
@@ -132,4 +133,49 @@ TEST_F(TextTraceDatabaseTest, InsertCounter) {
         success = success && database.InsertCounter(event);
     }
     EXPECT_EQ(success, true);
+}
+
+TEST_F(TextTraceDatabaseTest, Utf8ThreadAndCounterNamesRemainUnchanged) {
+    Dic::Test::Utf8TempDirectory directory;
+    std::recursive_mutex mutex;
+    Dic::Module::Timeline::TextTraceDatabase database(mutex);
+    ASSERT_TRUE(database.Database::OpenDb(directory.Path("trace.db"), false));
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE process (pid TEXT, process_name TEXT, label TEXT, "
+                                 "process_sort_index INTEGER, parentPid TEXT)"));
+    ASSERT_TRUE(database.ExecSql("INSERT INTO process VALUES ('3', 'process', '', 0, '')"));
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE thread (track_id INTEGER, tid TEXT, pid TEXT, "
+                                 "thread_name TEXT, thread_sort_index INTEGER)"));
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE counter (pid TEXT, name TEXT, args TEXT)"));
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE slice (track_id INTEGER, depth INTEGER, cat TEXT)"));
+    const std::string threadName = u8"练 😀 thread";
+    const std::string counterName = u8"练 😀 counter";
+    {
+        auto insert = database.CreatPreparedStatement("INSERT INTO thread VALUES (1, '2', '3', ?, 0)");
+        ASSERT_NE(insert, nullptr);
+        ASSERT_TRUE(insert->Execute(threadName));
+    }
+    {
+        auto insert = database.CreatPreparedStatement("INSERT INTO thread VALUES (2, '4', '3', ?, 1)");
+        ASSERT_NE(insert, nullptr);
+        ASSERT_TRUE(insert->Execute(counterName));
+    }
+    {
+        auto insert = database.CreatPreparedStatement("INSERT INTO counter VALUES ('3', ?, '{}')");
+        ASSERT_NE(insert, nullptr);
+        ASSERT_TRUE(insert->Execute(counterName));
+    }
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metadata;
+    ASSERT_TRUE(database.QueryUnitsMetadata("utf8", metadata));
+    std::vector<std::string> names;
+    std::function<void(const Dic::Protocol::UnitTrack &)> collect = [&](const auto &unit) {
+        names.push_back(unit.metaData.threadName);
+        for (const auto &child : unit.children) {
+            collect(*child);
+        }
+    };
+    for (const auto &unit : metadata) {
+        collect(*unit);
+    }
+    EXPECT_NE(std::find(names.begin(), names.end(), threadName), names.end());
+    EXPECT_NE(std::find(names.begin(), names.end(), counterName), names.end());
 }
