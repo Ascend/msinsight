@@ -17,9 +17,11 @@
  */
 import { ClientConnector } from '@insight/lib/connection';
 import { ACP_MESSAGE_CHANNEL } from '@insight/lib/FrontendAgentCommand';
+import { parseAgentReportReference, REPORT_OPEN, REPORT_OPENED, REPORT_READY, REPORT_CLOSE, type AgentReportReference } from '@insight/lib/AgentReport';
 import {
     getWindowMessageRouter,
     isWindowMessageChannel,
+    matchesWindowMessageOrigin,
     parentWindowMessageOrigin,
     withWindowMessageChannel,
 } from '@insight/lib/WindowMessageRouter';
@@ -42,14 +44,19 @@ export interface HostContext {
 }
 
 export const registerHostEventHandlers = (handlers: HostNotificationHandlers): (() => void) => {
+    const fromHost = (event: MessageEvent): boolean => event.source === window.parent &&
+        matchesWindowMessageOrigin(event.origin, parentWindowMessageOrigin());
     connector.addListener('setTheme', (event: MessageEvent<{ body?: { isDark?: unknown } }>) => {
+        if (!fromHost(event)) return;
         handlers.setTheme(Boolean(event.data.body?.isDark));
     });
     connector.addListener('switchLanguage', (event: MessageEvent<{ body?: { lang?: unknown } }>) => {
+        if (!fromHost(event)) return;
         const locale = event.data.body?.lang;
         if (locale === 'zhCN' || locale === 'enUS') handlers.switchLanguage(locale);
     });
     return getWindowMessageRouter().subscribe((event: MessageEvent<{ event?: unknown; body?: HostContext }>) => {
+        if (!fromHost(event)) return;
         if (event.data?.event === 'insightWebAgent/context') handlers.updateContext(event.data.body ?? {});
     }, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
 };
@@ -70,4 +77,30 @@ export const notifyHostReady = (): void => {
 
 export const requestHostClose = (): void => {
     window.parent?.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, { event: 'insightWebAgent/close' }), parentWindowMessageOrigin());
+};
+
+export const requestHostOpenReport = (report: AgentReportReference): Promise<boolean> => {
+    const reference = parseAgentReportReference(report);
+    if (window.parent === window || !reference) return Promise.resolve(false);
+    const requestId = crypto.randomUUID();
+    const origin = parentWindowMessageOrigin();
+    return new Promise((resolve) => {
+        const finish = (opened: boolean): void => { clearTimeout(timer); unsubscribe(); resolve(opened); };
+        const unsubscribe = getWindowMessageRouter().subscribe((event) => {
+            if (event.source === window.parent && matchesWindowMessageOrigin(event.origin, origin) &&
+                event.data?.event === REPORT_OPENED && event.data?.requestId === requestId) finish(true);
+        }, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
+        const timer = window.setTimeout(() => finish(false), 3000);
+        window.parent.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, {
+            event: REPORT_OPEN, requestId, body: { report: reference },
+        }), origin);
+    });
+};
+
+export const notifyReportReady = (): void => {
+    window.parent.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, { event: REPORT_READY }), parentWindowMessageOrigin());
+};
+
+export const requestHostCloseReport = (): void => {
+    window.parent.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, { event: REPORT_CLOSE }), parentWindowMessageOrigin());
 };

@@ -29,7 +29,9 @@ describe('framework frame targeting', () => {
         webAgent.id = 'AcpSession';
         const memory = document.createElement('iframe');
         memory.id = 'Memory';
-        document.body.append(timeline, webAgent, memory);
+        const report = document.createElement('iframe');
+        report.dataset.agentReport = 'true';
+        document.body.append(timeline, webAgent, memory, report);
 
         expect(getModuleFrames()).toEqual([timeline, memory]);
         expect(getTargetWindow()).toEqual([timeline.contentWindow, memory.contentWindow]);

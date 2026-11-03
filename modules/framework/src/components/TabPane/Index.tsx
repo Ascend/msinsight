@@ -46,6 +46,9 @@ import { WindowMessageDebugger } from './WindowMessageDebugger';
 import { ACP_SESSION_MIN_WIDTH, WebAgentSessionPanel } from './WebAgentSessionPanel';
 import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 import { useSwitchModuleCommand } from './useSwitchModuleCommand';
+import { reportTabKey } from '@insight/lib/AgentReport';
+import { AgentReportFrame } from './AgentReportFrame';
+import { useReportTabs } from './useReportTabs';
 
 const MODULE_FRAME_MIN_WIDTH = 360;
 
@@ -98,6 +101,11 @@ const Container = styled.div`
         min-width: 0;
         border-bottom: 0;
     }
+    .report-tab-label { display: inline-flex; align-items: center; gap: 8px; max-width: 220px; vertical-align: middle; }
+    .report-tab-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .report-tab-close { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0 4px; line-height: 20px; }
+    .report-tab-close:hover { color: ${(props): string => props.theme.primaryColor}; }
+    .report-tab-close:focus-visible { outline: 2px solid currentColor; border-radius: 3px; }
     .tab-toolbar-actions {
         display: flex;
         flex: 0 0 auto;
@@ -210,6 +218,7 @@ interface TabPaneProps {
 
 const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabPaneProps) => {
     const { t } = useTranslation('framework', { keyPrefix: 'tabs' });
+    const { t: reportT } = useTranslation('insightWebAgent');
     const [scene, setScene] = useState<Scene>('Default');
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [activeModule, setActiveModule] = useState('Timeline');
@@ -243,11 +252,24 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
     // iframe rendering still uses availableModules and keeps the existing lifecycle.
     const selectableModules = useMemo(() => getSelectableModules(availableModules), [availableModules]);
     const selectableModuleIds = useMemo(() => selectableModules.map(module => module.name), [selectableModules]);
-    useSwitchModuleCommand(frontendAgentCommandController, activeModule, selectableModuleIds, setActiveModule);
-    const items: MenuProps['items'] = useMemo(() => selectableModules.map(config => ({
+    const { reports, openReport, closeReport } = useReportTabs({ activeModule, setActiveModule, moduleIds: selectableModuleIds });
+    const allSelectableModules = useMemo(() => [...selectableModules, ...reports.map((report): ModuleConfig => ({
+        name: reportTabKey(report), requestName: 'report', attributes: {},
+    }))], [selectableModules, reports]);
+    const allSelectableIds = useMemo(() => allSelectableModules.map((module) => module.name), [allSelectableModules]);
+    useSwitchModuleCommand(frontendAgentCommandController, activeModule, allSelectableIds, setActiveModule);
+    const items: MenuProps['items'] = useMemo(() => [...selectableModules.map(config => ({
         label: getIcon(config.name),
         key: config.name,
-    })), [selectableModules, t]);
+    })), ...reports.map((report) => ({
+        key: reportTabKey(report),
+        label: <span className="report-tab-label">
+            <span className="report-tab-title" title={report.title}>{report.title}</span>
+            <button type="button" className="report-tab-close" aria-label={reportT('reportCloseTab', { title: report.title })}
+                onKeyDown={(event) => event.stopPropagation()}
+                onClick={(event) => { event.stopPropagation(); closeReport(report.artifactId); }}>×</button>
+        </span>,
+    }))], [selectableModules, reports, closeReport, t, reportT]);
     const onClick: MenuProps['onClick'] = e => {
         setActiveModule(e.key);
     };
@@ -261,6 +283,7 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
     }, []);
 
     useEffect(() => {
+        if (activeModule.startsWith('report:')) return;
         connector.send({
             event: 'moduleActive',
             to: activeModule,
@@ -377,8 +400,7 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
     }, [availableModules]);
 
     useEffect(() => {
-        const newActiveModule = getActive(session, scene, activeModule, availableModules);
-        setActiveModule(newActiveModule);
+        setActiveModule((current) => current.startsWith('report:') ? current : getActive(session, scene, current, availableModules));
     }, [scene, availableModules]);
     useEffect(() => {
         const { type, value } = session.actionListener;
@@ -431,12 +453,16 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
                         name={moduleConfig.name}
                         style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
                     />
-            ))}</div>
+            ))}
+            {reports.map((report) => <AgentReportFrame key={report.artifactId} report={report}
+                active={activeModule === reportTabKey(report)} onClose={() => closeReport(report.artifactId)} />)}
+            </div>
             <WebAgentSessionPanel
                 activeModule={activeModule}
-                availableModules={selectableModules}
+                availableModules={allSelectableModules}
                 moduleFrameMinWidth={MODULE_FRAME_MIN_WIDTH}
                 onRequestClose={onCloseSessionPanel}
+                onOpenReport={openReport}
                 session={session}
                 show={showSessionPanel}
                 tabBodyRef={tabBodyRef}

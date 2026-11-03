@@ -18,10 +18,11 @@
 import { randomUUID } from "node:crypto";
 import { MSINSIGHT_CAPABILITY } from "./definitions.mjs";
 import { createRagCapability } from "./ragCapability.mjs";
+import { createArtifactCapability } from "./artifactCapability.mjs";
 import { capabilityError, createCapabilityRegistry } from "./registry.mjs";
 
 // 能力中心是所有 Adapter 的统一执行入口；HTTP MCP 与 Native Tool 不得各自维护业务实现。
-export const createCapabilityCenter = ({ frontendCommandService, ragService } = {}) => {
+export const createCapabilityCenter = ({ frontendCommandService, ragService, artifactService } = {}) => {
     const registry = createCapabilityRegistry();
     registry.register({
         ...MSINSIGHT_CAPABILITY,
@@ -49,6 +50,7 @@ export const createCapabilityCenter = ({ frontendCommandService, ragService } = 
         },
     });
     registry.register(createRagCapability({ ragService }));
+    if (artifactService) registry.register(createArtifactCapability({ artifactService }));
 
     // MCP 调用当前没有可信 ACP Session ID，因此 sessionId/agentInstanceId 只是可选上下文，不能作为安全边界。
     const invoke = ({ invocationId = randomUUID(), name, input, sessionId, agentInstanceId, signal } = {}) => registry.execute(name, input, {

@@ -15,11 +15,13 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import React from 'react';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
 import { ChatPanel } from './ChatPanel';
 import { SessionSidebar } from './SessionSidebar';
+import { ReportWorkspace } from './ReportWorkspace';
 
 const Container = styled.main`
     width: 100%;
@@ -68,7 +70,7 @@ export const ChatPage = (): JSX.Element => {
                 <div className="rag-status" role="status">{t('ragUnavailable')}</div>
             )}
             <SessionSidebar />
-            <ChatPanel />
+            <ReportWorkspace><ChatPanel /></ReportWorkspace>
             {loading && (
                 <div className="agent-loading-mask" role="status" aria-live="polite">
                     {t(agentDiscoveryLoading ? 'loading' : 'switchingAgent')}

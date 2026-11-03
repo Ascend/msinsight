@@ -24,6 +24,8 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessage, ConversationNotice, MessageContentBlock, PermissionDecision, ToolCallItem } from '../types';
+import { isReportTool } from '../artifacts';
+import { ReportCard } from './ReportWorkspace';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import { ActionBlock } from './ActionBlock';
 import { parseActionMarkup } from './actionMarkup';
@@ -1042,6 +1044,9 @@ const AssistantContent = ({
             hasTrailingText={answerBlocks.some((block) => block.type === 'text' && block.text.trim())}
             t={t}
         /> : <AnswerMeta inProgress={streaming} message={message} now={now} />}
+        {message.content.map((block) => block.type === 'tool' && isReportTool(block.toolCall)
+            ? <ReportCard key={block.id} tool={block.toolCall} />
+            : null)}
         {answerBlocks.map((block) => <ContentBlock
             allowActions={message.role === 'assistant'}
             block={block}
@@ -1142,9 +1147,9 @@ const TimelineNode = ({
     }
 
     const toolCall = entry.toolCall;
-    const target = toolCallTarget(toolCall.input);
+    const target = isReportTool(toolCall) ? undefined : toolCallTarget(toolCall.input);
     const outputLabel = t(toolCall.status === 'failed' ? 'toolError' : 'toolOutput');
-    const hasDetails = Boolean(toolCall.input || toolCall.output);
+    const hasDetails = !isReportTool(toolCall) && (Boolean(toolCall.input) || Boolean(toolCall.output));
     return (
         <div className={`timeline-item tool ${toolCall.status === 'failed' ? 'failed' : active ? 'active' : 'completed'}`}>
             <span aria-hidden="true" className="timeline-marker" />
@@ -1310,6 +1315,7 @@ const toolCallState = (toolCall: ToolCallItem, t: TFunction): string => {
 };
 
 const toolCallSummary = (toolCall: ToolCallItem, t: TFunction): string => {
+    if (isReportTool(toolCall)) return t(toolCall.status === 'completed' ? 'reportReady' : toolCall.status === 'failed' ? 'reportFailed' : 'reportGenerating');
     if (toolCall.status === 'in_progress' && toolCall.progress) return toolCall.progress;
     const displayName = toolCallDisplayName(toolCall);
     if (toolCall.status === 'completed') return t('toolCallCompleted', { name: displayName });

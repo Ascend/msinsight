@@ -270,6 +270,21 @@
     "newAgentArgLabel": "新 Agent 参数 {{index}}",
     "newAgentEnvKeyLabel": "新 Agent 环境变量名 {{index}}",
     "newAgentEnvValueLabel": "新 Agent 环境变量值 {{index}}",
-    "useLongContextBudget": "使用 1M 上下文预算"
+    "useLongContextBudget": "使用 1M 上下文预算",
+    "reportOpenMainFailed": "未能在主区域打开，请重试或刷新主应用。",
+    "reportCloseTab": "关闭报告：{{title}}",
+    "reportTitle": "可视化报告",
+    "reportReady": "报告已生成，点击查看交互页面",
+    "reportGenerating": "正在生成报告…",
+    "reportFailed": "报告生成失败，请让 Agent 重试",
+    "reportUnavailable": "报告暂不可用",
+    "reportOpen": "查看",
+    "reportPreview": "报告预览",
+    "reportVersion": "报告版本",
+    "reportClose": "关闭报告",
+    "reportLoadFailed": "无法加载报告。报告可能已被移除，或服务暂不可用。",
+    "reportRetry": "重试",
+    "reportLoading": "正在加载报告…",
+    "reportSnapshot": "数据快照 · 支持页面内交互"
   }
 }

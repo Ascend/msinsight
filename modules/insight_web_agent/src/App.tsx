@@ -19,18 +19,20 @@ import { Global, ThemeProvider } from '@emotion/react';
 import i18n from '@insight/lib/i18n';
 import { SharedConfigProvider } from '@insight/lib/SharedConfigProvider';
 import { GlobalStyles, themeInstance } from '@insight/lib/theme';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { isBackendUnavailableError, updateContext } from './api';
 import { ACP_NODE_VERSION, ACP_STATUS, apiBase } from './env';
 import { reportBackendUnavailable } from './backendConnection';
-import { notifyHostReady, registerHostEventHandlers, requestHostInitStatus } from './connection';
+import { notifyHostReady, notifyReportReady, registerHostEventHandlers, requestHostInitStatus } from './connection';
 import { ChatStateProvider } from './hooks/useChatState';
 import { ChatPage } from './components/ChatPage';
 import { BackendUnavailableDialog } from './components/BackendUnavailableDialog';
+import { ReportPage } from './components/ReportPage';
 
 type Locale = 'zhCN' | 'enUS';
 
 const App = (): JSX.Element => {
+    const reportOnly = new URLSearchParams(window.location.search).get('view') === 'report';
     const [themeName, setThemeName] = useState(themeInstance.getCurrentTheme());
     const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'zhCN');
 
@@ -73,31 +75,36 @@ const App = (): JSX.Element => {
             setTheme: applyTheme,
             switchLanguage: applyLanguage,
             updateContext: (context): void => {
-                synchronizeContext(context);
+                if (!reportOnly) synchronizeContext(context);
             },
         });
-        requestHostInitStatus();
-        notifyHostReady();
+        if (reportOnly) notifyReportReady();
+        else {
+            requestHostInitStatus();
+            notifyHostReady();
+        }
         window.addEventListener('storage', handleStorage);
         return () => {
             unregisterAgentContext();
             window.removeEventListener('storage', handleStorage);
         };
-    }, []);
+    }, [reportOnly]);
 
     return <ThemeProvider theme={themeInstance.getTheme()[themeName]}>
         <GlobalStyles />
         <Global styles={{
             html: { width: '100%', height: '100%' },
             body: { width: '100%', height: '100%', margin: 0 },
-        '#root': { width: '100%', height: '100%' },
-        '*': { boxSizing: 'border-box' },
-    }} />
+            '#root': { width: '100%', height: '100%' },
+            '*': { boxSizing: 'border-box' },
+        }} />
         <SharedConfigProvider locale={locale}>
-            <ChatStateProvider>
-                <ChatPage />
-                <BackendUnavailableDialog />
-            </ChatStateProvider>
+            {reportOnly
+                ? <ReportPage />
+                : <ChatStateProvider>
+                    <ChatPage />
+                    <BackendUnavailableDialog />
+                </ChatStateProvider>}
         </SharedConfigProvider>
     </ThemeProvider>;
 };

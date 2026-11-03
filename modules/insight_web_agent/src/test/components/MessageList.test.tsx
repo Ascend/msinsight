@@ -897,12 +897,11 @@ test('shows tool-result analysis as the last live timeline step', () => {
 test('shows connection retry reason and budget', () => {
     jest.useFakeTimers();
     render(<MessageList messages={[{ id: 'retry', role: 'assistant', content: [], activity: { type: 'model_retry', reason: 'connection', attempt: 2, maxAttempts: 10, retryAt: Date.now() + 4000 } }]} onPermissionDecision={noopPermissionDecision} pendingPrompt />);
-    expect(screen.getByRole('status')).toHaveTextContent('Retry 2/10');
-    expect(screen.getByRole('status')).toHaveTextContent('4 seconds');
+    expect(screen.getByRole('status')).toHaveTextContent('Retrying in 4s · attempt 2/10');
     act(() => jest.advanceTimersByTime(1000));
-    expect(screen.getByRole('status')).toHaveTextContent('3 seconds');
+    expect(screen.getByRole('status')).toHaveTextContent('Retrying in 3s · attempt 2/10');
     act(() => jest.advanceTimersByTime(3000));
-    expect(screen.getByRole('status')).toHaveTextContent('waiting for model response');
+    expect(screen.getByRole('status')).toHaveTextContent('Connecting · attempt 2/10');
     jest.useRealTimers();
 });
 
@@ -921,7 +920,7 @@ test('renders a rate-limit retry as an alert instead of a thinking indicator', (
 
     expect(document.querySelector('.thinking-indicator')).not.toBeInTheDocument();
     expect(document.querySelector('.model-retry-alert')).toHaveTextContent(
-        'The model service is rate limited. Request 2/5 is in progress; recovery is expected in 8 seconds...',
+        'Retrying in 8s · attempt 2/5',
     );
 });
 

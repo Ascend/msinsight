@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createCliCapabilityDefinition } from "../../capability-center/cliCapability.mjs";
 import { MSINSIGHT_CAPABILITY, RAG_RETRIEVE_CAPABILITY } from "../../capability-center/definitions.mjs";
+import { PUBLISH_REPORT_CAPABILITY } from "../../capability-center/artifactCapability.mjs";
 import { loadCapabilityCenterConfig } from "../../config/capabilityCenterConfig.mjs";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:9090";
@@ -33,6 +34,7 @@ export const loadNativeCapabilityDefinitions = ({ resourceDir, env = process.env
     const definitions = [
         { ...MSINSIGHT_CAPABILITY, requiresApproval: false },
         { ...RAG_RETRIEVE_CAPABILITY, requiresApproval: false },
+        { ...PUBLISH_REPORT_CAPABILITY, requiresApproval: false },
     ];
     const configPath = join(resourceDir, "capability-center.json");
     if (!existsSync(configPath)) return definitions;

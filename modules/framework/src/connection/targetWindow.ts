@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-const BUSINESS_MODULE_IFRAME_SELECTOR = 'iframe:not(#AcpSession)';
+const BUSINESS_MODULE_IFRAME_SELECTOR = 'iframe:not(#AcpSession):not([data-agent-report])';
 
 export function getModuleFrames(root: ParentNode = document): HTMLIFrameElement[] {
     return Array.from(root.querySelectorAll<HTMLIFrameElement>(BUSINESS_MODULE_IFRAME_SELECTOR));

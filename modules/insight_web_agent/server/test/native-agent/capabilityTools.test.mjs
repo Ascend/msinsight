@@ -61,7 +61,7 @@ test("native capability adapter exposes built-in capabilities without a product 
 
     const definitions = loadNativeCapabilityDefinitions({ resourceDir });
 
-    assert.deepEqual(definitions.map(({ name }) => name), ["msinsight", "rag_retrieve"]);
+    assert.deepEqual(definitions.map(({ name }) => name), ["msinsight", "rag_retrieve", "publish_report"]);
     assert.equal(definitions[0].requiresApproval, false);
     assert.equal(definitions[1].requiresApproval, false);
 });
@@ -100,12 +100,12 @@ test("native capability adapter loads CLI definitions from the product config", 
     const definitions = loadNativeCapabilityDefinitions({ resourceDir, env: { PATH: "" } });
     const tools = createCapabilityTools({ definitions });
 
-    assert.deepEqual(tools.map(({ name }) => name), ["msinsight", "rag_retrieve", "pt_snap"]);
+    assert.deepEqual(tools.map(({ name }) => name), ["msinsight", "rag_retrieve", "publish_report", "pt_snap"]);
     assert.equal(definitions[0].requiresApproval, false);
     assert.equal(definitions[1].requiresApproval, false);
-    assert.equal(definitions[2].requiresApproval, true);
-    assert.equal(definitions[2].timeoutMs, 45000);
-    assert.deepEqual(tools[2].inputSchema, PT_SNAP_DEFINITION.inputSchema);
+    assert.equal(definitions[3].requiresApproval, true);
+    assert.equal(definitions[3].timeoutMs, 45000);
+    assert.deepEqual(tools[3].inputSchema, PT_SNAP_DEFINITION.inputSchema);
 });
 
 test("native request timeout covers the per-tool default and invocation override", () => {
