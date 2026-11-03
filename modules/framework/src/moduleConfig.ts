@@ -37,6 +37,7 @@ export interface ModuleConfig {
 
 const isDev = process.env.REACT_APP_ENV === 'development';
 export const MEM_SCOPE_MODULE_NAME = 'MemScope';
+export const MEM_SNAPSHOT_MODULE_NAME = 'MemSnapshot';
 export const ON_CHIP_MEMORY_MODULE_NAME = 'On-Chip Memory'; // 原 Triton
 export const NUMA_MODULE_NAME = 'NUMA';
 export const modulesConfig: ModuleConfig[] = [
@@ -131,7 +132,15 @@ export const modulesConfig: ModuleConfig[] = [
         name: MEM_SCOPE_MODULE_NAME,
         requestName: 'leaks',
         attributes: {
-            src: isDev ? 'http://localhost:3007/' : './plugins/Leaks/index.html',
+            src: isDev ? 'http://localhost:3007/' : './plugins/MemScope/index.html',
+        },
+        isLeaks: true,
+    },
+    {
+        name: MEM_SNAPSHOT_MODULE_NAME,
+        requestName: 'leaks',
+        attributes: {
+            src: isDev ? 'http://localhost:3011/' : './plugins/MemSnapshot/index.html',
         },
         isLeaks: true,
     },
@@ -160,3 +169,12 @@ export const modulesConfig: ModuleConfig[] = [
         hasNumaData: true,
     },
 ];
+
+// Independent host entries; both retain the existing backend protocol.
+export type MemoryApplicationName = 'MemScope' | 'MemSnapshot';
+export const getMemoryApplicationName = (module: string, selectedFilePath: string = ''): MemoryApplicationName =>
+    (/\.(pkl|pickle)$/i.test(selectedFilePath) || (selectedFilePath === '' && module === 'memsnapshot')) ? 'MemSnapshot' : 'MemScope';
+export const isMemoryApplication = (name: string): name is MemoryApplicationName =>
+    name === MEM_SCOPE_MODULE_NAME || name === MEM_SNAPSHOT_MODULE_NAME;
+export const getMemoryApplicationSrc = (application: MemoryApplicationName): string =>
+    modulesConfig.find(config => config.name === application)?.attributes.src ?? '';

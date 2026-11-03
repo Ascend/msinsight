@@ -1,0 +1,124 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import { useEffect, useLayoutEffect } from 'react';
+import { runInAction } from 'mobx';
+import type { MemoryContext as Session } from '../state/MemoryContext';
+import { bindBlockWorkerSession, subscribeBlockWorker, isCurrentBlockWorkerGeneration } from '../../leaksWorker/blockWorker/worker';
+// The mounted feature owns this subscription; replacing a session releases the old listener.
+const useBlockWorkerMessage = (session: Session | undefined): void => {
+    useLayoutEffect(() => bindBlockWorkerSession(session), [session]);
+    useEffect(() => {
+        const onMessage = (ev: MessageEvent<any>): void => {
+            if (session === undefined) {
+                return;
+            }
+            if (!isCurrentBlockWorkerGeneration(ev.data.generation, session)) {
+                return;
+            }
+            switch (ev.data.type) {
+                case 'dataInfo':
+                    runInAction(() => {
+                        session.leaksWorkerInfo.sizeInfo = ev.data.sizeInfo;
+                        session.leaksWorkerInfo.renderOptions.zoom = ev.data.zoom;
+                    });
+                    break;
+                case 'hoverItemResult':
+                    runInAction(() => {
+                        session.leaksWorkerInfo.hoverItem = ev.data.result;
+                    });
+                    break;
+                case 'clickItemResult':
+                    if (ev.data.selectionVersion !== undefined && ev.data.selectionVersion !== session.selectionVersion) {
+                        return;
+                    }
+                    runInAction(() => {
+                        session.leaksWorkerInfo.clickItem = ev.data.result;
+                    });
+                    break;
+                case 'transformResult':
+                    runInAction(() => {
+                        session.leaksWorkerInfo.renderOptions.transform = ev.data.transform;
+                    });
+                    break;
+                case 'renderCompleted': {
+                    const progressiveMetricsTarget = globalThis as {
+                        __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
+                    };
+                    progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__ = {
+                        ...progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__,
+                        generation: ev.data.generation,
+                        firstBatchCount:
+                            progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__?.firstBatchCount ?? 0,
+                        firstRenderedInstanceCount:
+                            progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__?.firstRenderedInstanceCount ?? 0,
+                        firstFrameAt:
+                            progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__?.firstFrameAt ?? 0,
+                        completedAt: Date.now(),
+                        totalBatchCount: ev.data.batchCount ?? 0,
+                    };
+                    runInAction(() => {
+                        session.loadingBlocks = false;
+                        session.progressiveBlocksVisible = false;
+                        session.progressiveRenderedBatchCount = ev.data.batchCount ?? session.progressiveRenderedBatchCount;
+                        session.progressiveRenderedEventCount = session.progressiveTotalEventCount;
+                    });
+                    break;
+                }
+                case 'progressiveRenderStarted':
+                    (globalThis as {
+                        __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
+                    }).__LEAKS_PROGRESSIVE_RENDER_METRICS__ = {
+                        generation: ev.data.generation,
+                        firstBatchCount: ev.data.batchCount ?? 0,
+                        firstRenderedInstanceCount: ev.data.renderedInstanceCount ?? 0,
+                        firstFrameAt: Date.now(),
+                    };
+                    runInAction(() => {
+                        session.progressiveBlocksVisible = true;
+                        session.progressiveRenderedEventCount = Math.max(
+                            session.progressiveRenderedEventCount,
+                            ev.data.processedEventCount ?? 0,
+                        );
+                        session.progressiveTotalEventCount = ev.data.totalEventCount ?? session.progressiveTotalEventCount;
+                        session.progressiveFirstRenderedBatchCount = ev.data.batchCount ?? 0;
+                        session.progressiveFirstRenderedInstanceCount = ev.data.renderedInstanceCount ?? 0;
+                    });
+                    break;
+                case 'progressiveRenderProgress':
+                    runInAction(() => {
+                        session.progressiveRenderedBatchCount = ev.data.batchCount ?? 0;
+                        session.progressiveRenderedInstanceCount += ev.data.renderedInstanceCount ?? 0;
+                        session.progressiveRenderedEventCount = Math.max(
+                            session.progressiveRenderedEventCount,
+                            ev.data.processedEventCount ?? 0,
+                        );
+                        session.progressiveTotalEventCount = ev.data.totalEventCount ?? session.progressiveTotalEventCount;
+                    });
+                    break;
+                case 'memoryMetrics':
+                    (globalThis as { __LEAKS_MEMORY_METRICS__?: BlockGraphBuildMetrics }).__LEAKS_MEMORY_METRICS__ =
+                        ev.data.metrics as BlockGraphBuildMetrics;
+                    break;
+                default:
+                    break;
+            }
+        };
+        if (session) return subscribeBlockWorker(session, onMessage);
+    }, [session]);
+};
+export default useBlockWorkerMessage;

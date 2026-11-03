@@ -144,6 +144,7 @@ export class Session {
     deviceIds: any = {};
     threadIds: number[] = [];
     module: string = '';
+    dbPath: string = '';
     fileHash: string = '';
     snapshotParsingComplete: boolean = true;
     snapshotSlices: MemSnapshotSlices = {};
@@ -291,6 +292,7 @@ export class Session {
         this.deviceIds = {};
         this.threadIds = [];
         this.module = '';
+        this.dbPath = '';
         this.fileHash = '';
         this.snapshotParsingComplete = true;
         this.snapshotSlices = {};

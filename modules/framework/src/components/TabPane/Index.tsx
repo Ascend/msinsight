@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { MemoryApplicationFrame } from './MemoryApplicationFrame';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react';
 import type { Scene, Session } from '@/entity/session';
@@ -24,7 +25,8 @@ import { safeJSONParse } from '@insight/lib/utils';
 import {
     type ModuleConfig,
     modulesConfig,
-    MEM_SCOPE_MODULE_NAME,
+    getMemoryApplicationName,
+    isMemoryApplication,
     ON_CHIP_MEMORY_MODULE_NAME,
     NUMA_MODULE_NAME,
 } from '@/moduleConfig';
@@ -122,8 +124,13 @@ export function getAvailableModules(
     configs: ModuleConfig[],
     scene: Scene,
     dataCompose: Record<string, boolean>,
+    module: string = '',
+    selectedFilePath: string = '',
 ): ModuleConfig[] {
-    const availableModules = configs.filter(config => isAvailable(config, scene, dataCompose));
+    const application = getMemoryApplicationName(module, selectedFilePath);
+    const availableModules = configs.filter(config =>
+        (isAvailable(config, scene, dataCompose) || (config.name === 'MemSnapshot' && /\.(pkl|pickle)$/i.test(selectedFilePath))) &&
+        (!isMemoryApplication(config.name) || config.name === application));
     // 保持其他页签的原始顺序，并将 NUMA 页签统一放到最后。
     return [
         ...availableModules.filter(config => config.name !== NUMA_MODULE_NAME),
@@ -154,15 +161,15 @@ const Index = observer(({ session }: {session: Session}) => {
     const { t } = useTranslation('framework', { keyPrefix: 'tabs' });
     const [scene, setScene] = useState<Scene>('Default');
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
-    const [activeModule, setActiveModule] = useState('Timeline');
+    const [selectedModule, setActiveModule] = useState('Timeline');
     const [mergedModulesConfig, setMergedModulesConfig] = useState(modulesConfig);
-    const prevFrameIdsRef = useRef<string[]>([]);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
 
-    const availableModules = useMemo(() => getAvailableModules(mergedModulesConfig, scene, dataCompose)
-        , [scene, dataCompose, mergedModulesConfig]);
-    const isLeaks = useMemo(() => availableModules.some(module => module.isLeaks && module.name === MEM_SCOPE_MODULE_NAME)
-        , [availableModules]);
+    const availableModules = useMemo(() => getAvailableModules(mergedModulesConfig, scene, dataCompose, session.module, session.activeDataSource.selectedFilePath)
+        , [scene, dataCompose, mergedModulesConfig, session.module, session.activeDataSource.selectedFilePath]);
+    const memoryApplication = availableModules.find(config => isMemoryApplication(config.name))?.name;
+    // Memory data has one visible entry; hidden modules cannot override its activation.
+    const activeModule = memoryApplication ?? selectedModule;
     const isTriton = useMemo(() => availableModules.some(module => module.isTriton && module.name === ON_CHIP_MEMORY_MODULE_NAME)
         , [availableModules]);
     const getIcon = (tabTitle: string): React.ReactElement => {
@@ -183,14 +190,14 @@ const Index = observer(({ session }: {session: Session}) => {
             label: getIcon(config.name),
             key: config.name,
         }));
-        if (isLeaks) {
-            return modules.filter(module => module.key === MEM_SCOPE_MODULE_NAME);
+        if (memoryApplication) {
+            return modules.filter(module => module.key === memoryApplication);
         }
         if (isTriton) {
             return modules.filter(module => module.key === ON_CHIP_MEMORY_MODULE_NAME);
         }
         return modules;
-    }, [availableModules, t]);
+    }, [availableModules, memoryApplication, isTriton, t]);
     const onClick: MenuProps['onClick'] = e => {
         setActiveModule(e.key);
     };
@@ -249,23 +256,9 @@ const Index = observer(({ session }: {session: Session}) => {
 
     // 添加监听新的页签加载后发送当前工程
     useEffect(() => {
-        const frames = document.querySelectorAll('iframe');
-        const frameIds = Array.prototype.map.call(frames, (frame: HTMLIFrameElement) => frame.id) as string[];
-        const newFrames = Array.prototype.filter.call(frames, (frame: HTMLIFrameElement) => !prevFrameIdsRef.current.includes(frame.id)) as HTMLIFrameElement[];
+        const frames = document.querySelectorAll<HTMLIFrameElement>('iframe:not([data-memory-application])');
 
-        const sendBody = {
-            event: 'frame/loaded',
-            body: {
-                selectedFileType: session.activeDataSource.selectedFileType,
-                selectedFilePath: session.activeDataSource.selectedFilePath,
-                selectedProjectName: session.activeDataSource.projectName,
-                pageInfo: {
-                    cluster: session.clusterPageInfo,
-                    timeline: session.timelinePageInfo,
-                },
-            },
-        };
-        newFrames.forEach((frame) => {
+        Array.from(frames).forEach((frame) => {
             // 设置 onload 监听器等待 iframe 加载完成
             // 如果之前已经有监听器，先清除
             if (iframeLoadHandlersRef.current.has(frame)) {
@@ -273,6 +266,18 @@ const Index = observer(({ session }: {session: Session}) => {
             }
             // 创建并绑定新的监听器
             const onLoadHandler = (): void => {
+                const sendBody = {
+                    event: 'frame/loaded',
+                    body: {
+                        selectedFileType: session.activeDataSource.selectedFileType,
+                        selectedFilePath: session.activeDataSource.selectedFilePath,
+                        selectedProjectName: session.activeDataSource.projectName,
+                        pageInfo: {
+                            cluster: session.clusterPageInfo,
+                            timeline: session.timelinePageInfo,
+                        },
+                    },
+                };
                 connector.send({
                     ...sendBody,
                     to: frame.id,
@@ -282,14 +287,13 @@ const Index = observer(({ session }: {session: Session}) => {
             iframeLoadHandlersRef.current.set(frame, onLoadHandler);
             frame.onload = onLoadHandler;
         });
-        prevFrameIdsRef.current = frameIds;
         return (): void => {
             iframeLoadHandlersRef.current.forEach((handler, frame) => {
                 frame.onload = null; // 移除监听器
             });
             iframeLoadHandlersRef.current.clear(); // 清空 map
         };
-    }, [availableModules]);
+    }, [availableModules, session]);
 
     useEffect(() => {
         const newActiveModule = getActive(session, scene, activeModule, availableModules);
@@ -297,17 +301,11 @@ const Index = observer(({ session }: {session: Session}) => {
     }, [scene, availableModules]);
     useEffect(() => {
         const { type, value } = session.actionListener;
-        const allModuleName = mergedModulesConfig.map(module => module.name);
-        if (type === SessionAction.SWITCH_ACTIVE_MODULE && allModuleName.includes(value)) {
+        const visibleModuleNames = memoryApplication ? [memoryApplication] : mergedModulesConfig.map(module => module.name);
+        if (type === SessionAction.SWITCH_ACTIVE_MODULE && visibleModuleNames.includes(value)) {
             setActiveModule(value);
         }
     }, [session.actionListener]);
-
-    useEffect(() => {
-        if (isLeaks) {
-            setActiveModule(MEM_SCOPE_MODULE_NAME);
-        }
-    }, [isLeaks]);
 
     useEffect(() => {
         if (isTriton) {
@@ -318,29 +316,46 @@ const Index = observer(({ session }: {session: Session}) => {
         <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
         <div className="tab-body">
             {availableModules.map((moduleConfig) =>
-                (isVscodeEnv() && isVscodePluginEnvironment())
-                    ? (
-                        <div
-                            {...moduleConfig.attributes}
-                            key={`frame-${moduleConfig.name}`}
-                            id={moduleConfig.name}
-                            style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
-                            ref={(devRef) => {
-                                if (devRef) {
-                                    onDivLoad(moduleConfig.name);
-                                }
-                            }}
-                        />
-                    )
-                    : (
-                        <iframe
-                            {...moduleConfig.attributes}
-                            key={`frame-${moduleConfig.name}`}
-                            id={moduleConfig.name}
-                            name={moduleConfig.name}
-                            style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
-                        />
-                    ),
+                isMemoryApplication(moduleConfig.name)
+                    ? <MemoryApplicationFrame key={moduleConfig.name} application={moduleConfig.name}
+                        visible={activeModule === moduleConfig.name}
+                        attributes={moduleConfig.attributes}
+                        onLoad={() => {
+                            connector.send({
+                                event: 'frame/loaded',
+                                to: moduleConfig.name,
+                                body: {
+                                    selectedFileType: session.activeDataSource.selectedFileType,
+                                    selectedFilePath: session.activeDataSource.selectedFilePath,
+                                    selectedProjectName: session.activeDataSource.projectName,
+                                    pageInfo: { cluster: session.clusterPageInfo, timeline: session.timelinePageInfo },
+                                },
+                            });
+                        }} />
+                    : (isVscodeEnv() && isVscodePluginEnvironment())
+                        ? (
+                            <div
+                                {...moduleConfig.attributes}
+
+                                key={`frame-${moduleConfig.name}`}
+                                id={moduleConfig.name}
+                                style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
+                                ref={(devRef) => {
+                                    if (devRef) {
+                                        onDivLoad(moduleConfig.name);
+                                    }
+                                }}
+                            />
+                        )
+                        : (
+                            <iframe
+                                {...moduleConfig.attributes}
+                                key={`frame-${moduleConfig.name}`}
+                                id={moduleConfig.name}
+                                name={moduleConfig.name}
+                                style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
+                            />
+                        ),
             )}
         </div>
     </Container>;

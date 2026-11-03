@@ -1,0 +1,28 @@
+{
+  "name": "@insight/memsnapshot",
+  "version": "0.1.0",
+  "private": true,
+  "homepage": "./",
+  "scripts": {
+    "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider craco start",
+    "build": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production GENERATE_SOURCEMAP=false CI=false craco build",
+    "build:dev": "cross-env GENERATE_SOURCEMAP=true CI=false craco build",
+    "test": "node ../testing/run.cjs --module memsnapshot",
+    "test:dev": "node ../testing/run.cjs --module memsnapshot --watch",
+    "eject": "react-scripts eject",
+    "lint": "eslint src --fix",
+    "dt": "set BROWSER=none&&set REACT_APP_TEST=1&&react-scripts start"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

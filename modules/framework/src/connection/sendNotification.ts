@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import connector from '@/connection/index';
+import { getMemSnapshotBootstrapState } from '../memSnapshotBootstrap';
 import { themeInstance } from '@insight/lib/theme';
 import { store } from '@/store';
 import { localStorageService, LocalStorageKey } from '@insight/lib';
@@ -154,6 +155,7 @@ export const sendSessionKey = (key: string, to?: string): void => {
 
 export const sendMap: Record<string, (to?: string) => void> = {
     directory: sendDirectory,
+    memSnapshotSession: (to) => connector.send({ event: 'updateSession', body: getMemSnapshotBootstrapState(store.sessionStore.activeSession), to }),
     status: sendStatus,
     theme: sendTheme,
     language: sendLanguage,

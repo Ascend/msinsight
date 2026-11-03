@@ -123,7 +123,8 @@ def clean():
         'operator',
         'lib',
         'statistic',
-        'leaks',
+        'memscope',
+        'memsnapshot',
         'reinforcement-learning',
         'memory-on-chip',
     ]

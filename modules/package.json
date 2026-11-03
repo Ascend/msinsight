@@ -16,7 +16,7 @@
         "test:coverage": "node testing/run.cjs --coverage",
         "test:watch": "node testing/run.cjs --watch",
         "test:infra": "node testing/run-infra.cjs",
-        "test:browser": "node leaks/tests/tooltip-layout/run.cjs"
+        "test:browser": "node memscope/tests/tooltip-layout/run.cjs && node memsnapshot/tests/tooltip-layout/run.cjs"
     },
     "dependencies": {
         "@emotion/react": "11.14.0",

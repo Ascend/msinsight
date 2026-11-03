@@ -141,8 +141,9 @@ export async function handleProjectAction({ action, project, isConflict, selecte
                 newProject.selectedFilePath = firstFilePath;
                 newProject.selectedRankId = selectedRankId;
             }
-            session.toBeActivedProject = newProject;
         }
+        // First imports also need an identity for notifications arriving before import/action returns.
+        session.toBeActivedProject = newProject;
         try {
             const res = await addDataPath(newProject, action, isConflict, session);
             if (!res) {
@@ -152,9 +153,9 @@ export async function handleProjectAction({ action, project, isConflict, selecte
         } catch (e) {
             closeLoading();
             return;
+        } finally {
+            session.toBeActivedProject = undefined;
         }
-        session.toBeActivedProject = undefined;
-
         // 保存文件路径
         const path = newProject.projectPath[0].includes(newProject.projectName) ? newProject.projectName : newProject.projectPath[0];
         localStorageService.setItem(LocalStorageKey.LAST_FILE_PATH, path);

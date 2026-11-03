@@ -38,6 +38,9 @@ import { transformFile, updateProject } from '@/utils/Project';
 import { closeLoading } from '@/utils/useLoading';
 import { updateDataScene } from '@/components/TabPane/Index';
 import { Session } from '@/entity/session';
+import { getMemSnapshotBootstrapState } from '../memSnapshotBootstrap';
+import { normalizeFilePath } from '../utils/filePath';
+import { updateSession } from '../connection/notificationHandler';
 import { errorCenter, RequestOptions, WsError } from '@insight/lib';
 import { getConnectHost, isVscodeEnv, setConnectRemoteFn } from '@/vscode-adapter';
 
@@ -111,6 +114,10 @@ export const addDataPath = async function(project: Project, action: ProjectActio
             return false;
         }
         const res = result;
+        const snapshotFile = session.memSnapshotParseFileId;
+        const pendingSnapshot = /\.(pkl|pickle)$/i.test(snapshotFile)
+            ? getMemSnapshotBootstrapState(session, snapshotFile)
+            : undefined;
         // 这里添加 session.actionListener.type !== SessionAction.ADD_DATA_UNDER_PROJECT 条件，防止在项目中添加卡的场景下，集群页面被重置
         // 这里添加 res.isCluster 判断导入数据是否是集群，如果是集群数据，也要重置 session 使 clusterCompleted = false, 确保 Summary 和 Communication 模块正常加载
         if (session.actionListener.type !== SessionAction.ADD_DATA_UNDER_PROJECT && (res.reset || res.isCluster)) {
@@ -132,6 +139,11 @@ export const addDataPath = async function(project: Project, action: ProjectActio
             target: 'plugin',
         }); // 由于发送时页签应该只有 时间线、内存、算子 存在，所以这个事件只能被这三个页签收到
         afterImportProject(params, res);
+        // Import may reset the session after early progress/completion. Restore only the selected file.
+        if (pendingSnapshot && normalizeFilePath(snapshotFile) === normalizeFilePath(session.activeDataSource.selectedFilePath)) {
+            updateSession(pendingSnapshot);
+            connector.send({ event: 'updateSession', body: pendingSnapshot, to: 'MemSnapshot' });
+        }
     }
     return true;
 };

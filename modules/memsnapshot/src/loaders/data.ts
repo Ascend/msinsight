@@ -1,0 +1,681 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+import type { MemSnapshotContext } from '../state/MemSnapshotContext';
+import { getBlockRenderer } from '../common/leaksWorker/blockWorker/worker';
+import { type AllocationData, type BlockParam, EventParam, type GraphParam } from '../common/shared/api/types';
+import { type AllocationLineData } from '../api/types';
+import { getSnapshotBlocks, getSnapshotBlockTable, getSnapshotEvent, getSnapshotAllocations, getSnapshotAllocationLines, getSnapshotLeakStats } from '../api/requests';
+import { message } from 'antd';
+import { runInAction } from 'mobx';
+import { ensureOpfsFallbackApproval, ensureOpfsOrWaitForFallbackApproval } from '../components/opfsFallback';
+import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from '../common/components/blockLoadState';
+import { isMemSnapshotSliceReadyForQuery } from '../utils/memSnapshotSlices';
+
+const captureRequestContext = (session: MemSnapshotContext): (() => boolean) => {
+    const contextKey = createMemoryBlockContextKey(session);
+    const { deviceIds } = session;
+    return () => createMemoryBlockContextKey(session) === contextKey && session.deviceIds === deviceIds;
+};
+
+const getAllocationDataMaxSize = (data: AllocationData): number => {
+    let maxSize = data.maxSize ?? 0;
+    data.allocations.forEach(item => { maxSize = Math.max(maxSize, item.totalSize); });
+    data.reservedLine?.forEach(item => { maxSize = Math.max(maxSize, item.reservedSize); });
+    data.processUsedLine?.forEach(item => { maxSize = Math.max(maxSize, item.processUsed); });
+    data.deviceUsedLine?.forEach(item => { maxSize = Math.max(maxSize, item.deviceUsed); });
+    return maxSize;
+};
+
+const updateSnapshotGlobalMaxSize = (session: MemSnapshotContext, deviceId: string, eventType: string, maxSize: number): void => {
+    const globalMaxSizes = session.snapshotGlobalMaxSizes ?? {};
+    const currentMaxSize = globalMaxSizes[deviceId]?.[eventType] ?? 0;
+    const nextMaxSize = Math.max(currentMaxSize, maxSize);
+    if (nextMaxSize === currentMaxSize && globalMaxSizes[deviceId]?.[eventType] !== undefined) {
+        return;
+    }
+    runInAction(() => {
+        session.snapshotGlobalMaxSizes = {
+            ...globalMaxSizes,
+            [deviceId]: {
+                ...(globalMaxSizes[deviceId] ?? {}),
+                [eventType]: nextMaxSize,
+            },
+        };
+    });
+};
+
+const barDataRequestSeqMap = new WeakMap<object, number>();
+
+const blockTableRequestSeqMap = new WeakMap<object, number>();
+
+const eventTableRequestSeqMap = new WeakMap<object, number>();
+
+const overviewPrefetchMap = new WeakMap<object, Map<string, Promise<void>>>();
+
+const OVERVIEW_PRELOAD_CONCURRENCY = 2;
+
+let overviewPreloadActiveCount = 0;
+
+const overviewPreloadWaiters: Array<() => void> = [];
+
+const acquireOverviewPreloadSlot = async (): Promise<void> => {
+    if (overviewPreloadActiveCount < OVERVIEW_PRELOAD_CONCURRENCY) {
+        overviewPreloadActiveCount += 1;
+        return;
+    }
+    await new Promise<void>(resolve => {
+        overviewPreloadWaiters.push(resolve);
+    });
+};
+
+const releaseOverviewPreloadSlot = (): void => {
+    const next = overviewPreloadWaiters.shift();
+    if (next !== undefined) {
+        // Transfer the occupied slot directly so a new caller cannot overtake its waiter.
+        next();
+    } else {
+        overviewPreloadActiveCount = Math.max(0, overviewPreloadActiveCount - 1);
+    }
+};
+
+const createBlockPathCacheHash = (fileHash: string, deviceId: string, eventType: string, sliceIndex: number): string => fileHash ? `${fileHash}-${deviceId}-${eventType}-${sliceIndex}` : '';
+
+const getSnapshotSliceRequestOrder = (readySlices: number[], selectedSliceIndex: number): number[] => {
+    const descendingSlices = [...readySlices].sort((left, right) => right - left);
+    const preferredSlice = readySlices.includes(selectedSliceIndex) ? selectedSliceIndex : descendingSlices[0];
+    if (preferredSlice === undefined) {
+        return [];
+    }
+    return [preferredSlice, ...descendingSlices.filter(sliceIndex => sliceIndex !== preferredSlice)];
+};
+
+const clearMemSnapshotWindowData = (session: MemSnapshotContext): void => {
+    session.blocksTableData = [];
+    session.blocksTotal = 0;
+    session.eventsTableData = [];
+    session.eventsTotal = 0;
+    session.leakStats = {
+        totalSize: 0,
+        maxSize: 0,
+        minSize: 0,
+        loading: false,
+        error: false,
+        requestId: (session.leakStats?.requestId ?? 0) + 1,
+    };
+};
+
+const BLOCKS_MIN_PAGE_SIZE = 1000;
+
+const BLOCKS_MAX_PAGE_SIZE = 32000;
+
+const SNAPSHOT_PAGINATION_SUPERSEDED = new Error('snapshot pagination superseded by a newer request');
+
+type SnapshotBlocksPage = RenderData & {
+    total?: number;
+};
+
+const fetchSnapshotViewBlocksPaginated = async (baseParam: BlockParam, isLatestRequest: () => boolean): Promise<RenderData> => {
+    let currentDataCount = 0;
+    let currentPage = 1;
+    let pageSize = BLOCKS_MIN_PAGE_SIZE;
+    let merged: SnapshotBlocksPage | null = null;
+    let expectedTotal: number | undefined;
+    for (;;) {
+        const res: SnapshotBlocksPage = await getSnapshotBlocks({ ...baseParam, currentPage, pageSize });
+        if (!isLatestRequest()) {
+            throw SNAPSHOT_PAGINATION_SUPERSEDED;
+        }
+        if (merged === null) {
+            // 首页：spread 后清空 blocks 作为合并容器（min/max 等元信息各页相同）
+            merged = { ...res, blocks: [] };
+            expectedTotal = res.total;
+            if (expectedTotal !== undefined && (!Number.isSafeInteger(expectedTotal) || expectedTotal < 0)) {
+                throw new Error('Invalid blocks pagination total');
+            }
+        } else if (res.total !== expectedTotal) {
+            throw new Error('Blocks pagination total changed while loading');
+        }
+        merged.blocks = merged.blocks.concat(res.blocks);
+        currentDataCount += res.blocks.length;
+        // 旧后端若不返回 total，则将首页视为原全量响应并保持兼容。
+        if (expectedTotal === undefined) {
+            break;
+        }
+        if (currentDataCount > expectedTotal) {
+            throw new Error('Blocks pagination returned more rows than total');
+        }
+        if (currentDataCount === expectedTotal) {
+            break;
+        }
+        if (res.blocks.length === 0) {
+            throw new Error('Blocks pagination returned an empty page before total was reached');
+        }
+        if (res.blocks.length < pageSize) {
+            throw new Error('Blocks pagination returned a short page before total was reached');
+        }
+        if (pageSize < BLOCKS_MAX_PAGE_SIZE) {
+            if (currentPage === 1) {
+                currentPage = 2; // 第二页仍用 1000 小页
+            } else {
+                pageSize = Math.min(pageSize * 2, BLOCKS_MAX_PAGE_SIZE); // 停留在第二页持续翻倍页大小
+            }
+        } else {
+            currentPage++;
+        }
+    }
+    return merged as RenderData;
+};
+
+const ALLOCATIONS_PAGE_SIZE = 30000;
+
+type SnapshotAllocationPage = AllocationData;
+
+const validateAllocationTotal = (total: SnapshotAllocationPage['total']): void => {
+    if (total === undefined || total === null || !Number.isSafeInteger(total.allocations) || total.allocations < 0) {
+        throw new Error('Invalid allocations pagination total');
+    }
+};
+
+const getExpectedPageLength = (total: number, currentPage: number): number => {
+    const offset = (currentPage - 1) * ALLOCATIONS_PAGE_SIZE;
+    return Math.min(ALLOCATIONS_PAGE_SIZE, Math.max(0, total - offset));
+};
+
+const fetchSnapshotAllocationsPaginated = async (baseParam: GraphParam, isLatestRequest: () => boolean): Promise<AllocationData> => {
+    let currentPage = 1;
+    let firstPage: SnapshotAllocationPage | undefined;
+    let expectedTotal: NonNullable<SnapshotAllocationPage['total']> | undefined;
+    const allocationChunks: Array<AllocationData['allocations']> = [];
+    for (;;) {
+        const page = await getSnapshotAllocations({ ...baseParam, currentPage, pageSize: ALLOCATIONS_PAGE_SIZE });
+        if (!isLatestRequest()) {
+            throw SNAPSHOT_PAGINATION_SUPERSEDED;
+        }
+        if (firstPage === undefined) {
+            firstPage = page;
+            if (page.total === undefined) {
+                return page; // 旧后端忽略分页参数并返回历史全量响应。
+            }
+            validateAllocationTotal(page.total);
+            expectedTotal = page.total;
+        } else if (page.total?.allocations !== expectedTotal?.allocations ||
+            page.minTimestamp !== firstPage.minTimestamp || page.maxTimestamp !== firstPage.maxTimestamp) {
+            throw new Error('Allocations pagination metadata changed while loading');
+        }
+        if (!Array.isArray(page.allocations) || expectedTotal === undefined ||
+            page.allocations.length !== getExpectedPageLength(expectedTotal.allocations, currentPage)) {
+            throw new Error('Allocations pagination returned an unexpected page length');
+        }
+        allocationChunks.push(page.allocations);
+        if (currentPage * ALLOCATIONS_PAGE_SIZE >= expectedTotal.allocations) {
+            break;
+        }
+        currentPage++;
+    }
+    const merged: SnapshotAllocationPage = {
+        ...firstPage,
+        allocations: allocationChunks.flat(),
+    };
+    delete merged.total;
+    return merged;
+};
+
+type SnapshotAllocationLinePage = AllocationLineData;
+
+const fetchSnapshotAllocationLinesPaginated = async (baseParam: GraphParam, isLatestRequest: () => boolean): Promise<AllocationLineData> => {
+    let currentPage = 1;
+    let firstPage: SnapshotAllocationLinePage | undefined;
+    let expectedTotal = 0;
+    const reservedLineChunks: Array<NonNullable<AllocationLineData['reservedLine']>> = [];
+    for (;;) {
+        const page = await getSnapshotAllocationLines({ ...baseParam, currentPage, pageSize: ALLOCATIONS_PAGE_SIZE });
+        if (!isLatestRequest()) {
+            throw SNAPSHOT_PAGINATION_SUPERSEDED;
+        }
+        if (firstPage === undefined) {
+            firstPage = page;
+            if (page.total === undefined) {
+                return page;
+            }
+            if (!Number.isSafeInteger(page.total.reservedLine) || page.total.reservedLine < 0) {
+                throw new Error('Invalid allocation lines pagination total');
+            }
+            expectedTotal = page.total.reservedLine;
+        } else if (page.total?.reservedLine !== expectedTotal || page.minTimestamp !== firstPage.minTimestamp ||
+            page.maxTimestamp !== firstPage.maxTimestamp) {
+            throw new Error('Allocation lines pagination metadata changed while loading');
+        }
+        const reservedLine = page.reservedLine ?? [];
+        if (!Array.isArray(reservedLine) ||
+            reservedLine.length !== getExpectedPageLength(expectedTotal, currentPage)) {
+            throw new Error('Allocation lines pagination returned an unexpected page length');
+        }
+        reservedLineChunks.push(reservedLine);
+        if (currentPage * ALLOCATIONS_PAGE_SIZE >= expectedTotal) {
+            break;
+        }
+        currentPage++;
+    }
+    const merged: SnapshotAllocationLinePage = {
+        ...firstPage,
+        reservedLine: reservedLineChunks.flat(),
+    };
+    delete merged.total;
+    return merged;
+};
+
+export const getBarNewData = async (session: MemSnapshotContext): Promise<void> => {
+    const { destroy: workerDestroy, setAllocationLines: workerSetAllocationLines, transform: workerTransform, loadMemoryBlockCache: workerLoadMemoryBlockCache, setMemoryBlockData: workerSetMemoryBlockData } = getBlockRenderer(session);
+
+    if (session.module !== 'memsnapshot') return;
+    const requestSeq = (barDataRequestSeqMap.get(session) ?? 0) + 1;
+    barDataRequestSeqMap.set(session, requestSeq);
+    blockTableRequestSeqMap.set(session, (blockTableRequestSeqMap.get(session) ?? 0) + 1);
+    eventTableRequestSeqMap.set(session, (eventTableRequestSeqMap.get(session) ?? 0) + 1);
+    if (session.deviceId === '') { return; }
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq && isCurrentContext();
+    if (!isMemSnapshotSliceReadyForQuery(session)) {
+        workerDestroy();
+        runInAction(() => {
+            session.blockData = { blocks: [], minSize: 0, maxSize: 0, minTimestamp: 0, maxTimestamp: 0 };
+            session.allocationData = { allocations: [], minTimestamp: 0, maxTimestamp: 0 };
+            session.loadingBlocks = false;
+            session.loadingOverview = false;
+            session.loadedMemoryBlockContextKey = '';
+            clearMemSnapshotWindowData(session);
+        });
+        return;
+    }
+
+    await ensureOpfsOrWaitForFallbackApproval(session);
+    if (!isLatestRequest()) {
+        return;
+    }
+
+    const blockContextKey = createMemoryBlockContextKey(session);
+    runInAction(() => {
+        session.loadingBlocks = true;
+        session.loadedMemoryBlockContextKey = '';
+        session.loadingOverview = true;
+        session.allocationData = {
+            ...session.allocationData,
+            allocationLineAvailability: undefined,
+        };
+        session.progressiveBlocksVisible = false;
+        session.progressiveRenderedBatchCount = 0;
+        session.progressiveRenderedInstanceCount = 0;
+        session.progressiveRenderedEventCount = 0;
+        session.progressiveTotalEventCount = 0;
+        session.progressiveFirstRenderedBatchCount = 0;
+        session.progressiveFirstRenderedInstanceCount = 0;
+
+        clearMemSnapshotWindowData(session);
+    });
+    delete (globalThis as {
+        __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
+    }).__LEAKS_PROGRESSIVE_RENDER_METRICS__;
+    let requestActive = true;
+    try {
+        const param: BlockParam = {
+            deviceId: session.deviceId,
+            relativeTime: true,
+            eventType: session.eventType,
+            isTable: false,
+            sliceIndex: session.selectedSliceIndex,
+        };
+        const cacheFileHash = createBlockPathCacheHash(session.snapshotParsingComplete && !session.memSnapshotCacheRefreshPending ? session.fileHash : '', param.deviceId, param.eventType, session.selectedSliceIndex);
+        // memscope 未拆 allocationLines 接口，折线仍在 Memory/leaks/allocations 中。
+        // worker 按 generation 接受折线；必须在 cache hit / setMemoryBlockData 抬升 generation 之后再下发。
+        const publishAllocationLines = (lines: Parameters<typeof workerSetAllocationLines>[0] | undefined): void => {
+            if (!requestActive || !isLatestRequest() || lines === undefined) {
+                return;
+            }
+            workerSetAllocationLines(lines);
+        };
+        const loadAllocation = async (): Promise<Parameters<typeof workerSetAllocationLines>[0] | undefined> => {
+            const cachedOverview = session.sliceOverviewData[param.deviceId]?.[param.sliceIndex ?? -1];
+            const [overview, lines] = await Promise.all([
+                cachedOverview ?? fetchSnapshotAllocationsPaginated(param, isLatestRequest),
+                fetchSnapshotAllocationLinesPaginated(param, isLatestRequest),
+            ]);
+            const allocationData: AllocationData = { ...overview, ...lines, total: overview.total, allocations: overview.allocations };
+
+            if (!requestActive || !isLatestRequest()) {
+                return undefined;
+            }
+
+            updateSnapshotGlobalMaxSize(session, param.deviceId, param.eventType, getAllocationDataMaxSize(allocationData));
+
+            const { reservedLine, processUsedLine, deviceUsedLine, ...allocationResult } = allocationData;
+            runInAction(() => {
+                session.allocationData = {
+                    ...allocationResult,
+                    allocationLineAvailability: {
+                        reservedLine: (reservedLine?.length ?? 0) > 0,
+                        processUsedLine: (processUsedLine?.length ?? 0) > 0,
+                        deviceUsedLine: (deviceUsedLine?.length ?? 0) > 0,
+                    },
+                };
+                if (allocationResult.allocations.length === 0) {
+                    session.loadingOverview = false;
+                }
+
+                session.sliceOverviewData = {
+                    ...session.sliceOverviewData,
+                    [session.deviceId]: {
+                        ...(session.sliceOverviewData[session.deviceId] ?? {}),
+                        [session.selectedSliceIndex]: allocationResult,
+                    },
+                };
+            });
+            return { reservedLine, processUsedLine, deviceUsedLine };
+        };
+        const preloadRemainingOverviews = (): void => {
+            if (session.snapshotParsingComplete && isLatestRequest()) {
+                void preloadSnapshotSliceOverviews(session);
+            }
+        };
+        const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+        runInAction(() => {
+            session.leaksWorkerInfo.renderOptions.transform = transform;
+        });
+        workerTransform({ transform });
+        const cacheStatus: BlockPathCacheLoadStatus = await workerLoadMemoryBlockCache({ fileHash: cacheFileHash });
+        if (!isLatestRequest()) {
+            return;
+        }
+        if (cacheStatus === 'unavailable') {
+            await ensureOpfsFallbackApproval(session);
+            if (!isLatestRequest()) {
+                return;
+            }
+        }
+        if (cacheStatus === 'hit') {
+            runInAction(() => {
+                session.loadingBlocks = false;
+                session.loadedMemoryBlockContextKey = blockContextKey;
+            });
+            publishAllocationLines(await loadAllocation());
+            preloadRemainingOverviews();
+            return;
+        }
+        const allocationTask = loadAllocation();
+        void allocationTask.catch(() => undefined);
+        const blockData = await fetchSnapshotViewBlocksPaginated(param, isLatestRequest); // leaks（Memory/leaks/blocks）保持单次请求
+        if (!isLatestRequest()) {
+            return;
+        }
+        const blockRenderTask = workerSetMemoryBlockData({ data: blockData, fileHash: cacheFileHash });
+        publishAllocationLines(await allocationTask);
+        await blockRenderTask;
+        if (!isLatestRequest()) {
+            return;
+        }
+        runInAction(() => {
+            session.loadingBlocks = false;
+            session.loadedMemoryBlockContextKey = blockContextKey;
+        });
+        preloadRemainingOverviews();
+    } catch (error: any) {
+        // 分片拉取被新请求取代：静默作废，loading 等状态由新请求管理
+        if (error === SNAPSHOT_PAGINATION_SUPERSEDED) {
+            return;
+        }
+        requestActive = false;
+        if (isLatestRequest()) {
+            runInAction(() => {
+                session.loadingBlocks = false;
+                session.loadingOverview = false;
+                session.progressiveBlocksVisible = false;
+            });
+            message.error(error.message);
+        }
+    }
+};
+
+export const preloadSnapshotSliceOverviews = async (session: MemSnapshotContext, includeSelected: boolean = false): Promise<AllocationData | undefined> => {
+    if (session.module !== 'memsnapshot') return;
+    if (session.deviceId === '') {
+        return;
+    }
+    const deviceId = session.deviceId;
+    const eventType = session.eventType;
+    const fileHash = session.fileHash;
+    const deviceIds = session.deviceIds;
+    const isCurrent = (): boolean => session.fileHash === fileHash && session.deviceIds === deviceIds &&
+        session.deviceIds?.[deviceId] !== undefined && session.eventType === eventType;
+    const deviceSlices = session.snapshotSlices[deviceId];
+    if (!deviceSlices) {
+        return;
+    }
+    let pending = overviewPrefetchMap.get(session);
+    if (pending === undefined) {
+        pending = new Map<string, Promise<void>>();
+        overviewPrefetchMap.set(session, pending);
+    }
+    const requestOrder = getSnapshotSliceRequestOrder(deviceSlices.readySlices, session.selectedSliceIndex);
+    const currentSliceIndex = session.selectedSliceIndex >= 0 ? session.selectedSliceIndex : requestOrder[0];
+    const existingTasks: Array<Promise<void>> = [];
+    const pendingSlices: number[] = [];
+    for (const sliceIndex of requestOrder) {
+        if (!includeSelected && (sliceIndex === currentSliceIndex || sliceIndex === session.selectedSliceIndex)) {
+            continue;
+        }
+        const key = `${fileHash}:${deviceId}:${eventType}:${sliceIndex}`;
+        const hasCurrentGlobalMax = session.snapshotGlobalMaxSizes?.[deviceId]?.[eventType] !== undefined;
+        if (hasCurrentGlobalMax && session.sliceOverviewData[deviceId]?.[sliceIndex] !== undefined) {
+            continue;
+        }
+        const existingTask = pending?.get(key);
+        if (existingTask !== undefined) {
+            existingTasks.push(existingTask);
+            continue;
+        }
+        pendingSlices.push(sliceIndex);
+    }
+    const fetchedTasks = pendingSlices.map(sliceIndex => {
+        const key = `${fileHash}:${deviceId}:${eventType}:${sliceIndex}`;
+        const task = (async (): Promise<void> => {
+            await acquireOverviewPreloadSlot();
+            try {
+                if (!isCurrent()) { return; }
+                const allocationData = await fetchSnapshotAllocationsPaginated({ deviceId, eventType, sliceIndex }, isCurrent);
+                if (!isCurrent()) { return; }
+                // Publish before releasing the pending entry. Completion promises never retain payloads.
+                runInAction(() => {
+                    session.sliceOverviewData = {
+                        ...session.sliceOverviewData,
+                        [deviceId]: { ...(session.sliceOverviewData[deviceId] ?? {}), [sliceIndex]: allocationData },
+                    };
+                    updateSnapshotGlobalMaxSize(session, deviceId, eventType, getAllocationDataMaxSize(allocationData));
+                });
+            } catch {
+                // 单个分片趋势预加载失败不影响当前窗口，后续选中该分片时仍会正常请求。
+            } finally {
+                pending?.delete(key);
+                releaseOverviewPreloadSlot();
+            }
+        })();
+        pending?.set(key, task);
+        return task;
+    });
+    await Promise.all([...existingTasks, ...fetchedTasks]);
+    return isCurrent() ? session.sliceOverviewData[deviceId]?.[session.selectedSliceIndex] : undefined;
+};
+
+export const getBlockTableData = async (session: MemSnapshotContext): Promise<void> => {
+    if (session.module !== 'memsnapshot') return;
+    if (session.deviceId === '') { return; }
+    if (!isMemSnapshotSliceReadyForQuery(session)) {
+        return;
+    }
+    const requestSeq = (blockTableRequestSeqMap.get(session) ?? 0) + 1;
+    blockTableRequestSeqMap.set(session, requestSeq);
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => blockTableRequestSeqMap.get(session) === requestSeq && isCurrentContext();
+    const request = getSnapshotBlockTable;
+    try {
+        const currentPage = session.blocksCurrentPage;
+        const pageSize = session.blocksPageSize;
+        const blockParam: BlockParam = {
+            deviceId: session.deviceId,
+            relativeTime: true,
+            eventType: session.eventType,
+            isTable: true,
+            startTimestamp: session.minTime,
+            endTimestamp: session.maxTime,
+            currentPage,
+            pageSize,
+            sliceIndex: session.selectedSliceIndex,
+        };
+        if (session.blocksOrder !== '') {
+            blockParam.desc = session.blocksOrder;
+            blockParam.orderBy = session.blocksOrderBy;
+        }
+        if (Object.keys(session.blocksFilters).length > 0) {
+            blockParam.filters = session.blocksFilters;
+        }
+        if (Object.keys(session.blocksRangeFilters).length > 0) {
+            blockParam.rangeFilters = session.blocksRangeFilters;
+        }
+
+        if (session.autoFilterPotentialLeaks) {
+            blockParam.onlyUnreleasedInRange = true;
+        }
+        const blockTableData = await request(blockParam);
+        if (!isLatestRequest()) { return; }
+        const maxPage = Math.max(Math.ceil(blockTableData.total / pageSize), 1);
+        if (currentPage > maxPage) {
+            runInAction(() => {
+                session.blocksCurrentPage = maxPage;
+            });
+            return;
+        }
+        runInAction(() => {
+            session.blocksTableData = blockTableData.blocks;
+            session.blocksTableHeader = blockTableData.headers;
+            session.blocksTotal = blockTableData.total;
+        });
+    } catch (error: any) {
+        if (isLatestRequest()) { message.error(error.message); }
+    }
+};
+
+export const getPotentialLeakStats = async (session: MemSnapshotContext, range?: [
+    number,
+    number,
+]): Promise<void> => {
+    if (session.module !== 'memsnapshot') return;
+    const startTimestamp = range?.[0] ?? session.minTime;
+    const endTimestamp = range?.[1] ?? session.maxTime;
+    if (session.deviceId === '' || endTimestamp === 0 ||
+        endTimestamp === undefined || !isMemSnapshotSliceReadyForQuery(session)) {
+        return;
+    }
+    const deviceId = session.deviceId;
+    const sliceIndex = session.selectedSliceIndex;
+    const requestId = session.leakStats.requestId + 1;
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => (isCurrentContext() && session.deviceId === deviceId &&
+        session.selectedSliceIndex === sliceIndex &&
+        session.minTime === startTimestamp &&
+        session.maxTime === endTimestamp &&
+        session.leakStats.requestId === requestId);
+    runInAction(() => {
+        session.leakStats.loading = true;
+        session.leakStats.error = false;
+        session.leakStats.requestId = requestId;
+    });
+    try {
+        const leakStats = await getSnapshotLeakStats({
+            deviceId,
+            startTimestamp,
+            endTimestamp,
+            sliceIndex,
+        });
+        runInAction(() => {
+            if (!isLatestRequest()) { return; }
+            session.leakStats = { ...leakStats, loading: false, error: false, requestId };
+        });
+    } catch (error: any) {
+        runInAction(() => {
+            if (!isLatestRequest()) { return; }
+            session.leakStats.loading = false;
+            session.leakStats.error = true;
+        });
+        message.error(error.message);
+    }
+};
+
+export const getEventTableData = async (session: MemSnapshotContext): Promise<void> => {
+    if (session.module !== 'memsnapshot') return;
+    if (session.deviceId === '') { return; }
+    if (!isMemoryBlockLoadReady(session)) {
+        runInAction(() => {
+            session.eventsTableData = [];
+            session.eventsTotal = 0;
+        });
+        return;
+    }
+    const requestSeq = (eventTableRequestSeqMap.get(session) ?? 0) + 1;
+    eventTableRequestSeqMap.set(session, requestSeq);
+    const isCurrentContext = captureRequestContext(session);
+    const isLatestRequest = (): boolean => eventTableRequestSeqMap.get(session) === requestSeq && isCurrentContext();
+    const request = getSnapshotEvent;
+    try {
+        const currentPage = session.eventsCurrentPage;
+        const pageSize = session.eventsPageSize;
+        const eventParam: EventParam = {
+            deviceId: session.deviceId,
+            relativeTime: true,
+            startTimestamp: session.minTime,
+            endTimestamp: session.maxTime,
+            currentPage,
+            pageSize,
+            isTable: true,
+            sliceIndex: session.selectedSliceIndex,
+        };
+        if (session.eventsOrder !== '') {
+            eventParam.desc = session.eventsOrder === true;
+            eventParam.orderBy = session.eventsOrderBy;
+        }
+        if (Object.keys(session.eventsFilters).length > 0) {
+            eventParam.filters = session.eventsFilters;
+        }
+        if (Object.keys(session.eventsRangeFilters).length > 0) {
+            eventParam.rangeFilters = session.eventsRangeFilters;
+        }
+        const eventTableData = await request(eventParam);
+        if (!isLatestRequest()) { return; }
+        const maxPage = Math.max(Math.ceil(eventTableData.total / pageSize), 1);
+        if (currentPage > maxPage) {
+            runInAction(() => {
+                session.eventsCurrentPage = maxPage;
+            });
+            return;
+        }
+        runInAction(() => {
+            session.eventsTableData = eventTableData.events;
+            session.eventsTableHeader = eventTableData.headers;
+            session.eventsTotal = eventTableData.total;
+        });
+    } catch (error: any) {
+        if (isLatestRequest()) { message.error(error.message); }
+    }
+};
