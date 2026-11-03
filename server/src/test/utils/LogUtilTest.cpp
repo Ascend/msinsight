@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include "Utf8TestUtil.h"
 #include <gtest/gtest.h>
 #include <fstream>
 #include <iterator>
@@ -48,4 +49,24 @@ TEST(LogUtil, PercentFormattingRules) {
     EXPECT_NE(log.find("progress=100%, rankId=244, op=Mat%Mul"), std::string::npos);
     stream.close();
     EXPECT_TRUE(FileUtil::RemoveFile(actualPath));
+}
+
+TEST(LogUtil, Utf8LogPathAndContentSurviveRotationAndFlush) {
+    Dic::Test::Utf8TempDirectory directory;
+    std::string first;
+    std::string second;
+    {
+        LogUtil logger(LogOutType::FILE, directory.Path(u8"练😀.log"), "utf8", 1);
+        logger.LogT(LogLevel::L_INFO, "", u8"练 😀 first");
+        first = logger.GetLogFilePath();
+        logger.LogT(LogLevel::L_INFO, "", u8"练 😀 second");
+        second = logger.GetLogFilePath();
+    }
+    EXPECT_NE(first, second);
+    for (const auto &path : {first, second}) {
+        std::ifstream stream(Dic::Test::Utf8TempDirectory::NativePath(path), std::ios::binary);
+        ASSERT_TRUE(stream.good());
+        const std::string bytes{std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
+        EXPECT_NE(bytes.find(u8"练 😀"), std::string::npos);
+    }
 }

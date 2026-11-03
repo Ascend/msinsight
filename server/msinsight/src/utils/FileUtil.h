@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <sys/stat.h>
 #include <fstream>
+#include <cstdio>
+#include <cerrno>
 #include <numeric>
 #include "regex"
 #include "ServerLog.h"
@@ -89,6 +91,57 @@ class CheckResult {
 
 class FileUtil {
   public:
+    // Paths are UTF-8. These helpers only adapt file opening; callers retain their security checks and error handling.
+    // Keep these definitions in the header so callers can create file objects in their own module.
+    static inline std::ifstream OpenRead(const std::string &path, std::ios::openmode mode = std::ios::in) {
+        std::ifstream stream;
+#ifdef _WIN32
+        const std::wstring nativePath = ConvertToLongPathW(path);
+        if (nativePath.empty()) {
+            stream.setstate(std::ios::failbit);
+            return stream;
+        }
+        stream.open(nativePath.c_str(), mode);
+#else
+        stream.open(path, mode);
+#endif
+        return stream;
+    }
+
+    static inline std::ofstream OpenWrite(const std::string &path, std::ios::openmode mode = std::ios::out) {
+        std::ofstream stream;
+#ifdef _WIN32
+        const std::wstring nativePath = ConvertToLongPathW(path);
+        if (nativePath.empty()) {
+            stream.setstate(std::ios::failbit);
+            return stream;
+        }
+        stream.open(nativePath.c_str(), mode);
+#else
+        stream.open(path, mode);
+#endif
+        return stream;
+    }
+
+    // The caller owns the returned handle and must close it with fclose().
+    static inline FILE *OpenCFile(const std::string &path, const char *mode) {
+        if (path.empty() || mode == nullptr || mode[0] == '\0') {
+            errno = EINVAL;
+            return nullptr;
+        }
+#ifdef _WIN32
+        const std::wstring nativePath = ConvertToLongPathW(path);
+        const std::wstring nativeMode = StringUtil::String2WString(mode);
+        if (nativePath.empty() || nativeMode.empty()) {
+            errno = EINVAL;
+            return nullptr;
+        }
+        return _wfopen(nativePath.c_str(), nativeMode.c_str());
+#else
+        return std::fopen(path.c_str(), mode);
+#endif
+    }
+
     static inline bool CheckDirAccess(const std::string &path, const int &mode = 0) {
 #ifdef _WIN32
         std::string normalizedPath = path;
@@ -134,6 +187,9 @@ class FileUtil {
 #ifdef _WIN32
         // Use dynamic allocation for long path support (up to 32767 characters)
         std::wstring wPath = StringUtil::String2WString(path);
+        if (!path.empty() && wPath.empty()) {
+            return "";
+        }
         wchar_t *wResolvedPath = _wfullpath(nullptr, wPath.c_str(), 0);
         if (wResolvedPath == nullptr) {
             return "";
@@ -177,6 +233,9 @@ class FileUtil {
         struct _wfinddata_t fileInfo {};
         std::string currentPath = PathPreprocess(path);
         std::wstring searchPath = ConvertToLongPathW(path);
+        if (searchPath.empty()) {
+            return false;
+        }
         if (searchPath.back() != L'\\' && searchPath.back() != L'/') {
             searchPath += L"\\*";
         } else {
@@ -281,7 +340,14 @@ class FileUtil {
 #endif
     }
 
-    static inline bool RemoveFile(const std::string &path) { return std::remove(path.c_str()) == 0; }
+    static inline bool RemoveFile(const std::string &path) {
+#ifdef _WIN32
+        const std::wstring widePath = ConvertToLongPathW(path);
+        return _wremove(widePath.c_str()) == 0;
+#else
+        return std::remove(path.c_str()) == 0;
+#endif
+    }
 
     /**
      * 根据文件路径复制文件。

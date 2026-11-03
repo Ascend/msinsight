@@ -735,7 +735,7 @@ bool ProjectParserJson::IsACLGraphDebugJSON(const std::string &filePath) {
         return false;
     }
 
-    std::ifstream file(filePath, std::ios::binary); // 二进制模式避免换行转换
+    std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary); // 二进制模式避免换行转换
     if (!file.is_open() || file.fail()) {
         return false;
     }

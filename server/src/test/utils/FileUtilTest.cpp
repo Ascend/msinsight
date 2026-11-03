@@ -16,11 +16,14 @@
  * -------------------------------------------------------------------------
  */
 
+#include "Utf8TestUtil.h"
 #include <gtest/gtest.h>
+#include <iterator>
 #include "FileUtil.h"
 #include "IdBuilder.h"
 #include "../TestSuit.h"
 #include "JsonUtil.h"
+#include "ValidateUtil.h"
 
 using namespace Dic;
 
@@ -661,3 +664,165 @@ TEST(FileUtilTest, StemFile) {
     EXPECT_EQ(FileUtil::StemFile("test_excel"), "test_excel");
     EXPECT_EQ(FileUtil::StemFile("test.tar.gz"), "test");
 }
+
+TEST(FileUtilTest, Utf8PathsPreserveFileNamesAndSupportCopyRemoveAndAccess) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto source = directory.Path(u8"练 é 😀.txt");
+    const auto target = directory.Path(u8"复制 😀.txt");
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(source, u8"UTF-8 内容 😀"));
+    EXPECT_TRUE(FileUtil::CheckFilePathExist(source));
+    EXPECT_TRUE(ValidateUtil::CheckCsvFile(source));
+    EXPECT_TRUE(FileUtil::CheckPathSecurity(source, CHECK_FILE_READ));
+    EXPECT_TRUE(FileUtil::CheckFileSize(source));
+    EXPECT_EQ(FileUtil::GetRealPath(source), source);
+    std::vector<std::string> folders;
+    std::vector<std::string> files;
+    ASSERT_TRUE(FileUtil::FindFolders(directory.Path(), folders, files));
+    EXPECT_NE(std::find(files.begin(), files.end(), u8"练 é 😀.txt"), files.end());
+    ASSERT_TRUE(FileUtil::CopyFileByPath(source, target));
+    EXPECT_EQ(FileUtil::GetFileSize(source.c_str()), FileUtil::GetFileSize(target.c_str()));
+    EXPECT_TRUE(FileUtil::RemoveFile(source));
+    EXPECT_FALSE(FileUtil::CheckFilePathExist(source));
+    EXPECT_FALSE(FileUtil::RemoveFile(source));
+    EXPECT_TRUE(FileUtil::RemoveFile(target));
+}
+
+TEST(FileUtilTest, OpenStreamsPreserveUtf8PathsAndBinaryBytes) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"读写 练😀.bin");
+    const std::string bytes = std::string(u8"中文 😀\r\n") + std::string("a\0b", 3);
+    {
+        auto output = FileUtil::OpenWrite(path, std::ios::binary | std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        ASSERT_TRUE(output.good());
+    }
+    auto input = FileUtil::OpenRead(path, std::ios::binary);
+    ASSERT_TRUE(input.is_open());
+    const std::string actual{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+    EXPECT_EQ(actual, bytes);
+}
+
+TEST(FileUtilTest, OpenWritePreservesDefaultAppendAndTruncateModes) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"追加 练😀.txt");
+    {
+        auto output = FileUtil::OpenWrite(path);
+        ASSERT_TRUE(output.is_open());
+        output << "first";
+    }
+    {
+        auto output = FileUtil::OpenWrite(path, std::ios::app);
+        ASSERT_TRUE(output.is_open());
+        output << " second";
+    }
+    {
+        auto input = FileUtil::OpenRead(path);
+        ASSERT_TRUE(input.is_open());
+        std::string actual;
+        std::getline(input, actual);
+        EXPECT_EQ(actual, "first second");
+    }
+    {
+        auto output = FileUtil::OpenWrite(path, std::ios::trunc);
+        ASSERT_TRUE(output.is_open());
+        output << "reset";
+    }
+    auto input = FileUtil::OpenRead(path);
+    ASSERT_TRUE(input.is_open());
+    std::string actual;
+    std::getline(input, actual);
+    EXPECT_EQ(actual, "reset");
+}
+
+TEST(FileUtilTest, OpenCFileSupportsUtf8PathsAndExplicitClose) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"C文件 练😀.bin");
+    const std::string bytes = std::string(u8"中文 😀\r\n") + std::string("a\0b", 3);
+    FILE *file = FileUtil::OpenCFile(path, "wb");
+    ASSERT_NE(file, nullptr);
+    EXPECT_EQ(std::fwrite(bytes.data(), 1, bytes.size(), file), bytes.size());
+    EXPECT_EQ(std::fclose(file), 0);
+
+    file = FileUtil::OpenCFile(path, "ab");
+    ASSERT_NE(file, nullptr);
+    const std::string suffix = u8"追加";
+    EXPECT_EQ(std::fwrite(suffix.data(), 1, suffix.size(), file), suffix.size());
+    EXPECT_EQ(std::fclose(file), 0);
+
+    file = FileUtil::OpenCFile(path, "rb");
+    ASSERT_NE(file, nullptr);
+    std::string actual(bytes.size() + suffix.size(), '\0');
+    EXPECT_EQ(std::fread(actual.data(), 1, actual.size(), file), actual.size());
+    EXPECT_EQ(std::fclose(file), 0);
+    EXPECT_EQ(actual, bytes + suffix);
+    EXPECT_TRUE(FileUtil::RemoveFile(path));
+}
+
+TEST(FileUtilTest, OpenFileHelpersReportFailures) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto missing = directory.Path(u8"不存在😀.bin");
+    const auto missingParent = FileUtil::SplicePath(directory.Path("missing"), "file.bin");
+    EXPECT_FALSE(FileUtil::OpenRead(missing));
+    EXPECT_FALSE(FileUtil::OpenWrite(missingParent));
+    EXPECT_EQ(FileUtil::OpenCFile(missing, "rb"), nullptr);
+    EXPECT_EQ(FileUtil::OpenCFile(missingParent, "wb"), nullptr);
+    EXPECT_FALSE(FileUtil::OpenRead(""));
+    EXPECT_FALSE(FileUtil::OpenWrite(""));
+    EXPECT_EQ(FileUtil::OpenCFile("", "rb"), nullptr);
+    EXPECT_EQ(FileUtil::OpenCFile(missing, nullptr), nullptr);
+    EXPECT_EQ(FileUtil::OpenCFile(missing, ""), nullptr);
+}
+
+#ifdef _WIN32
+TEST(FileUtilTest, OpenFileHelpersRejectInvalidUtf8Paths) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path("invalid-\xFF.bin");
+    EXPECT_FALSE(FileUtil::OpenRead(path));
+    EXPECT_FALSE(FileUtil::OpenWrite(path));
+    EXPECT_EQ(FileUtil::OpenCFile(path, "wb"), nullptr);
+}
+
+TEST(FileUtilTest, OpenFileHelpersSupportUtf8LongPaths) {
+    Dic::Test::Utf8TempDirectory directory;
+    std::string nested = directory.Path();
+    for (int index = 0; index < 6; ++index) {
+        nested = FileUtil::SplicePath(nested, std::string(50, 'a') + u8"练");
+    }
+    ASSERT_TRUE(std::filesystem::create_directories(Dic::Test::Utf8TempDirectory::NativePath(nested)));
+    const auto path = FileUtil::SplicePath(nested, u8"长路径 😀.bin");
+    ASSERT_GT(StringUtil::String2WString(path).size(), static_cast<size_t>(MAX_PATH));
+    const std::string bytes = u8"长路径内容 😀";
+    {
+        auto output = FileUtil::OpenWrite(path, std::ios::binary);
+        ASSERT_TRUE(output.is_open());
+        output << bytes;
+    }
+    {
+        auto input = FileUtil::OpenRead(path, std::ios::binary);
+        ASSERT_TRUE(input.is_open());
+        const std::string actual{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+        EXPECT_EQ(actual, bytes);
+    }
+    FILE *file = FileUtil::OpenCFile(path, "rb");
+    ASSERT_NE(file, nullptr);
+    std::string actual(bytes.size(), '\0');
+    EXPECT_EQ(std::fread(actual.data(), 1, actual.size(), file), actual.size());
+    EXPECT_EQ(std::fclose(file), 0);
+    EXPECT_EQ(actual, bytes);
+}
+
+TEST(FileUtilTest, Utf8WindowsLongPathsPreserveUnicodeNames) {
+    Dic::Test::Utf8TempDirectory directory;
+    std::string nested = directory.Path();
+    for (int i = 0; i < 5; ++i) {
+        nested = FileUtil::SplicePath(nested, std::string(45, 'a') + u8"练");
+    }
+    ASSERT_TRUE(std::filesystem::create_directories(Dic::Test::Utf8TempDirectory::NativePath(nested)));
+    const auto path = FileUtil::SplicePath(nested, u8"😀.txt");
+    ASSERT_GT(path.size(), 260U);
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(path, "long-path"));
+    EXPECT_TRUE(FileUtil::CheckFilePathExist(path));
+    EXPECT_TRUE(FileUtil::RemoveFile(path));
+}
+#endif

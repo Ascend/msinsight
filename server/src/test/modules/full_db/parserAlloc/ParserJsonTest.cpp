@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include "utils/Utf8TestUtil.h"
 #include <gtest/gtest.h>
 #include <atomic>
 #include <filesystem>
@@ -613,4 +614,12 @@ TEST_F(ParserJsonTest, FtraceJsonInvalidWhenFirstXEventPidMismatches) {
 
 TEST_F(ParserJsonTest, FtraceJsonInvalidWhenInputIsFolder) {
     EXPECT_FALSE(ProjectParserJson::IsFtraceJsonData(::testing::TempDir()));
+}
+
+TEST_F(ParserJsonTest, Utf8AclGraphPathUsesBinarySafeRead) {
+    Dic::Test::Utf8TempDirectory directory;
+    const auto path = directory.Path(u8"练 😀.json");
+    ASSERT_TRUE(Dic::Test::Utf8TempDirectory::Write(path, u8"[\r\n{\"pid\":\"练 aclGraph\"}]"));
+    EXPECT_TRUE(ProjectParserJson::IsACLGraphDebugJSON(path));
+    EXPECT_FALSE(ProjectParserJson::IsACLGraphDebugJSON(directory.Path("missing.json")));
 }

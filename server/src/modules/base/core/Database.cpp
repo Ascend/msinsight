@@ -33,15 +33,14 @@ Database::~Database() {
 }
 
 bool Database::CreateDbIfNotExist(const std::string &dbPath) {
-    struct stat st;
     std::string dbPathStr = CheckSqlString(dbPath);
 #ifdef _WIN32
     std::string longDbPath = FileUtil::ConvertToLongPath(dbPathStr);
-    std::string utfDbPath = StringUtil::ToUtf8Str(longDbPath);
+    std::string utfDbPath = longDbPath;
 #else
-    std::string utfDbPath = StringUtil::ToUtf8Str(dbPathStr);
+    std::string utfDbPath = dbPathStr;
 #endif
-    if (stat(dbPathStr.c_str(), &st) == -1) {
+    if (!FileUtil::IsFilePathExist(dbPathStr)) {
         int result = sqlite3_open(utfDbPath.c_str(), &db);
         if (result != SQLITE_OK) {
             sqlite3_close(db); // 异常后关闭数据库
@@ -96,9 +95,9 @@ bool Database::OpenDb(const std::string &dbPath, bool clearAllTable) {
     }
 #ifdef _WIN32
     std::string longDbPath = FileUtil::ConvertToLongPath(dbPath);
-    std::string utfDbPath = StringUtil::ToUtf8Str(longDbPath);
+    std::string utfDbPath = longDbPath;
 #else
-    std::string utfDbPath = StringUtil::ToUtf8Str(dbPath);
+    std::string utfDbPath = dbPath;
 #endif
     int result =
         sqlite3_open_v2(CheckSqlString(utfDbPath).c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
@@ -974,7 +973,7 @@ std::unordered_map<std::string, std::string> Database::QueryTranslate(bool isZh)
     while (result->Next()) {
         std::string key = result->GetString("key");
         if (isZh) {
-            std::string value = StringUtil::ToLocalStr(result->GetString("value_zh"));
+            std::string value = result->GetString("value_zh");
             res[key] = value;
         } else {
             std::string value = result->GetString("value_en");

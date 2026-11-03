@@ -20,6 +20,9 @@
 #include <sys/resource.h>
 #endif
 #include "pch.h"
+#ifdef _WIN32
+#include <shellapi.h>
+#endif
 #include "ParamsParser.h"
 #include "WsServer.h"
 #include "SocketUtil.h"
@@ -91,9 +94,28 @@ void StartServer(const ParamsOption &option) {
 
 int main(int argc, const char *argv[]) {
     std::vector<std::string> args;
+#ifdef _WIN32
+    int wideArgc = 0;
+    LPWSTR *wideArgs = CommandLineToArgvW(GetCommandLineW(), &wideArgc);
+    if (wideArgs == nullptr) {
+        std::cerr << "Failed to read Windows command line." << std::endl;
+        return -1;
+    }
+    for (int i = 0; i < wideArgc; ++i) {
+        std::string argument = StringUtil::WString2String(wideArgs[i]);
+        if (wideArgs[i][0] != L'\0' && argument.empty()) {
+            LocalFree(wideArgs);
+            std::cerr << "Invalid UTF-16 in Windows command line." << std::endl;
+            return -1;
+        }
+        args.emplace_back(std::move(argument));
+    }
+    LocalFree(wideArgs);
+#else
     for (int i = 0; i < argc; i++) {
         args.emplace_back(std::string(argv[i]));
     }
+#endif
     const ParamsOption &option = ParamsParser::Instance().GetOption();
     if (!ParamsParser::Instance().Parse(args)) {
         ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, "");

@@ -799,7 +799,7 @@ class TextEvidenceLoader {
 void AppendFileVersion(std::string &key, const std::string &path) {
     for (const auto &file : {path, path + "-wal"}) {
 #ifdef _WIN32
-        // Convert the backend's local encoding explicitly before passing paths to filesystem.
+        // Convert the backend's UTF-8 paths to UTF-16 before passing them to filesystem.
         const std::filesystem::path nativePath(FileUtil::ConvertToLongPathW(file));
 #else
         const std::filesystem::path nativePath(file);

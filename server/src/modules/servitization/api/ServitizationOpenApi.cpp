@@ -183,7 +183,7 @@ void ServitizationOpenApi::AttachSingleDb(
     if (!TryOpt(stmt, "Attach single db failed to prepare sql, alias is: " + alias)) {
         return;
     }
-    stmt->BindParams(StringUtil::ToUtf8Str(distributePath));
+    stmt->BindParams(distributePath);
     stmt->Execute();
 }
 } // namespace Dic::Module::IE

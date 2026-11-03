@@ -39,7 +39,7 @@ class ValidateUtil {
             Server::ServerLog::Error("Check csv file cannot get file. fileName:", fileName, ", filePath:", filePath);
             return false;
         }
-        if (access(filePath.c_str(), R_OK) == -1) {
+        if (!FileUtil::CheckDirAccess(filePath, R_OK)) {
             Server::ServerLog::Error("Check csv file cannot read file. fileName:", fileName, ", filePath:", filePath);
             return false;
         }

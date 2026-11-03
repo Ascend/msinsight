@@ -357,8 +357,7 @@ static inline std::map<int64_t, std::string> unitTypeMapping = {
 
 std::string DetailsMemoryParser::GetUnitType(int64_t unitTypeNumber) {
     if (unitTypeMapping.find(unitTypeNumber) != unitTypeMapping.end()) {
-        std::string localStr = StringUtil::ToLocalStr(unitTypeMapping[unitTypeNumber]);
-        return localStr;
+        return unitTypeMapping[unitTypeNumber];
     } else {
         ServerLog::Error("Unknown data block type: ", unitTypeNumber);
         return "";

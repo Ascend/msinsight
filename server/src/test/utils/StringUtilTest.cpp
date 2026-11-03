@@ -78,158 +78,6 @@ TEST(StringUtil, Trim) {
     EXPECT_EQ(StringUtil::Trim(str4), "");
 }
 
-TEST(StringUtil, IsUtf8StrFastWithValidInput) {
-    // 空字符串
-    EXPECT_EQ(StringUtil::IsUtf8StrFast(""), true);
-    // ASCII 字符
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello"), true);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("123"), true);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("A"), true);
-    // 有效的 2 字节 UTF-8 序列（拉丁字符，如 é）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xC3\xA9"), true);
-    // 有效的 3 字节 UTF-8 序列（中文字符）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("中"), true);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("中国"), true);
-    // 有效的 4 字节 UTF-8 序列（如某些 emoji）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xF0\x9F\x98\x80"), true);
-    // 混合 ASCII 和 UTF-8
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello 世界"), true);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("test\xE4\xB8\xADtest"), true);
-}
-
-TEST(StringUtil, IsUtf8StrFastWithInvalidInput) {
-    // 不完整的 2 字节序列（只有起始字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xC3"), false);
-    // 不完整的 3 字节序列（只有起始字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xE4"), false);
-    // 不完整的 3 字节序列（只有前两个字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xE4\xB8"), false);
-    // 不完整的 4 字节序列（只有起始字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xF0"), false);
-    // 不完整的 4 字节序列（只有前两个字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xF0\x9F"), false);
-    // 不完整的 4 字节序列（只有前三个字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xF0\x9F\x98"), false);
-    // 孤立的延续字节（10xxxxxx）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\x80"), false);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xBF"), false);
-    // 无效的起始字节后跟无效的延续字节
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xC3\x00"), false);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xE4\xB8\x00"), false);
-    // 混合有效和无效序列
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello\xC3World"), false);
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("中\x80国"), false);
-    // GBK 编码（非 UTF-8）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xD6\xD0"), false); // "中" 的 GBK 编码
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xB9\xFA"), false); // "国" 的 GBK 编码
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xD6\xD0\xB9\xFA"), false); // "中国" 的 GBK 编码
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello\xD6\xD0World"), false); // GBK 和 ASCII 混合
-    // 其他非 UTF-8 编码（Latin-1 高位字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\x80\x81"), false); // 高位字节序列
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xFF\xFE"), false); // 无效的字节序列
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xFE\xFF"), false); // BOM 标记（但作为普通字节检查）
-}
-
-#ifdef _WIN32
-static constexpr UINT GBK_CODE_PAGE = 936;
-
-static void SkipIfNotGbkCodePage() {
-    if (GetACP() != GBK_CODE_PAGE) {
-        GTEST_SKIP() << "GBK code page required";
-    }
-}
-
-TEST(StringUtil, GbkToUtf8) {
-    EXPECT_EQ(StringUtil::GbkToUtf8(nullptr), "");
-    EXPECT_EQ(StringUtil::GbkToUtf8("nullptr"), "nullptr");
-    EXPECT_EQ(StringUtil::GbkToUtf8("\xD6\xD0\xB9\xFA"), "\xE4\xB8\xAD\xE5\x9B\xBD");
-    EXPECT_EQ(StringUtil::GbkToUtf8("\xD6\xD0"), "\xE4\xB8\xAD");
-}
-
-TEST(StringUtil, Utf8ToGbk) {
-    SkipIfNotGbkCodePage();
-    EXPECT_EQ(StringUtil::Utf8ToGbk(nullptr), "");
-    EXPECT_EQ(StringUtil::Utf8ToGbk("nullptr"), "nullptr");
-    EXPECT_EQ(StringUtil::Utf8ToGbk("\xE4\xB8\xAD\xE5\x9B\xBD"), "\xD6\xD0\xB9\xFA");
-    EXPECT_EQ(StringUtil::Utf8ToGbk("\xE4\xB8\xAD"), "\xD6\xD0");
-}
-
-TEST(StringUtil, ToUtf8StrConvertsWholeGbkPathWithoutMixedUtf8Splitting) {
-    SkipIfNotGbkCodePage();
-    const std::string gbkPath = std::string("D:\\data\\") + "\xB6\xE0\xBB\xFA\xB6\xE0\xBF\xA8";
-    const std::string utf8Path = std::string("D:\\data\\") + "\xE5\xA4\x9A\xE6\x9C\xBA\xE5\xA4\x9A\xE5\x8D\xA1";
-    EXPECT_EQ(StringUtil::ToUtf8Str(gbkPath), utf8Path);
-}
-
-TEST(StringUtil, Utf8CharLenWithValidInput) {
-    EXPECT_EQ(StringUtil::Utf8CharLen("abc", 0), 1);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xC3\xA9", 0), 2);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xE4\xB8\xAD", 0), 3);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xF0\x9F\x98\x80", 0), 4);
-}
-
-TEST(StringUtil, Utf8CharLenWithInvalidInput) {
-    EXPECT_EQ(StringUtil::Utf8CharLen("\x80", 0), 0);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xC3", 0), 0);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xE4\xB8", 0), 0);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xF0\x9F\x98", 0), 0);
-    EXPECT_EQ(StringUtil::Utf8CharLen("\xD6\xD0", 0), 0);
-}
-
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureUtf8) {
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8(""), "");
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("abc123"), "abc123");
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xE4\xB8\xAD\xE6\x96\x87"), "\xE4\xB8\xAD\xE6\x96\x87");
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xF0\x9F\x98\x80"), "\xF0\x9F\x98\x80");
-}
-
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureGbk) {
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xD6\xD0"), "\xE4\xB8\xAD");
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xD6\xD0\xCE\xC4"), "\xE4\xB8\xAD\xE6\x96\x87");
-}
-
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithMixedInput) {
-    const std::string mixed = std::string("abc") + "\xD6\xD0\xCE\xC4" + "\xE4\xB8\xAD\xE6\x96\x87";
-    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8(mixed), "abc\xE4\xB8\xAD\xE6\x96\x87\xE4\xB8\xAD\xE6\x96\x87");
-}
-
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithInvalidBytes) {
-    EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("\x80").empty());
-    EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("\xC3").empty());
-    EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("abc\xE4\xB8").empty());
-}
-
-TEST(StringUtil, Utf8MojibakeToGbkUtf8) {
-    const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
-    const std::string mojibake = StringUtil::GbkToUtf8(utf8Chinese.c_str());
-    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(nullptr), "");
-    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8("abc123"), "abc123");
-    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(mojibake.c_str()), utf8Chinese);
-}
-
-TEST(StringUtil, Utf8MojibakeToGbkUtf8KeepsUnconvertibleUnicode) {
-    const std::string textWithEmoji = "\xE4\xB8\xAD\xE6\x96\x87\xF0\x9F\x98\x80";
-    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(textWithEmoji.c_str()), textWithEmoji);
-}
-
-TEST(StringUtil, FixGbkMojibakeStr) {
-    SkipIfNotGbkCodePage();
-    const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
-    const std::string gbkChinese = "\xD6\xD0\xCE\xC4";
-    const std::string mojibake = StringUtil::GbkToUtf8(utf8Chinese.c_str());
-    const std::string gbkMultiCard = "\xB6\xE0\xBB\xFA\xB6\xE0\xBF\xA8";
-    const std::string utf8MultiCard = "\xE5\xA4\x9A\xE6\x9C\xBA\xE5\xA4\x9A\xE5\x8D\xA1";
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(""), "");
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr("abc123"), "abc123");
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(utf8Chinese), gbkChinese);
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(mojibake), gbkChinese);
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(gbkMultiCard), gbkMultiCard);
-    EXPECT_EQ(StringUtil::ToUtf8Str(StringUtil::FixGbkMojibakeStr(mojibake)), utf8Chinese);
-    EXPECT_EQ(StringUtil::ToUtf8Str(StringUtil::FixGbkMojibakeStr(gbkMultiCard)), utf8MultiCard);
-}
-
-#endif
-
 TEST(StringUtil, join) {
     std::vector<std::string> list1 = {"a", "b", "c"};
     EXPECT_EQ(StringUtil::join(list1, "1"), "a1b1c");
@@ -470,7 +318,6 @@ TEST(StringUtil, FormattingAndPrintableHelpers) {
     EXPECT_EQ(StringUtil::DoubleToStringWithTwoDecimalPlaces(1.236), "1.24");
     EXPECT_EQ(StringUtil::DoubleToStringWithTwoDecimalPlaces(-1.2), "-1.20");
     EXPECT_EQ(StringUtil::GetPrintAbleString("a\nb\tc"), "a_b_c");
-    EXPECT_EQ(StringUtil::ToLocalStr("abc123"), "abc123");
 
     const std::string_view cols[] = {"rank", "device", "value"};
     EXPECT_EQ(StringUtil::GenerateColumnString(cols), "rank ,device ,value");
@@ -504,5 +351,33 @@ TEST(StringUtil, StringWideRoundTripOnWindows) {
     EXPECT_EQ(StringUtil::WString2String(wide), local);
     EXPECT_TRUE(StringUtil::String2WString("").empty());
     EXPECT_TRUE(StringUtil::WString2String(L"").empty());
+}
+
+TEST(StringUtil, Utf8ToUtf16RejectsNonScalarAndOverlongSequences) {
+    const std::vector<std::string> invalid = {"\xC1\xB7", "\xC0\x80", "\xE0\x80\x80", "\xF0\x80\x80\x80",
+        "\xED\xA0\x80", "\xED\xBF\xBF", "\xF4\x90\x80\x80", "\xF5\x80\x80\x80", "\x80", "\xFF", "\xE7\xBB",
+        "\xF0\x9F\x98", "\xE7\x20\x83"};
+    for (const auto &bytes : invalid) {
+        EXPECT_TRUE(StringUtil::String2WString(bytes).empty());
+    }
+}
+
+TEST(StringUtil, Utf8Utf16RoundTripIsIndependentOfLocalCodePage) {
+    const std::vector<std::string> values = {
+        "", "ASCII", u8"练", u8"中文 é Русский 日本語", u8"😀𠮷", "\xF4\x8F\xBF\xBF"};
+    for (const auto &value : values) {
+        const auto wide = StringUtil::String2WString(value);
+        EXPECT_EQ(StringUtil::WString2String(wide), value);
+    }
+    EXPECT_EQ(StringUtil::String2WString(u8"练"), L"\u7EC3");
+    EXPECT_EQ(StringUtil::String2WString(u8"😀"), std::wstring({wchar_t(0xD83D), wchar_t(0xDE00)}));
+    const std::string withNul("a\0b", 3);
+    EXPECT_EQ(StringUtil::WString2String(StringUtil::String2WString(withNul)), withNul);
+}
+
+TEST(StringUtil, Utf16RejectsUnpairedSurrogates) {
+    EXPECT_TRUE(StringUtil::WString2String(std::wstring(1, wchar_t(0xD800))).empty());
+    EXPECT_TRUE(StringUtil::WString2String(std::wstring(1, wchar_t(0xDC00))).empty());
+    EXPECT_TRUE(StringUtil::WString2String(std::wstring({wchar_t(0xD800), L'a'})).empty());
 }
 #endif

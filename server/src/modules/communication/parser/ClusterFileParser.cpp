@@ -69,7 +69,7 @@ void ClusterFileParser::SaxParseJsonFile(const std::string &filePath, int saxHan
         return;
     }
     // 打开JSON文件
-    FILE *fp = fopen(filePath.c_str(), "rb");
+    FILE *fp = FileUtil::OpenCFile(filePath, "rb");
     if (fp == nullptr) {
         return;
     }
@@ -419,8 +419,7 @@ bool ClusterFileParser::MsprofAnalyzeCluster(
         return false;
     }
     std::string logPath = FileUtil::SplicePath(selectedPath, "cluster_analysis.log");
-    std::ofstream logFile;
-    logFile.open(logPath, std::ios::out | std::ios::trunc);
+    std::ofstream logFile = FileUtil::OpenWrite(logPath, std::ios::out | std::ios::trunc);
     if (!logFile.is_open()) {
         ServerLog::Error("Failed to create cluster analysis log file, path:", logPath);
         return false;

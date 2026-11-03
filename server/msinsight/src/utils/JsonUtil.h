@@ -390,11 +390,7 @@ class JsonUtil {
             Server::ServerLog::Error("Invalid path, can't read json from file, path=", filePath);
             return document;
         }
-#ifdef _WIN32
-        FILE *file = _wfopen(FileUtil::ConvertToLongPathW(filePath).c_str(), L"r");
-#else
-        FILE *file = std::fopen(filePath.c_str(), "r");
-#endif
+        FILE *file = FileUtil::OpenCFile(filePath, "r");
         if (!file) {
             Server::ServerLog::Error("open json file failed, path=", filePath);
             return document;

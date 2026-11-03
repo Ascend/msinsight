@@ -49,7 +49,6 @@ std::string BinFileParseUtil::GetContentStr(std::ifstream &file, const Position 
         ServerLog::Error("Failed to read content str.");
         return "";
     }
-    jsonStr = StringUtil::ToLocalStr(jsonStr);
     return jsonStr;
 }
 

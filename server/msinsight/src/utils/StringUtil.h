@@ -22,7 +22,7 @@
 #include <string>
 #include <regex>
 #include <cstdint>
-#include <memory>
+#include <limits>
 #include <iostream>
 #include <sstream>
 #include "algorithm"
@@ -126,208 +126,23 @@ class StringUtil {
         return str;
     }
 
-    /**
-     * 判断字符串是否为UTF-8编码，简化快速版
-     * 注意：为了效率，只检查UTF8核心规范，虽不完备，在非安全关键场景此规则已足够
-     * @param str 字符串
-     * @return true / false
-     */
-    static bool IsUtf8StrFast(const std::string &str) {
-        size_t i = 0;
-        while (i < str.length()) {
-            unsigned char c = static_cast<unsigned char>(str[i]);
-
-            // ASCII: 0xxxxxxx (0-127)
-            if (c <= 0x7F) {
-                i += 1;
-            }
-            // 2字节序列: 110xxxxx 10xxxxxx
-            else if ((c & 0xE0) == 0xC0) {
-                if (i + 1 >= str.length() || (static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80) {
-                    return false;
-                }
-                i += 2;
-            }
-            // 3字节序列: 1110xxxx 10xxxxxx 10xxxxxx
-            else if ((c & 0xF0) == 0xE0) {
-                if (i + 2 >= str.length() || (static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80 ||
-                    (static_cast<unsigned char>(str[i + 2]) & 0xC0) != 0x80) {
-                    return false;
-                }
-                i += 3;
-            }
-            // 4字节序列: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-            else if ((c & 0xF8) == 0xF0) {
-                if (i + 3 >= str.length() || (static_cast<unsigned char>(str[i + 1]) & 0xC0) != 0x80 ||
-                    (static_cast<unsigned char>(str[i + 2]) & 0xC0) != 0x80 ||
-                    (static_cast<unsigned char>(str[i + 3]) & 0xC0) != 0x80) {
-                    return false;
-                }
-                i += 4;
-            } else {
-                // 出现不符合 UTF-8 规范的字节（如孤立的 10xxxxxx）
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static std::string ToUtf8Str(const std::string &input) {
+    // UTF-8 -> UTF-16 on Windows. Empty input or a conversion failure returns an empty string.
+    // Explicit lengths preserve embedded NUL in general text.
+    static inline const std::wstring String2WString(const std::string &utf8) {
 #ifdef _WIN32
-        static const unsigned int GBK_CODE_PAGE = 936;
-
-        if (IsUtf8StrFast(input)) {
-            return input;
-        }
-
-        UINT codePage = GetACP();
-        if (codePage == GBK_CODE_PAGE) {
-            return StringUtil::GbkToUtf8(input.c_str());
-        }
-#endif
-        return input;
-    }
-
-#ifdef _WIN32
-    static size_t Utf8CharLen(const std::string &input, size_t index) {
-        unsigned char c = static_cast<unsigned char>(input[index]);
-        if (c <= 0x7F) {
-            return 1;
-        }
-        size_t len = 0;
-        if ((c & 0xE0) == 0xC0) {
-            len = 2;
-        } else if ((c & 0xF0) == 0xE0) {
-            len = 3;
-        } else if ((c & 0xF8) == 0xF0) {
-            len = 4;
-        } else {
-            return 0;
-        }
-        if (index + len > input.size()) {
-            return 0;
-        }
-        for (size_t i = 1; i < len; ++i) {
-            if ((static_cast<unsigned char>(input[index + i]) & 0xC0) != 0x80) {
-                return 0;
-            }
-        }
-        return len;
-    }
-
-    static std::string MixedGbkAndUtf8ToUtf8(const std::string &input) {
-        std::string result;
-        size_t i = 0;
-        while (i < input.size()) {
-            size_t utf8Len = Utf8CharLen(input, i);
-            if (utf8Len > 0) {
-                result.append(input, i, utf8Len);
-                i += utf8Len;
-                continue;
-            }
-            size_t gbkStart = i;
-            do {
-                ++i;
-                if (i < input.size()) {
-                    utf8Len = Utf8CharLen(input, i);
-                }
-            } while (i < input.size() && utf8Len == 0);
-            result += GbkToUtf8(input.substr(gbkStart, i - gbkStart).c_str());
-        }
-        return result;
-    }
-#endif
-
-    static std::string FixGbkMojibakeStr(const std::string &input) {
-#ifdef _WIN32
-        if (!IsUtf8StrFast(input)) {
-            return input;
-        }
-        std::string fixedUtf8Str = Utf8MojibakeToGbkUtf8(input.c_str());
-        return Utf8ToGbk(fixedUtf8Str.c_str());
-#else
-        return input;
-#endif
-    }
-
-    static std::string ToLocalStr(const std::string &input) {
-#ifdef _WIN32
-        static const unsigned int GBK_CODE_PAGE = 936;
-        UINT codePage = GetACP();
-        if (codePage == GBK_CODE_PAGE) {
-            return StringUtil::Utf8ToGbk(input.c_str());
-        }
-#endif
-        return input;
-    }
-
-#ifdef _WIN32
-    static std::string GbkToUtf8(const char *srcStr) {
-        if (srcStr == nullptr) {
-            return "";
-        }
-        static const unsigned int GBK_CODE_PAGE = 936;
-        int len = MultiByteToWideChar(GBK_CODE_PAGE, 0, srcStr, -1, nullptr, 0);
-        std::unique_ptr<wchar_t[]> wstr = std::make_unique<wchar_t[]>(len + 1);
-        MultiByteToWideChar(GBK_CODE_PAGE, 0, srcStr, -1, wstr.get(), len);
-        len = WideCharToMultiByte(CP_UTF8, 0, wstr.get(), -1, nullptr, 0, nullptr, nullptr);
-        std::unique_ptr<char[]> str = std::make_unique<char[]>(len + 1);
-        WideCharToMultiByte(CP_UTF8, 0, wstr.get(), -1, str.get(), len, nullptr, nullptr);
-        return std::string(str.get());
-    }
-
-    static std::string Utf8MojibakeToGbkUtf8(const char *srcStr) {
-        if (srcStr == nullptr) {
-            return "";
-        }
-        int len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, srcStr, -1, nullptr, 0);
-        if (len <= 0) {
-            return srcStr;
-        }
-        std::unique_ptr<wchar_t[]> wstr = std::make_unique<wchar_t[]>(len + 1);
-        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, srcStr, -1, wstr.get(), len) <= 0) {
-            return srcStr;
-        }
-        static const unsigned int GBK_CODE_PAGE = 936;
-        BOOL usedDefaultChar = FALSE;
-        len = WideCharToMultiByte(GBK_CODE_PAGE, 0, wstr.get(), -1, nullptr, 0, nullptr, &usedDefaultChar);
-        if (len <= 0 || usedDefaultChar) {
-            return srcStr;
-        }
-        std::unique_ptr<char[]> rawUtf8Bytes = std::make_unique<char[]>(len + 1);
-        usedDefaultChar = FALSE;
-        if (WideCharToMultiByte(GBK_CODE_PAGE, 0, wstr.get(), -1, rawUtf8Bytes.get(), len, nullptr, &usedDefaultChar) <=
-                0 ||
-            usedDefaultChar) {
-            return srcStr;
-        }
-        std::string fixed(rawUtf8Bytes.get());
-        return IsUtf8StrFast(fixed) ? fixed : srcStr;
-    }
-
-    static std::string Utf8ToGbk(const char *srcStr) {
-        if (srcStr == nullptr) {
-            return "";
-        }
-        int len = MultiByteToWideChar(CP_UTF8, 0, srcStr, -1, nullptr, 0);
-        std::unique_ptr<wchar_t[]> wstr = std::make_unique<wchar_t[]>(len + 1);
-        MultiByteToWideChar(CP_UTF8, 0, srcStr, -1, wstr.get(), len);
-        len = WideCharToMultiByte(CP_ACP, 0, wstr.get(), -1, nullptr, 0, nullptr, nullptr);
-        std::unique_ptr<char[]> str = std::make_unique<char[]>(len + 1);
-        WideCharToMultiByte(CP_ACP, 0, wstr.get(), -1, str.get(), len, nullptr, nullptr);
-        return std::string(str.get());
-    }
-#endif
-
-    static inline const std::wstring String2WString(const std::string &gbk) {
-#ifdef _WIN32
-        if (gbk.empty()) {
+        if (utf8.empty() || utf8.size() > static_cast<size_t>((std::numeric_limits<int>::max)())) {
             return {};
         }
-        int size = MultiByteToWideChar(GetACP(), 0, gbk.c_str(), -1, nullptr, 0);
-        std::wstring result(size - 1, 0);
-
-        MultiByteToWideChar(GetACP(), 0, gbk.c_str(), -1, result.data(), size);
+        const int inputLength = static_cast<int>(utf8.size());
+        int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(), inputLength, nullptr, 0);
+        if (length <= 0) {
+            return {};
+        }
+        std::wstring result(length, L'\0');
+        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8.data(), inputLength, result.data(), length) !=
+            length) {
+            return {};
+        }
         return result;
 #else
         std::wstring result;
@@ -335,15 +150,23 @@ class StringUtil {
 #endif
     }
 
+    // UTF-16 -> UTF-8 on Windows. Invalid surrogate sequences are conversion failures.
     static inline const std::string WString2String(const std::wstring &wstr) {
 #ifdef _WIN32
-        if (wstr.empty()) {
+        if (wstr.empty() || wstr.size() > static_cast<size_t>((std::numeric_limits<int>::max)())) {
             return {};
         }
-
-        int size = WideCharToMultiByte(GetACP(), 0, wstr.c_str(), -1, nullptr, 0, nullptr, nullptr);
-        std::string result(size - 1, 0);
-        WideCharToMultiByte(GetACP(), 0, wstr.c_str(), -1, result.data(), size, nullptr, nullptr);
+        const int inputLength = static_cast<int>(wstr.size());
+        int length =
+            WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wstr.data(), inputLength, nullptr, 0, nullptr, nullptr);
+        if (length <= 0) {
+            return {};
+        }
+        std::string result(length, '\0');
+        if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wstr.data(), inputLength, result.data(), length, nullptr,
+                nullptr) != length) {
+            return {};
+        }
         return result;
 #else
         std::string result;

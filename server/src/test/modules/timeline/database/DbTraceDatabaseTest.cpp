@@ -3073,3 +3073,21 @@ TEST_F(DbTraceDatabaseTest, ProcessByteAlignmentAnalyzerDataForDbTest) {
     ASSERT_EQ(result[1].reduceInlineTasks.size(), 0);
 }
 // clang-format on
+
+TEST_F(DbTraceDatabaseTest, Utf8StringCacheDoesNotRepairOrConvertStoredText) {
+    std::recursive_mutex mutex;
+    sqlite3 *handle = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &handle), SQLITE_OK);
+    ASSERT_EQ(
+        sqlite3_exec(handle, "CREATE TABLE STRING_IDS(id INTEGER, value TEXT)", nullptr, nullptr, nullptr), SQLITE_OK);
+    const std::string value = u8"练 😀 中文";
+    {
+        Dic::Module::SqlitePreparedStatement insert(handle);
+        ASSERT_TRUE(insert.Prepare("INSERT INTO STRING_IDS VALUES (1, ?)"));
+        ASSERT_TRUE(insert.Execute(value));
+    }
+    MockDatabase2 database(mutex);
+    database.SetDbPtr(handle);
+    EXPECT_EQ(database.GetStringCacheValue(database.GetDbPath(), "1"), value);
+    database.ClearStringsCache();
+}
