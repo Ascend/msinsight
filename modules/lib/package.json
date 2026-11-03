@@ -16,6 +16,7 @@
     "./WindowMessageRouter": "./src/WindowMessageRouter/index.ts",
     "./FrontendAgentCommand": "./src/FrontendAgentCommand/index.ts",
     "./AgentTable": "./src/AgentTable/index.ts",
+    "./AgentReport": "./src/AgentReport/index.ts",
     "./ModuleAgentCommandClient": "./src/ModuleAgentCommandClient/index.ts",
     "./theme": "./src/theme/index.ts",
     "./resize": "./src/resize/index.ts"

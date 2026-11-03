@@ -270,6 +270,21 @@
     "newAgentArgLabel": "New agent arg {{index}}",
     "newAgentEnvKeyLabel": "New agent env key {{index}}",
     "newAgentEnvValueLabel": "New agent env value {{index}}",
-    "useLongContextBudget": "Use a 1M context budget"
+    "useLongContextBudget": "Use a 1M context budget",
+    "reportOpenMainFailed": "Could not open in the main area. Retry or refresh the application.",
+    "reportCloseTab": "Close report: {{title}}",
+    "reportTitle": "Visual report",
+    "reportReady": "Your report is ready. Open to explore.",
+    "reportGenerating": "Generating report…",
+    "reportFailed": "Report generation failed. Ask the agent to retry.",
+    "reportUnavailable": "Report unavailable",
+    "reportOpen": "Open",
+    "reportPreview": "REPORT PREVIEW",
+    "reportVersion": "Report version",
+    "reportClose": "Close report",
+    "reportLoadFailed": "Unable to load this report. It may have been removed, or the service is unavailable.",
+    "reportRetry": "Retry",
+    "reportLoading": "Loading report…",
+    "reportSnapshot": "Data snapshot · Interactive preview"
   }
 }

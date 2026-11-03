@@ -22,6 +22,11 @@ import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, ACP_STARTUP_STATUS_URL, capabilit
 import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
 import { canAttemptAcpRequest, type AcpRuntimeStatus, type AcpUnavailableReason } from './acpStatus';
 import { sealEnvSecrets, sealSecretInput } from './secretSeal';
+import type { ReportDocument } from './artifacts';
+
+export const fetchReport = (artifactId: string, version: number, signal?: AbortSignal): Promise<ReportDocument> => (
+    requestJson(`/api/artifacts/${encodeURIComponent(artifactId)}?version=${version}`, { signal })
+);
 
 interface PromptResponse {
     ok?: boolean;

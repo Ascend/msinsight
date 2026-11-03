@@ -19,6 +19,7 @@ import React, { type RefObject, useCallback, useEffect, useMemo, useRef, useStat
 import { useTheme } from '@emotion/react';
 import { Resizer } from '@insight/lib';
 import { ACP_MESSAGE_CHANNEL } from '@insight/lib/FrontendAgentCommand';
+import { parseAgentReportReference, REPORT_OPEN, REPORT_OPENED, type AgentReportReference } from '@insight/lib/AgentReport';
 import {
     frameWindowMessageOrigin,
     getWindowMessageRouter,
@@ -30,8 +31,7 @@ import {
 
 import type { ModuleConfig } from '@/moduleConfig';
 import type { Session } from '@/entity/session';
-import { ACP_SESSION_SRC } from '@/moduleConfig';
-import { ACP_CAPABILITY_TOKEN, ACP_NODE_VERSION, ACP_PORT, ACP_STATUS, ACP_STARTUP_STATUS_URL, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
+import { agentPageUrl } from './agentPageUrl';
 import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 
 export const ACP_SESSION_MIN_WIDTH = 480;
@@ -41,36 +41,19 @@ interface WebAgentSessionPanelProps {
     availableModules: ModuleConfig[];
     moduleFrameMinWidth: number;
     onRequestClose: () => void;
+    onOpenReport: (report: AgentReportReference) => void;
     session: Session;
     show: boolean;
     tabBodyRef: RefObject<HTMLDivElement>;
 }
 
-export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFrameMinWidth, onRequestClose, session, show, tabBodyRef }: WebAgentSessionPanelProps): JSX.Element => {
+export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFrameMinWidth, onRequestClose, onOpenReport, session, show, tabBodyRef }: WebAgentSessionPanelProps): JSX.Element => {
     const theme = useTheme();
     const [sessionPanelWidth, setSessionPanelWidth] = useState(ACP_SESSION_MIN_WIDTH);
     const acpSessionFrameRef = useRef<HTMLIFrameElement>(null);
     const acpSessionReadyRef = useRef(false);
 
-    const acpSessionSrc = useMemo(() => {
-        const acpSessionParams = new URLSearchParams({
-            acpStatus: ACP_STATUS,
-        });
-        if ((ACP_STATUS === 'ready' || ACP_STATUS === 'starting') && ACP_PORT) {
-            acpSessionParams.set('acpPort', String(ACP_PORT));
-            acpSessionParams.set('capabilityToken', ACP_CAPABILITY_TOKEN);
-        }
-        if (ACP_NODE_VERSION) {
-            acpSessionParams.set('acpNodeVersion', ACP_NODE_VERSION);
-        }
-        if (ACP_STARTUP_STATUS_URL) {
-            acpSessionParams.set('acpStartupStatusUrl', ACP_STARTUP_STATUS_URL);
-        }
-        if (JUPYTERLABPROXY) {
-            acpSessionParams.set('jupyterlabProxy', 'true');
-        }
-        return `${ACP_SESSION_SRC}${ACP_SESSION_SRC.includes('?') ? '&' : '?'}${acpSessionParams.toString()}`;
-    }, []);
+    const acpSessionSrc = useMemo(() => agentPageUrl(), []);
     const acpSessionOrigin = useMemo(() => frameWindowMessageOrigin(acpSessionSrc), [acpSessionSrc]);
 
     const resizeSessionPanel = (moveWidthLength: number): void => {
@@ -130,16 +113,27 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
                 sendAcpSessionContext();
             } else if (eventName === 'insightWebAgent/close') {
                 onRequestClose();
+            } else if (eventName === REPORT_OPEN) {
+                const report = parseAgentReportReference(event.data?.body?.report);
+                const requestId = event.data?.requestId;
+                if (!report || typeof requestId !== 'string' || requestId.length > 100) return;
+                onOpenReport(report);
+                acpSessionFrameRef.current?.contentWindow?.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, {
+                    event: REPORT_OPENED, requestId,
+                }), acpSessionOrigin);
             }
         };
         return getWindowMessageRouter().subscribe(handleAgentEvent, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
-    }, [acpSessionOrigin, onRequestClose, sendAcpSessionContext]);
+    }, [acpSessionOrigin, onRequestClose, onOpenReport, sendAcpSessionContext]);
 
     useEffect(() => {
         if (acpSessionReadyRef.current) sendAcpSessionContext();
     }, [sendAcpSessionContext]);
 
-    return <div className="acp-session-wrapper" style={{ display: show ? 'block' : 'none', width: sessionPanelWidth }}>
+    return <div className="acp-session-wrapper" style={{
+        display: show ? 'block' : 'none',
+        width: sessionPanelWidth,
+    }}>
         <Resizer
             callback={resizeSessionPanel}
             style={{

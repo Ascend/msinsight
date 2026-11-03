@@ -31,7 +31,7 @@ import { applyCors, json } from "./http/response.mjs";
 import { hasValidCapability, normalizeRequestOrigin } from "./http/security.mjs";
 import { errorBody, normalizeHttpError } from "./http/errors.mjs";
 
-export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService, frontendCommandService, capabilityCenter, httpMcpAdapter, capabilityToken, nativeCapabilityToken, allowedOrigins = [] }) => {
+export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService, frontendCommandService, capabilityCenter, httpMcpAdapter, capabilityToken, nativeCapabilityToken, artifactService, allowedOrigins = [] }) => {
     const router = createRouter({
         agentController: createAgentController({ agentService, state }),
         agentConfigController: createAgentConfigController({ agentConfigService }),
@@ -44,6 +44,7 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
         frontendCommandController: createFrontendCommandController({ frontendCommandService }),
         capabilityController: capabilityCenter ? createCapabilityController({ capabilityCenter, accessToken: nativeCapabilityToken }) : undefined,
         httpMcpAdapter,
+        artifactService,
     });
 
     return createServer(async (req, res) => {

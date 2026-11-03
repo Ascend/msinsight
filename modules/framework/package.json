@@ -16,6 +16,7 @@
   },
   "jest": {
     "moduleNameMapper": {
+      "@insight/lib/AgentReport": "<rootDir>/../lib/src/AgentReport/index.ts",
       "@insight/lib/FrontendAgentCommand": "<rootDir>/../lib/src/FrontendAgentCommand/index.ts",
       "@insight/lib/WindowMessageRouter": "<rootDir>/../lib/src/WindowMessageRouter/index.ts"
     }

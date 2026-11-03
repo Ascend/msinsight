@@ -20,6 +20,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createApp } from "./app.mjs";
+import { createArtifactService } from "./services/artifactService.mjs";
 import { createHttpMcpAdapter } from "./capability-adapters/http-mcp/adapter.mjs";
 import { registerConfiguredCapabilities } from "./capability-center/configuredCapabilities.mjs";
 import { createCapabilityCenter } from "./capability-center/service.mjs";
@@ -186,7 +187,8 @@ const frontendCommandService = createFrontendCommandService({ eventBus });
 const capabilityAccessToken = randomUUID();
 const nativeCapabilityAccessToken = randomUUID();
 // 先创建协议无关核心，再分别挂接 HTTP MCP 与 Native 两条 Adapter。
-const capabilityCenter = createCapabilityCenter({ frontendCommandService, ragService });
+const artifactService = createArtifactService({ storeDir: join(config.rootDir, ".msinsight_artifacts") });
+const capabilityCenter = createCapabilityCenter({ frontendCommandService, ragService, artifactService });
 registerConfiguredCapabilities({
     capabilityCenter,
     definitions: config.configuredCapabilities,
@@ -519,6 +521,7 @@ const server = createApp({
     httpMcpAdapter,
     capabilityToken: config.capabilityToken,
     nativeCapabilityToken: nativeCapabilityAccessToken,
+    artifactService,
     allowedOrigins: config.allowedOrigins,
 });
 

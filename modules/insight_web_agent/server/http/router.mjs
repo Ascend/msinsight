@@ -19,9 +19,15 @@ import { CAPABILITY_MCP_PATH } from "../capability-center/definitions.mjs";
 import { json, readJson } from "./response.mjs";
 import { errorBody } from "./errors.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController, capabilityController, httpMcpAdapter }) => {
+export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController, capabilityController, httpMcpAdapter, artifactService }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+
+        if (artifactService && req.method === "GET" && url.pathname.startsWith("/api/artifacts/")) {
+            res.setHeader("Cache-Control", "no-store");
+            res.setHeader("X-Content-Type-Options", "nosniff");
+            return json(res, await artifactService.get(url.pathname.slice("/api/artifacts/".length), url.searchParams.get("version") ?? undefined));
+        }
 
         if (req.method === "GET" && url.pathname === "/api/state") {
             return chatController.getState(req, res);
