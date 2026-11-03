@@ -91,9 +91,17 @@ repos:
     hooks:
       - id: gitleaks-offline-scan
         name: Gitleaks Secret Scan(Local Binary)
-        entry: python pre-commit/run_gitleaks.py
+        entry: >-
+          sh -c 'if [ -x ./gitleaks ]; then exec ./gitleaks "$@"; fi;
+          if command -v gitleaks >/dev/null 2>&1; then exec gitleaks "$@"; fi;
+          echo "Gitleaks executable not found: expected ./gitleaks or gitleaks in PATH." >&2;
+          exit 1' --
         language: system
-        pass_filenames: false
-        require_serial: true
+        pass_filenames: true
+        args:
+          - protect
+          - --verbose
+          - --redact
+          - --config=pre-commit/.gitleaks.toml
 
         stages: [pre-commit]
