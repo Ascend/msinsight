@@ -34,6 +34,16 @@ const advanceSeconds = async (seconds: number): Promise<void> => {
     }
 };
 
+test('receipt sends fail fast while starting, without polling or lower-level fetch', async () => {
+    const { respondFrontendCommand } = await import('../api');
+    const { prepareReceipt } = await import('../bridge/frontendCommandReceipt');
+    global.fetch = jest.fn();
+    await expect(respondFrontendCommand(prepareReceipt({
+        requestId: 'r', claimToken: 'owner', status: 'completed', result: {},
+    }), { signal: new AbortController().signal })).rejects.toThrow(/starting/);
+    expect(fetch).not.toHaveBeenCalled();
+});
+
 test('waits for a slow startup without reporting a failure, then returns the initial data', async () => {
     const { fetchState } = await import('../api');
     const { subscribeBackendUnavailable } = await import('../backendConnection');

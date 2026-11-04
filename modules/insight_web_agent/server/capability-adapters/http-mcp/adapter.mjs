@@ -22,6 +22,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { CAPABILITY_MCP_SERVER_INFO } from "../../capability-center/definitions.mjs";
 import { json } from "../../http/response.mjs";
 import { tokensEqual } from "../../http/security.mjs";
+import { isToolDiagnosticId, normalizeToolError } from "../../utils/toolError.mjs";
 
 const MAX_MCP_SESSIONS = 64;
 
@@ -133,7 +134,7 @@ const createMcpSession = async ({ capabilityCenter, sessions, onInitialize }) =>
             });
             return capabilityResult(result);
         } catch (error) {
-            return capabilityFailure(error);
+            return capabilityFailure(error, request.params.name);
         }
     });
     await server.connect(transport);
@@ -145,16 +146,15 @@ const capabilityResult = (result) => ({
     ...(isRecord(result) ? { structuredContent: result } : {}),
 });
 
-const capabilityFailure = (error) => {
-    const body = {
-        ok: false,
-        error: {
-            code: error.code ?? "CAPABILITY_EXECUTION_FAILED",
-            message: error.message,
-            retryable: Boolean(error.retryable),
-            ...(error.details === undefined ? {} : { details: error.details }),
-        },
-    };
+const capabilityFailure = (error, toolName) => {
+    let shape = normalizeToolError(error);
+    if (!isToolDiagnosticId(shape.details.diagnosticId)) {
+        shape = normalizeToolError(error, {
+            diagnosticId: randomUUID(), toolName, source: "capability_http",
+            stage: "execute", outcome: "unknown", retryAdvice: "inspect_before_retry",
+        });
+    }
+    const body = { ok: false, error: shape };
     return {
         content: [{ type: "text", text: serialize(body) }],
         structuredContent: body,

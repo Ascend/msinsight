@@ -96,3 +96,31 @@ test("CLI capability rejects malformed input and non-zero exits", async () => {
     assert.throws(() => capability.validate({ args: ["query"], timeoutMs: 3600001 }), { code: "CAPABILITY_INVALID_ARGUMENT" });
     await assert.rejects(capability.execute({ args: ["query"] }, {}), { code: "CLI_EXIT_NONZERO" });
 });
+
+for (const mode of ["timeout", "cancel"]) test(`CLI ${mode} keeps partial diagnostics and unknown outcome`, async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const child = createChild();
+    delete child.pid;
+    child.kill = () => queueMicrotask(() => child.emit("close", null, "SIGTERM"));
+    const controller = new AbortController();
+    const capability = createCliCapability({
+        name: "pt_snap", executable: resolve("fixture.exe"), defaultTimeoutMs: 1000,
+        spawnProcess: () => {
+            queueMicrotask(() => child.stderr.write("fixture: waiting for database"));
+            return child;
+        },
+    });
+    const promise = assert.rejects(capability.execute({ args: [] }, { signal: controller.signal }), (error) => {
+        assert.equal(error.code, mode === "timeout" ? "CLI_TIMEOUT" : "CLI_CANCELLED");
+        assert.equal(error.details.stderr, "fixture: waiting for database");
+        assert.equal(error.details.outcome, "unknown");
+        assert.equal(error.details.exitCode, null);
+        assert.equal(error.retryable, false);
+        if (mode === "timeout") assert.equal(error.details.timeoutMs, 1000);
+        return true;
+    });
+    await Promise.resolve();
+    if (mode === "timeout") t.mock.timers.tick(1000);
+    else controller.abort();
+    await promise;
+});

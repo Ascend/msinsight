@@ -4,10 +4,11 @@
  * MindStudio is licensed under Mulan PSL v2.
  * http://license.coscl.org.cn/MulanPSL2
  */
+import { formatToolError, normalizeToolError } from "../../utils/toolError.mjs";
 
 // Keep raw model data separate from display blocks, whose tool values are truncated.
 // Only complete tool-call events are replayable; streamed input fragments are not calls.
-export const createInterruptedHistory = () => {
+export const createInterruptedHistory = ({ formatUnknownTool } = {}) => {
     const messages = [];
     let assistant = [];
     let results = new Map();
@@ -19,7 +20,7 @@ export const createInterruptedHistory = () => {
             type: "tool-result", toolCallId: call.toolCallId, toolName: call.toolName,
             output: results.get(call.toolCallId) ?? {
                 type: "error-text",
-                value: "Turn interrupted before a final tool result was received. Side effects may have occurred; observe the current state before retrying.",
+                value: formatUnknownTool?.(call) ?? "Turn interrupted before a final tool result was received. Side effects may have occurred; observe the current state before retrying.",
             },
         })) });
         assistant = [];
@@ -41,7 +42,7 @@ export const createInterruptedHistory = () => {
             if (event.type === "tool-result" && !event.preliminary) results.set(event.toolCallId,
                 typeof event.output === "string" ? { type: "text", value: event.output } : { type: "json", value: event.output ?? null });
             if (event.type === "tool-error") results.set(event.toolCallId, {
-                type: "error-text", value: event.error instanceof Error ? event.error.message : String(event.error),
+                type: "error-text", value: formatToolError(normalizeToolError(event.error)),
             });
         },
         finish() { flush(); return messages; },

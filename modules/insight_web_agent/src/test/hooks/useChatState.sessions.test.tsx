@@ -11,10 +11,15 @@ import * as testingLibrary from '@testing-library/react';
 import * as api from '../../api';
 import { ChatStateProvider, useChatState } from '../../hooks/useChatState';
 import type { AgentConfigSnapshot, ConfigOption, ServerEvent } from '../../types';
+import { executeFrontendCommand } from '../../bridge/frontendAgentCommandTransport';
+import { message } from 'antd';
 
 const { act, render, waitFor } = testingLibrary;
 
-jest.mock('antd', () => ({ message: { error: jest.fn() } }));
+jest.mock('antd', () => ({ message: { error: jest.fn(), warning: jest.fn() } }));
+jest.mock('../../bridge/frontendAgentCommandTransport', () => ({
+    executeFrontendCommand: jest.fn(), cancelFrontendCommand: jest.fn(),
+}));
 jest.mock('../../env', () => ({
     apiUrl: (path: string) => path,
     eventsUrl: () => '/api/events',
@@ -29,6 +34,8 @@ jest.mock('../../api', () => ({
     cancelPrompt: jest.fn(),
     setSessionMode: jest.fn(),
     isBackendUnavailableError: jest.fn(() => false),
+    claimFrontendCommand: jest.fn(),
+    respondFrontendCommand: jest.fn(),
 }));
 
 let chat: ReturnType<typeof useChatState>;
@@ -95,6 +102,39 @@ const modelOptions = (currentValue: string, ids: string[]): ConfigOption[] => [{
     options: ids.map((value) => ({ value, name: value })),
 }];
 const savedConfig = { activeAgentName: 'agent-a' } as AgentConfigSnapshot;
+
+test('a lost completed receipt never reexecutes or changes to execution-failed', async () => {
+    (api.claimFrontendCommand as jest.Mock).mockResolvedValue({ claimed: true, claimToken: 'owner' });
+    (executeFrontendCommand as jest.Mock).mockResolvedValue({ changed: true });
+    (api.respondFrontendCommand as jest.Mock).mockRejectedValue(new TypeError('lost'));
+    const request = { type: 'frontend_command_request' as const, requestId: 'r', sessionId: 's', command: 'observe', args: {}, deadline: Date.now() + 5000 };
+    emit(request);
+    emit(request);
+    await waitFor(() => expect(message.warning).toHaveBeenCalledTimes(1));
+    expect(executeFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(api.respondFrontendCommand).toHaveBeenCalledTimes(2);
+    const bodies = (api.respondFrontendCommand as jest.Mock).mock.calls.map(([receipt]) => JSON.parse(receipt.json));
+    expect(bodies[0].status).toBe('completed');
+    expect(bodies[1]).toEqual(bodies[0]);
+});
+
+test.each(['cancel', 'unmount'])('receipt %s aborts the active send without resending', async (action) => {
+    (api.claimFrontendCommand as jest.Mock).mockResolvedValue({ claimed: true, claimToken: 'owner' });
+    (executeFrontendCommand as jest.Mock).mockResolvedValue({ changed: true });
+    let signal: AbortSignal | undefined;
+    (api.respondFrontendCommand as jest.Mock).mockImplementation((_receipt, options) => new Promise((_resolve, reject) => {
+        signal = options.signal;
+        signal?.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')));
+    }));
+    emit({ type: 'frontend_command_request', requestId: 'active', sessionId: 's', command: 'observe', args: {}, deadline: Date.now() + 5000 });
+    await waitFor(() => expect(api.respondFrontendCommand).toHaveBeenCalledTimes(1));
+    if (action === 'cancel') emit({ type: 'frontend_command_cancel', requestId: 'active', reason: 'cancelled' });
+    else testingLibrary.cleanup();
+    await waitFor(() => expect(signal?.aborted).toBe(true));
+    expect(executeFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(api.respondFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(message.warning).not.toHaveBeenCalled();
+});
 
 test('saving the same agent refreshes draft and cached session models without replacing conversations', async () => {
     emit({ type: 'state', state: { configOptions: modelOptions('old', ['old']) } });

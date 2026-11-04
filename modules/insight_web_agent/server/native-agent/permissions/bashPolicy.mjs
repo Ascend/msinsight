@@ -33,18 +33,20 @@ const SHELL_CONTROL_SYNTAX = /[\r\n;&|<>`$()]/;
 /** 功能：校验并规范化 Bash 输入，强制首版前台和会话文件系统边界。 */
 export const normalizeBashInput = async (input, session, defaultCwd) => {
     const command = String(input?.command ?? "").trim();
-    if (!command) throw new Error("Bash command is required");
-    if (input?.run_in_background === true) throw new Error("Background Bash is not supported");
-    if (input?.env && Object.keys(input.env).length) throw new Error("Bash environment overrides are not supported");
+    if (!command) throw inputError("Bash command is required");
+    if (input?.run_in_background === true) throw inputError("Background Bash is not supported");
+    if (input?.env && Object.keys(input.env).length) throw inputError("Bash environment overrides are not supported");
     const timeout = Number(input?.timeout ?? DEFAULT_TIMEOUT_MS);
     if (!Number.isFinite(timeout) || timeout < 1000 || timeout > MAX_TIMEOUT_MS) {
-        throw new Error(`Bash timeout must be between 1000 and ${MAX_TIMEOUT_MS} milliseconds`);
+        throw inputError(`Bash timeout must be between 1000 and ${MAX_TIMEOUT_MS} milliseconds`);
     }
     const requestedCwd = String(input?.cwd ?? "").trim();
     const cwd = resolve(defaultCwd, requestedCwd || ".");
     // 临时放开 Bash cwd 的 Session roots 限制；相对路径以 Native Agent workspace 为基准。
     return { command, timeout, cwd, run_in_background: false };
 };
+
+const inputError = (message) => Object.assign(new Error(message), { code: "BASH_INPUT_INVALID" });
 
 /** 功能：按产品硬策略和 Agent 命令模式裁决 Bash，并返回可记忆的规范规则。 */
 export const evaluateBashPolicy = ({ command, rules = [], shellKind = "bash" }) => {

@@ -10,6 +10,35 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createEnabledRagService, createRagService } from "../../../services/rag/ragService.mjs";
 
+test("fail-open keeps a per-request embedding diagnostic, and callback failure does not change the result", async () => {
+    const service = createEnabledRagService({
+        knowledgePack: pack([chunk()]), logger: { warn() {} },
+        embeddingService: { embedQueries: async () => { throw new Error("token=private-secret"); } },
+    });
+    const diagnostics = [];
+    assert.equal(await service.retrieve("first", { onDiagnostic: (value) => diagnostics.push(value) }), undefined);
+    assert.equal(diagnostics[0].reason, "embedding_unavailable");
+    assert.doesNotMatch(JSON.stringify(diagnostics), /private-secret/);
+    assert.equal(await service.retrieve("second", { onDiagnostic: () => { throw new Error("callback"); } }), undefined);
+});
+
+test("index and initialization diagnostics reflect the failing origin", async () => {
+    const service = createEnabledRagService({
+        knowledgePack: pack([chunk()]), logger: { warn() {} },
+        embeddingService: { embedQueries: async () => [new Float32Array(1)] },
+    });
+    let reason;
+    assert.equal(await service.retrieve("index", { onDiagnostic: (value) => { reason = value.reason; } }), undefined);
+    assert.equal(reason, "index_unavailable");
+    const initialize = (options) => createRagService({
+        config: { enabled: true }, platform: "win32", arch: "x64", logger: { warn() {} }, ...options,
+    });
+    const embedding = await initialize({ createEmbedding: async () => { throw new Error("private"); } });
+    assert.equal(embedding.getStatus().reason, "embedding_unavailable");
+    const knowledge = await initialize({ createEmbedding: async () => ({}), loadPack: async () => { throw new Error("private"); } });
+    assert.equal(knowledge.getStatus().reason, "knowledge_pack_unavailable");
+});
+
 test("primary Top-5 remains separate from FAQ expansion and whole-chunk context budgeting", async () => {
     const chunks = [
         chunk({ chunkId: "hit", docId: "faq-doc", faqId: "q1", faqPartIndex: 0, answerStatus: "answered", knowledgeText: "命中" }),

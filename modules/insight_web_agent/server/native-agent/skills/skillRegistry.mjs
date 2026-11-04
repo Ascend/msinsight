@@ -32,11 +32,16 @@ export const createSkillRegistry = ({ bundledDir, developmentDirs = [] }) => {
     const load = async (name) => {
         const skill = get(name);
         if (!skill) return undefined;
-        const canonicalPath = await realpath(skill.path);
-        if (!isInside(skill.sourceRoot, canonicalPath) || !(await stat(canonicalPath)).isFile()) {
-            throw new Error(`Skill resolves outside its source root: ${skill.name}`);
+        try {
+            const canonicalPath = await realpath(skill.path);
+            if (!isInside(skill.sourceRoot, canonicalPath) || !(await stat(canonicalPath)).isFile()) {
+                throw Object.assign(new Error(`Skill resolves outside its source root: ${skill.name}`), { code: "SKILL_PATH_ESCAPE" });
+            }
+            return { ...skill, instructions: extractInstructions(await readFile(canonicalPath, "utf8")) };
+        } catch (error) {
+            if (error.code === "SKILL_PATH_ESCAPE") throw error;
+            throw Object.assign(new Error("Skill could not be loaded.", { cause: error }), { code: "SKILL_LOAD_FAILED" });
         }
-        return { ...skill, instructions: extractInstructions(await readFile(canonicalPath, "utf8")) };
     };
     const diagnostics = () => [...registryDiagnostics, ...[...skills.values()].flatMap((skill) => skill.diagnostics)];
     return { initialize, list, get, load, diagnostics };

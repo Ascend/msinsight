@@ -56,6 +56,28 @@ const durationState = () => ({
 });
 
 const target = { rankId: '3', operatorName: 'AllReduce' };
+
+test('Timeline backend errors retain their cause rather than claiming the operator is absent', async () => {
+    publish();
+    (queryTimelineUnitKernelDetail as jest.Mock).mockResolvedValue({
+        error: { code: 'DB_QUERY_FAILED', message: 'Missing TASK table' },
+    });
+    await expect(invoke('Communication.locateInTimeline', target)).rejects.toMatchObject({
+        code: 'COMMAND_EXECUTION_FAILED', message: 'Missing TASK table', details: { backendCode: 'DB_QUERY_FAILED' },
+    });
+    expect(connector.send).not.toHaveBeenCalled();
+});
+test('backend auth headers are redacted from command failure messages', async () => {
+    publish();
+    (queryTimelineUnitKernelDetail as jest.Mock).mockResolvedValue({
+        error: { code: 'DB_QUERY_FAILED', message: 'Authorization: Basic ZmFrZTpwYXNz' },
+    });
+    await expect(invoke('Communication.locateInTimeline', target)).rejects.toMatchObject({
+        code: 'COMMAND_EXECUTION_FAILED',
+        message: expect.not.stringContaining('ZmFrZTpwYXNz'),
+        details: { backendCode: 'DB_QUERY_FAILED' },
+    });
+});
 const publish = (state = durationState()) => {
     const session = {
         clusterCompleted: true, durationFileCompleted: true, isCompare: false,

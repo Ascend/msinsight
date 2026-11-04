@@ -31,6 +31,7 @@ import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, deleteSession, exportSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { downloadSessionExport } from '../sessionExportDownload';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
+import { deliverReceipt, prepareReceipt, type ReceiptBody } from '../bridge/frontendCommandReceipt';
 import { subscribeEvents } from '../eventStream';
 import { shouldPersistSessionExport } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ContextUsage, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, RagStatus, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
@@ -177,6 +178,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const queuedPromptsInFlightRef = useRef(new Set<string>());
     const pendingCreationsRef = useRef(new Map<string, ReturnType<typeof sendPrompt>>());
     const frontendCommandsRef = useRef(new Set<string>());
+    const receiptControllersRef = useRef(new Map<string, AbortController>());
     const cancelledFrontendCommandsRef = useRef(new Set<string>());
     const initialSessionInitializedRef = useRef(false);
     const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
@@ -283,6 +285,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 return;
             }
             cancelledFrontendCommandsRef.current.add(event.requestId);
+            receiptControllersRef.current.get(event.requestId)?.abort();
             cancelFrontendCommand(event.requestId);
             return;
         }
@@ -462,7 +465,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         if (frontendCommandsRef.current.has(event.requestId)) return;
         if (Date.now() >= event.deadline) return;
         frontendCommandsRef.current.add(event.requestId);
-        let claimToken: string | undefined;
+        const controller = new AbortController();
+        receiptControllersRef.current.set(event.requestId, controller);
         try {
             let claim: Awaited<ReturnType<typeof claimFrontendCommand>> | undefined;
             try {
@@ -470,27 +474,27 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             } catch (_error) {
                 return;
             }
-            claimToken = claim?.claimToken;
+            const claimToken = claim?.claimToken;
             if (!claim?.claimed || !claimToken || cancelledFrontendCommandsRef.current.has(event.requestId)) {
                 return;
             }
-            const result = await executeFrontendCommand(event.command, event.args, event.requestId, event.deadline);
-            await respondFrontendCommand({ requestId: event.requestId, claimToken, status: 'completed', result });
-        } catch (error) {
-            if (!claimToken) {
-                return;
-            }
+            if (controller.signal.aborted || Date.now() >= event.deadline) return;
+            let receipt: ReceiptBody;
             try {
-                await respondFrontendCommand({
-                    requestId: event.requestId,
-                    claimToken,
-                    status: 'failed',
-                    error: toCommandError(error),
-                });
-            } catch (_error) {
-                // The backend may already be unavailable; the connection dialog handles that case.
+                const result = await executeFrontendCommand(event.command, event.args, event.requestId, event.deadline);
+                receipt = { requestId: event.requestId, claimToken, status: 'completed', result };
+            } catch (error) {
+                receipt = { requestId: event.requestId, claimToken, status: 'failed', error: toCommandError(error) };
+            }
+            const delivered = await deliverReceipt(prepareReceipt(receipt), {
+                signal: controller.signal, deadline: event.deadline, send: respondFrontendCommand,
+            });
+            if (!delivered && !controller.signal.aborted) {
+                message.warning(t('insightWebAgent:commandReceiptUndelivered'));
             }
         } finally {
+            controller.abort();
+            receiptControllersRef.current.delete(event.requestId);
             frontendCommandsRef.current.delete(event.requestId);
             cancelledFrontendCommandsRef.current.delete(event.requestId);
         }
@@ -524,6 +528,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         return () => {
             events.close();
             frontendCommandsRef.current.forEach(cancelFrontendCommand);
+            receiptControllersRef.current.forEach((controller) => controller.abort());
+            receiptControllersRef.current.clear();
             frontendCommandsRef.current.clear();
             cancelledFrontendCommandsRef.current.clear();
         };

@@ -16,8 +16,10 @@
  * -------------------------------------------------------------------------
  */
 import { isAbsolute } from "node:path";
+import { randomUUID } from "node:crypto";
 import { runBoundedProcess } from "../infrastructure/boundedProcess.mjs";
 import { capabilityError } from "./registry.mjs";
+import { buildProcessDetails, createToolError, isToolDiagnosticId, normalizeToolError } from "../utils/toolError.mjs";
 
 export const DEFAULT_CLI_TIMEOUT_MS = 120000;
 export const MAX_CLI_TIMEOUT_MS = 3600000;
@@ -60,26 +62,44 @@ export const createCliCapability = ({
             validateCliInput(input, maxTimeoutMs);
         },
         async execute(input, context) {
+            const errorContext = {
+                diagnosticId: isToolDiagnosticId(context.diagnosticId) ? context.diagnosticId : randomUUID(),
+                toolName: definition.name, source: "cli", stage: "execute",
+                outcome: "unknown", retryAdvice: "inspect_before_retry",
+            };
+            if (context.signal?.aborted) {
+                throw cliFailure(capabilityError("CLI_CANCELLED", "CLI invocation was cancelled."), {
+                    ...errorContext, stage: "dispatch", outcome: "not_started", retryAdvice: "do_not_retry",
+                });
+            }
             if (active >= maxConcurrency) {
-                throw capabilityError("CLI_BUSY", `CLI capability '${definition.name}' reached its concurrency limit.`, true);
+                throw cliFailure(capabilityError("CLI_BUSY", `CLI capability '${definition.name}' reached its concurrency limit.`, true), {
+                    ...errorContext, outcome: "not_started", retryAdvice: "retry_after_ready",
+                });
             }
             active += 1;
             try {
-                const result = await runBoundedProcess({
-                    executable,
-                    args: [...argsPrefix, ...input.args],
-                    cwd,
-                    env: createCliEnvironment(env, envKeys, extraEnv),
-                    signal: context.signal,
-                    timeoutMs: input.timeoutMs ?? defaultTimeoutMs,
-                    maxOutputBytes,
-                    spawnProcess,
-                });
+                let result;
+                try {
+                    result = await runBoundedProcess({
+                        executable,
+                        args: [...argsPrefix, ...input.args],
+                        cwd,
+                        env: createCliEnvironment(env, envKeys, extraEnv),
+                        signal: context.signal,
+                        timeoutMs: input.timeoutMs ?? defaultTimeoutMs,
+                        maxOutputBytes,
+                        spawnProcess,
+                    });
+                } catch (error) {
+                    throw cliFailure(error, error.code === "CLI_START_FAILED"
+                        ? { ...errorContext, stage: "dispatch", outcome: "not_started" }
+                        : errorContext);
+                }
                 if (result.exitCode !== 0) {
-                    throw Object.assign(
-                        capabilityError("CLI_EXIT_NONZERO", `CLI process exited with code ${result.exitCode}`),
-                        result,
-                    );
+                    const failedContext = { ...errorContext, outcome: "failed" };
+                    throw cliFailure(capabilityError("CLI_EXIT_NONZERO", `CLI process exited with code ${result.exitCode}`, false,
+                        buildProcessDetails(result, failedContext)), failedContext);
                 }
                 return result;
             } finally {
@@ -87,6 +107,14 @@ export const createCliCapability = ({
             }
         },
     };
+};
+
+const cliFailure = (error, context) => {
+    const details = error.details ?? buildProcessDetails(error, context);
+    const shape = normalizeToolError(Object.assign(new Error(error.message, { cause: error }), {
+        code: error.code, retryable: error.retryable, details,
+    }), context);
+    return createToolError(shape, error);
 };
 
 export const createCliCapabilityDefinition = ({ name, description, maxTimeoutMs = MAX_CLI_TIMEOUT_MS } = {}) => {

@@ -19,6 +19,10 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
+import { randomUUID } from "node:crypto";
+import { boundedDiagnosticText } from "../utils/toolErrorBudget.mjs";
+import { processSummary, toolContentText } from "../utils/toolDisplay.mjs";
+import { formatToolError, isToolDiagnosticId, normalizeToolError } from "../utils/toolError.mjs";
 
 export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, getPromptConfigurationError, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
@@ -265,8 +269,18 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             ? { state, eventBus: { broadcast: () => {} } } : serviceContext;
 
         if (kind === "tool_call" || kind === "tool_call_update") {
-            const toolCall = normalizeToolCall(update);
+            const source = update.toolCall ?? update.tool_call ?? update;
+            const id = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
+            const previous = sessionContext.messages.at(-1)?.content?.find(
+                (block) => block.type === "tool" && block.toolCall.toolCallId === id,
+            )?.toolCall;
+            const toolCall = normalizeToolCall(update, previous, { nativeErrorContract: state.activeAgentName === "msinsight-native" });
             if (toolCall) upsertToolCall(contentContext, sessionId, toolCall);
+            if (toolCall?.status === "failed") {
+                try { console.warn("Tool diagnostic", JSON.stringify({
+                    toolCallId: boundedDiagnosticText(toolCall.toolCallId, 128), diagnosticText: toolCall.output,
+                })); } catch { /* Logging must not replace the tool result. */ }
+            }
             return;
         }
 
@@ -426,20 +440,63 @@ const normalizeContextUsage = (usage) => {
     return { tokens, budget, percent, blockedReason, thresholdPercent };
 };
 
-const normalizeToolCall = (update) => {
+const nativeErrorText = (value) => {
+    if (typeof value !== "string" || value.length > 3600) return undefined;
+    try {
+        const error = JSON.parse(value);
+        if (!error || typeof error !== "object" || Array.isArray(error)
+            || typeof error.code !== "string" || typeof error.message !== "string"
+            || typeof error.retryable !== "boolean" || !isToolDiagnosticId(error.details?.diagnosticId)) return undefined;
+        // Only the selected built-in runtime owns these execution facts, not arbitrary ACP text.
+        return formatToolError(normalizeToolError(error, {
+            diagnosticId: error.details.diagnosticId, toolName: error.details.tool,
+            source: error.details.source, stage: error.details.stage,
+            outcome: error.details.outcome, retryAdvice: error.details.retryAdvice,
+        }));
+    } catch {
+        return undefined;
+    }
+};
+
+export const normalizeToolCall = (update, previous, { nativeErrorContract = false } = {}) => {
     const source = update.toolCall ?? update.tool_call ?? update;
     const toolCallId = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
     if (!toolCallId) return undefined;
-    const status = source.status === undefined ? undefined : normalizeToolStatus(source.status);
+    const status = source.status === undefined ? previous?.status : normalizeToolStatus(source.status);
     const progressValue = source.progress ?? source.content ?? source.message;
-    const progress = progressValue === undefined ? undefined : textFromToolValue(progressValue);
+    const progress = progressValue === undefined ? undefined : toolContentText(progressValue);
+    const rawOutput = source.output ?? source.rawOutput ?? source.raw_output;
+    const process = rawOutput?.schema === "msinsight.tool-process.v1" ? processSummary(rawOutput.process) : undefined;
+    const nativeOutput = nativeErrorContract && status === "failed" ? nativeErrorText(rawOutput) : undefined;
+    let output = nativeOutput ?? (process && typeof rawOutput.text === "string" ? boundedDiagnosticText(rawOutput.text, 3600)
+        : status === "failed" ? toolContentText(rawOutput) || toolContentText(source.content ?? source.message) : limitedToolValue(rawOutput));
+    if (status === "failed" && rawOutput && typeof rawOutput === "object" && !Array.isArray(rawOutput)
+        && typeof rawOutput.message === "string") {
+        output = formatToolError(normalizeToolError(rawOutput, {
+            diagnosticId: randomUUID(), source: "external_acp", stage: "execute",
+            outcome: "unknown", retryAdvice: "inspect_before_retry",
+        }));
+    }
+    if (status === "failed" && !output) {
+        const lastProgress = progress || previous?.progress;
+        const diagnosticId = randomUUID();
+        const missingReason = "Runtime did not provide a failure reason."
+            + (lastProgress ? `\nLast progress: ${boundedDiagnosticText(lastProgress, 600)}` : "");
+        output = previous?.status === "failed" && previous.output ? previous.output
+            : nativeErrorContract ? formatToolError(normalizeToolError({ message: missingReason }, {
+                diagnosticId, toolName: optionalToolName(source.name ?? source.title ?? source.toolName ?? source.tool_name) ?? previous?.name,
+                source: "runtime", stage: "stream", outcome: "unknown", retryAdvice: "inspect_before_retry",
+            })) : `Runtime did not provide a failure reason. diagnosticId=${diagnosticId}`
+                + (lastProgress ? `\nLast progress: ${boundedDiagnosticText(lastProgress, 600)}` : "");
+    }
     return {
         toolCallId,
         name: optionalToolName(source.name ?? source.title ?? source.toolName ?? source.tool_name),
         status,
         input: limitedToolValue(source.input ?? source.rawInput ?? source.raw_input),
         progress: progress ? progress.slice(0, 2000) : undefined,
-        output: limitedToolValue(source.output ?? source.rawOutput ?? source.raw_output),
+        output,
+        process,
         startedAt: finiteNumber(source.startedAt ?? source.started_at),
         durationMs: finiteNumber(source.durationMs ?? source.duration_ms),
     };

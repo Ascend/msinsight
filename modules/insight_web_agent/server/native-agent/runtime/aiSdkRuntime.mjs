@@ -27,6 +27,9 @@ import { limitedToolValue, parseRetryAfterSeconds } from "../shared/utils.mjs";
 import { resolveShellRuntime } from "../tools/shellRuntime.mjs";
 import { normalizeModelCatalog, resolveSessionModel } from "../config/modelCatalog.mjs";
 import { getNativeConfigurationError } from "../config/modelConfiguration.mjs";
+import { formatToolError, inheritToolErrorContext, normalizeToolError, toModelFacingToolError } from "../../utils/toolError.mjs";
+import { processToolDisplay } from "../../utils/toolDisplay.mjs";
+import { readDiagnosticProperty } from "../../utils/toolErrorBudget.mjs";
 
 import { createInterruptedHistory } from "./interruptedHistory.mjs";
 import { acceptSummary, estimateContextTokens, planCompaction, projectMessages, SUMMARY_SYSTEM, validateCheckpoint } from "./contextCompaction.mjs";
@@ -417,13 +420,25 @@ const createAiSdkTools = (toolRegistry, state) => Object.fromEntries(toolRegistr
     tool({
         description: definition.description,
         inputSchema: jsonSchema(definition.inputSchema ?? { type: "object", properties: {} }),
-        execute: (input, options) => {
-            if (options.abortSignal?.aborted) throw new Error("Tool execution cancelled");
-            state.executing.add(options.toolCallId);
-            return toolRegistry.execute(definition.name, input, {
-                sessionId: options.experimental_context?.sessionId,
-                signal: options.abortSignal,
-            });
+        execute: async (input, options) => {
+            const context = ensureToolContext(state, options.toolCallId, definition.name);
+            try {
+                if (options.abortSignal?.aborted) {
+                    throw toModelFacingToolError({
+                        code: "TOOL_CANCELLED", message: "Tool execution cancelled.", retryable: false,
+                    }, { ...context, stage: "dispatch", outcome: "not_started", retryAdvice: "do_not_retry" });
+                }
+                state.executing.add(options.toolCallId);
+                return await toolRegistry.execute(definition.name, input, {
+                    sessionId: options.experimental_context?.sessionId,
+                    signal: options.abortSignal,
+                    toolCallId: options.toolCallId,
+                    diagnosticId: context.diagnosticId,
+                    invocationId: context.diagnosticId,
+                });
+            } catch (error) {
+                throw toModelFacingToolError(error, inheritToolErrorContext(error, context));
+            }
         },
     }),
 ]));
@@ -436,23 +451,36 @@ const isRecoverable = (error) => {
         || ["ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "EAI_AGAIN"].includes(error.cause?.code ?? error.code);
 };
 
-const createStreamState = () => ({
-    history: [],
-    uncertainTool: false,
-    executing: new Set(),
-    content: [],
-    interruptedHistory: createInterruptedHistory(),
-    activeToolCalls: new Set(),
-    toolStartedAt: new Map(),
-    inferredActivity: undefined,
-});
+const createStreamState = () => {
+    const state = {
+        history: [],
+        uncertainTool: false,
+        executing: new Set(),
+        content: [],
+        activeToolCalls: new Set(),
+        toolStartedAt: new Map(),
+        toolDiagnosticContexts: new Map(),
+        inferredActivity: undefined,
+    };
+    state.interruptedHistory = createInterruptedHistory({
+        formatUnknownTool: (call) => unknownToolOutput(state, call.toolCallId, call.toolName, state.interruptionError),
+    });
+    return state;
+};
 
 const collectAiSdkStream = async ({ result, streamState, sessionId, controller, notifier, persist, onProgress }) => {
     const context = { state: streamState, sessionId, notifier };
     try {
-        for await (const event of result.fullStream) {
+        for await (let event of result.fullStream) {
             // Drain already-produced events after abort so completed tool results aren't lost.
             // The SDK abort signal stops production; never execute tools from these history events.
+            if (event.type === "tool-error") {
+                const diagnostic = ensureToolContext(streamState, event.toolCallId, event.toolName);
+                const fallback = streamState.executing.has(event.toolCallId) ? diagnostic : {
+                    ...diagnostic, source: "sdk", stage: "validate", outcome: "not_started", retryAdvice: "correct_input",
+                };
+                event = { ...event, error: toModelFacingToolError(event.error, inheritToolErrorContext(event.error, fallback)) };
+            }
             if (!["error", "abort"].includes(event.type)) streamState.lastEventAt = Date.now();
             streamState.interruptedHistory.event(event);
             if (["text-delta", "reasoning-delta", "tool-call", "tool-result", "tool-error"].includes(event.type)) onProgress(event);
@@ -462,11 +490,14 @@ const collectAiSdkStream = async ({ result, streamState, sessionId, controller, 
         if (controller.signal.aborted) throw Object.assign(new Error("Model request timed out"), { name: "TimeoutError" });
         if (streamState.activeToolCalls.size) throw new Error("AI SDK runtime completed with unfinished tool calls");
     } catch (error) {
+        streamState.interruptionError = error;
         streamState.uncertainTool ||= streamState.activeToolCalls.size > 0 || streamState.executing.size > 0;
         // 已发起工具但未收到结果时不能重放；补齐协议并保留结果未知的事实。
         for (const toolCallId of streamState.activeToolCalls) {
             const call = streamState.history.flatMap((message) => Array.isArray(message.content) ? message.content : []).find((part) => part.type === "tool-call" && part.toolCallId === toolCallId);
-            streamState.history.push({ role: "tool", content: [{ type: "tool-result", toolCallId, toolName: call.toolName, output: { type: "error-text", value: "Tool outcome unknown after interruption. Side effects may have occurred; inspect state before retrying." } }] });
+            streamState.history.push({ role: "tool", content: [{ type: "tool-result", toolCallId, toolName: call.toolName, output: {
+                type: "error-text", value: unknownToolOutput(streamState, toolCallId, call.toolName, error),
+            } }] });
         }
         failActiveToolCalls(context, error);
         throw error;
@@ -509,6 +540,7 @@ const handleStreamEvent = (context, event) => {
 const startToolCall = ({ state, sessionId, notifier }, event) => {
     const toolCallId = String(event.toolCallId);
     const toolName = String(event.toolName);
+    ensureToolContext(state, toolCallId, toolName);
     const call = { type: "tool-call", toolCallId, toolName, input: event.input };
     if (state.history.at(-1)?.role === "assistant" && Array.isArray(state.history.at(-1).content)) state.history.at(-1).content.push(call);
     else state.history.push({ role: "assistant", content: [call] });
@@ -534,10 +566,13 @@ const finishToolCall = (context, event, failed) => {
         name: String(event.toolName),
         input: limitedToolValue(event.input),
     };
-    state.history.push({ role: "tool", content: [{ type: "tool-result", toolCallId, toolName: String(event.toolName), output: failed ? { type: "error-text", value: normalizeError(event.error).message } : { type: "json", value: event.output ?? null } }] });
+    const diagnostic = ensureToolContext(state, toolCallId, event.toolName);
+    const errorOutput = failed ? formatToolError(normalizeToolError(event.error, inheritToolErrorContext(event.error, diagnostic))) : undefined;
+    state.history.push({ role: "tool", content: [{ type: "tool-result", toolCallId, toolName: String(event.toolName), output: failed ? { type: "error-text", value: errorOutput } : { type: "json", value: event.output ?? null } }] });
     state.executing.delete(toolCallId);
     toolCall.status = failed ? "failed" : "completed";
-    toolCall.output = limitedToolValue(failed ? normalizeError(event.error).message : event.output);
+    toolCall.output = failed ? errorOutput : limitedToolValue(event.output);
+    if (!failed && event.toolName === "Bash") Object.assign(toolCall, processToolDisplay(event.output));
     const startedAt = state.toolStartedAt.get(toolCallId);
     toolCall.durationMs = startedAt === undefined ? undefined : Date.now() - startedAt;
     if (!block) state.content.push({ id: toolCallId, type: "tool", toolCall });
@@ -552,11 +587,31 @@ const failActiveToolCalls = ({ state, sessionId, notifier }, error) => {
         const toolCall = state.content.find((item) => item.type === "tool" && item.toolCall.toolCallId === toolCallId)?.toolCall;
         if (!toolCall) continue;
         toolCall.status = "failed";
-        toolCall.output = error.message;
+        toolCall.output = unknownToolOutput(state, toolCallId, toolCall.name, error);
         toolCall.durationMs = toolCall.startedAt ? Date.now() - toolCall.startedAt : undefined;
         notifier.sendToolCallUpdate(sessionId, "tool_call_update", toolCall);
     }
 };
+
+const ensureToolContext = (state, toolCallId, toolName) => {
+    const id = String(toolCallId);
+    if (!state.toolDiagnosticContexts.has(id)) {
+        state.toolDiagnosticContexts.set(id, {
+            diagnosticId: randomUUID(), toolName: String(toolName),
+            source: toolName === "msinsight" ? "command" : toolName === "rag_retrieve" ? "rag"
+                : toolName === "Bash" ? "bash" : toolName === "skill" ? "skill" : "cli",
+            stage: "execute", outcome: "unknown", retryAdvice: "inspect_before_retry",
+        });
+    }
+    return state.toolDiagnosticContexts.get(id);
+};
+
+const unknownToolOutput = (state, toolCallId, toolName, cause) => formatToolError(normalizeToolError(Object.assign(new Error(
+    "Tool outcome unknown after interruption. Side effects may have occurred; inspect state before retrying.", { cause },
+), {
+    code: "TOOL_OUTCOME_UNKNOWN", retryable: false,
+    details: { httpStatus: readDiagnosticProperty(cause, "statusCode") ?? readDiagnosticProperty(cause, "status") },
+}), { ...ensureToolContext(state, toolCallId, toolName), source: "runtime", stage: "stream" }));
 
 const appendTextBlock = (state, type, text) => {
     const last = state.content.at(-1);

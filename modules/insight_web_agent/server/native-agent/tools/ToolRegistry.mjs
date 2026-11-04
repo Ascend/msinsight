@@ -16,6 +16,9 @@
  * -------------------------------------------------------------------------
  */
 
+import { randomUUID } from "node:crypto";
+import { createToolError, isToolDiagnosticId, normalizeToolError } from "../../utils/toolError.mjs";
+
 export const createToolRegistry = ({ tools = [] } = {}) => {
     const registry = new Map();
 
@@ -45,7 +48,10 @@ export const createToolRegistry = ({ tools = [] } = {}) => {
         },
         async execute(name, input, context) {
             const tool = registry.get(String(name ?? ""));
-            if (!tool) throw new Error(`tool is unavailable: ${name}`);
+            if (!tool) throw createToolError(normalizeToolError({
+                code: "TOOL_NOT_FOUND", message: `tool is unavailable: ${name}`,
+            }, { diagnosticId: isToolDiagnosticId(context?.diagnosticId) ? context.diagnosticId : randomUUID(),
+                source: "runtime", stage: "validate", outcome: "not_started", retryAdvice: "correct_input" }));
             return tool.execute(input ?? {}, context ?? {});
         },
     };

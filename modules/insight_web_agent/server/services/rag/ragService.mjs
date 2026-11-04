@@ -29,6 +29,7 @@ import {
 } from "./hybridRetriever.mjs";
 import { createVectorRetriever } from "./vectorRetriever.mjs";
 import { resolveRagTarget } from "./platformSupport.mjs";
+import { notifyRagDiagnostic, ragStatusReason } from "./ragDiagnostic.mjs";
 
 const DEFAULT_TOP_K = 5;
 const DEFAULT_MAX_CONTEXT_CHARS = 100000;
@@ -54,6 +55,7 @@ export const createRagService = async ({
 } = {}) => {
     const ragConfig = normalizeConfig(config.rag ?? config);
     if (!ragConfig.enabled) return createDisabledRagService("disabled");
+    let failureReason = "embedding_unavailable";
     try {
         resolveRagTarget({ platform, arch, libc });
         const createService = createEmbedding ?? (await import("./embeddingService.mjs")).createEmbeddingService;
@@ -65,16 +67,18 @@ export const createRagService = async ({
             arch,
             libc,
         });
+        failureReason = "knowledge_pack_unavailable";
         const knowledgePack = await loadPack(ragConfig.ragDataDir, {
             runtimeDir: ragConfig.runtimeDir,
             modelContract: embeddingService.contract,
         });
         logger?.info?.(`RAG loaded: ${knowledgePack.manifest.kbId}/${knowledgePack.manifest.kbVersion}; chunks=${knowledgePack.chunks.length}`);
+        failureReason = "index_unavailable";
         return createEnabledRagService({ config: ragConfig, knowledgePack, embeddingService, logger });
     } catch (error) {
-        logger?.warn?.(`RAG disabled: ${stableError(error)}`);
+        try { logger?.warn?.(`RAG disabled: ${stableError(error)}`); } catch { /* Keep fail-open semantics. */ }
         if (!ragConfig.failOpen) throw error;
-        return createDisabledRagService(error?.code ?? "load_failed");
+        return createDisabledRagService(ragStatusReason(error?.code, failureReason));
     }
 };
 
@@ -108,13 +112,17 @@ export const createEnabledRagService = ({ config = {}, knowledgePack, embeddingS
         async retrieve(query, options = {}) {
             const normalizedQuery = String(query ?? "").trim();
             if (!normalizedQuery) return undefined;
+            let failureReason = "retrieval_failed";
             try {
                 return await queue.run(async () => {
                     const { retrievalQuery, inheritedProjectId } = completeRetrievalQuery(normalizedQuery, options.previousUserText, projectCatalog);
+                    failureReason = "embedding_unavailable";
                     const [queryVector] = await embeddingService.embedQueries([retrievalQuery]);
+                    failureReason = "index_unavailable";
                     const vectorRanked = vectorRetriever.rank(queryVector, VECTOR_TOP_K);
                     const bm25Ranked = bm25Retriever.rank(knowledgePack.bm25, retrievalQuery, BM25_TOP_K);
                     const fused = fuseRrf([vectorRanked, bm25Ranked], { limit: VECTOR_TOP_K + BM25_TOP_K });
+                    failureReason = "retrieval_failed";
                     const reranked = rerankCandidates(retrievalQuery, fused, knowledgePack.chunks, vectorRanked, bm25Ranked, projectCatalog);
                     const resultLimit = Math.min(ragConfig.topK, FINAL_TOP_K);
                     const primaryRanked = diversifyByDocument(reranked, knowledgePack.chunks, resultLimit);
@@ -138,8 +146,9 @@ export const createEnabledRagService = ({ config = {}, knowledgePack, embeddingS
                     return result;
                 });
             } catch (error) {
-                logger?.warn?.(`RAG retrieval failed: ${stableError(error)}`);
+                try { logger?.warn?.(`RAG retrieval failed: ${stableError(error)}`); } catch { /* Keep retrieval semantics. */ }
                 if (error?.code === "rag_busy" && options.propagateBusy === true) throw error;
+                if (error?.code !== "rag_busy") notifyRagDiagnostic(options.onDiagnostic, failureReason);
                 if (ragConfig.failOpen) return undefined;
                 throw error;
             }
@@ -267,4 +276,4 @@ const diversifyByDocument = (ranked, chunks, limit) => {
     return selected;
 };
 
-const stableError = (error) => String(error?.code ?? error?.name ?? "rag_error");
+const stableError = (error) => ragStatusReason(error?.code, "retrieval_failed");

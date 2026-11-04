@@ -7,6 +7,7 @@
  * -------------------------------------------------------------------------
  */
 import type { CommandHandler, ObservationData } from '@insight/lib/FrontendAgentCommand';
+import { CommandError, COMMAND_ERROR_CODES } from '@insight/lib/FrontendAgentCommand';
 import type { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandClient';
 import type { Session } from '../entity/session';
 import connector from '../connection';
@@ -232,6 +233,19 @@ const locateInTimeline: CommandHandler = async (args, context) => {
         state.chart.data?.find(item => item.rankId === rankId)?.dbPath !== dbPath) {
         throw new Error('The communication context or target changed during Timeline navigation.');
     }
+    const backendError = (detail as unknown as { error?: { code?: unknown; message?: unknown } })?.error;
+    if (backendError && typeof backendError.message === 'string') {
+        const backendCode = typeof backendError.code === 'number' || (typeof backendError.code === 'string' &&
+            /^[\w.-]{1,80}$/.test(backendError.code))
+            ? backendError.code
+            : undefined;
+        throw new CommandError({
+            code: COMMAND_ERROR_CODES.EXECUTION_FAILED,
+            message: safeBackendMessage(backendError.message),
+            retryable: false,
+            ...(backendCode === undefined ? {} : { details: { backendCode } }),
+        });
+    }
     if (detail?.startTime === undefined || detail?.pid === undefined) throw new Error('The selected operator could not be located in Timeline.');
     connector.send({
         event: 'switchModule',
@@ -250,6 +264,17 @@ const locateInTimeline: CommandHandler = async (args, context) => {
         },
     });
     return { rankId, operatorName: name, navigated: true };
+};
+
+const safeBackendMessage = (message: string): string => {
+    if (/<\s*(?:html|body|script|!doctype)\b/i.test(message)) return 'Timeline backend query failed.';
+    return message.slice(0, 4096)
+        .replace(/\bBearer\s+[\w.~+/-]+=*/gi, 'Bearer [REDACTED]')
+        .replace(/(\b(?:authorization|proxy-authorization)\b["']?\s*[:=]\s*)(?:basic|bearer|digest|ntlm)\s+[A-Za-z0-9._~+/=-]+/gi, '$1[REDACTED]')
+        .replace(/(\b(?:token|secret|password|api[_-]?key|authorization)\b["']?\s*[:=]\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,}]+)/gi, '$1[REDACTED]')
+        .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^/\s@]+@/gi, '[REDACTED]@')
+        .replace(/\b[A-Za-z]:[\\/][^\s"'<>]+|(?:^|\s)\/[^\s"'<>]+/g, ' [path]')
+        .replace(/\p{Cc}/gu, ' ').slice(0, 600) || 'Timeline backend query failed.';
 };
 
 export const registerCommunicationCommands = (client: ModuleAgentCommandClient): (() => void) => {

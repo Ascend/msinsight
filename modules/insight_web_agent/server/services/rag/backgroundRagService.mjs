@@ -3,8 +3,9 @@
  * MindStudio is licensed under Mulan PSL v2.
  */
 import { Worker } from "node:worker_threads";
+import { notifyRagDiagnostic, ragStatusReason } from "./ragDiagnostic.mjs";
 
-const stableReason = (value, fallback) => /^[a-z0-9_]{1,64}$/.test(String(value ?? "")) ? value : fallback;
+const stableReason = ragStatusReason;
 const workerError = (code) => Object.assign(new Error(code), { code });
 
 // The Host keeps a synchronous status facade; CPU-heavy loading and inference
@@ -32,7 +33,10 @@ export const createBackgroundRagService = ({
         resolveStart?.({ ...status });
     };
     const rejectPending = (error) => {
-        for (const request of pending.values()) request.reject(error);
+        for (const request of pending.values()) {
+            notifyRagDiagnostic(request.onDiagnostic, "worker_unavailable");
+            request.reject(error);
+        }
         pending.clear();
     };
     const fail = (reason) => {
@@ -65,6 +69,7 @@ export const createBackgroundRagService = ({
                 } else if (message.type === "result") {
                     const request = pending.get(message.id);
                     if (!request) return;
+                    if (message.diagnostic) notifyRagDiagnostic(request.onDiagnostic, message.diagnostic);
                     if (message.error) request.reject(workerError(stableReason(message.error, "rag_retrieval_failed")));
                     else request.resolve(message.result);
                 }
@@ -81,7 +86,10 @@ export const createBackgroundRagService = ({
     };
 
     const retrieve = (query, options = {}) => {
-        if (closed) return Promise.reject(workerError("rag_worker_closed"));
+        if (closed) {
+            notifyRagDiagnostic(options.onDiagnostic, "worker_unavailable");
+            return Promise.reject(workerError("rag_worker_closed"));
+        }
         if (options.signal?.aborted) return Promise.reject(Object.assign(new Error("RAG request aborted"), { name: "AbortError" }));
         if (!status.enabled || !worker) return Promise.resolve(undefined);
         return new Promise((resolve, reject) => {
@@ -92,7 +100,7 @@ export const createBackgroundRagService = ({
                 callback(value);
             };
             const abort = () => finish(reject, Object.assign(new Error("RAG request aborted"), { name: "AbortError" }));
-            pending.set(id, { resolve: (value) => finish(resolve, value), reject: (error) => finish(reject, error) });
+            pending.set(id, { onDiagnostic: options.onDiagnostic, resolve: (value) => finish(resolve, value), reject: (error) => finish(reject, error) });
             options.signal?.addEventListener("abort", abort, { once: true });
             try {
                 worker.postMessage({ type: "retrieve", id, query, options: {
@@ -100,6 +108,7 @@ export const createBackgroundRagService = ({
                     propagateBusy: options.propagateBusy,
                 } });
             } catch {
+                notifyRagDiagnostic(options.onDiagnostic, "worker_unavailable");
                 finish(reject, workerError("rag_worker_send_failed"));
             }
         });

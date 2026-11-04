@@ -51,6 +51,7 @@ export interface ToolCallItem {
     input?: string;
     progress?: string;
     output?: string;
+    process?: { exitCode: number | null; signal?: string };
     startedAt?: number;
     durationMs?: number;
 }

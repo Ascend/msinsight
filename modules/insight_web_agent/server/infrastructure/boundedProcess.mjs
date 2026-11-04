@@ -29,7 +29,7 @@ export const runBoundedProcess = ({ executable, args, cwd, env, signal, timeoutM
             shell: false,
         });
     } catch (error) {
-        reject(processError("CLI_START_FAILED", `Failed to start process: ${error.message}`));
+        reject(processError("CLI_START_FAILED", `Failed to start process: ${error.message}`, false, error));
         return;
     }
     let stdout = "";
@@ -70,7 +70,9 @@ export const runBoundedProcess = ({ executable, args, cwd, env, signal, timeoutM
         }
         outputBytes += data.length;
         if (outputBytes > maxOutputBytes) {
-            terminate(processError("CLI_OUTPUT_LIMIT", `Process output exceeded ${maxOutputBytes} bytes`));
+            terminate(Object.assign(processError("CLI_OUTPUT_LIMIT", `Process output exceeded ${maxOutputBytes} bytes`), {
+                captureLimited: true, limitBytes: maxOutputBytes,
+            }));
         }
     };
     const abort = () => terminate(processError(
@@ -78,17 +80,19 @@ export const runBoundedProcess = ({ executable, args, cwd, env, signal, timeoutM
         signal?.reason instanceof Error ? signal.reason.message : "Process was cancelled",
     ));
     const timeout = setTimeout(
-        () => terminate(processError("CLI_TIMEOUT", `Process timed out after ${timeoutMs} milliseconds`, true)),
+        () => terminate(Object.assign(processError("CLI_TIMEOUT", `Process timed out after ${timeoutMs} milliseconds`, true), { timeoutMs })),
         timeoutMs,
     );
 
     child.stdout?.on("data", (chunk) => append("stdout", chunk));
     child.stderr?.on("data", (chunk) => append("stderr", chunk));
-    child.once("error", (error) => finish(reject, processError("CLI_START_FAILED", `Failed to start process: ${error.message}`)));
+    child.once("error", (error) => finish(reject, processError("CLI_START_FAILED", `Failed to start process: ${error.message}`, false, error)));
     child.once("close", (code, childSignal) => {
         if (terminationError) {
             terminationError.stdout = stdout;
             terminationError.stderr = stderr;
+            terminationError.exitCode = code;
+            terminationError.signal = childSignal ?? undefined;
             finish(reject, terminationError);
             return;
         }
@@ -98,7 +102,7 @@ export const runBoundedProcess = ({ executable, args, cwd, env, signal, timeoutM
     if (signal?.aborted) abort();
 });
 
-const processError = (code, message, retryable = false) => Object.assign(new Error(message), { code, retryable });
+const processError = (code, message, retryable = false, cause) => Object.assign(new Error(message, cause === undefined ? undefined : { cause }), { code, retryable });
 
 const terminateProcessTree = (child, spawnProcess) => {
     if (!child.pid) {
