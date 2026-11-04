@@ -89,16 +89,19 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 2. 进入MindStudio Insight  Setup界面，单击“Next”，如[**图 1** Setup](#Setup)所示。
 
     **图 1** Setup<a id="Setup"></a>
+
     ![](./figures/install_guide/Setup.png "Setup")
 
 3. 进入许可协议界面，单击“I Agree”，如[**图 2**  License-Agreement](#License-Agreement)所示。
 
     **图 2**  License-Agreement<a id="License-Agreement"></a>
+
     ![](./figures/install_guide/License-Agreement.png "License-Agreement")
 
 4. 选择MindStudio Insight的安装路径，单击“Next”，如[**图 3**  选择安装路径](#选择安装路径)所示。
 
     **图 3**  选择安装路径<a id="选择安装路径"></a>
+
     ![](./figures/install_guide/select_installation_path_1.png "选择安装路径")
 
     > [!NOTE]
@@ -108,11 +111,13 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 5. 选择安装组件MindStudio Insight，单击“Install”，如[**图 4**  选择安装组件](#选择安装组件)所示。
 
     **图 4**  选择安装组件<a id="选择安装组件"></a>
+
     ![](./figures/install_guide/select_installation_components_1.png "选择安装组件")
 
 6. 完成MindStudio Insight安装，单击“Finish”，如[**图 5**  完成安装](#完成安装)所示。<a id="6"></a>
 
     **图 5**  完成安装 <a id="完成安装"></a>
+
     ![](./figures/install_guide/installation_completed_1.png "完成安装")
 
 7. 启动MindStudio Insight。
@@ -399,11 +404,13 @@ vncserver -localhost -geometry 1920x1080
 2. 单击“New SSH Tunnel”，新建一个SSH配置。
 
     **图 1**  新建SSH配置
+
     ![](./figures/install_guide/create_new_ssh_config_1.png "新建SSH配置")
 
 3. 选择“Local port forwarding”，按照[**表 2**  配置Local port forwarding页面信息](#配置Local_port_forwarding页面信息)配置页面信息。
 
     **图 2**  Local port forwarding
+
     ![](./figures/install_guide/Local-port-forwarding.png "Local-port-forwarding")
 
     **表 2**  配置Local port forwarding页面信息<a id="配置Local_port_forwarding页面信息"></a>
@@ -427,17 +434,19 @@ vncserver -localhost -geometry 1920x1080
 1. 在MobaXterm工具首页，单击“Session”，进入Session settings页面。
 2. 单击“VNC”，根据实际情况配置“Remote hostname or IP address”和“Port”。
 
-> [!NOTE]
->
-> - 如果使用了端口转发功能，“Remote hostname or IP address”为127.0.0.1，“Port”为端口转发中的Forwarded port。
-> - 如果未使用端口转发，“Remote hostname or IP address”为实际远端Linux的IP，“Port”为5900加设置VNC Server中的`x`（显示序号）值。
+    > [!NOTE]
+    >
+    > - 如果使用了端口转发功能，“Remote hostname or IP address”为127.0.0.1，“Port”为端口转发中的Forwarded port。
+    > - 如果未使用端口转发，“Remote hostname or IP address”为实际远端Linux的IP，“Port”为5900加设置VNC Server中的`x`（显示序号）值。<br>
 
     **图 3**  配置VNC
+
     ![](./figures/install_guide/configure_vnc_1.png "配置VNC")
 
 3. 配置完成后，单击“OK”，在弹窗中输入VNC的密码后，将桌面转发至本地进行后续操作。
 
     **图 4**  桌面
+
     ![](./figures/install_guide/desktop_1.png "桌面")
 
 <h4 id="安装x11转发方式">安装X11转发方式</h4>
@@ -783,11 +792,13 @@ docker logs msinsight
 1. 鼠标双击“MindStudio-Insight\__\{version\}_\_macos-_\{arch\}_.dmg”软件包，进入许可协议界面，单击“Agree”，如[**图 1**  许可协议](#许可协议)所示。
 
     **图 1**  许可协议<a id="许可协议"></a>
+
     ![](./figures/install_guide/license_agreement_1.png "许可协议")
 
 2. 弹出Installer弹窗，在Installer弹窗中，将MindStudio Insight应用拖拽至Applications文件夹中，如[**图 2**  拖拽应用至文件夹](#拖拽应用至文件夹)所示。
 
     **图 2**  拖拽应用至文件夹<a id="拖拽应用至文件夹"></a>
+
     ![](./figures/install_guide/drag_app_to_folder_1.png "拖拽应用至文件夹")
 
 3. 在应用程序中双击MindStudio Insight应用，即可打开MindStudio Insight工具。
@@ -899,6 +910,7 @@ docker logs msinsight
     启用后，使用浏览器，输入http://\{_your\_server\_ip_\}:\{_your\_server\_port_\}/lab地址，打开JupyterLab环境首页，如[**图 1**  JupyterLab环境首页](#JupyterLab环境首页)所示，单击MindStudio Insight图标，即可打开MindStudio Insight工具（端口号可在终端实时查看，端口号port默认值为“8888”）。
 
     **图 1**  JupyterLab环境首页<a id="JupyterLab环境首页"></a>
+
     ![](./figures/install_guide/jupyterlab_homepage_1.png "JupyterLab环境首页")
 
 4. 如果打开JupyterLab环境首页后，未发现MindStudio Insight图标，可执行以下命令，查看MindStudio Insight插件是否开启。
@@ -952,6 +964,50 @@ docker logs msinsight
             ```
 
         2. 参见[3](#jupyter_3)重新启动JupyterLab服务并打开MindStudio Insight工具。
+
+    - JupyterLab支持通过如下三种方式配置导入数据的默认目录（按照优先级排序），具体配置完成后，导入数据界面如[**图 2** JupyterLab配置默认目录](#JupyterLab配置默认目录)所示。
+
+        1. 通过命令行显示配置默认目录，命令及回显如下：
+
+            ```bash
+            #通过命令行显示配置默认目录
+            jupyter lab --MSInsight.initial_dir="/home"
+
+            #回显如下
+            MindStudio Insight file selector initial directory (MSInsight.initial_dir): '/home'
+            ```
+
+        2. 通过配置文件显示配置默认目录，命令及回显如下：
+
+            ```bash
+            # 通过jupyter_server_config.py配置文件配置默认目录
+            c.MSInsight.initial_dir = "/home"
+
+            #启动JupyterLab（注意，root用户启动需要增加“--allow-root”）
+            jupyter lab
+
+            #回显如下
+            MindStudio Insight file selector initial directory (MSInsight.initial_dir): '/home'
+            ```
+
+        3. 通过环境变量配置默认目录，命令及回显如下：
+
+            ```bash
+            #通过配置文件显示配置默认目录
+            export MINDSTUDIO_INSIGHT_INITIAL_DIR="/home"
+
+            #启动JupyterLab（注意，root用户启动需要增加“--allow-root”）
+            jupyter lab
+
+            #回显如下
+            MindStudio Insight file selector initial directory (MSInsight.initial_dir): '/home'
+            ```
+        
+        4. 若以上配置命令为空字符串，则按照MindStudio Insight默认路径导入数据。
+        
+        **图 2** JupyterLab配置默认目录<a id="JupyterLab配置默认目录"></a>
+
+        ![](./figures/install_guide/jupyterlab_default_path_1.png "JupyterLab配置默认目录")
 
     - 在JupyterLab环境首页，可多次单击MindStudio Insight图标，打开多个MindStudio Insight页签，且可同时使用。
 
@@ -1033,21 +1089,25 @@ python resources/profiler/plugin_install.py install --path="plugin package path"
 1. 进入MindStudio Insight安装目录，双击**Uninstall.exe**，弹出卸载界面，单击“Uninstall”后进行卸载，如[**图 1** MindStudio Insight卸载界面](#MindStudio-Insight卸载界面)所示。
 
     **图 1** MindStudio Insight卸载界面<a id="MindStudio-Insight卸载界面"></a>
+    
     ![](./figures/install_guide/mindstudio_insight_uninstall_interface_1.png "MindStudio-Insight卸载界面")
 
 2. 单击“Next”。
 
     **图 2**  卸载
+
     ![](./figures/install_guide/uninstall_1.png "卸载")
 
 3. 勾选“Remove cache data”清理缓存数据，单击“Uninstall”卸载。
 
     **图 3**  清理缓存数据
+
     ![](./figures/install_guide/clear_cache_data_1.png "清理缓存数据")
 
 4. 完成卸载。
 
     **图 4**  卸载完成
+
     ![](./figures/install_guide/uninstall_completed_1.png "卸载完成")
 
 </details>
