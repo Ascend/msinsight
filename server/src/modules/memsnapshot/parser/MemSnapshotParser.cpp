@@ -18,6 +18,7 @@
 
 #include "FileUtil.h"
 #include "PythonUtil.h"
+#include "MemSnapshotFrameTreeService.h"
 #include "SafeFile.h"
 #include "DataBaseManager.h"
 #include "MemSnapshotParser.h"
@@ -154,6 +155,7 @@ MemSnapshotParser &MemSnapshotParser::Instance() {
 }
 
 void MemSnapshotParser::Reset() {
+    MemSnapshotFrameTreeService::ClearCache();
     Server::ServerLog::Info("[Snapshot] Parser Reset.");
     _threadPool->Reset();
     parseContext.Reset();

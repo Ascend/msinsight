@@ -26,10 +26,12 @@
 #include "QueryMemSnapshotAllocationHandler.h"
 #include "QueryMemSnapshotAllocationLinesHandler.h"
 #include "QueryMemSnapshotEventHandler.h"
+#include "QueryMemSnapshotFrameTreeHandler.h"
 #include "QueryMemSnapshotDetailHandler.h"
 #include "QueryMemSnapshotStateHandler.h"
 #include "QueryMemSnapshotLeakStatsHandler.h"
 #include "MemScopeModule.h"
+#include "MemSnapshotFrameTreeService.h"
 
 using namespace Dic::Module::MemScope;
 
@@ -50,12 +52,16 @@ void MemScopeModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(
         REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES, std::make_unique<QueryMemSnapshotAllocationLinesHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_EVENTS, std::make_unique<QueryMemSnapshotEventHandler>());
+    requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_FRAME_TREE, std::make_unique<QueryMemSnapshotFrameTreeHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_DETAIL, std::make_unique<QueryMemSnapshotDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_STATE, std::make_unique<QueryMemSnapshotStateHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_LEAK_STATS, std::make_unique<QueryMemSnapshotLeakStatsHandler>());
 }
 
 void MemScopeModule::OnRequest(std::unique_ptr<Protocol::Request> request) {
+    if (request->command == REQ_RES_MEM_SNAPSHOT_FRAME_TREE) {
+        MemSnapshot::MemSnapshotFrameTreeService::NotifyRequest(request->id);
+    }
     BaseModule::OnRequest(std::move(request));
 }
 } // end of namespace Dic::Module

@@ -40,6 +40,8 @@ void MemScopeProtocolUtil::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(
         REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES, ProtocolUtil::BuildRequestFromJson<MemSnapshotAllocationLinesRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_EVENTS, ProtocolUtil::BuildRequestFromJson<MemSnapshotEventsRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_MEM_SNAPSHOT_FRAME_TREE, ProtocolUtil::BuildRequestFromJson<MemSnapshotFrameTreeRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_DETAIL, ProtocolUtil::BuildRequestFromJson<MemSnapshotDetailRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_STATE, ProtocolUtil::BuildRequestFromJson<MemSnapshotStateRequest>);
     jsonToReqFactory.emplace(
@@ -56,6 +58,7 @@ void MemScopeProtocolUtil::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_ALLOCATIONS, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_EVENTS, ProtocolUtil::CommonResponseToJson);
+    resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_FRAME_TREE, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_DETAIL, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_STATE, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_LEAK_STATS, ProtocolUtil::CommonResponseToJson);

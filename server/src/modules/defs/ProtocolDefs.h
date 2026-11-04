@@ -181,6 +181,7 @@ const std::string REQ_RES_MEM_SNAPSHOT_BLOCKS = "Memory/snapshot/blocks";
 const std::string REQ_RES_MEM_SNAPSHOT_ALLOCATIONS = "Memory/snapshot/allocations";
 const std::string REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES = "Memory/snapshot/allocationLines";
 const std::string REQ_RES_MEM_SNAPSHOT_EVENTS = "Memory/snapshot/events";
+const std::string REQ_RES_MEM_SNAPSHOT_FRAME_TREE = "Memory/snapshot/frameTree";
 const std::string REQ_RES_MEM_SNAPSHOT_DETAIL = "Memory/snapshot/detail";
 const std::string REQ_RES_MEM_SNAPSHOT_STATE = "Memory/snapshot/state";
 const std::string REQ_RES_MEM_SNAPSHOT_LEAK_STATS = "Memory/snapshot/leakStats";
