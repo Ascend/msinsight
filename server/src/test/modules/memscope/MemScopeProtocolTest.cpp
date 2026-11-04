@@ -46,11 +46,13 @@ TEST_F(MemScopeProtocolTest, RegistersBothScopeAndSnapshotRoutes) {
 
     InspectableMemScopeModule module;
     module.RegisterRequestHandlers();
-    EXPECT_EQ(module.HandlerCount(), 12U);
+    EXPECT_EQ(module.HandlerCount(), 13U);
     EXPECT_TRUE(module.HasHandler(Dic::Protocol::REQ_RES_MEM_SCOPE_MEMORY_BLOCKS));
     EXPECT_TRUE(module.HasHandler(Dic::Protocol::REQ_RES_MEM_SNAPSHOT_BLOCKS));
+    EXPECT_TRUE(module.HasHandler(Dic::Protocol::REQ_RES_MEM_SNAPSHOT_FRAME_TREE));
     module.RegisterRequestHandlers();
-    EXPECT_EQ(module.HandlerCount(), 12U);
+    EXPECT_EQ(module.HandlerCount(), 13U);
+    EXPECT_TRUE(module.HasHandler(Dic::Protocol::REQ_RES_MEM_SNAPSHOT_FRAME_TREE));
 }
 
 TEST_F(MemScopeProtocolTest, RequestsRejectMissingBaseAndRequiredParams) {

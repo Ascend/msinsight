@@ -26,6 +26,7 @@
 #include "MemSnapshotDefs.h"
 #include "MemSnapshotTableColumn.h"
 #include "MemSnapshotResponseDTO.h"
+#include "MemSnapshotFrameTreeService.h"
 
 namespace Dic::Protocol {
 using namespace Dic::Module;
@@ -107,6 +108,84 @@ struct MemSnapshotBlocksResponse : public JsonResponse {
             }
         }
         JsonUtil::AddMember(body, "blocks", jsonBlocks, allocator);
+        JsonUtil::AddMember(json, "body", body, allocator);
+        return std::optional<document_t>{std::move(json)};
+    }
+};
+
+struct MemSnapshotFrameTreeResponse : public JsonResponse {
+    MemSnapshotFrameTreeResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_FRAME_TREE) {}
+    std::shared_ptr<const SnapshotFrameTree> tree;
+    uint64_t offset{0};
+    uint64_t pageSize{0};
+
+    // 页长只限制节点数，不限制文本长度。计入 JSON 转义后校验整页，超限明确失败，不能返回短页。
+    [[nodiscard]] bool CheckPageBudget() const {
+        constexpr uint64_t MAX_PAGE_BYTES = 16 * 1024 * 1024;
+        uint64_t remaining = MAX_PAGE_BYTES - 4096;
+        const uint64_t total = tree ? tree->nodes.size() : 0;
+        const auto end = offset < total ? offset + std::min(pageSize, total - offset) : offset;
+        for (auto index = offset; index < end; ++index) {
+            const auto &node = tree->nodes[index];
+            const auto textBytes = node.nodeId.size() + (node.parentId ? node.parentId->size() : 0) + node.kind.size() +
+                (node.frame ? node.frame->filename.size() + node.frame->name.size() : 0);
+            if (remaining < 1024 || textBytes > (remaining - 1024) / 6) {
+                return false;
+            }
+            remaining -= 1024 + 6 * textBytes;
+        }
+        return true;
+    }
+
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
+        document_t json(kObjectType);
+        auto &allocator = json.GetAllocator();
+        ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
+        json_t body(kObjectType);
+        json_t nodes(kArrayType);
+        const uint64_t total = tree ? tree->nodes.size() : 0;
+        JsonUtil::AddMember(body, "total", total, allocator);
+        const auto end = offset < total ? offset + std::min(pageSize, total - offset) : offset;
+        for (auto i = offset; i < end; ++i) {
+            const auto &node = tree->nodes[i];
+            json_t value(kObjectType);
+            JsonUtil::AddMember(value, "nodeId", node.nodeId, allocator);
+            json_t parent(kNullType);
+            if (node.parentId.has_value()) {
+                parent.SetString(node.parentId->data(), node.parentId->size(), allocator);
+            }
+            JsonUtil::AddMember(value, "parentId", parent, allocator);
+            JsonUtil::AddMember(value, "depth", node.depth, allocator);
+            JsonUtil::AddMember(value, "kind", node.kind, allocator);
+            json_t frame(kNullType);
+            if (node.frame.has_value()) {
+                frame.SetObject();
+                JsonUtil::AddMember(frame, "filename", node.frame->filename, allocator);
+                JsonUtil::AddMember(frame, "line", node.frame->line, allocator);
+                JsonUtil::AddMember(frame, "name", node.frame->name, allocator);
+            }
+            JsonUtil::AddMember(value, "frame", frame, allocator);
+            JsonUtil::AddMember(value, "sizeBytes", std::to_string(node.total.sizeBytes), allocator);
+            JsonUtil::AddMember(value, "selfBytes", std::to_string(node.self.sizeBytes), allocator);
+            JsonUtil::AddMember(value, "requestedBytes", std::to_string(node.total.requestedBytes), allocator);
+            JsonUtil::AddMember(value, "selfRequestedBytes", std::to_string(node.self.requestedBytes), allocator);
+            JsonUtil::AddMember(value, "blockCount", std::to_string(node.total.blockCount), allocator);
+            JsonUtil::AddMember(value, "selfBlockCount", std::to_string(node.self.blockCount), allocator);
+            JsonUtil::AddMember(value, "childCount", node.childCount, allocator);
+            nodes.PushBack(value, allocator);
+        }
+        JsonUtil::AddMember(body, "nodes", nodes, allocator);
+        if (tree) {
+            json_t coverage(kObjectType);
+            JsonUtil::AddMember(coverage, "dynamicBlocks", std::to_string(tree->dynamicBlocks), allocator);
+            JsonUtil::AddMember(coverage, "allocationEventsResolved", std::to_string(tree->resolvedBlocks), allocator);
+            JsonUtil::AddMember(coverage, "orderedFrameBlocks", std::to_string(tree->orderedFrameBlocks), allocator);
+            JsonUtil::AddMember(
+                coverage, "allocationSourceComplete", tree->resolvedBlocks == tree->dynamicBlocks, allocator);
+            JsonUtil::AddMember(
+                coverage, "orderedFramesComplete", tree->orderedFrameBlocks == tree->dynamicBlocks, allocator);
+            JsonUtil::AddMember(body, "sourceCoverage", coverage, allocator);
+        }
         JsonUtil::AddMember(json, "body", body, allocator);
         return std::optional<document_t>{std::move(json)};
     }

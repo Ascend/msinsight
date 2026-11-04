@@ -49,6 +49,8 @@ struct MemSnapshotSliceManifest {
     std::string cacheHash;
     int64_t eventsPerSlice{0};
     std::unordered_map<std::string, MemSnapshotDeviceSliceInfo> devices;
+    // 无声明的旧产物仍可使用，但不能把未知旁表视为有序帧证据。
+    int orderedFramesVersion{0};
 
     [[nodiscard]] bool IsValid() const;
     [[nodiscard]] bool IsComplete() const;

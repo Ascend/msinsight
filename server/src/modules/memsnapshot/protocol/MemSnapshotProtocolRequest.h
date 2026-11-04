@@ -251,6 +251,61 @@ struct MemSnapshotBlocksRequest : Request {
     }
 };
 
+struct MemSnapshotFrameTreeParams {
+    static constexpr int64_t MAX_PAGE_SIZE = 1000;
+    std::string deviceId;
+    int64_t eventId{0};
+    bool includeStatic{true};
+    int64_t currentPage{0};
+    int64_t pageSize{0};
+
+    bool CommonCheck(std::string &error) const {
+        if (deviceId.empty() || deviceId.size() > 20 || deviceId.find_first_not_of("0123456789") != std::string::npos ||
+            (deviceId.size() > 1 && deviceId.front() == '0') || eventId < 0 || eventId > 9007199254740991LL) {
+            error = "Invalid frame tree deviceId or eventId";
+            return false;
+        }
+        if (currentPage < 1 || pageSize < 1 || pageSize > MAX_PAGE_SIZE || currentPage > INT64_MAX / pageSize) {
+            error = "Invalid frame tree pagination; currentPage>=1 and pageSize in [1,1000] required";
+            return false;
+        }
+        return true;
+    }
+};
+
+struct MemSnapshotFrameTreeRequest : Request {
+    MemSnapshotFrameTreeRequest() : Request(REQ_RES_MEM_SNAPSHOT_FRAME_TREE) {}
+    MemSnapshotFrameTreeParams params;
+
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
+        auto request = std::make_unique<MemSnapshotFrameTreeRequest>();
+        if (!ProtocolUtil::SetRequestBaseInfo(*request, json) || !json.HasMember("params") ||
+            !json["params"].IsObject()) {
+            error = "Frame tree request requires base info and object params";
+            return nullptr;
+        }
+        const auto &value = json["params"];
+        if (!value.HasMember("deviceId") || !value["deviceId"].IsString() || !value.HasMember("eventId") ||
+            !value["eventId"].IsInt64() || !value.HasMember("currentPage") || !value["currentPage"].IsInt64() ||
+            !value.HasMember("pageSize") || !value["pageSize"].IsInt64() ||
+            (value.HasMember("includeStatic") && !value["includeStatic"].IsBool())) {
+            error = "Invalid frame tree parameter types or missing required parameters";
+            return nullptr;
+        }
+        request->params.deviceId.assign(value["deviceId"].GetString(), value["deviceId"].GetStringLength());
+        request->params.eventId = value["eventId"].GetInt64();
+        request->params.currentPage = value["currentPage"].GetInt64();
+        request->params.pageSize = value["pageSize"].GetInt64();
+        if (value.HasMember("includeStatic")) {
+            request->params.includeStatic = value["includeStatic"].GetBool();
+        }
+        if (!request->params.CommonCheck(error)) {
+            return nullptr;
+        }
+        return request;
+    }
+};
+
 struct MemSnapshotEventsRequest : Request {
     MemSnapshotEventsRequest() : Request(REQ_RES_MEM_SNAPSHOT_EVENTS) {}
     MemSnapshotEventParams params;

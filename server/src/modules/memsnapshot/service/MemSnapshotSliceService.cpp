@@ -170,6 +170,15 @@ std::optional<MemSnapshotSliceManifest> ParseManifestFile(const std::string &man
     manifest.sourceFile = json["sourceFile"].GetString();
     manifest.cacheHash = json["cacheHash"].GetString();
     manifest.eventsPerSlice = json["eventsPerSlice"].GetInt64();
+    if (json.HasMember("extensions") && json["extensions"].IsObject()) {
+        const auto &extensions = json["extensions"];
+        if (extensions.HasMember("ptSnapOrderedFrames") && extensions["ptSnapOrderedFrames"].IsObject()) {
+            const auto &frames = extensions["ptSnapOrderedFrames"];
+            if (frames.HasMember("version") && frames["version"].IsInt()) {
+                manifest.orderedFramesVersion = frames["version"].GetInt();
+            }
+        }
+    }
     const auto &devicesJson = json["devices"];
     for (auto device = devicesJson.MemberBegin(); device != devicesJson.MemberEnd(); ++device) {
         MemSnapshotDeviceSliceInfo info;
