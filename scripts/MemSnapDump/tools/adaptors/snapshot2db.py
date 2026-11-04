@@ -30,6 +30,7 @@ from typing import List, Union
 from simulate import SimulateHooker, SimulateDeviceSnapshot, AllocatorHooker
 from base import DeviceSnapshot, TraceEntry, Block, BlockState
 from tools.adaptors.database import SnapshotDb, block2record, event2record
+from tools.adaptors.ordered_frames import OrderedFrameWriter
 from util.file_util import check_dir_valid, load_pickle_to_dict
 from util.logger import get_logger, set_global_log_file
 from util.timer import timer
@@ -182,12 +183,14 @@ class DumpEventHooker(SimulateHooker, AllocatorHooker):
         self.db_path = db_path
         self.truncated_blocks = truncated_blocks
         self.db_handler = SnapshotDbHandler(db_path, devices, insert_cache_size=dump_cache_size)
+        self.ordered_frames = OrderedFrameWriter(self.db_handler.db.conn)
 
     def post_undo_event(self, already_undo_event: TraceEntry, current_snapshot: DeviceSnapshot) -> bool:
         return True
 
     def pre_undo_event(self, wait4undo_event: TraceEntry, current_snapshot: DeviceSnapshot) -> bool:
         # 每个事件回放前dump一次event
+        self.ordered_frames.insert(wait4undo_event)
         self.db_handler.insert_event(
             event2record(
                 event=wait4undo_event,
@@ -337,6 +340,7 @@ class SnapshotSliceManifest:
         self.data = {
             "schemaVersion": MANIFEST_SCHEMA_VERSION,
             "status": "building",
+            "extensions": {"ptSnapOrderedFrames": {"version": 2}},
             "sourceFile": str(Path(pickle_file).resolve()),
             "cacheHash": cache_hash,
             "eventsPerSlice": events_per_slice,

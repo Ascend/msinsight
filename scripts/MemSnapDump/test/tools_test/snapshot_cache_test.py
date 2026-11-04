@@ -24,7 +24,7 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
-from util.snapshot_cache import _RowEncoder, seal_manifest, source_hashes, validate_cache
+from util.snapshot_cache import seal_manifest, source_hashes, validate_cache
 
 
 class SnapshotCacheTest(unittest.TestCase):
@@ -41,18 +41,6 @@ class SnapshotCacheTest(unittest.TestCase):
         with patch.object(LOGGER, "handlers", [handler]), patch.object(logging.getLogger(), "handlers", [handler]):
             validate_cache(self.directory, self.hash)
         self.assertEqual(output.getvalue().count("Snapshot cache member checked:"), 1)
-
-    def test_row_encoder_preserves_digest_bytes_and_bounds_cache(self):
-        encoder = _RowEncoder()
-        for stack in ('', 'ascii', '\u4e2d\u6587', '"\\\n\t', None, 'x' * (8 * 1024 * 1024)):
-            row = (1, 2, 3, 4, 0, 5, 6, 7, stack)
-            expected = json.dumps(row, ensure_ascii=True, separators=(',', ':'), allow_nan=False).encode()
-            self.assertEqual(encoder.encode(row, True), expected)
-            self.assertEqual(encoder.encode(row, True), expected)
-        for index in range(3000):
-            encoder.encode((index, str(index)), True)
-        self.assertLessEqual(len(encoder.stacks), 2048)
-        self.assertLessEqual(encoder.size, 8 * 1024 * 1024)
 
     def setUp(self):
         # unittest owns the resource until addCleanup runs after each test.
@@ -117,81 +105,6 @@ class SnapshotCacheTest(unittest.TestCase):
         with patch.object(snapshot_cache.sqlite3, "connect", side_effect=open_during_write):
             self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
 
-    def test_base_write_after_sidecar_check_is_detected(self):
-        from unittest.mock import patch
-
-        from util import snapshot_cache
-
-        connect = sqlite3.connect
-        writers = []
-        self.addCleanup(lambda: [writer.close() for writer in writers])
-
-        def open_after_base_write(*args, **kwargs):
-            writer = connect(self.db)
-            writers.append(writer)
-            writer.execute("PRAGMA journal_mode=WAL")
-            writer.execute("UPDATE block_0 SET size=size+1")
-            writer.commit()
-            return connect(*args, **kwargs)
-
-        with patch.object(snapshot_cache.sqlite3, "connect", side_effect=open_after_base_write):
-            with self.assertRaisesRegex(ValueError, "parser data"):
-                validate_cache(self.directory, self.hash)
-
-    def test_consumer_commit_during_row_scan_is_allowed(self):
-        from unittest.mock import patch
-
-        from util import snapshot_cache
-
-        with closing(sqlite3.connect(self.db)) as writer:
-            writer.execute("PRAGMA journal_mode=WAL")
-            encode = snapshot_cache._RowEncoder.encode
-            committed = False
-
-            def encode_while_writing(encoder, row, inline_stack):
-                nonlocal committed
-                if not committed:
-                    writer.execute("CREATE TABLE consumer_cache(value INTEGER)")
-                    writer.commit()
-                    writer.execute("PRAGMA wal_checkpoint(PASSIVE)")
-                    committed = True
-                return encode(encoder, row, inline_stack)
-
-            with patch.object(snapshot_cache._RowEncoder, "encode", encode_while_writing):
-                self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
-            self.assertTrue(committed)
-
-    def test_parser_seal_does_not_override_producer_seal(self):
-        self.manifest["ptSnap"] = {
-            "memberHashKind": "parser-v1",
-            "members": {"slice.db": "0" * 64},
-        }
-        self.save()
-        with self.assertRaisesRegex(ValueError, "member hash"):
-            validate_cache(self.directory, self.hash)
-
-    def test_logical_producer_seal_without_parser_seal_is_checked(self):
-        self.manifest["ptSnap"] = {
-            "memberHashKind": "parser-v1",
-            "members": self.manifest.pop("parserCache")["members"],
-        }
-        self.save()
-        self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute("UPDATE block_0 SET size=size+1")
-            conn.commit()
-        with self.assertRaisesRegex(ValueError, "member hash"):
-            validate_cache(self.directory, self.hash)
-
-    def test_legacy_producer_seal_is_not_overridden_by_parser_seal(self):
-        self.manifest["ptSnap"] = {"members": {"slice.db": source_hashes(self.db)[0]}}
-        self.save()
-        self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute("CREATE TABLE consumer_extra(value INTEGER)")
-        with self.assertRaisesRegex(ValueError, "member hash"):
-            validate_cache(self.directory, self.hash)
-
     def test_legacy_physical_seal_accepts_closed_wal_database(self):
         with closing(sqlite3.connect(self.db)) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
@@ -200,21 +113,16 @@ class SnapshotCacheTest(unittest.TestCase):
         self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
         self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
 
-    def test_legacy_physical_seal_rejects_committed_wal(self):
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-        self.manifest["ptSnap"] = {"members": {"slice.db": source_hashes(self.db)[0]}}
-        self.save()
-        with closing(sqlite3.connect(self.db)) as writer:
-            writer.execute("CREATE TABLE consumer_cache(value INTEGER)")
-            writer.commit()
-            with self.assertRaisesRegex(ValueError, "sidecars"):
-                validate_cache(self.directory, self.hash)
-
     def test_source_hash_matches_shared_salt(self):
         raw, salted = source_hashes(self.source)
         self.assertEqual(raw, hashlib.sha256(self.source.read_bytes()).hexdigest())
-        self.assertEqual(salted, hashlib.sha256(b"mem_snapshot_parser_v2" + self.source.read_bytes()).hexdigest())
+        self.assertEqual(salted, hashlib.sha256(b"mem_snapshot_parser_v3" + self.source.read_bytes()).hexdigest())
+
+    def test_previous_parser_version_requires_reparse(self):
+        self.manifest["cacheHash"] = hashlib.sha256(b"mem_snapshot_parser_v2" + self.source.read_bytes()).hexdigest()
+        self.save()
+        with self.assertRaisesRegex(ValueError, "parser salt changed"):
+            validate_cache(self.directory, source_hashes(self.source)[1])
 
     def test_extra_tables_indexes_and_dictionary_do_not_invalidate(self):
         with closing(sqlite3.connect(self.db)) as conn:
@@ -234,21 +142,6 @@ class SnapshotCacheTest(unittest.TestCase):
             conn.execute("VACUUM")
         self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
 
-    def test_modified_base_data_is_rejected(self):
-        for table, assignment in (
-            ("block_0", "size=size+1"),
-            ("trace_entry_0", "allocated=allocated+1"),
-            ("dictionary", '"value"=\'changed\''),
-        ):
-            with self.subTest(table=table):
-                with closing(sqlite3.connect(self.db)) as conn:
-                    conn.execute(f"UPDATE {table} SET {assignment}")
-                    conn.commit()
-                with self.assertRaises(ValueError):
-                    validate_cache(self.directory, self.hash)
-                seal_manifest(self.directory, self.manifest)
-                self.save()
-
     def test_changed_source_is_rejected(self):
         self.source.write_bytes(b"changed")
         with self.assertRaises(ValueError):
@@ -267,40 +160,9 @@ class SnapshotCacheTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'rollback journal'):
             validate_cache(self.directory, self.hash)
 
-    def test_corrupt_secondary_index_is_rejected(self):
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute('CREATE INDEX block_address ON block_0(address)')
-            page_size = conn.execute('PRAGMA page_size').fetchone()[0]
-            root = conn.execute("SELECT rootpage FROM sqlite_master WHERE name='block_address'").fetchone()[0]
-        with self.db.open('r+b') as file:
-            file.seek((root - 1) * page_size)
-            file.write(b'\xff' * page_size)
-        with self.assertRaises((ValueError, sqlite3.DatabaseError)):
-            validate_cache(self.directory, self.hash)
-
     def test_deeply_nested_manifest_is_a_validation_error(self):
         (self.directory / 'manifest.json').write_text('[' * 200000 + '0' + ']' * 200000)
         with self.assertRaisesRegex(ValueError, 'nesting'):
-            validate_cache(self.directory, self.hash)
-
-    def test_legacy_missing_dictionary_reference_is_rejected(self):
-        del self.manifest['parserCache']
-        self.save()
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute("DELETE FROM dictionary WHERE \"table\"='block_0'")
-            conn.commit()
-        with self.assertRaisesRegex(ValueError, 'dictionary reference'):
-            validate_cache(self.directory, self.hash)
-
-    def test_legacy_producer_physical_hash_is_checked(self):
-        del self.manifest['parserCache']
-        self.manifest['ptSnap'] = {'members': {'slice.db': source_hashes(self.db)[0]}}
-        self.save()
-        self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute('UPDATE block_0 SET size=size+1')
-            conn.commit()
-        with self.assertRaisesRegex(ValueError, 'member hash'):
             validate_cache(self.directory, self.hash)
 
     def test_member_validation_reports_completed_members(self):
@@ -311,15 +173,6 @@ class SnapshotCacheTest(unittest.TestCase):
         with patch.object(snapshot_cache.LOGGER, 'info') as info:
             validate_cache(self.directory, self.hash)
         info.assert_called_once_with('Snapshot cache member checked: %s', 'slice.db')
-
-    def test_active_wal_is_read_instead_of_ignoring_committed_rows(self):
-        with closing(sqlite3.connect(self.db)) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("UPDATE block_0 SET size=size+1")
-            conn.commit()
-            self.assertTrue(Path(str(self.db) + "-wal").exists())
-            with self.assertRaises(ValueError):
-                validate_cache(self.directory, self.hash)
 
     def test_missing_or_corrupt_db_is_rejected_without_creating_it(self):
         self.db.unlink()
@@ -403,8 +256,8 @@ class SnapshotCacheTest(unittest.TestCase):
 
         original = snapshot_cache.parser_members
 
-        def change_manifest(directory, manifest):
-            members = original(directory, manifest)
+        def change_manifest(directory, manifest, **kwargs):
+            members = original(directory, manifest, **kwargs)
             self.manifest['consumerRevision'] = 1
             self.save()
             return members
@@ -421,3 +274,59 @@ class SnapshotCacheTest(unittest.TestCase):
         with patch.object(snapshot_cache, "PARSER_HASH_SALT", b"another-parser-version"):
             with self.assertRaises(ValueError):
                 validate_cache(self.directory, source_hashes(self.source)[1])
+
+    def test_default_validation_rejects_missing_required_table(self):
+        with closing(sqlite3.connect(self.db)) as conn:
+            conn.execute("DROP TABLE block_0")
+            conn.commit()
+        with self.assertRaisesRegex(ValueError, "Missing parser table"):
+            validate_cache(self.directory, self.hash)
+
+    def test_default_validation_rejects_missing_member(self):
+        self.db.unlink()
+        with self.assertRaises(ValueError):
+            validate_cache(self.directory, self.hash)
+        self.assertFalse(self.db.exists())
+
+    def test_default_validation_rejects_unreadable_database(self):
+        self.db.write_bytes(b"not a database")
+        with self.assertRaises(sqlite3.DatabaseError):
+            validate_cache(self.directory, self.hash)
+
+    def test_oom_without_dictionary_reference_is_accepted(self):
+        with closing(sqlite3.connect(self.db)) as conn:
+            with conn:
+                conn.execute("UPDATE trace_entry_0 SET action='oom'")
+        seal_manifest(self.directory, self.manifest)
+        self.save()
+        self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
+
+    def test_cache_validation_never_scans_rows_or_pages(self):
+        from unittest.mock import patch
+
+        statements = []
+        connect = sqlite3.connect
+
+        def traced(*args, **kwargs):
+            conn = connect(*args, **kwargs)
+            conn.set_trace_callback(statements.append)
+            return conn
+
+        with patch.object(sqlite3, "connect", side_effect=traced):
+            seal_manifest(self.directory, self.manifest)
+            self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)
+        sql = "\n".join(statements).upper()
+        self.assertNotIn("QUICK_CHECK", sql)
+        self.assertNotIn("INTEGRITY_CHECK", sql)
+        self.assertNotIn("DISTINCT", sql)
+        without_endpoints = sql.replace("ORDER BY ID DESC LIMIT 1", "").replace("ORDER BY ID LIMIT 1", "")
+        self.assertNotIn("ORDER BY", without_endpoints)
+
+    def test_legacy_content_digests_are_not_compared(self):
+        self.manifest["parserCache"]["members"] = {"slice.db": "old-content-digest"}
+        self.manifest["ptSnap"] = {
+            "memberHashKind": "parser-v1",
+            "members": {"slice.db": "different-old-digest"},
+        }
+        self.save()
+        self.assertEqual(validate_cache(self.directory, self.hash), self.manifest)

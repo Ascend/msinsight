@@ -209,7 +209,7 @@ class Snapshot2DbTest(unittest.TestCase):
         (dest / snapshot2db.MANIFEST_FILE_NAME).write_text('[' * 200000 + '0' + ']' * 200000)
         self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
 
-    def testLegacyMissingDictionaryRebuilds(self):
+    def testLegacyDictionaryContentsDoNotTriggerRebuild(self):
         dest = self.cache_dir / 'legacy_dictionary'
         self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
         manifest_path = dest / snapshot2db.MANIFEST_FILE_NAME
@@ -221,7 +221,7 @@ class Snapshot2DbTest(unittest.TestCase):
             conn.commit()
         with mock.patch.object(snapshot2db, 'load_pickle_to_dict', wraps=snapshot2db.load_pickle_to_dict) as loader:
             self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
-            loader.assert_called_once()
+            loader.assert_not_called()
 
     def testPrepareErrorReturnsFalseWithoutTraceback(self):
         dest = self.cache_dir / 'prepare_error'
@@ -244,20 +244,6 @@ class Snapshot2DbTest(unittest.TestCase):
             self.skipTest(f'Symlink creation is unavailable: {error}')
         self.assertFalse(snapshot2db.dump(self.snapshot_path, dest, 0))
         self.assertEqual(sentinel.read_text(), 'keep')
-
-    def testCorruptIndexRebuilds(self):
-        dest = self.cache_dir / 'corrupt_index'
-        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
-        db = self.get_slice_db(dest, 0)
-        with closing(sqlite3.connect(db)) as conn:
-            page_size = conn.execute('PRAGMA page_size').fetchone()[0]
-            root = conn.execute("SELECT rootpage FROM sqlite_master WHERE type='index' LIMIT 1").fetchone()[0]
-        with db.open('r+b') as file:
-            file.seek((root - 1) * page_size)
-            file.write(b'\xff' * page_size)
-        with mock.patch.object(snapshot2db, 'load_pickle_to_dict', wraps=snapshot2db.load_pickle_to_dict) as loader:
-            self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
-            loader.assert_called_once()
 
     def testDatabaseInitializationFailureCleansTemporaryFile(self):
         dest = self.cache_dir / "database_init_failure"

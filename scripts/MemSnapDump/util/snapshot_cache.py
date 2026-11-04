@@ -23,15 +23,14 @@ import json
 import os
 import re
 import sqlite3
-import sys
-from collections import OrderedDict
 from contextlib import closing
 from pathlib import Path
 from typing import Any
 
 from util.logger import get_logger
 
-PARSER_HASH_SALT = b"mem_snapshot_parser_v2"
+# v3 新增有序调用栈产物，旧缓存缺少拆解接口依赖的数据，需要重新解析。
+PARSER_HASH_SALT = b"mem_snapshot_parser_v3"
 CACHE_CONTRACT_VERSION = 1
 TRACE_COLUMNS = (
     "id",
@@ -86,33 +85,6 @@ def ensure_cache_not_busy(directory: Path) -> None:
                     raise
 
 
-class _RowEncoder:
-    """Bound repeated callstack encoding; preserve the v1 digest bytes."""
-
-    def __init__(self) -> None:
-        self.stacks: OrderedDict[str, bytes] = OrderedDict()
-        self.size = 0
-
-    def encode(self, row: tuple[Any, ...], inline_stack: bool) -> bytes:
-        if not inline_stack or not isinstance(row[-1], str):
-            return json.dumps(row, ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode()
-        stack = row[-1]
-        encoded = self.stacks.get(stack)
-        if encoded is None:
-            encoded = json.dumps(stack, ensure_ascii=True, allow_nan=False).encode()
-            cost = sys.getsizeof(stack) + sys.getsizeof(encoded)
-            if cost <= 8 * 1024 * 1024:
-                while self.stacks and (self.size + cost > 8 * 1024 * 1024 or len(self.stacks) >= 2048):
-                    key, value = self.stacks.popitem(last=False)
-                    self.size -= sys.getsizeof(key) + sys.getsizeof(value)
-                self.stacks[stack] = encoded
-                self.size += cost
-        else:
-            self.stacks.move_to_end(stack)
-        prefix = json.dumps(row[:-1], separators=(",", ":"), allow_nan=False).encode()
-        return prefix[:-1] + b"," + encoded + b"]"
-
-
 def source_hashes(source: Path) -> tuple[str, str]:
     """Return raw and salted SHA-256 in one streaming pass, without unpickling."""
     raw = hashlib.sha256()
@@ -152,13 +124,11 @@ def _member(directory: Path, relative: str) -> Path:
     return candidate
 
 
-def _table_rows(
+def _validate_table_schema(
     conn: sqlite3.Connection,
     name: str,
     columns: tuple[str, ...],
-    where: str = "",
-    parameters: tuple[str, ...] = (),
-) -> sqlite3.Cursor:
+) -> None:
     if conn.execute("SELECT type FROM sqlite_master WHERE name=?", (name,)).fetchone() != ("table",):
         raise ValueError(f"Missing parser table: {name}")
     schema = conn.execute(f'PRAGMA table_info("{name}")').fetchall()
@@ -169,67 +139,29 @@ def _table_rows(
             raise ValueError(f"Invalid parser column: {name}.{column}")
     if "id" in columns and [row[1] for row in schema if row[5]] != ["id"]:
         raise ValueError(f"Missing parser primary key: {name}.id")
-    selected = ",".join(f'"{column}"' for column in columns)
-    order = '"id"' if "id" in columns else selected
-    # Identifiers and the optional predicate are internal constants/validated device IDs.
-    return conn.execute(f'SELECT {selected} FROM "{name}" {where} ORDER BY {order}', parameters)  # nosec B608
 
 
-def member_digest(path: Path, device: str, start: int, end: int) -> str:
-    """Hash fixed base columns; extra columns, tables, indexes, views and triggers are allowed.
-
-    Unrelated dictionary entries are also allowed. Legacy artifacts without a seal
-    receive structure/reference checks, not proof that all historical values are unchanged.
-    """
-    if re.fullmatch(r"0|[1-9][0-9]*", str(device)) is None:
-        raise ValueError("Invalid device ID")
-    digest = hashlib.sha256()
-    encoder = _RowEncoder()
-    # Consumers may start writing after the sidecar check. Always use SQLite's
-    # locking/WAL protocol and one read snapshot, even for a currently closed DB.
+def validate_member_structure(path: Path, device: str, start: int, end: int) -> None:
+    """只检查可读性、必要表结构和索引边界，不扫描基础行或全部数据库页。"""
     sidecars = [Path(str(path) + suffix) for suffix in ("-wal", "-shm", "-journal")]
     if any(item.is_symlink() for item in sidecars):
         raise ValueError("Snapshot has an aliased sidecar")
     if sidecars[2].exists():
         _probe_writer(path)
         raise ValueError("Snapshot has a rollback journal")
-    uri = path.resolve().as_uri() + "?mode=ro"
-    with closing(sqlite3.connect(uri, uri=True)) as conn:
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
         conn.execute("PRAGMA query_only=ON")
         conn.execute("BEGIN")
-        if conn.execute("PRAGMA quick_check").fetchall() != [("ok",)]:
-            raise ValueError("Snapshot member failed integrity check")
-        tables = ((f"trace_entry_{device}", TRACE_COLUMNS), (f"block_{device}", BLOCK_COLUMNS))
-        for table, columns in tables:
-            digest.update(json.dumps((table, columns), separators=(",", ":")).encode())
-            for row in _table_rows(conn, table, columns):
-                digest.update(encoder.encode(row, columns == TRACE_COLUMNS))
-                digest.update(b"\n")
-        count, low, high = conn.execute(
-            f'SELECT COUNT(*), MIN(id), MAX(id) FROM "trace_entry_{device}" WHERE id>=0'  # nosec B608 - device validated above
-        ).fetchone()
-        if (count, low, high) != (end - start + 1, start, end):
-            raise ValueError("Snapshot event range is incomplete")
-        for row in _table_rows(
-            conn,
-            "dictionary",
-            ("table", "column", "key", "value"),
-            'WHERE "table" IN (?, ?)',
-            tuple(table for table, _ in tables),
+        for name, columns in (
+            (f"trace_entry_{device}", TRACE_COLUMNS),
+            (f"block_{device}", BLOCK_COLUMNS),
+            ("dictionary", ("table", "column", "key", "value")),
         ):
-            digest.update(json.dumps(row, ensure_ascii=True, separators=(",", ":")).encode())
-            digest.update(b"\n")
-        for table, column in ((f"trace_entry_{device}", "action"), (f"block_{device}", "state")):
-            # Both identifiers are internal constants with the device validated above.
-            missing = conn.execute(
-                f'SELECT 1 FROM (SELECT DISTINCT "{column}" AS value FROM "{table}") AS base WHERE NOT EXISTS '  # nosec B608
-                '(SELECT 1 FROM dictionary AS dict WHERE dict."table"=? AND dict."column"=? '
-                'AND dict."key"=CAST(base.value AS TEXT)) LIMIT 1',
-                (table, column),
-            ).fetchone()
-            if missing:
-                raise ValueError("Snapshot dictionary reference is missing")
-    return digest.hexdigest()
+            _validate_table_schema(conn, name, columns)
+        low = conn.execute(f'SELECT id FROM "trace_entry_{device}" WHERE id>=0 ORDER BY id LIMIT 1').fetchone()  # nosec B608
+        high = conn.execute(f'SELECT id FROM "trace_entry_{device}" WHERE id>=0 ORDER BY id DESC LIMIT 1').fetchone()  # nosec B608
+        if low != (start,) or high != (end,):
+            raise ValueError("Snapshot event range is incomplete")
 
 
 def parser_members(directory: Path, manifest: dict[str, Any]) -> dict[str, str]:
@@ -269,12 +201,15 @@ def parser_members(directory: Path, manifest: dict[str, Any]) -> dict[str, str]:
             relative = item["file"]
             if relative in members:
                 raise ValueError("Duplicate snapshot member")
-            members[relative] = member_digest(_member(directory, relative), device, start, end)
+            path = _member(directory, relative)
+            validate_member_structure(path, device, start, end)
+            members[relative] = ""
             LOGGER.info("Snapshot cache member checked: %s", relative)
     return members
 
 
 def seal_manifest(directory: Path, manifest: dict[str, Any], device: int | None = None) -> None:
+    """Record structural inventory and device selection, without content digests."""
     manifest["parserCache"] = {
         "version": CACHE_CONTRACT_VERSION,
         "requestedDevice": device,
@@ -292,6 +227,7 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def validate_cache(directory: Path, cache_hash: str, device: int | None = None) -> dict[str, Any]:
+    # 只验证清单、文件和数据库结构，不扫描内容或核对历史摘要。
     path = directory / "manifest.json"
     original = path.read_bytes()
     try:
@@ -325,29 +261,24 @@ def validate_cache(directory: Path, cache_hash: str, device: int | None = None) 
             raise ValueError("Snapshot device selection changed")
     members = parser_members(directory, manifest)
     attestation = manifest.get("parserCache")
-    # Legacy producers have no logical attestation; still validate every base table and range.
+    # 兼容历史摘要字段，仅核对成员清单，不再比较数据库内容摘要。
     if attestation is not None and (
-        _integer(attestation.get("version"), 1) != CACHE_CONTRACT_VERSION or attestation.get("members") != members
+        _integer(attestation.get("version"), 1) != CACHE_CONTRACT_VERSION
+        or not isinstance(attestation.get("members"), dict)
+        or set(attestation["members"]) != set(members)
     ):
         raise ValueError("Snapshot parser data changed")
     producer = manifest.get("ptSnap", {})
     if "memberHashKind" in producer and producer["memberHashKind"] != "parser-v1":
         raise ValueError("Unsupported member hash contract")
-    if producer.get("memberHashKind") == "parser-v1" and producer.get("members") != members:
-        raise ValueError("Snapshot producer member hash changed")
+    if producer.get("memberHashKind") == "parser-v1" and (
+        not isinstance(producer.get("members"), dict) or set(producer["members"]) != set(members)
+    ):
+        raise ValueError("Snapshot producer member inventory changed")
     if "members" in producer and producer.get("memberHashKind") != "parser-v1":
         physical = producer["members"]
         if not isinstance(physical, dict) or set(physical) != set(members):
             raise ValueError("Invalid legacy snapshot member inventory")
-        for relative, expected in physical.items():
-            member = _member(directory, relative)
-            wal = Path(str(member) + "-wal")
-            # A read-only open can create an empty WAL and SHM. They contain no
-            # committed rows; only the DB bytes need the legacy physical digest.
-            if Path(str(member) + "-journal").exists() or (wal.exists() and wal.stat().st_size):
-                raise ValueError("Legacy physical snapshot hash cannot validate live sidecars")
-            if source_hashes(member)[0] != expected:
-                raise ValueError("Legacy snapshot member hash changed")
     if path.read_bytes() != original:
         raise ValueError("Snapshot manifest changed during validation")
     return manifest
