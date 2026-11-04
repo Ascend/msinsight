@@ -91,7 +91,9 @@ const sendToolCallUpdate = (output, sessionId, kind, toolCall) => {
                 status: toolCall.status,
                 rawInput: toolCall.input,
                 content: toolCall.progress,
-                rawOutput: toolCall.output,
+                rawOutput: toolCall.process ? {
+                    schema: "msinsight.tool-process.v1", text: toolCall.output, process: toolCall.process,
+                } : toolCall.output,
                 startedAt: toolCall.startedAt,
                 durationMs: toolCall.durationMs,
             },

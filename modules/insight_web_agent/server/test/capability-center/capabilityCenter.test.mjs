@@ -79,3 +79,20 @@ test("capability registry validates msinsight arguments", async () => {
         { code: "CAPABILITY_INVALID_ARGUMENT" },
     );
 });
+
+test("unknown capability invocations fall back to the runtime diagnostic source", async () => {
+    const { capabilityCenter } = fixture();
+    capabilityCenter.register({
+        name: "publish_report",
+        description: "Fixture capability.",
+        inputSchema: { type: "object", properties: {} },
+        execute() {
+            throw Object.assign(new Error("Fixture failure."), { code: "COMMAND_EXECUTION_FAILED", retryable: false });
+        },
+    });
+    await assert.rejects(capabilityCenter.invoke({ name: "publish_report", input: {} }), (error) => {
+        assert.equal(error.details.source, "runtime");
+        assert.equal(error.details.stage, "execute");
+        return true;
+    });
+});

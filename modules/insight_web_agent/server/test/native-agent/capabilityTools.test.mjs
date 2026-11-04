@@ -180,7 +180,11 @@ test("native capability adapter preserves normalized command error details", asy
             assert.equal(error.code, "COMMAND_UNAVAILABLE");
             assert.equal(error.status, 422);
             assert.equal(error.message, "Module 'Compute' has not registered any commands with the Agent framework.");
-            assert.deepEqual(error.details, { reason: "module_not_registered", moduleId: "Compute" });
+            assert.equal(error.details.reason, "module_not_registered");
+            assert.equal(error.details.moduleId, "Compute");
+            assert.match(error.details.diagnosticId, /^[0-9a-f-]{36}$/);
+            assert.equal(error.details.outcome, "unknown");
+            assert.equal(error.retryable, false);
             return true;
         },
     );

@@ -9,6 +9,9 @@
  */
 
 /** 功能：创建 OpenCode 兼容的 Skill Tool，只加载指令和资源，不产生 Runtime Patch。 */
+import { randomUUID } from "node:crypto";
+import { createToolError, isToolDiagnosticId, normalizeToolError } from "../../utils/toolError.mjs";
+
 export const createSkillTools = ({ skillRegistry }) => [{
     name: "skill",
     description: createDescription(skillRegistry.list()),
@@ -21,10 +24,24 @@ export const createSkillTools = ({ skillRegistry }) => [{
         required: ["name"],
         additionalProperties: false,
     },
-    async execute(input) {
+    async execute(input, context = {}) {
         const name = String(input?.name ?? "").trim();
-        const skill = await skillRegistry.load(name);
-        if (!skill) throw new Error(`Skill is unavailable: ${name}`);
+        let skill;
+        try {
+            skill = await skillRegistry.load(name);
+            if (!skill) throw Object.assign(new Error(`Skill is unavailable: ${name}`), { code: "SKILL_UNAVAILABLE" });
+        } catch (error) {
+            const code = ["SKILL_PATH_ESCAPE", "SKILL_UNAVAILABLE"].includes(error?.code) ? error.code : "SKILL_LOAD_FAILED";
+            const candidates = code === "SKILL_UNAVAILABLE" ? skillRegistry.list().map((item) => item.name) : undefined;
+            throw createToolError(normalizeToolError({
+                code, message: code === "SKILL_LOAD_FAILED" ? "Skill could not be loaded." : error.message, cause: error,
+                details: { name, ...(candidates ? { availableSkills: candidates, total: candidates.length } : {}) },
+            }, {
+                diagnosticId: isToolDiagnosticId(context.diagnosticId) ? context.diagnosticId : randomUUID(),
+                source: "skill", toolName: "skill", stage: code === "SKILL_LOAD_FAILED" ? "execute" : "validate",
+                outcome: "not_started", retryAdvice: "correct_input",
+            }), error);
+        }
         const args = String(input?.args ?? "").trim();
         return [
             `# Skill: ${skill.name}`,

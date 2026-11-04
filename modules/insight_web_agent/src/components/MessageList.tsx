@@ -1151,7 +1151,7 @@ const TimelineNode = ({
     const outputLabel = t(toolCall.status === 'failed' ? 'toolError' : 'toolOutput');
     const hasDetails = !isReportTool(toolCall) && (Boolean(toolCall.input) || Boolean(toolCall.output));
     return (
-        <div className={`timeline-item tool ${toolCall.status === 'failed' ? 'failed' : active ? 'active' : 'completed'}`}>
+        <div className={`timeline-item tool ${toolCall.status === 'failed' || processWarning(toolCall) ? 'failed' : active ? 'active' : 'completed'}`}>
             <span aria-hidden="true" className="timeline-marker" />
             <div className="timeline-heading">
                 <span className="timeline-title">{toolCallSummary(toolCall, t)}</span>
@@ -1169,7 +1169,7 @@ const TimelineNode = ({
                         </summary>
                         <div className="timeline-tool-sections">
                             {toolCall.input ? <ToolSection label={t('toolInput')} value={toolCall.input} /> : null}
-                            {toolCall.output ? <ToolSection label={outputLabel} value={toolCall.output} /> : null}
+                            {toolCall.output ? <ToolSection label={outputLabel} value={toolCall.output} structuredError={toolCall.status === 'failed'} /> : null}
                         </div>
                     </details>
                 )
@@ -1248,7 +1248,7 @@ const ToolCalls = ({ toolCalls }: { toolCalls: ToolCallItem[] }): JSX.Element =>
         <div className="tool-calls">
             {toolCalls.map((toolCall) => {
                 const duration = formatToolDuration(toolCall, now);
-                return <details className={`tool-call ${toolCall.status}`} key={toolCall.toolCallId}>
+                return <details className={`tool-call ${toolCall.status} ${processWarning(toolCall) ? 'failed' : ''}`} key={toolCall.toolCallId}>
                     <summary>
                         <span className="tool-status" />
                         <span className="tool-summary">
@@ -1263,7 +1263,7 @@ const ToolCalls = ({ toolCalls }: { toolCalls: ToolCallItem[] }): JSX.Element =>
                     {toolCall.input || toolCall.output ? (
                         <div className="tool-details">
                             {toolCall.input ? <ToolSection label={t('toolInput')} value={toolCall.input} /> : null}
-                            {toolCall.output ? <ToolSection label={toolCall.status === 'failed' ? t('toolError') : t('toolOutput')} value={toolCall.output} /> : null}
+                            {toolCall.output ? <ToolSection label={toolCall.status === 'failed' ? t('toolError') : t('toolOutput')} value={toolCall.output} structuredError={toolCall.status === 'failed'} /> : null}
                         </div>
                     ) : null}
                 </details>;
@@ -1272,10 +1272,22 @@ const ToolCalls = ({ toolCalls }: { toolCalls: ToolCallItem[] }): JSX.Element =>
     );
 };
 
-const ToolSection = ({ label, value }: { label: string; value: string }): JSX.Element => (
+const formatErrorForDisplay = (value: string): string => {
+    try {
+        const parsed: unknown = JSON.parse(value);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return value;
+        const error = parsed as Record<string, unknown>;
+        if (typeof error.code !== 'string' || typeof error.message !== 'string' || typeof error.retryable !== 'boolean') return value;
+        return JSON.stringify(error, null, 2);
+    } catch {
+        return value;
+    }
+};
+
+const ToolSection = ({ label, value, structuredError = false }: { label: string; value: string; structuredError?: boolean }): JSX.Element => (
     <div className="tool-section">
         <div className="tool-label">{label}</div>
-        <pre className="tool-value">{value}</pre>
+        <pre className="tool-value">{structuredError ? formatErrorForDisplay(value) : value}</pre>
     </div>
 );
 
@@ -1309,6 +1321,10 @@ const formatDuration = (value: number): string => {
 };
 
 const toolCallState = (toolCall: ToolCallItem, t: TFunction): string => {
+    if (toolCall.process) {
+        return t('toolProcessExit', { code: toolCall.process.exitCode ?? t('toolExitUnknown') }) +
+            (toolCall.process.signal ? ` (${toolCall.process.signal})` : '');
+    }
     if (toolCall.status === 'completed') return t('toolCompleted');
     if (toolCall.status === 'failed') return t('toolFailed');
     return t('toolRunning');
@@ -1318,10 +1334,15 @@ const toolCallSummary = (toolCall: ToolCallItem, t: TFunction): string => {
     if (isReportTool(toolCall)) return t(toolCall.status === 'completed' ? 'reportReady' : toolCall.status === 'failed' ? 'reportFailed' : 'reportGenerating');
     if (toolCall.status === 'in_progress' && toolCall.progress) return toolCall.progress;
     const displayName = toolCallDisplayName(toolCall);
+    if (toolCall.process && toolCall.status === 'completed') return t('toolCommandEnded', { name: displayName });
     if (toolCall.status === 'completed') return t('toolCallCompleted', { name: displayName });
     if (toolCall.status === 'failed') return t('toolCallFailed', { name: displayName });
     return t('toolCallRunning', { name: displayName });
 };
+
+const processWarning = (toolCall: ToolCallItem): boolean => Boolean(
+    toolCall.process && (toolCall.process.exitCode !== 0 || toolCall.process.signal),
+);
 
 export const toolCallDisplayName = (toolCall: ToolCallItem): string => {
     if (toolCall.name !== 'msinsight' || !toolCall.input) return toolCall.name;

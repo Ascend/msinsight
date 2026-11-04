@@ -17,10 +17,13 @@
  */
 import { RAG_RETRIEVE_CAPABILITY } from "./definitions.mjs";
 import { capabilityError } from "./registry.mjs";
+import { randomUUID } from "node:crypto";
+import { createToolError, isToolDiagnosticId, normalizeToolError } from "../utils/toolError.mjs";
+import { ragDiagnosticReason, ragStatusReason } from "../services/rag/ragDiagnostic.mjs";
 
 const MAX_QUERY_CHARS = 8000;
 
-export const createRagCapability = ({ ragService } = {}) => ({
+export const createRagCapability = ({ ragService, logger = console } = {}) => ({
     ...RAG_RETRIEVE_CAPABILITY,
     validate(input) {
         if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -41,17 +44,27 @@ export const createRagCapability = ({ ragService } = {}) => ({
         throwIfAborted(context.signal);
         const status = ragService?.getStatus?.() ?? { enabled: false, reason: "unavailable" };
         if (!ragService?.isEnabled?.()) return unavailableResult(query, status.reason);
+        let diagnostic;
+        const diagnosticId = isToolDiagnosticId(context.diagnosticId) ? context.diagnosticId : randomUUID();
         try {
-            const result = await ragService.retrieve(query, { signal: context.signal, propagateBusy: true });
+            const result = await ragService.retrieve(query, {
+                signal: context.signal, propagateBusy: true, onDiagnostic: (value) => {
+                    diagnostic = ragDiagnosticReason(value?.reason);
+                    try { logger.warn?.(JSON.stringify({ component: "rag", diagnosticId, source: "rag", stage: "retrieve", reason: diagnostic })); } catch { /* Logging is best effort. */ }
+                },
+            });
             throwIfAborted(context.signal);
-            if (!result) return unavailableResult(query, "retrieval_failed");
+            if (!result) return unavailableResult(query, diagnostic ?? "retrieval_failed");
             return projectResult(query, result);
         } catch (error) {
             if (context.signal?.aborted || error?.name === "AbortError") throw error;
             if (error?.code === "rag_busy" || error?.code === "RAG_BUSY") {
                 throw capabilityError("RAG_BUSY", "RAG retrieval is busy.", true);
             }
-            throw capabilityError("RAG_RETRIEVAL_FAILED", "RAG retrieval failed.", Boolean(error?.retryable));
+            throw createToolError(normalizeToolError({
+                code: "RAG_RETRIEVAL_FAILED", message: "RAG retrieval failed.", details: { reason: diagnostic ?? "retrieval_failed" },
+            }, { diagnosticId,
+                source: "rag", stage: "retrieve", outcome: "failed", retryAdvice: "do_not_retry" }), error);
         }
     },
 });
@@ -99,10 +112,7 @@ const unavailableResult = (query, reason) => ({
     reason: stableReason(reason),
 });
 
-const stableReason = (reason) => {
-    const value = String(reason ?? "").trim().toLowerCase();
-    return /^[a-z0-9_]{1,64}$/.test(value) ? value : "unavailable";
-};
+const stableReason = ragStatusReason;
 
 const throwIfAborted = (signal) => {
     if (!signal?.aborted) return;

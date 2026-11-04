@@ -8,12 +8,21 @@
  */
 import { json } from "../http/response.mjs";
 import { readCapabilityToken, tokensEqual } from "../http/security.mjs";
+import { randomUUID } from "node:crypto";
+import { isToolDiagnosticId, normalizeToolError } from "../utils/toolError.mjs";
 
 // Native Agent 使用独立进程级 Token 进入同一能力中心，不额外启动 MCP Client。
 export const createCapabilityController = ({ capabilityCenter, accessToken }) => ({
     async invoke(req, res, body) {
         if (!tokensEqual(accessToken, readCapabilityToken(req))) {
-            return json(res, { error: "Unauthorized" }, 401);
+            const shape = normalizeToolError({
+                code: "CAPABILITY_AUTH_FAILED", message: "Native capability authentication failed.", retryable: false,
+            }, {
+                diagnosticId: isToolDiagnosticId(body?.invocationId) ? body.invocationId : randomUUID(),
+                toolName: "unknown", source: "capability_http",
+                stage: "authorize", outcome: "not_started", retryAdvice: "do_not_retry",
+            });
+            return json(res, { error: "Unauthorized", ...shape }, 401);
         }
         // Native fetch 中断或连接提前关闭时，取消仍在执行的 Capability/Frontend Command。
         const controller = new AbortController();
@@ -24,7 +33,7 @@ export const createCapabilityController = ({ capabilityCenter, accessToken }) =>
             const result = await capabilityCenter.invoke({ ...body, signal: controller.signal });
             return json(res, { ok: true, result });
         } catch (error) {
-            if (!res.destroyed) return capabilityErrorResponse(res, error);
+            if (!res.destroyed) return capabilityErrorResponse(res, error, body);
         } finally {
             req.off("aborted", abort);
             res.off("close", abort);
@@ -32,16 +41,16 @@ export const createCapabilityController = ({ capabilityCenter, accessToken }) =>
     },
 });
 
-const capabilityErrorResponse = (res, error) => {
-    const code = error.code ?? "CAPABILITY_EXECUTION_FAILED";
-    return json(res, {
-        error: code,
-        code,
-        message: error.message || "The capability could not be completed",
-        retryable: Boolean(error.retryable),
-        details: error.details,
-        state: error.state,
-    }, capabilityErrorStatus(error.code));
+const capabilityErrorResponse = (res, error, body) => {
+    let shape = normalizeToolError(error);
+    if (!isToolDiagnosticId(shape.details.diagnosticId)) {
+        shape = normalizeToolError(error, {
+            diagnosticId: isToolDiagnosticId(body?.invocationId) ? body.invocationId : randomUUID(),
+            toolName: body?.name, source: "capability_http",
+            stage: "execute", outcome: "unknown", retryAdvice: "inspect_before_retry",
+        });
+    }
+    return json(res, { error: shape.code, ...shape }, capabilityErrorStatus(shape.code));
 };
 
 const capabilityErrorStatus = (code) => {

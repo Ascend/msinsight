@@ -23,6 +23,7 @@ import { reportBackendAvailable, reportBackendUnavailable } from './backendConne
 import { canAttemptAcpRequest, type AcpRuntimeStatus, type AcpUnavailableReason } from './acpStatus';
 import { sealEnvSecrets, sealSecretInput } from './secretSeal';
 import type { ReportDocument } from './artifacts';
+import { isPreparedReceipt, type FrontendCommandAck, type PreparedReceipt, type ReceiptBody } from './bridge/frontendCommandReceipt';
 
 export const fetchReport = (artifactId: string, version: number, signal?: AbortSignal): Promise<ReportDocument> => (
     requestJson(`/api/artifacts/${encodeURIComponent(artifactId)}?version=${version}`, { signal })
@@ -140,8 +141,9 @@ const ensureStartupCompleted = async (): Promise<void> => {
     }
 };
 
-const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> => {
-    const delays = shouldRetryConnection() ? CONNECT_RETRY_DELAYS_MS : [];
+interface RequestPolicy { connectionRetries?: 0; startupWait?: 'fail_fast' }
+const fetchBackend = async (url: string, init?: RequestInit, policy?: RequestPolicy): Promise<Response> => {
+    const delays = policy?.connectionRetries === 0 ? [] : shouldRetryConnection() ? CONNECT_RETRY_DELAYS_MS : [];
     for (let attempt = 0; ; attempt += 1) {
         try {
             return await fetch(url, {
@@ -164,9 +166,14 @@ const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> 
     }
 };
 
-const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
+const requestJson = async <T>(path: string, init?: RequestInit, policy?: RequestPolicy): Promise<T> => {
     const url = apiUrl(path);
-    await ensureStartupCompleted();
+    if (init?.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+    if (policy?.startupWait === 'fail_fast' && runtimeStatus === 'starting') {
+        throw new ApiRequestError('The Agent backend is starting.', undefined, path);
+    }
+    if (policy?.startupWait !== 'fail_fast') await ensureStartupCompleted();
+    if (init?.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     if (!canAttemptAcpRequest(runtimeStatus)) {
         reportBackendUnavailable({
             url: safeEndpoint(url),
@@ -178,9 +185,9 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
 
     let response: Response;
     try {
-        response = await fetchBackend(url, init);
+        response = await fetchBackend(url, init, policy);
     } catch (error) {
-        if (isAbortError(error)) {
+        if (isAbortError(error) || init?.signal?.aborted) {
             throw error;
         }
         const cause = error instanceof Error ? error.message : String(error);
@@ -334,16 +341,11 @@ export const claimFrontendCommand = (requestId: string): Promise<{ ok?: boolean;
     body: JSON.stringify({ requestId }),
 });
 
-export const respondFrontendCommand = (body: {
-    requestId: string;
-    claimToken: string;
-    status: 'completed' | 'failed' | 'cancelled';
-    result?: unknown;
-    error?: unknown;
-}): Promise<OkResponse> => requestJson<OkResponse>('/api/frontend-commands/respond', {
+export const respondFrontendCommand = (body: ReceiptBody | PreparedReceipt, options?: { signal: AbortSignal }): Promise<FrontendCommandAck> => requestJson<FrontendCommandAck>('/api/frontend-commands/respond', {
     method: 'POST',
-    body: JSON.stringify(body),
-});
+    body: isPreparedReceipt(body) ? body.json : JSON.stringify(body),
+    signal: options?.signal,
+}, options ? { connectionRetries: 0, startupWait: 'fail_fast' } : undefined);
 
 export const cancelPrompt = (sessionId?: string): Promise<OkResponse> => {
     return requestJson<OkResponse>('/api/cancel', {

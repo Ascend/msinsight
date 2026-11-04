@@ -45,6 +45,73 @@ jest.mock('remark-gfm', () => ({
 import { MessageList, toolCallDisplayName } from '../../components/MessageList';
 
 const noopPermissionDecision = jest.fn();
+
+const displayError = {
+    code: 'COMMAND_NOT_FOUND',
+    message: 'Command Acceptance.nonexistentCommand is not recognized.',
+    retryable: false,
+    details: {
+        diagnosticId: '00000000-0000-4000-8000-000000000001',
+        source: 'command',
+        stage: 'validate',
+        outcome: 'not_started',
+    },
+    state: { activeModule: 'Timeline' },
+};
+
+test.each([
+    ['project error', 'failed', JSON.stringify(displayError), JSON.stringify(displayError, null, 2)],
+    ['minimal project error', 'failed', '{"code":"AB_ERROR","message":"AB failure","retryable":false}', '{\n  "code": "AB_ERROR",\n  "message": "AB failure",\n  "retryable": false\n}'],
+    ['legacy text', 'failed', 'AB legacy error\nSpecific stderr', 'AB legacy error\nSpecific stderr'],
+    ['incomplete JSON', 'failed', '{"code":"AB_ERROR"', '{"code":"AB_ERROR"'],
+    ['non-contract JSON', 'failed', '{"message":"AB failure"}', '{"message":"AB failure"}'],
+    ['array result', 'failed', '[{"message":"AB failure"}]', '[{"message":"AB failure"}]'],
+    ['completed data', 'completed', JSON.stringify(displayError), JSON.stringify(displayError)],
+] as const)('formats %s for display only', (_name, status, output, expected) => {
+    const input = '{"command":"Acceptance.nonexistentCommand","args":{}}';
+    const toolCall = Object.freeze({
+        toolCallId: 'display-error',
+        name: 'msinsight',
+        status,
+        input,
+        output,
+    });
+    render(<MessageList messages={[{
+        id: 'display-error-message',
+        role: 'assistant',
+        content: [{ id: 'display-error-block', type: 'tool', toolCall }],
+    }]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} />);
+    const values = document.querySelectorAll('.tool-value');
+    expect(values).toHaveLength(2);
+    expect(values[0].textContent).toBe(input);
+    expect(values[1].textContent).toBe(expected);
+    expect(toolCall.output).toBe(output);
+    if (_name === 'project error') expect(JSON.parse(values[1].textContent ?? '')).toEqual(displayError);
+});
+
+test.each([2, null])('renders completed process exit %s as a warning, not success', (exitCode) => {
+    render(<MessageList messages={[{
+        id: 'process',
+        role: 'assistant',
+        content: [{
+            id: 'bash',
+            type: 'tool',
+            toolCall: {
+                toolCallId: 'bash',
+                name: 'Bash',
+                status: 'completed',
+                process: { exitCode },
+                output: 'stderr: missing TASK',
+            },
+        }],
+    }]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} />);
+    expect(document.querySelector('.timeline-item.tool')).toHaveClass('failed');
+    expect(screen.getByText('Bash command ended')).toBeInTheDocument();
+    expect(screen.getByText(`Exit code: ${exitCode ?? 'unknown'}`)).toBeInTheDocument();
+    fireEvent.click(document.querySelector('.thinking-timeline > summary') as HTMLElement);
+    fireEvent.click(document.querySelector('.timeline-tool-details > summary') as HTMLElement);
+    expect(screen.getByText('stderr: missing TASK')).toBeVisible();
+});
 const actionXml = (blockId: number): string => `<insight-action>
 {
   "label": "Block #${blockId}",

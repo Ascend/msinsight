@@ -107,6 +107,10 @@ export const renderSessionMarkdown = (document) => {
                 const tool = block.toolCall;
                 lines.push("", `### Tool: ${tool.name ?? "unknown"}`, "");
                 if (tool.status) lines.push(`- Status: ${tool.status}`);
+                if (tool.process) {
+                    lines.push(`- Exit code: ${tool.process.exitCode ?? "unknown"}`);
+                    if (tool.process.signal) lines.push(`- Signal: ${tool.process.signal}`);
+                }
                 if (tool.input) lines.push("", "Input:", "", fence(tool.input));
                 if (tool.output) lines.push("", "Output:", "", fence(tool.output));
                 continue;

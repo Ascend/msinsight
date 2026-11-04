@@ -539,15 +539,23 @@ throw new CommandError({
 | `COMMAND_INVALID` | 参数缺失、类型或范围错误 | `false` |
 | `COMMAND_UNAVAILABLE` | 当前状态暂时不可执行 | 视情况为 `true` |
 | `COMMAND_BUSY` | 互斥业务事务执行中 | `true` |
-| `COMMAND_TIMEOUT` | deadline 已到 | `true` |
-| `COMMAND_CANCELLED` | 用户或上层取消 | `true` |
-| `COMMAND_CONNECTION_LOST` | iframe reload 或断线 | `true` |
+| `COMMAND_TIMEOUT` | deadline 已到 | 仅明确未执行时可为 `true`；结果未知时 `false` |
+| `COMMAND_CANCELLED` | 用户或上层取消 | `false`，不自动继续 |
+| `COMMAND_CONNECTION_LOST` | iframe reload 或断线 | 结果未知时 `false`，先重新观察 |
 | `COMMAND_PERMISSION_DENIED` | 能力拥有者拒绝执行 | 通常 `false` |
 | `COMMAND_EXECUTION_FAILED` | 未分类业务失败 | 视业务而定 |
 
 领域可以定义更具体的稳定错误码，并保留 `details` 和 `state`。所有错误字段必须可 JSON 序列化。
 
 未包装异常会由 transport 转成 `COMMAND_EXECUTION_FAILED`，但业务可预期错误不应依赖这一兜底。
+
+Native 工具（CLI、Bash、skill、RAG 等经由 Native Runtime 执行的工具）的错误沿用同一五字段契约：模型可见的错误文本是该结构的有界 JSON 序列化，
+`details` 内含 `diagnosticId`（仅用于诊断关联，不是鉴权凭据或幂等键）、
+`source`、`stage`、`outcome`、`retryAdvice` 等诊断上下文，
+以及退出码、已脱敏且截断的 stderr/stdout 等领域字段。
+`outcome=unknown` 表示副作用可能已经发生，应先观察页面状态再决定是否重试。
+新增错误码或诊断字段须在 `modules/insight_web_agent/server/utils/toolErrorPolicy.mjs` 登记并补充测试。
+用户报障时提供诊断 ID 与操作步骤即可，不要粘贴 Token、原始完整日志或敏感性能数据。
 
 ## 10. 返回结果设计
 

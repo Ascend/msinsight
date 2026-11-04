@@ -4,6 +4,7 @@
  */
 import { parentPort, workerData } from "node:worker_threads";
 import { createRagService } from "./services/rag/ragService.mjs";
+import { notifyRagDiagnostic, ragStatusReason } from "./services/rag/ragDiagnostic.mjs";
 
 const logger = Object.fromEntries(["info", "warn", "debug"].map((level) => [level,
     (message) => parentPort.postMessage({ type: "log", level, message }),
@@ -17,15 +18,18 @@ try {
     } else {
         parentPort.on("message", async (message) => {
             if (message.type !== "retrieve") return;
+            let diagnostic;
+            const onDiagnostic = (value) => { diagnostic = value; };
             try {
-                const result = await service.retrieve(message.query, message.options);
-                parentPort.postMessage({ type: "result", id: message.id, result });
+                const result = await service.retrieve(message.query, { ...message.options, onDiagnostic });
+                parentPort.postMessage({ type: "result", id: message.id, result, ...(diagnostic ? { diagnostic } : {}) });
             } catch (error) {
-                parentPort.postMessage({ type: "result", id: message.id, error: error?.code ?? "rag_retrieval_failed" });
+                if (!diagnostic && error?.code !== "rag_busy") notifyRagDiagnostic(onDiagnostic, "retrieval_failed");
+                parentPort.postMessage({ type: "result", id: message.id, error: error?.code === "rag_busy" ? "rag_busy" : "rag_retrieval_failed", ...(diagnostic ? { diagnostic } : {}) });
             }
         });
     }
 } catch (error) {
-    parentPort.postMessage({ type: "failed", reason: error?.code ?? "rag_load_failed" });
+    parentPort.postMessage({ type: "failed", reason: ragStatusReason(error?.code, "rag_load_failed") });
     parentPort.close();
 }
