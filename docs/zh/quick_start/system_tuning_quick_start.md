@@ -36,7 +36,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 下载后请确认目录中包含如下结构：
 
 ```text
-└─MultiProfLevel2MemoryUB_db
+└─system
     ├─cluster_analysis_output
     ├─node1_2166651_20240619060505060_ascend_pt
     │  ├─ASCEND_PROFILER_OUTPUT
@@ -104,7 +104,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
         └─PROF_000001_20240619060440316_MONIINKACEIFDCRA
 ```
 
-导入时请注意：本文的分析对象是整个 `MultiProfLevel2MemoryUB_db` 目录，而不是其中某一个子目录。
+导入时请注意：本文的分析对象是整个 `system` 目录，而不是其中某一个子目录。
 
 ### 1.4 术语速查
 
@@ -124,7 +124,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 ### 2.1 分析 Summary（概览）页签
 
-**操作：** 导入 `MultiProfLevel2MemoryUB_db` 文件夹，切换到 Summary（概览）页签。
+**操作：** 导入 `system` 文件夹，切换到 Summary（概览）页签。
 
 **观察目标：** 先看整体计算/通信概览，判断是否存在明显资源未被充分利用的卡。
 
@@ -172,7 +172,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 | 现象 | 建议处理 |
 | --- | --- |
-| 导入 `MultiProfLevel2MemoryUB_db` 后无数据显示 | 先确认导入的是整个根目录，而不是某个子目录；如果仍然无数据显示，请参考 [FAQ](../support/faq.md) 中的数据导入问题。 |
+| 导入 `system` 后无数据显示 | 先确认导入的是整个根目录，而不是某个子目录；如果仍然无数据显示，请参考 [FAQ](../support/faq.md) 中的数据导入问题。 |
 | 页面显示与本文截图不完全一致 | 不同 MindStudio Insight、CANN 或 msProf 版本的界面字段可能略有差异，请以 Summary、Communication、Timeline 页签中的关键指标为准。 |
 | 无法判断哪张卡是瓶颈 | 先在 Communication 页签观察通信耗时，再在 Timeline 页签确认该卡在通信前的计算/空闲状态。 |
 | 想了解 Timeline 泳道含义 | 参考 [Timeline 泳道介绍](../best_practices/Timeline_Common_Lanes_and_Interface.md)。 |

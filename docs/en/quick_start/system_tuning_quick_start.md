@@ -36,7 +36,7 @@ Click to download the [system data](https://gitcode.com/zhangruoyu2/msinsight-qu
 After downloading, verify that the directory contains the following structure:
 
 ```text
-└─MultiProfLevel2MemoryUB_db
+└─system
     ├─cluster_analysis_output
     ├─node1_2166651_20240619060505060_ascend_pt
     │  ├─ASCEND_PROFILER_OUTPUT
@@ -104,7 +104,7 @@ After downloading, verify that the directory contains the following structure:
         └─PROF_000001_20240619060440316_MONIINKACEIFDCRA
 ```
 
-Note during import: The analysis target of this document is the entire `MultiProfLevel2MemoryUB_db` directory, not any single subdirectory within it.
+Note during import: The analysis target of this document is the entire `system` directory, not any single subdirectory within it.
 
 ### 1.4 Terminology
 
@@ -124,7 +124,7 @@ Note during import: The analysis target of this document is the entire `MultiPro
 
 ### 2.1 Analyzing the Summary Tab
 
-**Operation:** Import the `MultiProfLevel2MemoryUB_db` folder and switch to the **Summary** tab.
+**Operation:** Import the `system` folder and switch to the **Summary** tab.
 
 **Observation objective:** First review the overall computation/communication overview to determine whether any ranks have obviously underutilized resources.
 
@@ -172,7 +172,7 @@ Observe the **Slice List** section after the selection. The Free time is approxi
 
 | Phenomenon | Suggested Action |
 | --- | --- |
-| No data displayed after importing `MultiProfLevel2MemoryUB_db` | First confirm that the entire root directory, not a subdirectory, is imported. If data is still not displayed, see the data import issues in [FAQs](../support/faq.md). |
+| No data displayed after importing `system` | First confirm that the entire root directory, not a subdirectory, is imported. If data is still not displayed, see the data import issues in [FAQs](../support/faq.md). |
 | Page display does not exactly match the screenshots in this document | Interface fields may vary slightly across different MindStudio Insight, CANN, or msProf versions. Refer to the key metrics on the **Summary**, **Communication**, and **Timeline** tabs. |
 | Unable to determine which rank is the bottleneck | First observe the communication latency on the **Communication** tab, then confirm the rank's computation/idle status before communication on the **Timeline** tab. |
 | Meaning of Timeline units | See [Timeline Unit Introduction](../best_practices/Timeline_Common_Lanes_and_Interface.md). |
