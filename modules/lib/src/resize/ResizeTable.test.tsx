@@ -103,3 +103,16 @@ it('keeps the existing clipboard columns when no override is provided', async ()
     fireEvent.click(view.container.querySelector('.exportTableBtn') as Element);
     await waitFor(() => expect(copyTableToClipboard).toHaveBeenCalledWith(columns, rows));
 });
+
+it('delegates copying only when a custom table copy callback is supplied', async () => {
+    const onCopyTable = jest.fn().mockResolvedValue(undefined);
+    const defaultCopy = jest.mocked(copyTableToClipboard);
+    defaultCopy.mockClear();
+    const view = render(<ThemeProvider theme={light}>
+        <ResizeTable columns={[{ title: 'Name', dataIndex: 'name' }]} dataSource={[{ key: 'one', name: 'aten::add' }]}
+            onCopyTable={onCopyTable} pagination={false} />
+    </ThemeProvider>);
+    fireEvent.click(view.container.querySelector('.exportTableBtn') as Element);
+    await waitFor(() => expect(onCopyTable).toHaveBeenCalledTimes(1));
+    expect(defaultCopy).not.toHaveBeenCalled();
+});

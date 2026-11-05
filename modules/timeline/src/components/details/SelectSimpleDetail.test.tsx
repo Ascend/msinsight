@@ -100,6 +100,78 @@ describe('Slice List name filters', () => {
         expect(session.selectedMultiSlice).toContain('Add');
     });
 
+    it('copies the displayed totals before filtered/sorted rows without changing the table data', async () => {
+        const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+        const writeText = jest.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+        try {
+            const view = renderList();
+            const copy = async (): Promise<string[][]> => {
+                writeText.mockClear();
+                fireEvent.click(view.container.querySelector('.exportTableBtn') as Element);
+                await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+                return writeText.mock.calls[0][0].split('\n').filter(Boolean).map((line: string) => line.replace(/\t$/, '').split('\t'));
+            };
+            const initial = await copy();
+            expect(initial[0]).toEqual(state.columns.map(column => column.title));
+            expect(initial[1]).toEqual(['Totals', '10000000', '7000000', String(10000000 / 6), '3000000', '500000', '6']);
+            expect(initial.slice(2).map(row => row[0])).toEqual(['MatMul_main', 'StreamWait', 'Add', 'Multiply']);
+            expect(titles()).toHaveLength(4); // 合计只进入复制内容，不作为可点击的数据行。
+
+            open();
+            enter('matmul,wait,');
+            search();
+            fireEvent.click(screen.getByText('Wall Duration'));
+            const filtered = await copy();
+            expect(filtered[1]).toEqual(['Totals', '5000000', '3000000', String(5000000 / 3), '2500000', '1000000', '3']);
+            expect(filtered.slice(2).map(row => row[0])).toEqual(['Multiply', 'Add']);
+            expect(filtered[2]).toEqual(['Multiply', '1000000', '1000000', '1000000', '1000000', '1000000', '1']);
+            expect(filtered[3]).toEqual(['Add', '4000000', '2000000', '2000000', '2500000', '1500000', '2']);
+            expect(filtered[1]).toEqual(Array.from(view.container.querySelectorAll('.ant-table-summary td')).map(cell => cell.textContent));
+
+            // 隐藏的列也不应出现在表头、合计或数据中。
+            state = { ...state, columns: state.columns.filter(column => column.key !== 'Self Time') };
+            view.rerender(<SelectSimpleTabularDetail session={session} height={301} detail={slicesListDetail} />);
+            const hiddenColumn = await copy();
+            expect(hiddenColumn[0]).not.toContain('Self Time');
+            expect(hiddenColumn.every(row => row.length === 6)).toBe(true);
+            expect(hiddenColumn[1]).toEqual(Array.from(view.container.querySelectorAll('.ant-table-summary td')).map(cell => cell.textContent));
+
+            open();
+            reset();
+            const restored = await copy();
+            expect(restored[1]).toEqual(['Totals', '10000000', String(10000000 / 6), '3000000', '500000', '6']);
+            expect(restored.slice(2)).toHaveLength(4);
+
+            // 数据刷新后使用新合计；真实算子恰好叫Totals时也不能误认为合计记录。
+            state = { ...state, dataSource: [{ ...makeRows()[0], title: 'Totals' }, makeRows()[2]] };
+            view.rerender(<SelectSimpleTabularDetail session={session} height={302} detail={slicesListDetail} />);
+            const refreshed = await copy();
+            expect(refreshed).toHaveLength(4);
+            expect(refreshed[1]).toEqual(['Totals', '6000000', '1500000', '2500000', '500000', '4']);
+            expect(refreshed[2]).toEqual(['Totals', '2000000', '1000000', '1500000', '500000', '2']);
+            expect(titles()).toEqual(['Totals', 'Add']);
+
+            state = { ...state, columns: [...state.columns, { title: 'Row index', key: 'Row index', render: (_, _row, index) => String(index) }] };
+            view.rerender(<SelectSimpleTabularDetail session={session} height={303} detail={slicesListDetail} />);
+            const withIndex = await copy();
+            expect(withIndex[1][6]).toBe(''); // 无合计方法的列与屏幕一样留空。
+            expect(withIndex.slice(2).map(row => row[6])).toEqual(['0', '1']);
+            open();
+            enter('not-present', 'include');
+            search();
+            expect(titles()).toEqual([]);
+            expect(view.container.querySelector('.exportTableBtn')).toBeNull();
+            expect(view.container.querySelector('.ant-table-summary')).toBeNull();
+        } finally {
+            if (descriptor) {
+                Object.defineProperty(navigator, 'clipboard', descriptor);
+            } else {
+                Reflect.deleteProperty(navigator, 'clipboard');
+            }
+        }
+    });
+
     it('keeps sorting and active exclusions when data refreshes', async () => {
         const view = renderList();
         open();
