@@ -302,6 +302,8 @@ interface ResizeTableProps<T> extends TableProps<T> {
     allowCopy?: boolean;
     /** Optional plain-text column definitions used only for clipboard export. */
     copyColumns?: ColumnsType<T>;
+    /** 仅显式传入的页面接管复制；未传入时仍按原有列和数据复制。 */
+    onCopyTable?: () => void | Promise<void>;
     resetScroll?: boolean;
 }
 type TablePaginationPosition = 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight';
@@ -459,7 +461,7 @@ export function ResizeTableInner<T extends object>(prop: ResizeTableProps<T>, re
     const {
         columns: propColumns, variableTotalWidth = false, minThWidth = 50, id, style, virtual = false,
         scroll, dataSource, pagination, expandable, onChange, rowHoverable = true,
-        className, locale, allowCopy = true, copyColumns, resetScroll = true, ...restProps
+        className, locale, allowCopy = true, copyColumns, onCopyTable, resetScroll = true, ...restProps
     } = prop;
     const [columns, setColumns] = useState<ColumnsType<T>>([]);
     const marginY = scroll?.y ? (scroll.y - EMPTY_VIEW_HEIGHT) / 2 : 50;
@@ -492,7 +494,13 @@ export function ResizeTableInner<T extends object>(prop: ResizeTableProps<T>, re
     // ============================ expandable ============================
     const fullExpandable = useMemo(() => getFullExpandable(expandable), [expandable]);
 
-    const copyTable = async (): Promise<void> => { await copyTableToClipboard(copyColumns ?? columns, dataSource as any[]); };
+    const copyTable = async (): Promise<void> => {
+        if (onCopyTable) {
+            await onCopyTable();
+        } else {
+            await copyTableToClipboard(copyColumns ?? columns, dataSource as any[]);
+        }
+    };
 
     useImperativeHandle(ref, (): ResizeTableRef => ({
         clearAllFilters: () => clearAllFilters(mergeColumns, setFiltersState),

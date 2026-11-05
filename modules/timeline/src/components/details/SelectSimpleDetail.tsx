@@ -25,6 +25,7 @@ import { TableState, TableViewProps } from './types';
 import { useDetailUpdater } from './hooks';
 import type { CommonStateProto, TabProto } from './base/Tabs';
 import { ResizeTable } from '@insight/lib/resize';
+import { copyTableToClipboard } from '@insight/lib/utils';
 import { AutoKey, getAutoKey } from '../../utils/dataAutoKey';
 import type { FilterDropdownProps, FilterValue, SorterResult } from 'antd/lib/table/interface';
 import { SliceNameFilter } from './SliceNameFilter';
@@ -133,6 +134,20 @@ export const SelectSimpleTabularDetail = observer(<T extends CommonStateProto>(
     }, [dataSource, selectedKey, state.rowKey, session]);
     // 新增Summary(Totals)行
     const summary = (): React.ReactNode => dataSource?.length ? generateSummary(state, dataSource) : undefined;
+    const copyWithSummary = async (): Promise<void> => {
+        if (dataSource.length === 0) {
+            return;
+        }
+        // 合计记录仅在点击复制时创建，不混入真实数据源、排序或行选择。
+        const summaryRecord = {};
+        const copyColumns = state.columns.map(column => ({
+            ...column,
+            render: (value: unknown, record: Record<string, unknown>, index: number) => record === summaryRecord
+                ? column.summary?.(dataSource) ?? ''
+                : column.render ? column.render(value, record, index - 1) : value,
+        }));
+        await copyTableToClipboard(copyColumns, [summaryRecord, ...dataSource]);
+    };
     return (
         <NameFilterContext.Provider value={nameFilterProps}>
             <ResizeTable
@@ -142,6 +157,7 @@ export const SelectSimpleTabularDetail = observer(<T extends CommonStateProto>(
                 summary={summary}
                 dataSource={dataSource}
                 allowCopy
+                onCopyTable={copyWithSummary}
                 scroll={{ y: scrollY, x: TABLE_MIN_WIDTH }} virtual
                 rowClassName={(row): string => {
                     return selectedKey !== null && selectedKey === (state.rowKey?.(row) ?? getAutoKey(row)) ? 'selected-row' : 'click-able';
