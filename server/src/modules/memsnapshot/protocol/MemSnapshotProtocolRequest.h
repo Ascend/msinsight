@@ -252,7 +252,7 @@ struct MemSnapshotBlocksRequest : Request {
 };
 
 struct MemSnapshotFrameTreeParams {
-    static constexpr int64_t MAX_PAGE_SIZE = 1000;
+    static constexpr int64_t MAX_PAGE_SIZE = 30000;
     std::string deviceId;
     int64_t eventId{0};
     bool includeStatic{true};
@@ -266,7 +266,8 @@ struct MemSnapshotFrameTreeParams {
             return false;
         }
         if (currentPage < 1 || pageSize < 1 || pageSize > MAX_PAGE_SIZE || currentPage > INT64_MAX / pageSize) {
-            error = "Invalid frame tree pagination; currentPage>=1 and pageSize in [1,1000] required";
+            error = "Invalid frame tree pagination; currentPage>=1 and pageSize in [1," +
+                std::to_string(MAX_PAGE_SIZE) + "] required";
             return false;
         }
         return true;
