@@ -297,14 +297,19 @@ TEST(MemSnapshotFrameTreeParamsTest, RejectsInvalidTypesRangesAndOverflow) {
     std::string error;
     params.deviceId = "0";
     params.currentPage = 1;
-    params.pageSize = 1000;
-    EXPECT_TRUE(params.CommonCheck(error));
-    for (const auto value : {0LL, -1LL, 1001LL}) {
+    for (const auto value : {1LL, 1000LL, 1001LL, 30000LL}) {
+        params.pageSize = value;
+        EXPECT_TRUE(params.CommonCheck(error));
+    }
+    for (const auto value : {0LL, -1LL, 30001LL}) {
         params.pageSize = value;
         EXPECT_FALSE(params.CommonCheck(error));
+        EXPECT_NE(error.find("[1,30000]"), std::string::npos);
     }
-    params.pageSize = 1000;
-    params.currentPage = INT64_MAX;
+    params.pageSize = 30000;
+    params.currentPage = INT64_MAX / params.pageSize;
+    EXPECT_TRUE(params.CommonCheck(error));
+    ++params.currentPage;
     EXPECT_FALSE(params.CommonCheck(error));
     params.currentPage = 0;
     EXPECT_FALSE(params.CommonCheck(error));
@@ -322,14 +327,16 @@ TEST(MemSnapshotFrameTreeParamsTest, ParsesStrictTypesAndDefaultsIncludeStatic) 
         std::string error;
         return Protocol::MemSnapshotFrameTreeRequest::FromJson(document, error);
     };
-    auto request = parse(R"({"deviceId":"0","eventId":3,"currentPage":1,"pageSize":1000})");
+    auto request = parse(R"({"deviceId":"0","eventId":3,"currentPage":1,"pageSize":30000})");
     ASSERT_NE(request, nullptr);
     EXPECT_TRUE(static_cast<Protocol::MemSnapshotFrameTreeRequest &>(*request).params.includeStatic);
+    EXPECT_EQ(static_cast<Protocol::MemSnapshotFrameTreeRequest &>(*request).params.pageSize, 30000);
     for (const auto *params : {R"({"deviceId":0,"eventId":3,"currentPage":1,"pageSize":1})",
              R"({"deviceId":"0","eventId":3.5,"currentPage":1,"pageSize":1})",
              R"({"deviceId":"0","eventId":3,"currentPage":1,"pageSize":1,"includeStatic":1})",
              R"({"deviceId":"0","eventId":3,"currentPage":1})",
              R"({"deviceId":"0","eventId":3,"currentPage":0,"pageSize":1})",
+             R"({"deviceId":"0","eventId":3,"currentPage":1,"pageSize":30001})",
              R"({"deviceId":"0","eventId":9007199254740992,"currentPage":1,"pageSize":1})"}) {
         EXPECT_EQ(parse(params), nullptr) << params;
     }
