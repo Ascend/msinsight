@@ -496,6 +496,10 @@
         "aivCoreGroup": "Displays AIV data movement, scalar, and vector instruction cycle counts and ratios.",
         "starsChipTrans": "Displays coarse-grained statistics for PA link receive/transmit traffic levels and PCIe read/write bandwidth."
       }
-    }
+    },
+    "Export": "Export",
+    "Export Success": "Export succeeded. File saved to: {{filePath}}",
+    "Export Failed": "Export failed. Please try again.",
+    "Export File Exceeds Limit": "The exported file exceeds the size limit."
   }
 }

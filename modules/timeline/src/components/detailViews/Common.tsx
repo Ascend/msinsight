@@ -418,7 +418,8 @@ export const queryAffinityAPI = async (param: {
 export const exportAffinityAPI = async (param: {
     rankId: string; orderBy: string; order: string; startTime: number; endTime: number;
 }): Promise<{ count: number; filePath: string; exceedingFileLimit: boolean }> => {
-    return window.requestData('advisor/exportAffinityAPI', param);
+    // 导出失败由当前页面统一提示，避免请求层与页面重复弹出错误。
+    return window.requestData('advisor/exportAffinityAPI', param, 'advisor', { silent: true });
 };
 
 export const queryOperatorFusion = async (param: {

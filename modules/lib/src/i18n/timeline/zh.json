@@ -496,6 +496,10 @@
         "aivCoreGroup": "展示AIV搬运类、标量类、向量类指令cycle数及占比。",
         "starsChipTrans": "展示PA链路收发流量等级和PCIe读写带宽的粗粒度统计数据。"
       }
-    }
+    },
+    "Export": "导出",
+    "Export Success": "导出成功，文件已保存至：{{filePath}}",
+    "Export Failed": "导出失败，请重试。",
+    "Export File Exceeds Limit": "导出文件已超出大小限制。"
   }
 }

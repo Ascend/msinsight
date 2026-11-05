@@ -18,6 +18,7 @@
 import { observer } from 'mobx-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { message } from 'antd';
 import styled from '@emotion/styled';
 import { Button, Select, FormItem, Tooltip } from '@insight/lib/components';
 import {
@@ -612,11 +613,16 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
                 startTime: Math.floor(startTime + timestampOffset),
                 endTime: Math.ceil(endTime + timestampOffset),
             });
-            if (res.filePath.length === 0) {
-                console.error('Export failed: empty filePath');
+            if (typeof res?.filePath !== 'string' || res.filePath.length === 0) {
+                message.error(t('Export Failed', { keyPrefix: '' }));
+                return;
             }
+            // 直接展示返回路径；导出文案位于timeline根级，跳过表头前缀即可复用现有翻译方法。
+            const limitTip = res.exceedingFileLimit === true ? ` ${t('Export File Exceeds Limit', { keyPrefix: '' })}` : '';
+            message.success({ content: `${t('Export Success', { keyPrefix: '', filePath: res.filePath })}${limitTip}` });
         } catch (err) {
             console.error('Export failed:', err);
+            message.error(t('Export Failed', { keyPrefix: '' }));
         } finally {
             setExporting(false);
         }
@@ -640,7 +646,7 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
                 {props.exportRequest && (
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
                         <Button size="small" loading={exporting} onClick={handleExport}>
-                            Export All
+                            {t('Export', { keyPrefix: '' })}
                         </Button>
                     </div>
                 )}
