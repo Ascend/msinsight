@@ -40,7 +40,7 @@ import { forEach, isNil } from 'lodash';
 import { calculateLinkLines, LinkLineData, checkIsValidArrow } from './calculateLinkLines';
 import { ThemeName } from '@insight/lib/theme';
 import { getClassNameByMetadata } from '../../ChartContainer/Units/Units';
-import type { ChartType } from '../../../entity/chart';
+import type { ChartType, StackStatusConfig } from '../../../entity/chart';
 
 const UP_LINE: number = 30;
 const DOWN_LINE: number = 45;
@@ -521,6 +521,8 @@ export const drawOnMove = ({ interactorMouseState, ...args }: DrawArgs): void =>
 };
 
 const heightMap = new Map();
+// 仅记录被截断泳道的实际绘制深度，避免隐藏切片的连线落到下方泳道。
+const renderedDepthLimits = new Map<string, number>();
 interface CollapsedAncestorAnchor {
     top: number;
     height: number;
@@ -586,6 +588,17 @@ const recordCollapsedDescendantAnchors = (unit: InsightUnit, anchor: CollapsedAn
 
 const recordUnitHeight = (unit: InsightUnit, height: number): void => {
     const metadata = unit.metadata as ThreadMetaData;
+    const recordThreadHeight = (key: string): void => {
+        heightMap.set(key, height);
+        renderedDepthLimits.delete(key);
+        const chart = unit.chart as ChartDesc<'stackStatus'> | undefined;
+        // 显式合并来源会重新分配深度，不能直接用原始连线深度判断是否被截断。
+        if (unit.name === 'Thread' && unit.isExpanded && metadata.threadSourceList === undefined &&
+            chart?.type === 'stackStatus' && (chart.hiddenDepth ?? 0) > 0) {
+            const maxDepth = (chart.config as StackStatusConfig).maxDepth;
+            if (maxDepth !== undefined) { renderedDepthLimits.set(key, maxDepth); }
+        }
+    };
 
     if (metadata.cardId !== undefined) {
         heightMap.set(`${metadata.cardId}`, height);
@@ -610,16 +623,14 @@ const recordUnitHeight = (unit: InsightUnit, height: number): void => {
         if (metadata.threadIdList) {
             for (const threadId of metadata.threadIdList) {
                 const threadKey = getLaneThreadIdentity(metadata.cardId, metadata.processId, threadId, metadata.dbPath);
-                heightMap.set(threadKey, height);
+                recordThreadHeight(threadKey);
             }
         } else {
             const threadKey = getLaneThreadIdentity(metadata.cardId, metadata.processId, metadata.threadId, metadata.dbPath);
-            heightMap.set(threadKey, height);
+            recordThreadHeight(threadKey);
         }
         metadata.threadSourceList?.forEach(source => {
-            heightMap.set(
-                getLaneThreadIdentity(source.cardId, source.processId ?? '', source.threadId, source.dbPath), height,
-            );
+            recordThreadHeight(getLaneThreadIdentity(source.cardId, source.processId ?? '', source.threadId, source.dbPath));
         });
 
         if (unit.collapsible && !unit.isExpanded) {
@@ -712,6 +723,7 @@ const updateDrawLines = (ctx: CanvasRenderingContext2D, session: Session, theme:
         return;
     }
     heightMap.clear();
+    renderedDepthLimits.clear();
     collapsedThreadAnchorMap.clear();
     threadIsCol.clear();
     processIsCol.clear();
@@ -755,6 +767,7 @@ export const getHeight = (session: Session, data: DataBlock, cardId: string, cat
     const threadKeys = getLaneThreadIdentityCandidates(cardId, data.pid, data.tid, data.dbPath);
     const processKeys = getLaneProcessIdentityCandidates(cardId, data.pid, data.dbPath);
     const threadKey = threadKeys.find(key => heightMap.has(key)) ?? threadKeys[0];
+    if (data.depth >= (renderedDepthLimits.get(threadKey) ?? Infinity)) { return undefined; }
     const processKey = processKeys.find(key => heightMap.has(key)) ?? processKeys[0];
     const threadHeight = heightMap.get(threadKey);
     const collapsedThreadAnchor = threadKeys.map(key => collapsedThreadAnchorMap.get(key)).find(anchor => anchor !== undefined);

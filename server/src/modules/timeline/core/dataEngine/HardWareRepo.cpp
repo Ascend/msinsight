@@ -161,8 +161,11 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
     } else {
         competeSliceDomain = std::move(competeSliceVec[0]);
     }
-    const std::string taskTypeName = QuerySliceArgs(sliceQuery, competeSliceDomain, targetTask);
-    if (taskTypeName == "MODEL_EXECUTE") {
+    const auto taskTypeName = QuerySliceArgs(sliceQuery, competeSliceDomain, targetTask);
+    if (!taskTypeName.has_value()) {
+        return false;
+    }
+    if (taskTypeName.value() == "MODEL_EXECUTE") {
         QueryModelStreamIds(sliceQuery, competeSliceDomain, targetTask);
     }
     QuerySliceShape(sliceQuery, competeSliceDomain, targetTask);
@@ -275,12 +278,25 @@ void HardWareRepo::AppendPmuInfoToArgs(const SliceQuery &sliceQuery, CompeteSlic
     competeSliceDomain.args = JsonUtil::JsonDump(json.value());
 }
 
-std::string HardWareRepo::QuerySliceArgs(
+std::optional<std::string> HardWareRepo::QuerySliceArgs(
     const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
     std::string modelIdName = std::to_string(targetTask.modelId);
     std::unordered_map<uint64_t, std::string> strMap =
         stringIdsTable->QueryStrMap({targetTask.taskType}, sliceQuery.rankId);
-    std::string taskTypeName = strMap[targetTask.taskType];
+    std::string taskTypeName;
+    const auto type = strMap.find(targetTask.taskType);
+    if (type != strMap.end()) {
+        taskTypeName = type->second;
+    } else {
+        // Only a successful missing-row lookup may fall back to the raw ID.
+        auto stmt = CreatPreparedStatement("SELECT value FROM STRING_IDS WHERE id = ?", sliceQuery);
+        auto result = stmt == nullptr ? nullptr : stmt->ExecuteQuery(targetTask.taskType);
+        if (result == nullptr || result->Next() || result->GetErrorCode() != SQLITE_DONE) {
+            ServerLog::Warn("Failed to query hardware task type.");
+            return std::nullopt;
+        }
+        taskTypeName = std::to_string(targetTask.taskType);
+    }
     std::string streamId = std::to_string(targetTask.streamId);
     std::string taskId = std::to_string(targetTask.taskId);
     std::string connectionId = std::to_string(targetTask.connectionId);

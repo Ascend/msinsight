@@ -2774,7 +2774,7 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
             simpleSlice.timestamp = resultSet->GetUint64(col++);
             simpleSlice.duration = resultSet->GetUint64(col++);
             simpleSlice.endTime = resultSet->GetUint64(col++);
-            simpleSlice.name = stringsCache.at(path)[resultSet->GetString(col++)];
+            simpleSlice.name = GetStringCacheValue(path, resultSet->GetString(col++));
             simpleSlice.depth = resultSet->GetUint32(col++);
             simpleSlice.tid = metaData.isPythonStack ? Protocol::PYTHON_STACK_THREAD_ID_PREFIX + metaData.pid
                                                      : metaData.tid;

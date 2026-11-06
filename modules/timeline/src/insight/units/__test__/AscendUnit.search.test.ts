@@ -605,6 +605,23 @@ describe('ThreadUnit trace layout', () => {
         expect(unit.isTraceLoading).toBe(false);
     });
 
+    it('caps a deep lane and clears its hidden-depth notice after zooming to ordinary data', async () => {
+        const metadata = { ...MERGED_METADATA, threadId: '2', threadIdList: undefined, dataSource } as ThreadMetaData;
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const data = Array.from({ length: 30001 }, (_, depth) => [createStackStatusData({ id: `${depth}`, depth })]);
+        window.request = jest.fn().mockResolvedValue({ data, maxDepth: 30001, currentMaxDepth: 30001 });
+        const result = await chart.mapFunc(createSession(), metadata, unit);
+        expect(result).toHaveLength(2500);
+        expect(result[2499][0].depth).toBe(2499);
+        expect(chart.error).toBeFalsy();
+        expect(chart.hiddenDepth).toBe(27501);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(2500);
+        window.request = jest.fn().mockResolvedValue({ data: data.slice(0, 2500), maxDepth: 2500, currentMaxDepth: 2500 });
+        expect(await chart.mapFunc(createSession(), metadata, unit)).toHaveLength(2500);
+        expect(chart.hiddenDepth).toBe(0);
+    });
+
     it('keeps the thread list when the backend handles a merged lane', async () => {
         const metadata = { ...MERGED_METADATA, dataSource };
         const unit = new ThreadUnit(metadata);

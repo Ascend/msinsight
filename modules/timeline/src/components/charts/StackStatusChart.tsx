@@ -316,12 +316,21 @@ const mouseMoveUpFunc = ([downX, upX]: number[], datasState: StackStatusData[][]
     });
 };
 
+// Chromium 画布受单边和总像素数限制；超限时等比降低背板分辨率，保持逻辑坐标不变
+const MAX_CANVAS_SIDE = 65535;
+const MAX_CANVAS_AREA = 32768 * 8192;
+
 // eslint-disable-next-line max-lines-per-function
 export const StackStatusChart = observer(({ // 绘制 slice 的画布
     session, unit, margin, mapFunc, metadata, renderTooltip, height, onHover, onClick, decorator,
     rowHeight, width, textConfig, isNeedClamp, isCollapse, maxDepth,
 }: StackStatusChartProps) => {
     const theme = useTheme();
+    const canvasRatio = Math.min(
+        devicePixelRatio,
+        MAX_CANVAS_SIDE / Math.max(width, height, 1),
+        Math.sqrt(MAX_CANVAS_AREA / Math.max(width * height, 1)),
+    );
     const canvasContainer = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
     const { action: drawExt = (): void => { }, triggers = [] } = decorator?.(session, metadata) ?? {};
@@ -363,7 +372,7 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
         const ctx = canvas.current.getContext('2d');
         const xScale = d3.scaleLinear().range(rangeAndDomain[0]).domain(rangeAndDomain[1]).clamp(isNeedClamp ?? true);
         ctx?.resetTransform();
-        ctx?.scale(devicePixelRatio, devicePixelRatio);
+        ctx?.scale(canvasRatio, canvasRatio);
         ctx?.clearRect(0, 0, width, height);
         draw({ ctx, dataList: datasState, xScale, yScale, theme, right: session.endTimeAll ?? 0, isSimulation: session.isSimulation, textConfig });
         drawExt({
@@ -380,7 +389,8 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
             }),
             findAll: (condition) => datasState.map(it => it.filter(condition)),
         }, xScale, yScale, theme);
-    }, [datasState, rangeAndDomain, ...triggers, theme, isCollapse]);
+    // 泳道高度或背板缩放变化会重置画布内容，需随之重绘
+    }, [datasState, rangeAndDomain, ...triggers, theme, isCollapse, height, canvasRatio]);
 
     const tooltipProp: TooltipProps<StackStatusData, StackStatusData[][]> = {
         data: hoveredData,
@@ -395,7 +405,7 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
     return <CanvasContainer ref={canvasContainer} className={'canvasContainer'} width={width} height={height} style={{ pointerEvents: `${isCollapse ? 'none' : 'auto'}` }}>
         { !isCollapse && <TooltipComponent {...tooltipProp} /> }
         <Spin spinning={unit.isTraceLoading} delay={2500} size="small">
-            <Canvas className={'drawCanvas'} ref={canvas} width={width * devicePixelRatio} height={height * devicePixelRatio}/>
+            <Canvas className={'drawCanvas'} ref={canvas} width={width * canvasRatio} height={height * canvasRatio}/>
         </Spin>
     </CanvasContainer>;
 });

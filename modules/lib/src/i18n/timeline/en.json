@@ -374,6 +374,7 @@
       "Click To AI Core Frequency": "Click To AI Core Frequency"
     },
     "RenderError": "Rendering failed. Please check if the data is correct",
+    "DepthLimitWarning": "This lane exceeds the canvas depth limit; the deepest {{hidden}} layers are not displayed. Original data is unaffected.",
     "floatingToolbar": {
       "expand": "Expand mouse tools",
       "collapse": "Collapse",

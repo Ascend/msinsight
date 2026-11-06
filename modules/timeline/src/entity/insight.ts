@@ -43,6 +43,8 @@ export interface ChartDesc<T extends ChartType> {
     onClick?: ChartReaction<T>;
     decorator?: ChartDecorator<T>;
     error?: boolean;
+    // 超出画布深度上限而未绘制的层数
+    hiddenDepth?: number;
 }
 
 export enum ProjectType {
