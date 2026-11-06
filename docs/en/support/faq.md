@@ -328,33 +328,7 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 4. If removing the allowlist affects some local web access, you can add the keyword ![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png), and then reopen MindStudio Insight to use it.
 5. If the keyword does not exist and the modification is ineffective, contact the MindStudio Insight tool contact for further diagnosis.
 
-## 17. How can I view only text data when profiling both DB and text mixed data?
-
-**Symptom**
-
-When multiple JSON files are placed in the same folder and several MindStudio Insight instances are opened to view the Timeline pages of these JSON files at the same time, only one page can be displayed correctly, while the other pages display nothing or display errors, as shown in the following examples:
-
-**Symptom 1: Unit display inconsistent with expectations**
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/no-display.png)
-
-Expected result 👇
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/display-error.png)
-
-Example version number
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/version-example.png)
-
-**Cause Analysis**
-
-MindStudio Insight generates a DB file after parsing a JSON file to facilitate subsequent queries. If a directory contains multiple JSON files, only one DB file is still generated, so the content of a file parsed later overwrites the content of a file parsed earlier, which makes the content of the file opened first incorrect.
-
-**Solution**
-
-Delete the DB file, put the multiple JSON files in different folders, and import them again.
-
-## 18. How Can I View Only Text Data When Profiling DB and Text Data Are Mixed?
+## 17. How Can I View Only Text Data When Profiling DB and Text Data Are Mixed?
 
 **Symptom**
 
@@ -394,7 +368,7 @@ Search for and delete all DB deliverables in the data directory, including the `
 
 <a id="faq-timeline-host-device-reverse-flow"></a>
 
-## 19. Why Do the Connection Lines Between the Host Side and the Device Side in the Timeline Run from Back to Front?
+## 18. Why Do the Connection Lines Between the Host Side and the Device Side in the Timeline Run from Back to Front?
 
 **Symptom**
 
@@ -418,7 +392,7 @@ This phenomenon usually does not mean that the Device task is actually dispatche
 
 <a id="faq-communication-cluster-data-type"></a>
 
-## 20. How Is the Data Type Determined When Cluster Data Is Imported on the Communication Page, and What Does a Normal Data Directory Look Like?
+## 19. How Is the Data Type Determined When Cluster Data Is Imported on the Communication Page, and What Does a Normal Data Directory Look Like?
 
 **Determination Rules**
 
@@ -428,7 +402,7 @@ MindStudio Insight determines the data type when cluster data is imported. The C
 2. When the primary Profiler DB is not found but JSON/CSV deliverables such as `trace_view.json` and `communication.json` are found, the data is identified as TEXT format.
 3. `analysis.db` stores communication detail information and is not the primary Profiler DB. MindStudio Insight does not identify the entire profiling data as DB format based only on `analysis.db`.
 
-If the same directory contains both TEXT and DB deliverables, MindStudio Insight imports in DB format first. To import in pure TEXT format, see FAQ 18.
+If the same directory contains both TEXT and DB deliverables, MindStudio Insight imports in DB format first. To import in pure TEXT format, see FAQ 17.
 
 **Normal Data Directory (for msprof 26.1.0)**
 
@@ -475,7 +449,7 @@ If this directory structure is found, obtain the complete profiling data again f
 
 <a id="faq-no-available-port"></a>
 
-## 21. What Should I Do If the Application Exits Without a Window or Any Message After Startup?
+## 20. What Should I Do If the Application Exits Without a Window or Any Message After Startup?
 
 **Symptom**
 
