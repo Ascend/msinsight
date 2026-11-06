@@ -264,6 +264,7 @@ export interface RagStatus {
 
 export interface AppState {
     initialized?: boolean;
+    discoveryLoading?: boolean;
     ragStatus?: RagStatus;
     agentError?: string;
     agentInfo?: AgentInfo;
@@ -329,8 +330,8 @@ export interface QueuedPrompt {
 
 export type ServerEvent =
     | { type: 'state'; state: Partial<AppState> }
-    | { type: 'agent_discovery_started' }
-    | { type: 'agent_discovery_completed'; runtimeChanged?: boolean }
+    | { type: 'agent_discovery_started'; discoveryId?: string }
+    | { type: 'agent_discovery_completed'; runtimeChanged?: boolean; discoveryId?: string }
     | { type: 'message_added'; sessionId?: string; message: ChatMessage }
     | { type: 'message_content_delta'; sessionId?: string; id: string; blockId: string; blockType: 'text' | 'thinking'; delta: string }
     | { type: 'message_content_added'; sessionId?: string; id: string; block: MessageContentBlock }

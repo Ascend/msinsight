@@ -32,7 +32,7 @@ import { apiErrorMessage } from '../apiErrorMessage';
 import { ApiRequestError, fetchAgentConfig, fetchBuiltinAgentModels, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import { isSecretEnvKey, SECRET_PLACEHOLDER } from '../secretFields';
-import type { AgentConfigSnapshot } from '../types';
+import type { AgentConfigSaveResult, AgentConfigSnapshot } from '../types';
 import addIcon from '../icons/add.svg';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import backIcon from '../icons/back.svg';
@@ -729,6 +729,15 @@ const Container = styled.div`
         box-shadow: none;
     }
 
+    .settings-drawer input.settings-input[aria-invalid='true']:not([disabled]),
+    .settings-drawer input.settings-input[aria-invalid='true']:not([disabled]):hover,
+    .settings-drawer input.settings-input[aria-invalid='true']:not([disabled]):focus {
+        background-color: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.textColorPrimary};
+        border-color: ${(props): string => props.theme.dangerColor};
+        box-shadow: none;
+    }
+
     .toggle-button {
         width: 26px;
         height: 26px;
@@ -1318,23 +1327,55 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         savingRef.current = true;
         setSaving(true);
         setError(null);
+        const acceptSavedSection = (section: 'builtinAgent' | 'sessionConfig' | 'agentServers', saved: AgentConfigSnapshot): void => {
+            const changes = section === 'agentServers'
+                ? { agentServers: saved.agentServers, activeAgentName: saved.activeAgentName }
+                : { [section]: saved[section] };
+            initialSnapshotRef.current = { ...(initialSnapshotRef.current ?? initialSnapshot), ...changes };
+            setSnapshot((current) => current ? { ...current, ...changes } : current);
+            if (section === 'agentServers') {
+                if (draftAgent) {
+                    setSelectedAgentName(draftAgent.name.trim());
+                    setDraftAgent(null);
+                }
+                setSaveAndSwitchSelected(false);
+            }
+        };
+        const saveSection = async (
+            section: 'builtinAgent' | 'sessionConfig' | 'agentServers',
+            save: () => Promise<AgentConfigSaveResult>,
+        ): Promise<void> => {
+            let result: AgentConfigSaveResult;
+            try {
+                result = await save();
+            } catch (saveError) {
+                if (saveError instanceof ApiRequestError && saveError.body?.saved === true) {
+                    try {
+                        const persisted = await fetchAgentConfig();
+                        acceptSavedSection(section, persisted);
+                        await applyAgentConfigSnapshot(persisted);
+                    } catch (_syncError) {
+                        // Keep the original save/reload error if reading or synchronizing settings fails.
+                    }
+                }
+                throw saveError;
+            }
+            acceptSavedSection(section, result.snapshot ?? payload);
+        };
         try {
-            let savedSnapshot = payload;
             if (builtinAgentChanged) {
-                const result = await saveBuiltinAgentConfig(payload.builtinAgent);
-                savedSnapshot = result.snapshot ?? savedSnapshot;
+                await saveSection('builtinAgent', () => saveBuiltinAgentConfig(payload.builtinAgent));
             }
             if (sessionConfigChanged) {
-                const result = await saveAgentSessionConfig(payload.sessionConfig);
-                savedSnapshot = result.snapshot ?? savedSnapshot;
+                await saveSection('sessionConfig', () => saveAgentSessionConfig(payload.sessionConfig));
             }
             if (agentServersChanged) {
-                const result = await saveAgentServersConfig({
+                await saveSection('agentServers', () => saveAgentServersConfig({
                     activeAgentName: payload.activeAgentName,
                     agentServers: payload.agentServers,
-                });
-                savedSnapshot = result.snapshot ?? savedSnapshot;
+                }));
             }
+            const savedSnapshot = initialSnapshotRef.current ?? initialSnapshot;
             setSnapshot(savedSnapshot);
             initialSnapshotRef.current = savedSnapshot;
             await applyAgentConfigSnapshot(savedSnapshot);

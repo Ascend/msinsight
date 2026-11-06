@@ -45,6 +45,7 @@ interface SessionsResponse {
 
 interface OkResponse {
     ok?: boolean;
+    discoveryId?: string;
     runtimeChanged?: boolean;
     sessionId?: string;
     configOptions?: ConfigOption[];
