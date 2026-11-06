@@ -382,11 +382,12 @@ const logAgentDiscoveryResults = (label, results) => {
 const refreshDiscoveredAgents = async () => {
     if (agentRefreshPromise) return agentRefreshPromise;
     const runRefresh = async () => {
+        const refreshDiscoveryId = randomUUID();
         const previousConfig = cloneRuntimeConfig();
         const previousDiscovered = discoveredAgentServers;
         let runtimeChanged = false;
         state.agentDiscoveryLoading = true;
-        eventBus.broadcast({ type: "agent_discovery_started" });
+        eventBus.broadcast({ type: "agent_discovery_started", discoveryId: refreshDiscoveryId });
         try {
             reloadConfig();
             config.cwd = sharedWorkspacePath;
@@ -409,7 +410,7 @@ const refreshDiscoveredAgents = async () => {
 
             console.log(`ACP agent refresh completed: available=${discoveredAgentServers.map(({ name }) => name).join(", ") || "none"}`);
             console.log(`ACP agent refresh available configs: ${JSON.stringify(discoveredAgentServers.map(agentConfigForLog))}`);
-            return { ok: true, runtimeChanged };
+            return { ok: true, runtimeChanged, discoveryId: refreshDiscoveryId };
         } catch (error) {
             discoveredAgentServers = previousDiscovered;
             restoreRuntimeConfig(previousConfig);
@@ -419,7 +420,7 @@ const refreshDiscoveredAgents = async () => {
         } finally {
             state.agentDiscoveryLoading = false;
             syncListedAgentServers();
-            eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged });
+            eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged, discoveryId: refreshDiscoveryId });
         }
     };
     agentRefreshPromise = (async () => {
@@ -606,7 +607,7 @@ if (listening && !shuttingDown && autoDiscoveryEnabled) {
     } finally {
         state.agentDiscoveryLoading = false;
         syncListedAgentServers();
-        eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged: true });
+        eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged: true, discoveryId: randomUUID() });
     }
 } else if (listening && !shuttingDown) {
     await chatService.initialize();

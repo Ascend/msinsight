@@ -48,6 +48,7 @@ export const createAcpAdapter = ({
     const pendingHostRequests = new Map();
     const hostHandlers = new Map();
     let child;
+    let transportError;
     let disconnecting = false;
     let buffer = "";
     let nextId = 1;
@@ -61,9 +62,17 @@ export const createAcpAdapter = ({
         for (const subscriber of subscribers) subscriber(message);
     };
 
+    const handleTransportError = (error) => {
+        transportError = error;
+        rejectPending(pending, error);
+        rejectPending(pendingHostRequests, error);
+        notifySubscribers({ kind: "transport_error", error });
+    };
+
     const connect = () => {
         if (child) return;
         buffer = "";
+        transportError = undefined;
         child = spawnProcess(command, args, {
             cwd,
             env: { ...process.env, ...(agentServer.env ?? {}), ...(agentServer.name === "msinsight-native" ? { MSINSIGHT_NATIVE_IDLE_TIMEOUT_MS: String(promptRequestTimeoutMs) } : {}) },
@@ -78,17 +87,12 @@ export const createAcpAdapter = ({
                 console.error(`ACP stderr: bytes=${Buffer.byteLength(String(chunk), "utf8")}`);
             });
         }
-        child.on?.("error", (error) => {
-            notifySubscribers({ kind: "transport_error", error });
-            rejectPending(pending, error);
-            rejectPending(pendingHostRequests, error);
-        });
+        child.on?.("error", handleTransportError);
+        child.stdin?.on?.("error", handleTransportError);
         child.on?.("exit", (code, signal) => {
             if (disconnecting) return;
             const error = new Error(`ACP server exited code=${code} signal=${signal}`);
-            notifySubscribers({ kind: "transport_error", error });
-            rejectPending(pending, error);
-            rejectPending(pendingHostRequests, error);
+            handleTransportError(error);
             child = undefined;
         });
 
@@ -107,6 +111,9 @@ export const createAcpAdapter = ({
 
     const send = (message) => {
         if (!child) connect();
+        if (transportError) {
+            throw transportError;
+        }
         writeJson(child, message);
     };
 
@@ -115,7 +122,6 @@ export const createAcpAdapter = ({
         agentId: agentServer.name,
         request(method, params) {
             const id = nextId++;
-            send({ jsonrpc: "2.0", id, method, params });
             return new Promise((resolve, reject) => {
                 // Native 自主管理模型超时/重试；Host 仅以较宽时限检测进程失联。
                 const timeoutMs = method === "session/prompt" ? (agentServer.name === "msinsight-native" ? Math.max(30000, promptRequestTimeoutMs * 2) : promptRequestTimeoutMs) : requestTimeoutMs;
@@ -132,6 +138,13 @@ export const createAcpAdapter = ({
                 };
                 waiter.refreshTimeout();
                 pending.set(id, waiter);
+                try {
+                    send({ jsonrpc: "2.0", id, method, params });
+                } catch (error) {
+                    pending.delete(id);
+                    clearTimeout(waiter.timeout);
+                    reject(error);
+                }
             });
         },
         notify(method, params) {

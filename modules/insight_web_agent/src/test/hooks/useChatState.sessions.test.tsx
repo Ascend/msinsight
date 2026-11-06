@@ -29,6 +29,8 @@ jest.mock('../../api', () => ({
     fetchState: jest.fn(),
     fetchAgents: jest.fn(),
     fetchSessions: jest.fn(),
+    refreshAgents: jest.fn(),
+    switchAgent: jest.fn(),
     loadSession: jest.fn(),
     sendPrompt: jest.fn(),
     cancelPrompt: jest.fn(),
@@ -102,6 +104,204 @@ const modelOptions = (currentValue: string, ids: string[]): ConfigOption[] => [{
     options: ids.map((value) => ({ value, name: value })),
 }];
 const savedConfig = { activeAgentName: 'agent-a' } as AgentConfigSnapshot;
+
+test('a state snapshot clears discovery loading after a missed completion event', () => {
+    emit({ type: 'agent_discovery_started' });
+    expect(chat.agentDiscoveryLoading).toBe(true);
+    emit({ type: 'state', state: { discoveryLoading: false } });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test.each(['fetchAgents', 'fetchState'] as const)('a late initial %s response cannot restore completed discovery loading', async (method) => {
+    testingLibrary.cleanup();
+    let finish!: (value: { discoveryLoading: boolean }) => void;
+    (api[method] as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    render(<ChatStateProvider><Probe /></ChatStateProvider>);
+    emit({ type: 'state', state: { discoveryLoading: false } });
+    await act(async () => { finish({ discoveryLoading: true }); });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('a late list response cannot restore loading after another initial request failed', async () => {
+    testingLibrary.cleanup();
+    let finish!: (value: { discoveryLoading: boolean }) => void;
+    (api.fetchState as jest.Mock).mockRejectedValueOnce(new Error('state unavailable'));
+    (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    render(<ChatStateProvider><Probe /></ChatStateProvider>);
+    await waitFor(() => expect(chat.agentDiscoveryLoading).toBe(false));
+    await act(async () => { finish({ discoveryLoading: true }); });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('a late settings list response cannot restore completed discovery loading', async () => {
+    let finish!: (value: { discoveryLoading: boolean }) => void;
+    (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    let applying!: Promise<void>;
+    act(() => { applying = chat.applyAgentConfigSnapshot(savedConfig); });
+    emit({ type: 'state', state: { discoveryLoading: false } });
+    await act(async () => {
+        finish({ discoveryLoading: true });
+        await applying;
+    });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('an old initialization failure does not dismiss a newly started discovery', async () => {
+    testingLibrary.cleanup();
+    let fail!: (error: Error) => void;
+    (api.fetchState as jest.Mock).mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; }));
+    render(<ChatStateProvider><Probe /></ChatStateProvider>);
+    emit({ type: 'agent_discovery_started' });
+    await act(async () => { fail(new Error('old state unavailable')); });
+    expect(chat.agentDiscoveryLoading).toBe(true);
+    emit({ type: 'state', state: { discoveryLoading: false } });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('a fast manual refresh clears loading without receiving an SSE event', async () => {
+    (api.refreshAgents as jest.Mock).mockResolvedValueOnce({ ok: true });
+    await act(async () => { await chat.refreshAgents(); });
+    expect(api.refreshAgents).toHaveBeenCalledTimes(1);
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('manual refresh still synchronizes when only its start notification has arrived', async () => {
+    (api.refreshAgents as jest.Mock).mockImplementationOnce(async () => {
+        emit({ type: 'agent_discovery_started' });
+        return { ok: true };
+    });
+    await act(async () => { await chat.refreshAgents(); });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('manual refresh and its completion notification do not reset runtime sessions twice', async () => {
+    (api.refreshAgents as jest.Mock).mockImplementationOnce(async () => {
+        emit({ type: 'agent_discovery_completed', runtimeChanged: true });
+        return { ok: true, runtimeChanged: true };
+    });
+    await act(async () => { await chat.refreshAgents(); });
+    expect(api.fetchSessions).toHaveBeenCalledTimes(2);
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test.each([false, true])('response-first completion is applied only once, notification during synchronization: %s', async (duringSync) => {
+    let finish!: (value: { discoveryLoading: boolean }) => void;
+    if (duringSync) {
+        (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    }
+    (api.refreshAgents as jest.Mock).mockResolvedValueOnce({ ok: true, runtimeChanged: true, discoveryId: 'scan-1' });
+    let refreshing!: Promise<void>;
+    act(() => { refreshing = chat.refreshAgents(); });
+    if (duringSync) {
+        await waitFor(() => expect(api.fetchAgents).toHaveBeenCalledTimes(2));
+        emit({ type: 'agent_discovery_completed', runtimeChanged: true, discoveryId: 'scan-1' });
+        await act(async () => { finish({ discoveryLoading: false }); await refreshing; });
+    } else {
+        await act(async () => { await refreshing; });
+        emit({ type: 'agent_discovery_completed', runtimeChanged: true, discoveryId: 'scan-1' });
+    }
+    expect(api.fetchSessions).toHaveBeenCalledTimes(2);
+    expect(api.fetchAgents).toHaveBeenCalledTimes(2);
+    expect(chat.agentDiscoveryLoading).toBe(false);
+    emit({ type: 'agent_discovery_completed', runtimeChanged: true, discoveryId: 'scan-2' });
+    await waitFor(() => expect(api.fetchSessions).toHaveBeenCalledTimes(3));
+});
+
+test.each(['sync', 'refresh'] as const)('an old %s failure cannot dismiss a newer discovery mask', async (source) => {
+    let fail!: (error: Error) => void;
+    let refreshing: Promise<void> | undefined;
+    const request = new Promise((_resolve, reject) => { fail = reject; });
+    if (source === 'sync') {
+        (api.fetchAgents as jest.Mock).mockReturnValueOnce(request);
+        emit({ type: 'agent_discovery_completed' });
+    } else {
+        (api.refreshAgents as jest.Mock).mockReturnValueOnce(request);
+        act(() => { refreshing = chat.refreshAgents(); });
+    }
+    emit({ type: 'agent_discovery_started' });
+    await act(async () => { fail(new Error('old request failed')); await refreshing; });
+    expect(chat.agentDiscoveryLoading).toBe(true);
+    emit({ type: 'agent_discovery_completed' });
+    await waitFor(() => expect(chat.agentDiscoveryLoading).toBe(false));
+});
+
+test.each(['fetchAgents', 'fetchState', 'settings'] as const)('stale %s responses cannot roll back agent data', async (source) => {
+    let finish!: (value: object) => void;
+    const oldResponse = new Promise((resolve) => { finish = resolve; });
+    let applying: Promise<void> | undefined;
+    if (source === 'settings') {
+        (api.fetchAgents as jest.Mock).mockReturnValueOnce(oldResponse);
+        act(() => { applying = chat.applyAgentConfigSnapshot(savedConfig); });
+    } else {
+        testingLibrary.cleanup();
+        (api[source] as jest.Mock).mockReturnValueOnce(oldResponse);
+        render(<ChatStateProvider><Probe /></ChatStateProvider>);
+    }
+    const agentServers = [{ name: 'agent-b', command: 'agent-b', args: [], env: {} }];
+    (api.fetchState as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', initialized: true });
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers, discoveryLoading: false });
+    emit({ type: 'state', state: { activeAgentName: 'agent-b', initialized: true } });
+    emit({ type: 'agent_discovery_completed' });
+    await waitFor(() => expect(chat.agentServers).toEqual(agentServers));
+    await act(async () => {
+        finish({ activeAgentName: 'old-agent', agentServers: [], initialized: false, agentError: 'old error', discoveryLoading: true });
+        await applying;
+    });
+    expect(chat.activeAgentName).toBe('agent-b');
+    expect(chat.agentServers).toEqual(agentServers);
+    expect(chat.agentError).toBeUndefined();
+    expect(chat.configOptionsLoading).toBe(false);
+});
+
+test('overlapping discovery completions synchronize the latest result instead of retaining a stale loading flag', async () => {
+    let finish!: (value: { discoveryLoading: boolean }) => void;
+    (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    emit({ type: 'agent_discovery_completed' });
+    emit({ type: 'agent_discovery_started' });
+    emit({ type: 'agent_discovery_completed' });
+    await act(async () => { finish({ discoveryLoading: true }); });
+    await waitFor(() => expect(chat.agentDiscoveryLoading).toBe(false));
+    expect(api.fetchAgents).toHaveBeenCalledTimes(3);
+});
+
+test('a failed coalesced discovery request clears loading and reports the error once', async () => {
+    let fail!: (error: Error) => void;
+    (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; }));
+    emit({ type: 'agent_discovery_started' });
+    emit({ type: 'agent_discovery_completed' });
+    emit({ type: 'agent_discovery_completed' });
+    await act(async () => { fail(new Error('list unavailable')); });
+    await waitFor(() => expect(chat.agentDiscoveryLoading).toBe(false));
+    expect(message.error).toHaveBeenCalledTimes(1);
+});
+
+test('coalesced completion notifications preserve the latest runtime-change flag', async () => {
+    let finish!: (value: { discoveryLoading: boolean }) => void;
+    (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    emit({ type: 'agent_discovery_completed' });
+    emit({ type: 'agent_discovery_completed', runtimeChanged: true });
+    await act(async () => { finish({ discoveryLoading: false }); });
+    await waitFor(() => expect(api.fetchSessions).toHaveBeenCalledTimes(2));
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('a failed manual refresh clears discovery loading', async () => {
+    (api.refreshAgents as jest.Mock).mockRejectedValueOnce(new Error('refresh failed'));
+    await act(async () => { await chat.refreshAgents(); });
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test.each(['switch', 'sessions'])('a failed agent %s request clears the switching mask', async (stage) => {
+    if (stage === 'switch') {
+        (api.switchAgent as jest.Mock).mockRejectedValueOnce(new Error('switch failed'));
+    } else {
+        (api.switchAgent as jest.Mock).mockResolvedValueOnce({ activeAgentName: 'agent-b' });
+        (api.fetchSessions as jest.Mock).mockRejectedValueOnce(new Error('sessions unavailable'));
+    }
+    await act(async () => { await chat.setAgent('agent-b'); });
+    expect(chat.switchingAgent).toBe(false);
+    expect(message.error).toHaveBeenCalledTimes(1);
+});
 
 test('a lost completed receipt never reexecutes or changes to execution-failed', async () => {
     (api.claimFrontendCommand as jest.Mock).mockResolvedValue({ claimed: true, claimToken: 'owner' });

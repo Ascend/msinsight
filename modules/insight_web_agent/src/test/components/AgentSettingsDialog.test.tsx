@@ -519,6 +519,92 @@ test('adds draft agent args and multiple env rows when saving and switching to t
     }));
 });
 
+test.each([true, false])('failed save-and-switch tracks whether the draft was persisted: %s', async (saved) => {
+    let rejectSave!: (error: Error) => void;
+    mockSaveAgentServersConfig.mockImplementationOnce(() => new Promise((_resolve, reject) => {
+        rejectSave = reject;
+    }));
+    render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add agent' }));
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Broken' } });
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'missing-agent' } });
+    fireEvent.click(screen.getByLabelText('Save and switch to this agent'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText('Command')).toBeDisabled();
+
+    if (saved) {
+        mockFetchAgentConfig.mockResolvedValueOnce({
+            ...snapshot,
+            activeAgentName: 'Broken',
+            agentServers: [...snapshot.agentServers, { name: 'Broken', command: 'missing-agent', args: [], env: {} }],
+        });
+    }
+    await act(async () => {
+        rejectSave(new ApiRequestError(500, '/api/agent-config/servers', { code: saved ? 'reload_failed' : 'config_write_failed', saved }));
+    });
+    await waitFor(() => expect(screen.getByLabelText('Command')).toBeEnabled());
+    if (saved) {
+        expect(screen.getByText('Settings were saved, but the Agent could not be reloaded. Check settings and restart the service.')).toBeVisible();
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
+        expect(screen.queryByRole('button', { name: "Don't save" })).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Agent Settings')).not.toBeInTheDocument();
+        return;
+    }
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'fixed-agent' } });
+    expect(screen.getByLabelText('Command')).toHaveValue('fixed-agent');
+    fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
+    fireEvent.click(await screen.findByRole('button', { name: "Don't save" }));
+    expect(screen.queryByLabelText('Agent Settings')).not.toBeInTheDocument();
+});
+
+test('persisted invalid agent can be corrected and saved as an existing configuration', async () => {
+    const persisted = {
+        ...snapshot,
+        activeAgentName: 'Broken',
+        agentServers: [...snapshot.agentServers, { name: 'Broken', command: 'missing-agent', args: [], env: {} }],
+    };
+    mockSaveAgentServersConfig.mockRejectedValueOnce(new ApiRequestError(500, '/api/agent-config/servers', {
+        code: 'reload_failed', saved: true,
+    }));
+    render(<AgentSettingsDialog open />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add agent' }));
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Broken' } });
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'missing-agent' } });
+    fireEvent.click(screen.getByLabelText('Save and switch to this agent'));
+    mockFetchAgentConfig.mockResolvedValueOnce(persisted);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
+    await waitFor(() => expect(screen.getByLabelText('Command')).toBeEnabled());
+    expect(mockUseChatState().applyAgentConfigSnapshot).toHaveBeenCalledWith(persisted);
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'fixed-agent' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(2));
+    expect(mockSaveAgentServersConfig.mock.calls[1][0].agentServers.filter((agent: { name: string }) => agent.name === 'Broken'))
+        .toEqual([{ name: 'Broken', command: 'fixed-agent', args: [], env: {} }]);
+});
+
+test('a later write failure preserves earlier saved sections and keeps unsaved agent edits', async () => {
+    mockSaveAgentServersConfig.mockRejectedValueOnce(new ApiRequestError(500, '/api/agent-config/servers', {
+        code: 'config_write_failed',
+    }));
+    await openSettings();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'fixed-agent' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Session Config' }));
+    fireEvent.change(screen.getByLabelText('Request timeout'), { target: { value: '40000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(screen.getByLabelText('Command')).toHaveValue('fixed-agent');
+    expect(screen.getByLabelText('Request timeout')).toHaveValue(40000);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(2));
+    expect(mockSaveAgentSessionConfig).toHaveBeenCalledTimes(1);
+});
+
 test('adds and removes multiple extra path rows before save', async () => {
     render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));

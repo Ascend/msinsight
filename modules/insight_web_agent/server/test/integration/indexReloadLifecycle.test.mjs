@@ -25,6 +25,7 @@ import { createServer } from "node:net";
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { build } from "esbuild";
+import { ACP_AGENT_CATALOG } from "../../services/agentDiscoveryService.mjs";
 
 const serverEntry = fileURLToPath(new URL("../../index.mjs", import.meta.url));
 const CAPABILITY_TOKEN = "reload-lifecycle-test-capability";
@@ -168,6 +169,38 @@ test("fail-closed RAG worker failure shuts down the bundled Host and active ACP 
     const [code] = await once(server, "exit");
     assert.equal(code, 1);
     await waitFor(async () => /exit:ok:0|stdin_end:ok|signal:ok:SIGTERM/.test(await readText(fixture.logPath)), { timeoutMs: 3000 });
+});
+
+test("refresh HTTP responses and SSE notifications share a unique discovery batch ID", { timeout: 10000 }, async (t) => {
+    const fixture = await createServerFixture();
+    await writeJson(join(fixture.rootDir, "agent-servers.json"), {
+        activeAgent: "Stable",
+        // Exclude every catalog launch from probing real local installations in this test.
+        agentServers: [stableAgent(fixture.fakeAgentPath), ...ACP_AGENT_CATALOG.map(({ config }) => config)],
+    });
+    const server = launchServer(fixture, { autoDiscovery: false });
+    let stream;
+    t.after(async () => {
+        await stream?.stop();
+        await stopProcess(server);
+        await rm(fixture.rootDir, { recursive: true, force: true });
+    });
+    await waitFor(async () => (await requestJson(fixture.port, "/api/state")).body.initialized, { timeoutMs: 5000 });
+    stream = await recordStateEvents(fixture.port);
+    await stream.ready;
+    const ids = new Set();
+    for (let index = 0; index < 2; index += 1) {
+        const result = await requestJson(fixture.port, "/api/agents/refresh", { method: "POST" });
+        assert.equal(result.status, 200);
+        assert.equal(typeof result.body.discoveryId, "string");
+        assert.ok(result.body.discoveryId);
+        assert.equal(ids.has(result.body.discoveryId), false);
+        ids.add(result.body.discoveryId);
+        await waitFor(() => stream.events.some((event) => event.type === "agent_discovery_completed"
+            && event.discoveryId === result.body.discoveryId));
+        assert.ok(stream.events.some((event) => event.type === "agent_discovery_started"
+            && event.discoveryId === result.body.discoveryId));
+    }
 });
 
 const bundleHost = (outfile) => build({
@@ -584,6 +617,7 @@ const requestJson = async (port, path, { method = "GET", body } = {}) => {
 const recordStateEvents = async (port) => {
     const controller = new AbortController();
     const states = [];
+    const events = [];
     let resolveReady;
     const ready = new Promise((resolve) => { resolveReady = resolve; });
     const response = await fetch(`http://127.0.0.1:${port}/api/events`, {
@@ -606,6 +640,7 @@ const recordStateEvents = async (port) => {
                     for (const line of rawEvent.split("\n")) {
                         if (!line.startsWith("data: ")) continue;
                         const event = JSON.parse(line.slice("data: ".length));
+                        events.push(event);
                         if (event.type !== "state") continue;
                         states.push(event.state);
                         resolveReady();
@@ -619,6 +654,7 @@ const recordStateEvents = async (port) => {
     return {
         ready,
         states,
+        events,
         async stop() {
             controller.abort();
             await pump;

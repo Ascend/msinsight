@@ -182,6 +182,11 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const cancelledFrontendCommandsRef = useRef(new Set<string>());
     const initialSessionInitializedRef = useRef(false);
     const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
+    const discoveryRevisionRef = useRef(0);
+    const discoveryCompletionCountRef = useRef(0);
+    const discoveryRuntimeChangedRef = useRef(false);
+    const completedDiscoveryIdsRef = useRef(new Set<string>());
+    const discoveryStartRevisionRef = useRef(0);
 
     useEffect(() => {
         stateRef.current = state;
@@ -193,10 +198,16 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const refreshInitialState = async (): Promise<Partial<AppState>> => {
+        const discoveryRevision = discoveryRevisionRef.current;
         const nextState = await fetchState();
+        if (discoveryRevision !== discoveryRevisionRef.current) {
+            return {};
+        }
         setState((current) => ({
             ...current,
             initialized: nextState.initialized,
+            agentDiscoveryLoading: discoveryRevision === discoveryRevisionRef.current
+                ? nextState.discoveryLoading ?? current.agentDiscoveryLoading : current.agentDiscoveryLoading,
             ragStatus: nextState.ragStatus ?? current.ragStatus,
             configOptions: nextState.configOptions ?? current.configOptions,
             activeAgentName: nextState.activeAgentName ?? current.activeAgentName,
@@ -211,63 +222,105 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const refreshAgentList = async (): Promise<{ activeAgentName?: string; discoveryLoading?: boolean }> => {
+        const discoveryRevision = discoveryRevisionRef.current;
         const agents = await fetchAgents();
+        if (discoveryRevision !== discoveryRevisionRef.current) {
+            return {};
+        }
         setState((current) => ({
             ...current,
             agentServers: agents.agentServers ?? [],
             activeAgentName: agents.activeAgentName ?? current.activeAgentName,
-            agentDiscoveryLoading: agents.discoveryLoading ?? current.agentDiscoveryLoading,
+            agentDiscoveryLoading: discoveryRevision === discoveryRevisionRef.current
+                ? agents.discoveryLoading ?? current.agentDiscoveryLoading : current.agentDiscoveryLoading,
         }));
         return agents;
     };
 
     const handleAgentDiscoveryCompleted = async (event: Extract<ServerEvent, { type: 'agent_discovery_completed' }>): Promise<void> => {
+        if (event.discoveryId !== undefined) {
+            if (completedDiscoveryIdsRef.current.has(event.discoveryId)) {
+                return;
+            }
+            completedDiscoveryIdsRef.current.add(event.discoveryId);
+            // Bound deduplication storage in long-lived pages.
+            if (completedDiscoveryIdsRef.current.size > 128) {
+                const oldestId = completedDiscoveryIdsRef.current.values().next().value;
+                if (oldestId !== undefined) {
+                    completedDiscoveryIdsRef.current.delete(oldestId);
+                }
+            }
+        }
+        discoveryRevisionRef.current += 1;
+        discoveryCompletionCountRef.current += 1;
+        discoveryRuntimeChangedRef.current ||= Boolean(event.runtimeChanged);
         if (discoverySyncPromiseRef.current) {
             await discoverySyncPromiseRef.current;
             return;
         }
         const synchronize = async (): Promise<void> => {
-            const agents = await fetchAgents();
-            const previousActiveAgentName = stateRef.current.activeAgentName;
-            const activeAgentName = agents.activeAgentName ?? previousActiveAgentName;
-            const activeAgentChanged = Boolean(previousActiveAgentName)
-                && Boolean(activeAgentName)
-                && activeAgentName !== previousActiveAgentName;
-            const runtimeChanged = Boolean(event.runtimeChanged || activeAgentChanged);
-            if (runtimeChanged) initialSessionInitializedRef.current = true;
-            setState((current) => {
-                const refreshed = {
-                    ...current,
-                    agentDiscoveryLoading: agents.discoveryLoading ?? false,
-                    agentServers: agents.agentServers ?? [],
-                    activeAgentName,
-                };
-                if (!runtimeChanged) return refreshed;
-                return {
-                    ...refreshed,
-                    activeSessionId: undefined,
-                    isDraftSession: false,
-                    draftMode: undefined,
-                    preferredMode: undefined,
-                    draftMessages: [],
-                    draftPendingPrompt: false,
-                    draftQueuedPrompts: [],
-                    draftNotices: [],
-                    sessions: [],
-                    sessionRecords: {},
-                };
-            });
-            if (runtimeChanged) {
-                await initializeActiveSession();
+            // A later completion must not be swallowed by an older in-flight list request.
+            let discoveryRevision: number;
+            do {
+                discoveryRevision = discoveryRevisionRef.current;
+                const agents = await fetchAgents();
+                if (discoveryRevision !== discoveryRevisionRef.current) {
+                    continue;
+                }
+                const previousActiveAgentName = stateRef.current.activeAgentName;
+                const activeAgentName = agents.activeAgentName ?? previousActiveAgentName;
+                const activeAgentChanged = Boolean(previousActiveAgentName)
+                    && Boolean(activeAgentName)
+                    && activeAgentName !== previousActiveAgentName;
+                const runtimeChanged = discoveryRuntimeChangedRef.current || activeAgentChanged;
+                discoveryRuntimeChangedRef.current = false;
+                if (runtimeChanged) {
+                    initialSessionInitializedRef.current = true;
+                }
+                setState((current) => {
+                    const refreshed = {
+                        ...current,
+                        agentDiscoveryLoading: agents.discoveryLoading ?? false,
+                        agentServers: agents.agentServers ?? [],
+                        activeAgentName,
+                    };
+                    if (!runtimeChanged) {
+                        return refreshed;
+                    }
+                    return {
+                        ...refreshed,
+                        activeSessionId: undefined,
+                        isDraftSession: false,
+                        draftMode: undefined,
+                        preferredMode: undefined,
+                        draftMessages: [],
+                        draftPendingPrompt: false,
+                        draftQueuedPrompts: [],
+                        draftNotices: [],
+                        sessions: [],
+                        sessionRecords: {},
+                    };
+                });
+                if (runtimeChanged) {
+                    await initializeActiveSession();
+                }
+            } while (discoveryRevision !== discoveryRevisionRef.current);
+        };
+        const runSynchronization = async (): Promise<void> => {
+            const startRevision = discoveryStartRevisionRef.current;
+            try {
+                await synchronize();
+            } catch (error) {
+                if (startRevision === discoveryStartRevisionRef.current) {
+                    setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+                }
+                showError(error);
             }
         };
-        const syncPromise = synchronize();
+        const syncPromise = runSynchronization();
         discoverySyncPromiseRef.current = syncPromise;
         try {
             await syncPromise;
-        } catch (error) {
-            setState((current) => ({ ...current, agentDiscoveryLoading: false }));
-            showError(error);
         } finally {
             if (discoverySyncPromiseRef.current === syncPromise) {
                 discoverySyncPromiseRef.current = null;
@@ -291,6 +344,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
 
         if (event.type === 'agent_discovery_started') {
+            discoveryStartRevisionRef.current += 1;
+            discoveryRevisionRef.current += 1;
             setState((current) => ({ ...current, agentDiscoveryLoading: true }));
             return;
         }
@@ -301,6 +356,12 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
 
         if (event.type === 'state') {
+            if (event.state.discoveryLoading === true) {
+                discoveryStartRevisionRef.current += 1;
+            }
+            if (event.state.discoveryLoading !== undefined) {
+                discoveryRevisionRef.current += 1;
+            }
             setState((current) => {
                 const activeAgentChanged = Boolean(current.activeAgentName)
                     && Boolean(event.state.activeAgentName)
@@ -308,6 +369,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 const nextState = {
                     ...current,
                     initialized: event.state.initialized ?? current.initialized,
+                    agentDiscoveryLoading: event.state.discoveryLoading ?? current.agentDiscoveryLoading,
                     ragStatus: event.state.ragStatus ?? current.ragStatus,
                     configOptions: event.state.configOptions ?? current.configOptions,
                     activeAgentName: event.state.activeAgentName ?? current.activeAgentName,
@@ -514,11 +576,15 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     useEffect(() => {
         const loadInitialData = async (): Promise<void> => {
+            const discoveryRevision = discoveryRevisionRef.current;
             try {
                 await Promise.all([refreshInitialState(), refreshAgentList()]);
             } catch (error) {
                 initialSessionInitializedRef.current = true;
-                setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+                if (discoveryRevision === discoveryRevisionRef.current) {
+                    discoveryRevisionRef.current += 1;
+                    setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+                }
                 showError(error);
             }
         };
@@ -569,8 +635,15 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     }, [state]);
 
     const initializeActiveSession = async (): Promise<void> => {
+        const discoveryRevision = discoveryRevisionRef.current;
         const nextState = await refreshInitialState();
+        if (discoveryRevision !== discoveryRevisionRef.current) {
+            return;
+        }
         const next = await fetchSessions();
+        if (discoveryRevision !== discoveryRevisionRef.current) {
+            return;
+        }
         setState((current) => ({ ...current, sessions: mergeSessionStatuses(next, current.sessionRecords) }));
 
         if (nextState.agentError || nextState.initialized === false) return;
@@ -869,23 +942,29 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 agentError: undefined,
             }));
             await initializeActiveSession();
-            setState((current) => ({ ...current, switchingAgent: false }));
         } catch (error) {
-            setState((current) => ({ ...current, switchingAgent: false }));
             showError(error);
+        } finally {
+            setState((current) => ({ ...current, switchingAgent: false }));
         }
     };
 
     const refreshAgents = async (): Promise<void> => {
         if (activePendingPrompt(stateRef.current) || stateRef.current.agentDiscoveryLoading) return;
+        const completionCount = discoveryCompletionCountRef.current;
+        const startRevision = discoveryStartRevisionRef.current;
         setState((current) => ({ ...current, agentDiscoveryLoading: true }));
         try {
             const result = await requestAgentRefresh();
-            if (stateRef.current.agentDiscoveryLoading) {
-                await handleAgentDiscoveryCompleted({ type: 'agent_discovery_completed', runtimeChanged: result.runtimeChanged });
+            if (completionCount === discoveryCompletionCountRef.current) {
+                await handleAgentDiscoveryCompleted({ type: 'agent_discovery_completed', runtimeChanged: result.runtimeChanged, discoveryId: result.discoveryId });
+            } else if (discoverySyncPromiseRef.current) {
+                await discoverySyncPromiseRef.current;
             }
         } catch (error) {
-            setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+            if (startRevision === discoveryStartRevisionRef.current) {
+                setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+            }
             showError(error);
         }
     };
@@ -944,7 +1023,11 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const applyAgentConfigSnapshot = async (snapshot: AgentConfigSnapshot): Promise<void> => {
         const previousAgentName = stateRef.current.activeAgentName;
+        const discoveryRevision = discoveryRevisionRef.current;
         const agents = await fetchAgents();
+        if (discoveryRevision !== discoveryRevisionRef.current) {
+            return;
+        }
         setState((current) => {
             const { effectiveAgentName, changed: activeAgentChanged } = resolveAppliedAgentChange(
                 current.activeAgentName,
@@ -955,7 +1038,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 ...current,
                 activeAgentName: effectiveAgentName,
                 agentServers: agents.agentServers ?? current.agentServers,
-                agentDiscoveryLoading: agents.discoveryLoading ?? current.agentDiscoveryLoading,
+                agentDiscoveryLoading: discoveryRevision === discoveryRevisionRef.current
+                    ? agents.discoveryLoading ?? current.agentDiscoveryLoading : current.agentDiscoveryLoading,
             };
             if (!activeAgentChanged) return nextState;
 

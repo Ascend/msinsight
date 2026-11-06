@@ -142,6 +142,67 @@ test("request rejects after timeout", async () => {
     await assert.rejects(adapter.request("slow", {}), /ACP request timed out: slow/);
 });
 
+test("stdin transport failure rejects initialization without waiting for the request timeout", async () => {
+    const child = createMockChild();
+    child.stdin = Object.assign(new EventEmitter(), child.stdin);
+    const adapter = createAcpAdapter({
+        agentServer: { name: "broken", command: "broken", args: [] },
+        spawnProcess: () => child,
+    });
+    const request = adapter.request("initialize", {});
+    const failure = assert.rejects(request, /broken pipe/);
+    try {
+        assert.doesNotThrow(() => child.stdin.emit("error", new Error("broken pipe")));
+    } finally {
+        await adapter.disconnect();
+    }
+    await failure;
+});
+
+test("registers the pending request before sending and rejects synchronous write failures", async () => {
+    const child = createMockChild();
+    child.stdin.write = () => { throw new Error("stream closed"); };
+    const adapter = createAcpAdapter({
+        agentServer: { name: "broken", command: "broken", args: [] },
+        spawnProcess: () => child,
+    });
+    try {
+        const request = adapter.request("initialize", {});
+        await assert.rejects(request, /stream closed/);
+    } finally {
+        await adapter.disconnect();
+    }
+});
+
+test("initialization response delivered during write is not lost", async () => {
+    const child = createMockChild();
+    child.stdin.write = (line) => {
+        const { id } = JSON.parse(line);
+        emitLine(child, { jsonrpc: "2.0", id, result: { protocolVersion: 1 } });
+    };
+    const adapter = createAcpAdapter({
+        agentServer: { name: "fast", command: "fast", args: [] },
+        spawnProcess: () => child,
+    });
+    try {
+        assert.deepEqual(await adapter.request("initialize", {}), { protocolVersion: 1 });
+    } finally {
+        await adapter.disconnect();
+    }
+});
+
+test("a real invalid ACP process returns initialization failure without crashing the Host", async () => {
+    const adapter = createAcpAdapter({
+        agentServer: { name: "broken", command: process.execPath, args: ["-e", "process.exit(1)"] },
+        forwardStderr: false,
+    });
+    try {
+        await assert.rejects(adapter.request("initialize", {}), /ACP server exited|EPIPE|closed|destroyed/i);
+    } finally {
+        await adapter.disconnect();
+    }
+});
+
 test("Native receives model idle timeout and survives that interval before Host cancellation", async () => {
     const { adapter, children } = createAdapter({ agentName: "msinsight-native", promptRequestTimeoutMs: 10 });
     const pending = adapter.request("session/prompt", { sessionId: "s1" });
