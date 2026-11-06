@@ -123,14 +123,29 @@ void HcclRepo::QuerySimpleSliceFromPlaneTrack(
     std::vector<uint64_t> globalTaskIds(commucationTaskInfoPoVec.size());
     std::transform(commucationTaskInfoPoVec.begin(), commucationTaskInfoPoVec.end(), globalTaskIds.begin(),
         [](const CommucationTaskInfoPO &item) { return item.globalTaskId; });
+    // 同一 globalTaskId 可能对应多条通信详情，先去重，避免分批后重复查出同一 TASK 行。
+    std::sort(globalTaskIds.begin(), globalTaskIds.end());
+    globalTaskIds.erase(std::unique(globalTaskIds.begin(), globalTaskIds.end()), globalTaskIds.end());
+    // globalTaskId 可能多达数万个，按任务约定每批最多 30000 个，控制单次查询规模。
+    constexpr size_t maxTaskIdsPerQuery = 30000;
     std::vector<TaskPO> taskPoVec;
-    taskTable->Select(TaskColumn::ROW_ID, TaskColumn::TIMESTAMP)
-        .Select(TaskColumn::ENDTIME)
-        .LessEq(TaskColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
-        .Greater(TaskColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp)
-        .Eq(TaskColumn::DECICED_ID, trackInfo.deviceId)
-        .In(TaskColumn::GLOBAL_TASK_ID, globalTaskIds)
-        .ExcuteQuery(trackInfo.cardId, taskPoVec);
+    size_t offset = 0;
+    do {
+        const auto batchBegin = globalTaskIds.begin() + offset;
+        const std::vector<uint64_t> batch(
+            batchBegin, batchBegin + std::min(maxTaskIdsPerQuery, globalTaskIds.size() - offset));
+        taskTable->Select(TaskColumn::ROW_ID, TaskColumn::TIMESTAMP)
+            .Select(TaskColumn::ENDTIME)
+            .LessEq(TaskColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
+            .Greater(TaskColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp)
+            .Eq(TaskColumn::DECICED_ID, trackInfo.deviceId)
+            .In(TaskColumn::GLOBAL_TASK_ID, batch)
+            .ExcuteQuery(trackInfo.cardId, taskPoVec);
+        offset += maxTaskIdsPerQuery;
+    } while (offset < globalTaskIds.size());
+    // 分批结果统一按 TASK 行号排序，确保顺序稳定。
+    std::sort(
+        taskPoVec.begin(), taskPoVec.end(), [](const TaskPO &left, const TaskPO &right) { return left.id < right.id; });
     for (const auto &item : taskPoVec) {
         SliceDomain sliceDomain;
         sliceDomain.id = item.id;
@@ -401,23 +416,50 @@ bool HcclRepo::FillPlaneSliceDetail(const SliceQuery &sliceQuery, CompeteSliceDo
     std::vector<uint64_t> strIds = {taskInfo.taskType};
     std::unordered_map<uint64_t, std::string> strMap = stringIdsTable->QueryStrMap(strIds, sliceQuery.rankId);
     if (strMap.find(taskInfo.taskType) == strMap.end()) {
-        ServerLog::Warn("Failed to query plane slice name.");
-        return false;
+        // 区分字典缺项和查询失败：仅在查询正常结束且没有该行时展示原始类型 ID。
+        auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+        auto stmt = database == nullptr ? nullptr
+                                        : database->CreatPreparedStatement("SELECT value FROM STRING_IDS WHERE id = ?");
+        auto result = stmt == nullptr ? nullptr : stmt->ExecuteQuery(taskInfo.taskType);
+        if (result == nullptr || result->Next() || result->GetErrorCode() != SQLITE_DONE) {
+            ServerLog::Warn("Failed to query plane slice name.");
+            return false;
+        }
+        competeSliceDomain.name = std::to_string(taskInfo.taskType);
+    } else {
+        competeSliceDomain.name = strMap[taskInfo.taskType];
     }
-    competeSliceDomain.name = strMap[taskInfo.taskType];
     SetPlaneSliceArgs(sliceQuery, competeSliceDomain, targetTask, taskInfo, ambiguous);
     return true;
 }
 
 void HcclRepo::QueryPlaneDetail(const SliceQuery &sliceQuery, const TaskPO &targetTask,
     std::vector<CommucationTaskInfoPO> &taskInfoVec, bool withTimestamp) {
+    // 旧采集表没有 bandwidth；只有正常完成列探测后才将其视为可选缺项。
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    bool hasBandwidth = true;
+    if (database != nullptr) {
+        auto stmt = database->CreatPreparedStatement(
+            "SELECT name FROM pragma_table_info('COMMUNICATION_TASK_INFO') WHERE name = 'bandwidth'");
+        auto result = stmt == nullptr ? nullptr : stmt->ExecuteQuery();
+        if (result == nullptr) {
+            return;
+        }
+        hasBandwidth = result->Next();
+        if ((hasBandwidth && result->Next()) || result->GetErrorCode() != SQLITE_DONE) {
+            return;
+        }
+    }
     commucationTaskInfoTable->Select(CommucationTaskInfoColumn::ROW_ID, CommucationTaskInfoColumn::GLOBAL_TASK_ID)
         .Select(CommucationTaskInfoColumn::SRC_RANK)
         .Select(CommucationTaskInfoColumn::DST_RANK, CommucationTaskInfoColumn::TRANSPORT_TYPE)
         .Select(CommucationTaskInfoColumn::SIZE, CommucationTaskInfoColumn::DATA_TYPE)
         .Select(CommucationTaskInfoColumn::LINK_TYPE, CommucationTaskInfoColumn::RDMA_TYPE)
-        .Select(CommucationTaskInfoColumn::GROUPNAME, CommucationTaskInfoColumn::TASK_TYPE)
-        .Select(CommucationTaskInfoColumn::BANDWIDTH);
+        .Select(CommucationTaskInfoColumn::GROUPNAME, CommucationTaskInfoColumn::TASK_TYPE);
+    // 缺少带宽列时，详情沿用空字符串表示未知带宽。
+    if (hasBandwidth) {
+        commucationTaskInfoTable->Select(CommucationTaskInfoColumn::BANDWIDTH);
+    }
     if (withTimestamp) {
         commucationTaskInfoTable->Select(CommucationTaskInfoColumn::TIMESTAMP);
     }

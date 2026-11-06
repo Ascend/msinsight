@@ -24,6 +24,7 @@
 #include "TableDefaultMock.h"
 #include "MetaDataCacheManager.h"
 #include "TrackInfoManager.h"
+#include "TimelineMemoryDatabaseFixture.h"
 using namespace Dic::TimeLine::HcclRepo::Mock;
 using namespace Dic::Global::PROFILER::MockUtil;
 using namespace Dic::TimeLine::Table::Default::Mock;
@@ -681,4 +682,112 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoWithGroupInfo) {
         "\"INT16\",\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
     EXPECT_EQ(slice.args, expectArgs);
     MetaDataCacheManager::Instance().Clear();
+}
+
+namespace {
+class CountingTaskTable : public TaskTable {
+  public:
+    using TaskTable::ExcuteQuery;
+    explicit CountingTaskTable(size_t &count) : count(count) {}
+    void ExcuteQuery(const std::string &fileId, std::vector<TaskPO> &result) override {
+        ++count;
+        TaskTable::ExcuteQuery(fileId, result);
+    }
+
+  private:
+    size_t &count;
+};
+
+class PlaneBatchQueryTest : public Dic::Module::Timeline::Test::TimelineMemoryDatabaseTestBase,
+                            public ::testing::WithParamInterface<size_t> {};
+}
+
+// plane 关联的 globalTaskId 超过 30000 个时分批查询，结果完整、按 TASK 行号有序且不重复。
+TEST_P(PlaneBatchQueryTest, QueryPlaneTasksInBatches) {
+    const size_t count = GetParam();
+    // TASK 按 globalTaskId 倒序插入，使批次顺序与行号顺序相反；每个 globalTaskId 对应两条通信详情。
+    const std::string sql =
+        "DROP TABLE COMMUNICATION_TASK_INFO;"
+        "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER, groupName INTEGER, planeId INTEGER);"
+        "WITH RECURSIVE ids(n) AS (SELECT 1 WHERE " +
+        std::to_string(count) + " > 0 UNION ALL SELECT n + 1 FROM ids WHERE n < " + std::to_string(count) +
+        ") INSERT INTO TASK(startNs, endNs, deviceId, globalTaskId) SELECT n, n + 1, 0, " + std::to_string(count + 1) +
+        " - n FROM ids;"
+        "INSERT INTO COMMUNICATION_TASK_INFO SELECT globalTaskId, 7, 8 FROM TASK;"
+        "INSERT INTO COMMUNICATION_TASK_INFO SELECT globalTaskId, 7, 8 FROM TASK;";
+    ASSERT_TRUE(database->ExecSql(sql));
+    TrackInfoManager::Instance().UpdateDeviceMap(rank, {{rank, "0"}});
+    size_t queryCount = 0;
+    HcclRepo repo;
+    repo.SetTaskTable(std::make_unique<CountingTaskTable>(queryCount));
+    SliceQuery query;
+    query.trackId = TrackInfoManager::Instance().GetTrackId(rank, "hccl", "7_8");
+    query.endTime = count + 1;
+    std::vector<SliceDomain> slices;
+    repo.QuerySimpleSliceWithOutNameByTrackId(query, slices);
+    const size_t maxTaskIdsPerQuery = 30000;
+    EXPECT_EQ(queryCount, std::max(size_t{1}, (count + maxTaskIdsPerQuery - 1) / maxTaskIdsPerQuery));
+    ASSERT_EQ(slices.size(), count);
+    for (size_t i = 0; i < slices.size(); ++i) {
+        EXPECT_EQ(slices[i].id, i + 1);
+    }
+    if (count == 0) {
+        return;
+    }
+    // 重复 TASK 不应被候选去重丢弃；每批保留设备及带偏移的时间边界过滤。
+    ASSERT_TRUE(database->ExecSql("UPDATE TASK SET startNs=startNs+100,endNs=endNs+100;"
+                                  "INSERT INTO TASK(startNs,endNs,deviceId,globalTaskId) VALUES(101,102,1," +
+        std::to_string(count) + "),(99,100,0," + std::to_string(std::min(size_t{30001}, count)) + "),(" +
+        std::to_string(count + 102) + "," + std::to_string(count + 103) + ",0,1),(" + std::to_string(count + 101) +
+        "," + std::to_string(count + 102) + ",0,1);"));
+    query.minTimestamp = 100;
+    queryCount = 0;
+    slices.clear();
+    repo.QuerySimpleSliceWithOutNameByTrackId(query, slices);
+    EXPECT_EQ(queryCount, (count + maxTaskIdsPerQuery - 1) / maxTaskIdsPerQuery);
+    ASSERT_EQ(slices.size(), count + 1);
+    for (size_t i = 0; i < count; ++i) {
+        EXPECT_EQ(slices[i].id, i + 1);
+        EXPECT_EQ(slices[i].timestamp, i + 101);
+        EXPECT_EQ(slices[i].endTime, i + 102);
+    }
+    EXPECT_EQ(slices.back().id, count + 4);
+}
+
+INSTANTIATE_TEST_SUITE_P(PlaneIdBoundaries, PlaneBatchQueryTest, ::testing::Values(0, 2, 30000, 30001, 80001));
+
+using PlaneDetailCompatibilityTest = Dic::Module::Timeline::Test::TimelineMemoryDatabaseTestBase;
+
+// 旧采集数据缺少可选带宽列和类型字典项时，保留真实详情；缺表、缺必需列仍失败。
+TEST_F(PlaneDetailCompatibilityTest, MissingOptionalFieldsPreserveDetailsAndQueryErrors) {
+    ASSERT_TRUE(database->ExecSql(
+        "ALTER TABLE TASK ADD COLUMN taskId INTEGER; ALTER TABLE TASK ADD COLUMN contextId INTEGER;"
+        "INSERT INTO TASK(startNs,endNs,deviceId,globalTaskId,streamId,taskId,contextId) VALUES(100,200,0,1,999,7,3);"
+        "DROP TABLE COMMUNICATION_TASK_INFO;"
+        "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER,taskType INTEGER,srcRank INTEGER,"
+        "dstRank INTEGER,transportType INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,"
+        "rdmaType INTEGER,groupName INTEGER);"
+        "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,0,1,2,0,1024,0,0,0,7);"));
+    TrackInfoManager::Instance().UpdateDeviceMap(rank, {{rank, "0"}});
+    HcclRepo repo;
+    SliceQuery query;
+    query.rankId = rank;
+    query.sliceId = "1";
+    query.trackId = TrackInfoManager::Instance().GetTrackId(rank, "hccl", "7_8");
+    CompeteSliceDomain slice;
+    ASSERT_TRUE(repo.QuerySliceDetailInfo(query, slice));
+    EXPECT_EQ(slice.name, "0");
+    EXPECT_NE(slice.args.find("\"streamId\":\"999\""), std::string::npos);
+    EXPECT_NE(slice.args.find("\"size(Byte)\":\"1024\""), std::string::npos);
+    EXPECT_NE(slice.args.find("\"bandwidth(GB/s)\":\"\""), std::string::npos);
+    ASSERT_TRUE(database->ExecSql("INSERT INTO STRING_IDS VALUES(0,'');"));
+    ASSERT_TRUE(repo.QuerySliceDetailInfo(query, slice));
+    EXPECT_TRUE(slice.name.empty());
+    ASSERT_TRUE(database->ExecSql("DROP TABLE STRING_IDS; CREATE TABLE STRING_IDS(id INTEGER);"));
+    EXPECT_FALSE(repo.QuerySliceDetailInfo(query, slice));
+    ASSERT_TRUE(database->ExecSql("DROP TABLE STRING_IDS;"));
+    EXPECT_FALSE(repo.QuerySliceDetailInfo(query, slice));
+    ASSERT_TRUE(database->ExecSql("CREATE TABLE STRING_IDS(id INTEGER,value TEXT);"
+                                  "ALTER TABLE COMMUNICATION_TASK_INFO DROP COLUMN size;"));
+    EXPECT_FALSE(repo.QuerySliceDetailInfo(query, slice));
 }
