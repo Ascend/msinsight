@@ -333,33 +333,7 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 4. 若去掉该白名单后影响本地 Web 的一些访问，可以增加关键字![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png)，然后重新打开 MindStudio Insight 使用；
 5. 若不存在该关键字且修改后无效，请联系 MindStudio Insight 工具接口人进一步定位。
 
-## 17. 同一文件夹下多个 JSON 文件的 Timeline 显示异常怎么办？
-
-**问题现象**
-
-当在同一文件夹下放置多个 JSON 文件时，多开 MindStudio Insight 并同时查看多个 JSON 文件对应的 Timeline 页面时，会出现只有一个页面能显示正确的情况，其它页面会出现无显示或者显示错误的情况，举例如下：
-
-无显示
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/no-display.png)
-
-显示错误
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/display-error.png)
-
-示例版本号
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/version-example.png)
-
-**原因分析**
-
-MindStudio Insight 解析 JSON 文件后会生成 DB 文件，方便后续查询，如果一个目录下有多个 JSON 文件，仍然只会生成一个 DB 文件，所以后解析的文件内容会覆盖先解析的文件内容，导致先打开的文件内容不对。
-
-**解决方案**
-
-删除 DB 文件后，将多个 JSON 文件分开在不同文件夹下，重新导入。
-
-## 18. Profiling DB 与 text 数据混合时如何只查看 text 数据？
+## 17. Profiling DB 与 text 数据混合时如何只查看 text 数据？
 
 **问题现象**
 
@@ -399,7 +373,7 @@ DB 数据的优点是磁盘占用小，文件解析加载更快。但部分用�
 
 <a id="faq-timeline-host-device-reverse-flow"></a>
 
-## 19. Timeline 中 Host 侧与 Device 侧的连线为什么会从后往前？
+## 18. Timeline 中 Host 侧与 Device 侧的连线为什么会从后往前？
 
 **问题现象**
 
@@ -423,7 +397,7 @@ Host 侧事件和 Device 侧事件分别采集，并换算到同一时间轴。�
 
 <a id="faq-communication-cluster-data-type"></a>
 
-## 20. Communication 页面导入集群时如何判断数据类型，正常数据目录是什么样的？
+## 19. Communication 页面导入集群时如何判断数据类型，正常数据目录是什么样的？
 
 **判断规则**
 
@@ -433,7 +407,7 @@ MindStudio Insight 在导入集群数据时确定数据类型，Communication �
 2. 未找到主 Profiler DB，但找到 `trace_view.json`、`communication.json` 等 JSON/CSV 交付件时，将数据识别为 TEXT 格式。
 3. `analysis.db` 保存通信细节信息，不是主 Profiler DB。MindStudio Insight 不会仅根据 `analysis.db` 将整个 Profiling 数据识别为 DB 格式。
 
-若同一目录同时包含 TEXT 和 DB 交付件，MindStudio Insight 优先按 DB 格式导入。若需要按纯 TEXT 格式导入，请参考 FAQ 18。
+若同一目录同时包含 TEXT 和 DB 交付件，MindStudio Insight 优先按 DB 格式导入。若需要按纯 TEXT 格式导入，请参考 FAQ 17。
 
 **正常数据目录（适用于 msprof 26.1.0）**
 
@@ -480,7 +454,7 @@ TEXT JSON/CSV 文件 + analysis.db + 缺少 ascend_pytorch_profiler_<rank_id>.db
 
 <a id="faq-no-available-port"></a>
 
-## 21. 启动后无窗口、无提示即退出怎么办？
+## 20. 启动后无窗口、无提示即退出怎么办？
 
 **问题现象**
 
