@@ -649,7 +649,21 @@ interface UnitInfoProps {
     onMouseDown: (e: React.MouseEvent) => void;
 }
 
+const DepthLimitNotice = styled.div`
+    position: absolute;
+    top: 24px;
+    left: 18px;
+    right: 4px;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    color: ${(props): string => props.theme.warningColor};
+`;
+
 export const UnitInfo = observer(({ session, unit, laneInfoWidth, hasExpandIcon, className, ...props }: UnitInfoProps): JSX.Element => {
+    const { t } = useTranslation('timeline');
+    const charts = Array.isArray(unit.chart) ? unit.chart : [unit.chart];
+    const hiddenDepth = charts.reduce((total, desc) => total + (desc?.hiddenDepth ?? 0), 0);
     const { isSelected } = props;
     const isDragging = session.isDragging;
     const [isHovered, setIsHovered] = React.useState(false);
@@ -808,5 +822,6 @@ export const UnitInfo = observer(({ session, unit, laneInfoWidth, hasExpandIcon,
                 />
             </div>
         </UnitInfoBody>
+        {unit.isExpanded && hiddenDepth > 0 && <DepthLimitNotice role="note">{t('DepthLimitWarning', { hidden: hiddenDepth })}</DepthLimitNotice>}
     </UnitInfoContainer>;
 });

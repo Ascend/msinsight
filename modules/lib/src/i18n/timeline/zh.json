@@ -374,6 +374,7 @@
       "Click To AI Core Frequency": "点击跳转AI Core Frequency"
     },
     "RenderError": "渲染失败，请检查数据是否正确",
+    "DepthLimitWarning": "泳道层数超出画布上限，最深的 {{hidden}} 层未显示，原始数据不受影响",
     "floatingToolbar": {
       "expand": "展开鼠标功能选项",
       "collapse": "收起",

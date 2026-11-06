@@ -94,7 +94,6 @@ import { LlcCacheTooltip } from './LlcCacheTooltip';
 
 const MAX_UNIT_CANVAS_HEIGHT = 50_000; // 画布高度上限
 const MAX_UNIT_DEPTH = Math.floor(MAX_UNIT_CANVAS_HEIGHT / UnitHeight.STANDARD); // 泳道深度上限
-const FALLBACK_DEPTH = 2; // 当深度超过上限，使用此深度值
 
 const isHiddenTitle = (data: AscendSliceDetail): boolean => {
     return data.title === undefined;
@@ -657,6 +656,7 @@ export const ThreadUnit = unit<ThreadMetaData>({
                 const validRequests = requests.map((request, index) => ({ request, index }))
                     .filter((item): item is { request: any; index: number } => item.request !== undefined);
                 if (validRequests.length === 0) {
+                    (thisUnit.chart as ChartDesc<'stackStatus'>).hiddenDepth = 0;
                     return [];
                 }
                 // Single lanes use the backend's canonical depths for call stacks, flows and jumps.
@@ -686,21 +686,14 @@ export const ThreadUnit = unit<ThreadMetaData>({
                     threadTraceList = depthEndTimes.map((_, depth) => sortedData.filter(data => data.depth === depth));
                 }
 
+                // 画布高度渲染上限 50_000 像素左右，超过 MAX_UNIT_DEPTH 层时只绘制前 MAX_UNIT_DEPTH 层，并提示未显示的层数
                 if (thisUnit) {
-                    let activeMaxDepth = session.autoAdjustUnitHeight ? currentMaxDepth : maxDepth;
-                    activeMaxDepth = activeMaxDepth > MAX_UNIT_DEPTH ? FALLBACK_DEPTH : activeMaxDepth;
-                    updateUnitData(thisUnit, activeMaxDepth, havePythonFunction);
+                    const activeMaxDepth = session.autoAdjustUnitHeight ? currentMaxDepth : maxDepth;
+                    updateUnitData(thisUnit, Math.min(activeMaxDepth, MAX_UNIT_DEPTH), havePythonFunction);
+                    (thisUnit.chart as ChartDesc<'stackStatus'>).hiddenDepth = Math.max(threadTraceList.length - MAX_UNIT_DEPTH, 0);
                 }
-
-                // 画布高度渲染上限 50_000 像素左右，所以这里限制最大深度为 MAX_UNIT_DEPTH，超过该深度一般是因为数据异常，不作渲染
-                if (maxDepth > MAX_UNIT_DEPTH) {
-                    if (thisUnit) {
-                        (thisUnit.chart as ChartDesc<'stackStatus'>).error = true;
-                    }
-                    return [];
-                }
-                // 泳道chart返回数据减去时间偏移
-                return _.map(threadTraceList, (it) => _.map(it, (data) => {
+                // 泳道chart返回数据减去时间偏移；数据按深度分行，前 MAX_UNIT_DEPTH 行即为可绘制的层
+                return _.map(threadTraceList.slice(0, MAX_UNIT_DEPTH), (it) => _.map(it, (data) => {
                     let uintColor;
                     if (session.isSimulation) {
                         uintColor = colorPalette[hashToNumber(data.cname, colorPalette.length)];
@@ -723,6 +716,7 @@ export const ThreadUnit = unit<ThreadMetaData>({
                     } as StackStatusData;
                 }));
             } catch (e) {
+                (thisUnit.chart as ChartDesc<'stackStatus'>).hiddenDepth = 0;
                 return [];
             }
         },

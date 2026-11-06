@@ -312,7 +312,7 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
         location.timestamp = resultSet->GetUint64("startTime");
         location.duration = resultSet->GetUint64("duration");
         location.pid = resultSet->GetString("pid");
-        location.name = stringsCache.at(path)[resultSet->GetString("name")];
+        location.name = GetStringCacheValue(path, resultSet->GetString("name"));
         location.dbPath = requestParams.dbPath;
         if (tableAndSql.first == "TASK") {
             std::string domainId = resultSet->GetString("domainId");

@@ -23,7 +23,7 @@ import type { ThreadMetaData } from '../../entity/data';
 import { UnitHeight, type InsightUnit } from '../../entity/insight';
 import type { Session } from '../../entity/session';
 import { StackStatusChart } from './StackStatusChart';
-import { useClick, useData } from './hooks';
+import { useBatchedRender, useClick, useData } from './hooks';
 import type { OffsetSide } from '../../insight/units/offset';
 
 // Use the distributed CommonJS bundle so pnpm's nested ESM package path works in Jest.
@@ -118,4 +118,47 @@ describe('StackStatusChart slice selection', () => {
 
         expect(selectedSession.selectedData?.threadId).toBe('2');
     });
+});
+
+it('limits a deep canvas and redraws existing slices when its size or DPR changes', () => {
+    (useBatchedRender as jest.Mock).mockImplementation(jest.requireActual('./hooks').useBatchedRender);
+    jest.spyOn(require('./hooks'), 'useRangeAndDomain').mockReturnValue([[0, 100], [0, 100]]);
+    (useData as jest.Mock).mockReturnValue([[{ startTime: 10, duration: 20, depth: 0, type: 'task', color: 'deepBlue' }]]);
+    jest.spyOn(require('@emotion/react'), 'useTheme').mockReturnValue({ colorPalette: { deepBlue: '#00f' } });
+    const context = {
+        resetTransform: jest.fn(),
+        scale: jest.fn(),
+        clearRect: jest.fn(),
+        fillRect: jest.fn(),
+        fillText: jest.fn(),
+        measureText: jest.fn(() => ({ width: 10, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2 })),
+    };
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    const originalDpr = window.devicePixelRatio;
+    Object.defineProperty(window, 'devicePixelRatio', { value: 2, configurable: true });
+    const chart = (width: number, height: number): JSX.Element => <StackStatusChart
+        session={{ endTimeAll: 100 } as Session} unit={{ isTraceLoading: false } as InsightUnit}
+        metadata={{}} margin={0} width={width} height={height} rowHeight={UnitHeight.STANDARD}
+        isCollapse={false} title="lane" mapFunc={jest.fn()}
+    />;
+    try {
+        const { container, rerender } = render(chart(4000, 50000));
+        const canvas = container.querySelector('canvas.drawCanvas') as HTMLCanvasElement;
+        expect(canvas.width * canvas.height).toBeLessThanOrEqual(268435456);
+        expect(context.fillRect).toHaveBeenCalledTimes(1);
+        rerender(chart(100, 50000));
+        expect(canvas.height).toBeGreaterThanOrEqual(65534);
+        expect(canvas.height).toBeLessThanOrEqual(65535);
+        expect(context.fillRect).toHaveBeenCalledTimes(2);
+        rerender(chart(100, 20));
+        expect(canvas.height).toBe(40);
+        expect(context.fillRect).toHaveBeenCalledTimes(3);
+        Object.defineProperty(window, 'devicePixelRatio', { value: 1, configurable: true });
+        rerender(chart(100, 20));
+        expect(canvas.height).toBe(20);
+        expect(context.fillRect).toHaveBeenCalledTimes(4);
+        expect(context.scale).toHaveBeenLastCalledWith(1, 1);
+    } finally {
+        Object.defineProperty(window, 'devicePixelRatio', { value: originalDpr, configurable: true });
+    }
 });

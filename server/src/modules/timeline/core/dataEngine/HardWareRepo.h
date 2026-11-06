@@ -17,6 +17,7 @@
  */
 #ifndef PROFILER_SERVER_HARDWAREREPO_H
 #define PROFILER_SERVER_HARDWAREREPO_H
+#include <optional>
 #include "TaskTable.h"
 #include "TrackInfoManager.h"
 #include "TaskPmuInfoTable.h"
@@ -43,7 +44,7 @@ class HardWareRepo : public IBaseSliceRepo, public IFindSliceByNameList {
 
     virtual Stmt CreatPreparedStatement(const std::string &sql, const SliceQuery &sliceQuery);
     std::string GetDbPath(const SliceQuery &sliceQuery);
-    std::string QuerySliceArgs(
+    std::optional<std::string> QuerySliceArgs(
         const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
     void QueryModelStreamIds(
         const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
