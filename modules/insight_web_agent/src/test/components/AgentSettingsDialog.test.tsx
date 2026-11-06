@@ -17,6 +17,8 @@
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import i18n from '@insight/lib/i18n';
+import { ApiRequestError } from '../../api';
 import { fetchAgentConfig, fetchBuiltinAgentModels, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../../api';
 import { useChatState } from '../../hooks/useChatState';
 import { AgentSettingsDialog } from '../../components/AgentSettingsDialog';
@@ -59,6 +61,7 @@ jest.mock('@insight/lib/icon/Icon', () => ({
 }), { virtual: true });
 
 jest.mock('../../api', () => ({
+    ApiRequestError: jest.requireActual('../../api').ApiRequestError,
     fetchAgentConfig: jest.fn(),
     fetchBuiltinAgentModels: jest.fn(),
     saveAgentServersConfig: jest.fn(),
@@ -154,6 +157,22 @@ const openSettings = async (): Promise<void> => {
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByLabelText('Command');
 };
+
+test('a displayed backend error follows language changes without another request', async () => {
+    mockFetchAgentConfig.mockRejectedValueOnce(new ApiRequestError(500, '/api/agent-config', {
+        code: 'agent_config_read_failed', details: { cause: 'Untranslated diagnostic' },
+    }));
+    render(<AgentSettingsDialog open />);
+    await screen.findByText('Agent settings could not be read. Check the local configuration files and permissions.');
+    try {
+        await act(async () => { await i18n.changeLanguage('zhCN'); });
+        expect(screen.getByText('无法读取 Agent 设置，请检查本地配置文件及访问权限。')).toBeInTheDocument();
+        expect(mockFetchAgentConfig).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText('Untranslated diagnostic')).not.toBeInTheDocument();
+    } finally {
+        await act(async () => { await i18n.changeLanguage('enUS'); });
+    }
+});
 
 test('save is disabled until config changes, and disabled again when edits are reverted', async () => {
     await openSettings();

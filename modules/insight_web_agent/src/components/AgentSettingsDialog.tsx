@@ -28,7 +28,8 @@ import { resolveAgentKind } from '../agentBrand';
 import { AgentKindIcon } from './AgentKindIcon';
 import { AgentSelect } from './AgentSelect';
 import { uniqueCopiedAgentName } from '../copiedAgentName';
-import { fetchAgentConfig, fetchBuiltinAgentModels, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
+import { apiErrorMessage } from '../apiErrorMessage';
+import { ApiRequestError, fetchAgentConfig, fetchBuiltinAgentModels, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import { isSecretEnvKey, SECRET_PLACEHOLDER } from '../secretFields';
 import type { AgentConfigSnapshot } from '../types';
@@ -816,7 +817,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const [scriptValue, setScriptValue] = useState('');
     const [scriptError, setScriptError] = useState<string | null>(null);
     const [panelScrollState, setPanelScrollState] = useState({ hasContentAbove: false, hasContentBelow: false });
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | Error | null>(null);
+    const displayedError = error instanceof ApiRequestError ? apiErrorMessage(error.body)
+        : error instanceof Error ? error.message : error;
     const [pendingNavigation, setPendingNavigation] = useState<SettingsNavigation | null>(null);
     const [validationAttempted, setValidationAttempted] = useState(false);
     const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
@@ -863,7 +866,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 setSelectedAgentName(selectableActiveAgent ? nextSnapshot.activeAgentName : 'msinsight-native');
                 if (createOnOpen) setDraftAgent(EMPTY_DRAFT());
             } catch (nextError) {
-                setError(nextError instanceof Error ? nextError.message : String(nextError));
+                setError(nextError instanceof Error ? nextError : String(nextError));
             } finally {
                 setLoading(false);
             }
@@ -1276,8 +1279,11 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 ? { ...current, builtinAgent } : current);
             if (configMode === 'script') setScriptValue(JSON.stringify(getBuiltinScriptConfig(builtinAgent), null, 2));
             if (result.truncated) message.warning(t('modelListTruncated'));
-        } catch {
-            if (requestId === modelRequestRef.current) setError(t('modelListFetchFailed'));
+        } catch (nextError) {
+            if (requestId === modelRequestRef.current) {
+                setError(nextError instanceof ApiRequestError ? nextError
+                    : new ApiRequestError(502, '/api/agent-config/builtin/models', { code: 'model_list_failed' }));
+            }
         } finally {
             if (requestId === modelRequestRef.current) setFetchingModels(false);
         }
@@ -1339,8 +1345,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             if (isBackendUnavailableError(nextError)) {
                 return;
             }
-            const errorMessage = nextError instanceof Error ? nextError.message : String(nextError);
-            setError(errorMessage);
+            const errorMessage = nextError instanceof ApiRequestError ? apiErrorMessage(nextError.body)
+                : nextError instanceof Error ? nextError.message : String(nextError);
+            setError(nextError instanceof Error ? nextError : errorMessage);
             message.error(errorMessage);
         } finally {
             savingRef.current = false;
@@ -1422,7 +1429,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                             {t('agentBusy')}
                         </div>
                     ) : null}
-                    {error ? <div className="error">{error}</div> : null}
+                    {displayedError ? <div className="error">{displayedError}</div> : null}
                     {snapshot && (editingAgent || isBuiltinSelected) ? (
                         <>
                             <div className="section">

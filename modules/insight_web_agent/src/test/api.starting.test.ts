@@ -15,8 +15,10 @@ jest.mock('../env', () => ({
     ACP_STARTUP_STATUS_URL: 'http://localhost/acp-startup-status',
 }));
 
-beforeEach(() => {
+beforeEach(async () => {
     jest.resetModules();
+    const { default: i18n } = await import('@insight/lib/i18n');
+    await i18n.changeLanguage('enUS');
     jest.useFakeTimers('modern');
 });
 
@@ -104,7 +106,7 @@ test('reports startup failure when the launcher reports that the child process e
     const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ status: 'start-failed' }) });
     global.fetch = fetchMock;
 
-    await expect(fetchState()).rejects.toThrow(/start-failed/);
+    await expect(fetchState()).rejects.toThrow(/Unable to connect to the Agent backend/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'start-failed' }));
     unsubscribe();

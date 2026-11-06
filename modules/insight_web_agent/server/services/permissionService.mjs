@@ -167,7 +167,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         }
         if (!permissionActions(request.options).includes(targetDecision)) {
             return errorResult(
-                "permission decision is unavailable",
+                "permission_decision_unavailable",
                 "permission decision is unavailable",
                 400
             );

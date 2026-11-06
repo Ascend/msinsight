@@ -97,7 +97,7 @@ test("configuration sections use independent save endpoints", async () => {
     assert.deepEqual(serverResponse.body, {
         error: "agent_busy",
         code: "agent_busy",
-        message: "Agent is busy",
+        message: "The Agent is busy. Wait for the current message or permission request to finish.",
     });
 });
 
@@ -113,7 +113,7 @@ test("GET /api/agent-config returns a specific configuration read error", async 
 
     assert.equal(res.status, 500);
     assert.equal(res.body.error, "agent_config_read_failed");
-    assert.equal(res.body.message, "Agent settings could not be read from the local configuration files");
+    assert.equal(res.body.message, "Agent settings could not be read. Check the local configuration files and permissions.");
     assert.deepEqual(res.body.details, { cause: "invalid JSON in agent-servers.json" });
 });
 
@@ -143,5 +143,5 @@ test("POST builtin/models forwards only the model-list result and preserves erro
     const res = createResponse();
     await router(createJsonRequest("POST", "/api/agent-config/builtin/models", input), res);
     assert.equal(res.status, 502);
-    assert.deepEqual(res.body, { error: "model_list_failed", code: "model_list_failed", message: "Could not fetch models" });
+    assert.deepEqual(res.body, { error: "model_list_failed", code: "model_list_failed", message: "Could not fetch models. Check settings or enter models in JSON." });
 });
