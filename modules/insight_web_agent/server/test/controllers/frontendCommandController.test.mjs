@@ -39,7 +39,7 @@ test("frontend command failures keep their code and readable message", async () 
     assert.equal(res.status, 400);
     assert.equal(res.body.error, "command_invalid");
     assert.equal(res.body.code, "command_invalid");
-    assert.equal(res.body.message, "command is required");
+    assert.equal(res.body.message, "The command or its arguments are invalid.");
     assert.equal(res.body.retryable, false);
 });
 
@@ -79,5 +79,5 @@ test("frontend command claim validation explains the missing field", () => {
 
     assert.equal(res.status, 400);
     assert.equal(res.body.error, "request_id_required");
-    assert.equal(res.body.message, "requestId is required to claim a frontend command");
+    assert.equal(res.body.message, "A frontend command request ID is required.");
 });

@@ -17,6 +17,9 @@
  */
 import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, PromptPreset, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
+import i18n from '@insight/lib/i18n';
+import { apiErrorMessage } from './apiErrorMessage';
+import type { ErrorResponseBody } from './apiErrors';
 import type { HostContext } from './connection';
 import { apiUrl, ACP_STATUS, ACP_NODE_VERSION, ACP_STARTUP_STATUS_URL, capabilityAuthHeaders } from './env';
 import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
@@ -67,22 +70,13 @@ interface LoadSessionResponse extends OkResponse {
     pendingPrompt?: boolean;
 }
 
-interface ErrorResponseBody {
-    error?: string;
-    code?: string;
-    message?: string;
-    details?: unknown;
-    saved?: boolean;
-}
-
 export class ApiRequestError extends Error {
     constructor(
-        message: string,
         readonly status: number | undefined,
         readonly path: string,
         readonly body?: ErrorResponseBody,
     ) {
-        super(message);
+        super(apiErrorMessage(body));
         this.name = 'ApiRequestError';
     }
 }
@@ -150,6 +144,7 @@ const fetchBackend = async (url: string, init?: RequestInit, policy?: RequestPol
                 ...init,
                 headers: {
                     ...capabilityAuthHeaders(),
+                    'Accept-Language': /^zh/i.test(i18n.language) ? 'zh-CN' : 'en-US',
                     ...(init?.body ? { 'content-type': 'application/json' } : {}),
                     ...init?.headers,
                 },
@@ -170,7 +165,7 @@ const requestJson = async <T>(path: string, init?: RequestInit, policy?: Request
     const url = apiUrl(path);
     if (init?.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
     if (policy?.startupWait === 'fail_fast' && runtimeStatus === 'starting') {
-        throw new ApiRequestError('The Agent backend is starting.', undefined, path);
+        throw new ApiRequestError(undefined, path, { code: 'backend_starting' });
     }
     if (policy?.startupWait !== 'fail_fast') await ensureStartupCompleted();
     if (init?.signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -180,7 +175,7 @@ const requestJson = async <T>(path: string, init?: RequestInit, policy?: Request
             status: connectionFailureStatus(),
             nodeVersion: ACP_NODE_VERSION,
         });
-        throw new ApiRequestError(`Unable to connect to the Agent backend: ${runtimeStatus}`, undefined, path);
+        throw new ApiRequestError(undefined, path, { code: 'backend_unavailable' });
     }
 
     let response: Response;
@@ -197,7 +192,7 @@ const requestJson = async <T>(path: string, init?: RequestInit, policy?: Request
             status: connectionFailureStatus(),
             nodeVersion: ACP_NODE_VERSION,
         });
-        throw new ApiRequestError(`Unable to connect to the Agent backend: ${cause}`, undefined, path);
+        throw new ApiRequestError(undefined, path, { code: 'backend_unavailable' });
     }
 
     const rawBody = await response.text();
@@ -206,16 +201,13 @@ const requestJson = async <T>(path: string, init?: RequestInit, policy?: Request
         body = rawBody ? JSON.parse(rawBody) as T & ErrorResponseBody : undefined;
     } catch (_error) {
         throw new ApiRequestError(
-            `The backend returned an invalid JSON response (HTTP ${response.status}).`,
             response.status,
             path,
-            { details: rawBody.slice(0, 500) },
+            { code: 'invalid_response', messageParams: { status: response.status }, details: rawBody.slice(0, 500) },
         );
     }
     if (!response.ok) {
-        const detail = formatErrorDetails(body?.details);
         throw new ApiRequestError(
-            `${body?.message ?? body?.error ?? response.statusText}${detail}`,
             response.status,
             path,
             body,
@@ -231,20 +223,6 @@ const safeEndpoint = (url: string): string => {
         return `${parsed.origin}${parsed.pathname}`;
     } catch (_error) {
         return url.split('?')[0];
-    }
-};
-
-const formatErrorDetails = (details: unknown): string => {
-    if (details === undefined || details === null || details === '') {
-        return '';
-    }
-    if (typeof details === 'string') {
-        return `: ${details}`;
-    }
-    try {
-        return `: ${JSON.stringify(details)}`;
-    } catch (_error) {
-        return '';
     }
 };
 

@@ -16,10 +16,18 @@
  * -------------------------------------------------------------------------
  */
 import { HttpError } from "./errors.mjs";
+import { localizeError, resolveErrorLanguage } from "./errorI18n.mjs";
 
 export const json = (res, body, status = 200) => {
-    const responseBody = status >= 400 ? normalizeErrorResponse(body, status) : body;
-    res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+    let responseBody = body;
+    const headers = { "content-type": "application/json; charset=utf-8" };
+    if (status >= 400) {
+        const language = resolveErrorLanguage(res.req?.headers?.["accept-language"]);
+        responseBody = localizeError(normalizeErrorResponse(body, status), language);
+        headers["content-language"] = language;
+        headers["cache-control"] = "no-store";
+    }
+    res.writeHead(status, headers);
     res.end(JSON.stringify(responseBody));
 };
 

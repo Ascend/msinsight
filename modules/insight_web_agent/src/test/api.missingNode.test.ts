@@ -29,7 +29,7 @@ test('does not probe wry when Node.js is missing, and keeps the unavailable stat
     const fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    await expect(fetchState()).rejects.toThrow(/missing-node/);
+    await expect(fetchState()).rejects.toThrow(/Unable to connect to the Agent backend/);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ status: 'missing-node' }));
 

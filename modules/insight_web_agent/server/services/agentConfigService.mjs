@@ -143,7 +143,9 @@ export const createAgentConfigService = ({
 
     const fetchBuiltinModels = async (input) => {
         if (!input || typeof input !== "object" || typeof input.provider !== "string"
-            || typeof input.baseUrl !== "string") return structuredError("validation_failed", "Invalid model list request", 400);
+            || typeof input.baseUrl !== "string") {
+            return structuredError("validation_failed", "Invalid model list request", 400, { messageKey: "invalid_model_list_request" });
+        }
         let endpoint;
         try {
             endpoint = modelListEndpoint(input.provider, input.baseUrl);
@@ -259,7 +261,9 @@ const secretError = (error) => {
 };
 
 const validateAgentConfig = (input, currentSnapshot, catalogAgents = []) => {
-    if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "agent config must be an object", 400);
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return structuredError("validation_failed", "agent config must be an object", 400, { messageKey: "agent_config_object_required" });
+    }
     const errors = [];
     const agentServers = validateAgentServers(input.agentServers, currentSnapshot, errors);
     const activeAgentName = resolvePersistedActiveAgentName(
@@ -287,7 +291,9 @@ const validateAgentConfig = (input, currentSnapshot, catalogAgents = []) => {
 };
 
 const validateBuiltinConfig = (input) => {
-    if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "built-in agent config must be an object", 400);
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
+        return structuredError("validation_failed", "built-in agent config must be an object", 400, { messageKey: "builtin_config_object_required" });
+    }
     const errors = [];
     let config;
     try {
@@ -317,7 +323,7 @@ const validateSessionConfigInput = (input) => {
 
 const validateAgentServers = (servers, currentSnapshot, errors) => {
     if (!Array.isArray(servers)) {
-        errors.push({ field: "agentServers", message: "agent servers must be an array" });
+        errors.push({ field: "agentServers", code: "agent_servers_array_required", message: "agent servers must be an array" });
         return [];
     }
 
@@ -327,23 +333,33 @@ const validateAgentServers = (servers, currentSnapshot, errors) => {
         const command = String(server?.command ?? "").trim();
         const args = Array.isArray(server?.args) ? server.args.map((arg) => String(arg).trim()) : undefined;
         const env = validateEnv(server?.env, `agentServers.${index}.env`, errors);
-        if (!name) errors.push({ field: `agentServers.${index}.name`, message: "agent name is required" });
-        if (name === BUILTIN_AGENT_NAME) errors.push({ field: `agentServers.${index}.name`, message: `${BUILTIN_AGENT_NAME} is reserved for the built-in agent` });
-        if (/\(auto\)$/i.test(name)) errors.push({ field: `agentServers.${index}.name`, message: "agent names ending in (auto) are reserved for discovered agents" });
-        if (seen.has(name)) errors.push({ field: `agentServers.${index}.name`, message: "agent names must be unique" });
+        if (!name) {
+            errors.push({ field: `agentServers.${index}.name`, code: "agent_name_required", message: "agent name is required" });
+        }
+        if (name === BUILTIN_AGENT_NAME) {
+            errors.push({ field: `agentServers.${index}.name`, code: "agent_name_reserved", message: `${BUILTIN_AGENT_NAME} is reserved for the built-in agent` });
+        }
+        if (/\(auto\)$/i.test(name)) {
+            errors.push({ field: `agentServers.${index}.name`, code: "agent_auto_name_reserved", message: "agent names ending in (auto) are reserved for discovered agents" });
+        }
+        if (seen.has(name)) {
+            errors.push({ field: `agentServers.${index}.name`, code: "agent_name_duplicate", message: "agent names must be unique" });
+        }
         seen.add(name);
-        if (!command) errors.push({ field: `agentServers.${index}.command`, message: "agent command is required" });
+        if (!command) {
+            errors.push({ field: `agentServers.${index}.command`, code: "agent_command_required", message: "agent command is required" });
+        }
         if (!Array.isArray(args)) {
-            errors.push({ field: `agentServers.${index}.args`, message: "agent args must be an array" });
+            errors.push({ field: `agentServers.${index}.args`, code: "agent_args_array_required", message: "agent args must be an array" });
         } else if (args.some((arg) => arg === "")) {
-            errors.push({ field: `agentServers.${index}.args`, message: "agent args cannot be empty" });
+            errors.push({ field: `agentServers.${index}.args`, code: "agent_arg_empty", message: "agent args cannot be empty" });
         }
         return { name, command, args: args ?? [], env };
     });
 
     for (const existing of currentSnapshot.agentServers) {
         if (!seen.has(existing.name)) {
-            errors.push({ field: "agentServers", message: `existing agent cannot be deleted or renamed: ${existing.name}` });
+            errors.push({ field: "agentServers", code: "existing_agent_immutable", messageParams: { agentName: existing.name }, message: `existing agent cannot be deleted or renamed: ${existing.name}` });
         }
     }
     return normalized;
@@ -352,16 +368,20 @@ const validateAgentServers = (servers, currentSnapshot, errors) => {
 const validateBuiltinAgent = (input, errors) => {
     const config = normalizeBuiltinAgent(input);
     if (!["openai", "openai-compatible", "anthropic"].includes(config.provider)) {
-        errors.push({ field: "builtinAgent.provider", message: "provider must be openai, openai-compatible or anthropic" });
+        errors.push({ field: "builtinAgent.provider", code: "provider_invalid", message: "provider must be openai, openai-compatible or anthropic" });
     }
-    if (!config.model.trim()) errors.push({ field: "builtinAgent.model", message: "model is required" });
-    if (!config.baseUrl.trim()) errors.push({ field: "builtinAgent.baseUrl", message: "base URL is required" });
+    if (!config.model.trim()) {
+        errors.push({ field: "builtinAgent.model", code: "model_required", message: "model is required" });
+    }
+    if (!config.baseUrl.trim()) {
+        errors.push({ field: "builtinAgent.baseUrl", code: "base_url_required", message: "base URL is required" });
+    }
     // 显式非法值必须报错，不能静默回退。
     if (!CONTEXT_BUDGET_OPTIONS.includes(config.contextBudgetTokens)) {
-        errors.push({ field: "builtinAgent.contextBudgetTokens", message: "context budget must be 200000 or 1000000 tokens" });
+        errors.push({ field: "builtinAgent.contextBudgetTokens", code: "context_budget_invalid", message: "context budget must be 200000 or 1000000 tokens" });
     }
     if (!Number.isSafeInteger(config.autoCompactThreshold) || config.autoCompactThreshold < 1 || config.autoCompactThreshold > 100) {
-        errors.push({ field: "builtinAgent.autoCompactThreshold", message: "auto compact threshold must be an integer from 1 to 100" });
+        errors.push({ field: "builtinAgent.autoCompactThreshold", code: "compact_threshold_invalid", message: "auto compact threshold must be an integer from 1 to 100" });
     }
     return config;
 };
@@ -379,7 +399,7 @@ const findLaunchDuplicate = (servers) => {
 
 const resolvePersistedActiveAgentName = (requestedName, agentServers, catalogAgents, errors) => {
     if (!requestedName) {
-        errors.push({ field: "activeAgentName", message: "active agent is required" });
+        errors.push({ field: "activeAgentName", code: "active_agent_required", message: "active agent is required" });
         return requestedName;
     }
     if (requestedName === BUILTIN_AGENT_NAME || agentServers.some((server) => server.name === requestedName)) {
@@ -387,11 +407,11 @@ const resolvePersistedActiveAgentName = (requestedName, agentServers, catalogAge
     }
     const catalogAgent = catalogAgents.find((agent) => agent.name === requestedName);
     if (!catalogAgent) {
-        errors.push({ field: "activeAgentName", message: "active agent must reference a configured agent" });
+        errors.push({ field: "activeAgentName", code: "active_agent_invalid", message: "active agent must reference a configured agent" });
         return requestedName;
     }
     if (catalogAgent.available) return requestedName;
-    errors.push({ field: "activeAgentName", message: "active agent must reference an available discovered agent" });
+    errors.push({ field: "activeAgentName", code: "active_agent_unavailable", message: "active agent must reference an available discovered agent" });
     return requestedName;
 };
 
@@ -405,8 +425,12 @@ const validateEnv = (env, field, errors) => {
     ]);
     const seen = new Set();
     for (const [key] of entries) {
-        if (!key) errors.push({ field, message: "env keys cannot be empty" });
-        if (seen.has(key)) errors.push({ field, message: "env keys must be unique" });
+        if (!key) {
+            errors.push({ field, code: "env_key_required", message: "env keys cannot be empty" });
+        }
+        if (seen.has(key)) {
+            errors.push({ field, code: "env_key_duplicate", message: "env keys must be unique" });
+        }
         seen.add(key);
     }
     return Object.fromEntries(entries);
@@ -414,7 +438,7 @@ const validateEnv = (env, field, errors) => {
 
 const validateSessionConfig = (config, errors) => {
     if (!config || typeof config !== "object" || Array.isArray(config)) {
-        errors.push({ field: "sessionConfig", message: "session config is required" });
+        errors.push({ field: "sessionConfig", code: "session_config_required", message: "session config is required" });
         return normalizeSessionConfig();
     }
     const requestTimeoutMs = validatePositiveNumber(config.requestTimeoutMs, "sessionConfig.requestTimeoutMs", errors);
@@ -427,7 +451,7 @@ const validateSessionConfig = (config, errors) => {
 const validatePositiveNumber = (value, field, errors) => {
     const number = Number(value);
     if (!Number.isFinite(number) || number <= 0) {
-        errors.push({ field, message: "timeout must be a positive number" });
+        errors.push({ field, code: "timeout_invalid", message: "timeout must be a positive number" });
     }
     return number;
 };
@@ -435,9 +459,13 @@ const validatePositiveNumber = (value, field, errors) => {
 const validateDefaultAllowlist = (input = {}, errors) => {
     const config = input && typeof input === "object" && !Array.isArray(input) ? input : {};
     for (const field of ["includeDocsRoot", "includeAgentWorkspaceRoot", "includeProjectRoot"]) {
-        if (typeof config[field] !== "boolean") errors.push({ field: `sessionConfig.defaultAllowlist.${field}`, message: "allowlist flags must be booleans" });
+        if (typeof config[field] !== "boolean") {
+            errors.push({ field: `sessionConfig.defaultAllowlist.${field}`, code: "allowlist_flag_invalid", message: "allowlist flags must be booleans" });
+        }
     }
-    if (!Array.isArray(config.extraPaths)) errors.push({ field: "sessionConfig.defaultAllowlist.extraPaths", message: "extraPaths must be an array" });
+    if (!Array.isArray(config.extraPaths)) {
+        errors.push({ field: "sessionConfig.defaultAllowlist.extraPaths", code: "extra_paths_array_required", message: "extraPaths must be an array" });
+    }
     return {
         includeDocsRoot: config.includeDocsRoot,
         includeAgentWorkspaceRoot: config.includeAgentWorkspaceRoot,
@@ -457,7 +485,7 @@ const saveSection = async ({ path, value, readSnapshot, beforeReload, reloadRunt
         } catch {
             // Preserve the original write error when temporary cleanup fails.
         }
-        return structuredError("config_write_failed", error.message, 500);
+        return structuredError("config_write_failed", error.message, 500, { details: { cause: error.message } });
     }
 
     let rollbackBeforeReload;
@@ -468,7 +496,7 @@ const saveSection = async ({ path, value, readSnapshot, beforeReload, reloadRunt
         return { ok: true, snapshot };
     } catch (error) {
         await rollbackBeforeReload?.();
-        return structuredError("reload_failed", error.message, 500, { saved: true });
+        return structuredError("reload_failed", error.message, 500, { saved: true, details: { cause: error.message } });
     }
 };
 

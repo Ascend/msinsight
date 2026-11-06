@@ -536,6 +536,8 @@ test("returns reload_failed after a successful file save without rolling config 
 
     assert.equal(result.error, "reload_failed");
     assert.match(result.message, /adapter failed/);
+    assert.deepEqual(result.details, { cause: "adapter failed" });
+    assert.equal(result.saved, true);
     assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode");
 });
 
@@ -558,6 +560,7 @@ test("returns config_write_failed without reload or single-file replacement when
 
     assert.equal(result.error, "config_write_failed");
     assert.match(result.message, /EISDIR|EPERM|EACCES/);
+    assert.deepEqual(result.details, { cause: result.message });
     await rm(join(fixture.rootDir, `acp-session-conf.json.${process.pid}.session-temp.tmp`), { recursive: true, force: true });
     assert.equal(fixture.reloads.length, 0);
     assert.equal(await readText(join(fixture.rootDir, "agent-servers.json")), beforeAgentConfig);

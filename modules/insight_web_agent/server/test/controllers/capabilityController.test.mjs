@@ -9,6 +9,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
+import messages from "../../../src/i18n/apiErrors.json" with { type: "json" };
 import { createCapabilityController } from "../../controllers/capabilityController.mjs";
 
 const createRequest = (token, { query = false } = {}) => Object.assign(new EventEmitter(), {
@@ -67,7 +68,7 @@ test("Native capability controller maps capability errors to specific HTTP statu
         assert.equal(res.status, status, code);
         assert.equal(res.body.code, code, code);
         assert.equal(res.body.error, code, code);
-        assert.equal(res.body.message, `failed with ${code}`, code);
+        assert.equal(res.body.message, messages[code.toLowerCase()].en, code);
     }
 });
 
