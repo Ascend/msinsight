@@ -680,8 +680,8 @@ export const ThreadUnit = unit<ThreadMetaData>({
                         depthEndTimes[depth] = endTime;
                         data.depth = depth;
                     });
-                    maxDepth = depthEndTimes.length;
-                    currentMaxDepth = maxDepth;
+                    currentMaxDepth = depthEndTimes.length;
+                    maxDepth = Math.min(MAX_UNIT_DEPTH, Math.max(currentMaxDepth, validRequests.reduce((total, item) => total + (item.request.maxDepth ?? 0), 0)));
                     havePythonFunction = validRequests.some(item => item.request.havePythonFunction);
                     threadTraceList = depthEndTimes.map((_, depth) => sortedData.filter(data => data.depth === depth));
                 }
