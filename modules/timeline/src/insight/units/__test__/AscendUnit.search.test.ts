@@ -570,13 +570,20 @@ describe.each([
 
 describe('ThreadUnit trace layout', () => {
     const dataSource: DataSource = { remote: 'local', port: 9000, projectName: 'test', dataPath: [], projectPath: [], children: [] };
-    const createSession = (autoAdjustUnitHeight = false): Session => ({
-        units: [],
-        domain: { timePerPx: 1 },
-        domainRange: { domainStart: 0, domainEnd: 1000 },
-        unitsConfig: { offsetConfig: { timestampOffset: {} }, filterConfig: { pythonFunction: {} } },
-        autoAdjustUnitHeight,
-    } as unknown as Session);
+    const createSession = (autoAdjustUnitHeight = false): Session => {
+        const session = {
+            units: [],
+            domain: {
+                get timePerPx(): number {
+                    return (session.domainRange.domainEnd - session.domainRange.domainStart) / 1000;
+                },
+            },
+            domainRange: { domainStart: 0, domainEnd: 1000 },
+            unitsConfig: { offsetConfig: { timestampOffset: {} }, filterConfig: { pythonFunction: {} } },
+            autoAdjustUnitHeight,
+        };
+        return session as unknown as Session;
+    };
 
     it.each([
         ['PYTORCH_API_PYTHON_STACK', 'python_stack:text:123', false, 8],
@@ -622,13 +629,106 @@ describe('ThreadUnit trace layout', () => {
         expect(chart.hiddenDepth).toBe(0);
     });
 
-    it('keeps the thread list when the backend handles a merged lane', async () => {
+    it.each([false, true])('respects auto height across zoom levels for merged sources (auto adjust: %s)', async (autoAdjust) => {
+        const metadata = {
+            ...MERGED_METADATA,
+            dataSource,
+            threadSourceList: ['first.db', 'second.db'].map((dbPath, index) => ({
+                cardId: 'card', dbPath, processId: 'process', threadId: String(index), threadName: 'Stream',
+            })),
+        } as ThreadMetaData;
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const session = createSession(autoAdjust);
+        (chart.config as StackStatusConfig).isCollapse = false;
+        window.request = jest.fn().mockResolvedValue({
+            data: [[createStackStatusData({ startTime: 100, duration: 50 })]], maxDepth: 1, currentMaxDepth: 1,
+        });
+        await chart.mapFunc(session, metadata, unit);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(2);
+        const height = chart.height;
+        session.domainRange = { domainStart: 200, domainEnd: 300 };
+        expect(session.domain.timePerPx).toBe(0.1);
+        window.request = jest.fn().mockResolvedValueOnce({
+            data: [[createStackStatusData({ startTime: 210, duration: 10 })]], maxDepth: 1, currentMaxDepth: 1,
+        }).mockResolvedValueOnce({ data: [], maxDepth: 1, currentMaxDepth: 0 });
+        await chart.mapFunc(session, metadata, unit);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(autoAdjust ? 1 : 2);
+        expect(chart.height).toBe(autoAdjust ? (chart.config as StackStatusConfig).rowHeight : height);
+    });
+
+    it.each([1, 4, 2500, 2501].flatMap(depth => [false, true].map(autoAdjust => [depth, autoAdjust] as const)))('caps merged lanes by actual layout depth %s (auto adjust: %s)', async (actualDepth, autoAdjust) => {
+        const metadata = {
+            ...MERGED_METADATA,
+            dataSource,
+            threadSourceList: ['first.db', 'second.db'].map((dbPath, index) => ({
+                cardId: 'card', dbPath, processId: 'process', threadId: String(index), threadName: 'Stream',
+            })),
+        } as ThreadMetaData;
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const data = Array.from({ length: actualDepth }, (_, index) => createStackStatusData({
+            id: String(index), startTime: 100, duration: 50,
+        }));
+        window.request = jest.fn().mockResolvedValueOnce({ data: [data], maxDepth: 1500 })
+            .mockResolvedValueOnce({
+                data: [[createStackStatusData({ id: 'staggered', startTime: 200, duration: 50 })]], maxDepth: 1500,
+            });
+
+        const result = await chart.mapFunc(createSession(autoAdjust), metadata, unit);
+
+        expect(result).toHaveLength(Math.min(actualDepth, 2500));
+        expect(result[0]).toHaveLength(2);
+        expect(chart.error).toBeFalsy();
+        expect(chart.hiddenDepth).toBe(Math.max(actualDepth - 2500, 0));
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(autoAdjust ? Math.min(actualDepth, 2500) : 2500);
+
+        window.request = jest.fn().mockResolvedValueOnce({ data: [[data[0]]], maxDepth: 1500 })
+            .mockResolvedValueOnce({ data: [], maxDepth: 1500 });
+        const recovered = await chart.mapFunc(createSession(autoAdjust), metadata, unit);
+        expect(recovered).toHaveLength(1);
+        expect(chart.error).toBeFalsy();
+        expect(chart.hiddenDepth).toBe(0);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(autoAdjust ? 1 : 2500);
+    });
+
+    it('caps backend maximum height without dropping an unmerged lane', async () => {
+        const metadata = { ...MERGED_METADATA, dataSource, threadIdList: undefined };
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        window.request = jest.fn().mockResolvedValue({
+            data: [[createStackStatusData()]], maxDepth: 2501, currentMaxDepth: 1,
+        });
+
+        expect(await chart.mapFunc(createSession(), metadata, unit)).toHaveLength(1);
+        expect(chart.error).toBeFalsy();
+        expect(chart.hiddenDepth).toBe(0);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(2500);
+    });
+
+    it.each([false, true])('respects auto height across zoom levels for backend merged lanes (auto adjust: %s)', async (autoAdjust) => {
         const metadata = { ...MERGED_METADATA, dataSource };
         const unit = new ThreadUnit(metadata);
-        const request = jest.fn().mockResolvedValue({ data: [], maxDepth: 0, currentMaxDepth: 0 });
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const session = createSession(autoAdjust);
+        (chart.config as StackStatusConfig).isCollapse = false;
+        const request = jest.fn().mockResolvedValueOnce({
+            data: [[createStackStatusData()]], maxDepth: 8, currentMaxDepth: 3,
+        }).mockResolvedValueOnce({
+            data: [[createStackStatusData({ startTime: 210 })]], maxDepth: 8, currentMaxDepth: 1,
+        });
         window.request = request;
 
-        await (unit.chart as ChartDesc<'stackStatus'>).mapFunc(createSession(), metadata, unit);
+        await chart.mapFunc(session, metadata, unit);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(autoAdjust ? 3 : 8);
+        const height = chart.height;
+
+        session.domainRange = { domainStart: 200, domainEnd: 300 };
+        expect(session.domain.timePerPx).toBe(0.1);
+        await chart.mapFunc(session, metadata, unit);
+
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(autoAdjust ? 1 : 8);
+        expect(chart.height).toBe(autoAdjust ? (chart.config as StackStatusConfig).rowHeight : height);
 
         expect(request).toHaveBeenCalledWith(metadata.dataSource, {
             command: 'unit/threadTraces', params: expect.objectContaining({ threadIdList: ['2', '8'] }),
