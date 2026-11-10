@@ -1323,6 +1323,9 @@ When multiple hosts and ranks are imported, data can be displayed by host in Min
         - Delivery and execution mappings from CANN-layer nodes (operators) to NPU operators on Ascend Hardware (host to device).
         - Delivery and execution mappings from CANN-layer nodes (operators) to communication operators (host to device).
 
+    - HostToDevice(Graph)
+        - Delivery and execution mappings from CPU-side operators to `MODEL_EXECUTE` on Ascend Hardware (host to device).
+
     - async\_npu
         - Delivery and execution mappings from application-layer operators to NPU operators on Ascend Hardware.
         - Delivery and execution mappings from application-layer operators to communication operators.

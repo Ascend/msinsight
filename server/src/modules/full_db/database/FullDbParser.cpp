@@ -134,6 +134,12 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
         return;
     }
     database->AddHelperColumnsAndSetStatus();
+    // 旧库的 CONNECTION_CATEGORY 可能已完成，会跳过后续分类解析单元。
+    // 在 parse/success 前一次性补建 Graph 分类，避免前端先读到缺失类别并缓存该结果。
+    if (database->CheckValueFromStatusInfoTable(CONNECTION_UNIT, FINISH_STATUS) &&
+        !database->InitHostToDeviceGraphConnectionCats()) {
+        ServerLog::Warn("Failed to upgrade Graph connection categories; existing categories remain available.");
+    }
     auto &threadPool = FullDbParser::Instance().threadPool;
     std::shared_ptr<std::vector<std::future<bool>>> futures = std::make_shared<std::vector<std::future<bool>>>();
     FileType type = DataBaseManager::Instance().GetFileTypeByRankId(rankIds[0]);

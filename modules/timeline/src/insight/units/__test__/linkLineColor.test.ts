@@ -31,4 +31,10 @@ describe('getLinkLineColor', () => {
         expect(getLinkLineColor('async_task_queue', theme)).toBe('#123456');
         expect(getLinkLineColor('fwdbwd', theme)).toBe('#abcdef');
     });
+
+    it('gives HostToDevice(Graph) its theme color without changing HostToDevice', () => {
+        const theme = { colorPalette: { raspberryPink: '#d14289', royalPurple: '#8855cc' } } as unknown as Theme;
+        expect(getLinkLineColor('HostToDevice(Graph)', theme)).toBe('#d14289');
+        expect(getLinkLineColor('HostToDevice', theme)).toBe('#8855cc');
+    });
 });

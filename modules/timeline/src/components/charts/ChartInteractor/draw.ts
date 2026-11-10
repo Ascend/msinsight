@@ -782,9 +782,9 @@ export const getHeight = (session: Session, data: DataBlock, cardId: string, cat
     }
     // 进程折叠的情况
     if (unitHeight === undefined && processHeight !== undefined) {
-        // 此处单独适配 MSTX 泳道导致 HostToDevice 连线不准的问题
+        // 两类 HostToDevice 连线共用 CANN 锚点，避免 MSTX 泳道影响回退高度。
         const cannKey = `${processKey}-CANN`;
-        if (category === 'HostToDevice' && heightMap.has(cannKey)) {
+        if ((category === 'HostToDevice' || (category === 'HostToDevice(Graph)' && data.metaType === 'CANN_API')) && heightMap.has(cannKey)) {
             processHeight = heightMap.get(cannKey);
         }
         height = UNDRAW_HEIGHT + processHeight - session.scrollTop + (0.5 * UnitHeight.UPPER);

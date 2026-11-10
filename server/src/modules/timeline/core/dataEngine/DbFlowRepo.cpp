@@ -29,6 +29,8 @@ void DbFlowRepo::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vecto
         QueryHostToDevice(flowQuery, flowPointVec);
     } else if (flowQuery.cat == "MsTx") {
         QueryMsTx(flowQuery, flowPointVec);
+    } else if (flowQuery.cat == "HostToDevice(Graph)") {
+        QueryHostToDeviceGraph(flowQuery, flowPointVec);
     }
 }
 
@@ -51,6 +53,15 @@ void DbFlowRepo::QueryMsTx(const FlowQuery &flowQuery, std::vector<FlowPoint> &f
 void DbFlowRepo::QueryAsyncNpu(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     hostFlowRepo->AddAsyncNpuFlowPoint(flowQuery, flowPointVec);
     deviceFlowRepo->AddDeviceFlowPoint(flowQuery, flowPointVec);
+    std::sort(flowPointVec.begin(), flowPointVec.end());
+}
+
+void DbFlowRepo::QueryHostToDeviceGraph(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
+    // 业务入口按图回放类别命名，底层查询仍沿用真实任务类型及 Host/Device 仓库分工。
+    // 仅连接整体 MODEL_EXECUTE，避免展开图内算子后产生大量连线。
+    const auto tasks = deviceFlowRepo->QueryModelExecuteTasks(flowQuery);
+    const auto hostProcesses = hostFlowRepo->AddModelExecuteFlowPoint(flowQuery, tasks, flowPointVec);
+    deviceFlowRepo->AddModelExecuteFlowPoint(flowQuery, tasks, hostProcesses, flowPointVec);
     std::sort(flowPointVec.begin(), flowPointVec.end());
 }
 }

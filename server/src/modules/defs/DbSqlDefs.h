@@ -375,6 +375,22 @@ const static std::string QUERY_EVENTS_VIEW_FOR_OVERLAP_SUB =
     "0 as depth, 'OVERLAP_ANALYSIS' as processId, type as threadId "
     "from OVERLAP_ANALYSIS where deviceId = ? AND type = ? ";
 
+// 模型执行属于非计算任务，旧 connectionCats 缓存可能没有记录，不能依赖 COMPUTE_TASK_INFO。
+// 必须同时匹配任务类型、关联 ID 和宿主进程，避免连到同 ID 的 NOTIFY_WAIT 或其他进程。
+const static std::string MODEL_EXECUTE_FLOW_FROM_SQL =
+    " from TASK task join CANN_API api on api.connectionId = task.connectionId "
+    " and (api.globalTid >> 32) = task.globalPid "
+    " where task.taskType in (select id from STRING_IDS where value = 'MODEL_EXECUTE') "
+    " and task.connectionId not in (-1, 4294967295) ";
+
+const static std::string MODEL_EXECUTE_UNIT_TASK_SQL =
+    "select task.rowid as id, task.streamId as tid, task.depth, "
+    "task.startNs - (select minTime from constValue) as startTime, task.endNs - task.startNs as duration, "
+    "'Ascend Hardware' as pid, 'Ascend Hardware' as metaType, task.taskType as name, task.deviceId, '' as domainId" +
+    MODEL_EXECUTE_FLOW_FROM_SQL +
+    "and task.connectionId = (select connectionId from constValue) "
+    "and api.startNs >= (select minTime from constValue) and task.startNs >= (select minTime from constValue) ";
+
 class DbSqlDefs {
   public:
     static std::string GetConnectionCatSql() {

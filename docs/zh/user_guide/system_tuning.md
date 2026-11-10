@@ -1323,6 +1323,9 @@ MindStudio Insight支持导入和展示集群场景数据，无需手动合并�
         - CANN层Node（算子）到Ascend Hardware的NPU算子的下发执行关系（Host到Device）。
         - CANN层Node（算子）到Communication通信算子的下发执行关系（Host到Device）。
 
+    - HostToDevice(Graph)
+        - CPU侧算子到Ascend Hardware的`MODEL_EXECUTE`的下发执行关系（Host到Device）。
+
     - async\_npu
         - 应用层算子到Ascend Hardware的NPU算子的下发执行关系。
         - 应用层算子到Communication通信算子的下发执行关系。
@@ -1840,7 +1843,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   算子下发问题是常见典型的HOST Bound问题，支持提供拆解分析一、二级流水耗时，帮助调优人员快速找到下发异常点，如[**图 14** 算子下发耗时统计](#算子下发耗时统计)所示，字段说明见[**表 12** 算子下发耗时统计字段说明](#算子下发耗时统计字段说明)。
 
   **图 14** 算子下发耗时统计<a id="算子下发耗时统计"></a>
-  
+
   ![](./figures/system_tuning/operator_kernel_time_1.png "算子下发耗时统计")
 
   **表 12** 算子下发耗时统计字段说明<a id="算子下发耗时统计字段说明"></a>

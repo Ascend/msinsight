@@ -123,10 +123,15 @@ interface ScaleBag {
     timelineMarkerXScale: TimelineScale | null;
 }
 
+interface LinkedFlowPoint extends FlowPoint {
+    // 类别属于关联边；可选字段兼容旧索引，不改变原始端点及接口数据。
+    flowCategory?: string;
+}
+
 export interface MapValueOfLinkLines {
     cat: string;
-    from: FlowPoint[];
-    to: FlowPoint[];
+    from: LinkedFlowPoint[];
+    to: LinkedFlowPoint[];
     current: FlowPoint;
 }
 

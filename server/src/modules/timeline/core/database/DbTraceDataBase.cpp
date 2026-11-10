@@ -1754,7 +1754,44 @@ std::string DbTraceDataBase::GetHostPath(const std::string &filePath) {
     return "";
 }
 
-bool DbTraceDataBase::InitConnectionCats() { return ExecSql(DbSqlDefs::GetConnectionCatSql()); }
+bool DbTraceDataBase::InitConnectionCats() {
+    if (!ExecSql(DbSqlDefs::GetConnectionCatSql())) {
+        return false;
+    }
+    // 与其他类别一样在解析时生成；旧解析状态失效后只重建 Graph，不删除其他类别。
+    if (!InitHostToDeviceGraphConnectionCats(true)) {
+        ServerLog::Warn("Failed to initialize Graph connection categories; existing categories remain available.");
+    }
+    return true;
+}
+
+bool DbTraceDataBase::InitHostToDeviceGraphConnectionCats(bool refresh) {
+    // 同一数据库的连接共用 mutex，避免并发补建；结果存数据库，不依赖某个连接对象的生命周期。
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    if (!CheckTableExist(TABLE_CONNECTION_CATS)) {
+        return false;
+    }
+    if (!refresh && CheckValueFromStatusInfoTable(GRAPH_CONNECTION_CATEGORY, FINISH_STATUS)) {
+        return true;
+    }
+    // 刷新失败后不能保留旧的完成标记，否则后续加载会错误跳过重试。
+    if (!UpdateValueIntoStatusInfoTable(GRAPH_CONNECTION_CATEGORY, NOT_FINISH_STATUS) ||
+        !ExecSql("SAVEPOINT graph_connection_categories")) {
+        return false;
+    }
+    const std::string insertSql =
+        "INSERT INTO connectionCats(connectionId, cat) SELECT DISTINCT task.connectionId, 'HostToDevice(Graph)'" +
+        MODEL_EXECUTE_FLOW_FROM_SQL;
+    // 替换 Graph 记录和完成标记必须同时提交。零条匹配也记完成，失败则保留原缓存并允许重试。
+    const bool success = ExecSql("DELETE FROM connectionCats WHERE cat = 'HostToDevice(Graph)'") &&
+        ExecSql(insertSql) && UpdateValueIntoStatusInfoTable(GRAPH_CONNECTION_CATEGORY, FINISH_STATUS);
+    if (success && ExecSql("RELEASE SAVEPOINT graph_connection_categories")) {
+        return true;
+    }
+    ExecSql("ROLLBACK TO SAVEPOINT graph_connection_categories");
+    ExecSql("RELEASE SAVEPOINT graph_connection_categories");
+    return false;
+}
 
 std::string DbTraceDataBase::GetStringCacheValue(const std::string &path, const std::string &key) {
     if (stringsCache.count(path) == 0 || stringsCache.at(path).count(key) == 0) {
