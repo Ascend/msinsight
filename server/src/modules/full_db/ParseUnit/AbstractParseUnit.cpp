@@ -25,7 +25,9 @@ namespace Dic::Module::FullDb {
 template <typename DatabaseType> bool AbstractParseUnit<DatabaseType>::Handle(const ParseUnitParams &params) {
     std::string error;
     bool res = Parse(params, error);
-    SendNotify(params, res, error);
+    if (params.notify) {
+        SendNotify(params, res, error);
+    }
     if (!error.empty()) {
         ServerLog::Warn("Execute parse unit failed, error:", error);
     }

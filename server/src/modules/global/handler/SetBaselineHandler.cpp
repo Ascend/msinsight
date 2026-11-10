@@ -21,6 +21,7 @@
 #include "GlobalDefs.h"
 #include "BaselineManager.h"
 #include "SetBaselineHandler.h"
+#include "MsprofFtraceImportService.h"
 namespace Dic {
 namespace Module {
 using namespace Dic::Server;
@@ -50,8 +51,14 @@ bool SetBaselineHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     response.body.cluster = baselineInfo.clusterBaseLine;
     response.body.fileId = baselineInfo.fileId;
     SendResponse(std::move(responsePtr), res);
-    // 发送解析成功消息（注意需在返回set/Baseline响应体之后）
-    ProjectParserBase::SendAllParseSuccess();
+    if (res && baselineInfo.errorMessage.empty() && baselineInfo.fileId != request.params.filePath &&
+        FullDb::MsprofFtraceImportService::Instance().IsResource(baselineInfo.fileId)) {
+        FullDb::MsprofFtraceImportService::Instance().NotifyReady(baselineInfo.fileId);
+    }
+    // An error response must not keep waiting for unrelated parsing after it is sent.
+    if (res && baselineInfo.errorMessage.empty()) {
+        ProjectParserBase::SendAllParseSuccess();
+    }
     return res;
 }
 } // end of namespace Module

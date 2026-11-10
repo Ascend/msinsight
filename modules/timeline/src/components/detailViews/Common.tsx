@@ -266,12 +266,16 @@ export const getVisibleStatsSystemViewItems = (
     items: SystemViewItem[],
     hasFtraceData: boolean,
     hasNonFtraceData: boolean,
+    hasFtraceSummary = true,
 ): IndexedSystemViewItem[] => {
     return items.map((item, index) => ({ ...item, originIndex: index })).filter((item) => {
         if (item.name === KERNEL_MFU_VIEW_NAME) {
             return true;
         }
         const isFtraceItem = ftraceTypes.includes(item.name);
+        if (isFtraceItem && !hasFtraceSummary) {
+            return false;
+        }
         if (hasFtraceData && !hasNonFtraceData) {
             return isFtraceItem;
         }

@@ -37,6 +37,7 @@
 #include "RankOverlapStore.h"
 #include "RankOverlapCalculator.h"
 #include "NumaDataSourceResolver.h"
+#include "MsprofFtraceImportService.h"
 
 namespace Dic {
 namespace Module {
@@ -44,6 +45,109 @@ using namespace Timeline;
 using namespace Dic::Server;
 
 namespace {
+// Derived resources are logical project entries, never source database paths.
+bool IsMsprofFtraceEntry(const std::shared_ptr<ParseFileInfo> &file) {
+    const auto suffix = FullDb::MsprofFtraceImportService::ResourceId("");
+    return file && file->projectType == static_cast<int64_t>(ProjectTypeEnum::DB_FTRACE) &&
+        file->parseFilePath == file->fileId && file->fileId.size() > suffix.size() &&
+        file->fileId.compare(file->fileId.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+void PruneFtraceProjectEntries(Global::ProjectExplorerInfo &project) {
+    std::set<std::string> stale;
+    for (const auto &file : project.subParseFileInfo) {
+        if (IsMsprofFtraceEntry(file) && !FullDb::MsprofFtraceImportService::Instance().IsResource(file->fileId)) {
+            stale.insert(file->fileId);
+        }
+    }
+    if (stale.empty()) {
+        return;
+    }
+    Global::ProjectExplorerManager::Instance().DeleteProjectAndFilePath(
+        project.projectName, {stale.begin(), stale.end()});
+    const auto isStale = [&stale](const auto &file) { return file && stale.count(file->fileId) != 0; };
+    const auto removeTreeEntries = [&isStale](auto &self, auto &files) -> void {
+        files.erase(std::remove_if(files.begin(), files.end(), isStale), files.end());
+        for (const auto &file : files) {
+            if (file) {
+                self(self, file->subParseFile);
+            }
+        }
+    };
+    removeTreeEntries(removeTreeEntries, project.projectFileTree);
+    project.subParseFileInfo.erase(
+        std::remove_if(project.subParseFileInfo.begin(), project.subParseFileInfo.end(), isStale),
+        project.subParseFileInfo.end());
+    for (auto entry = project.fileInfoMap.begin(); entry != project.fileInfoMap.end();) {
+        if (isStale(entry->second)) {
+            entry = project.fileInfoMap.erase(entry);
+        } else {
+            ++entry;
+        }
+    }
+}
+
+bool AttachFtraceSibling(std::vector<std::shared_ptr<ParseFileInfo>> &files,
+    const std::shared_ptr<ParseFileInfo> &source, const std::shared_ptr<ParseFileInfo> &derived) {
+    for (const auto &file : files) {
+        if (file == source) {
+            files.push_back(derived);
+            return true;
+        }
+        if (file && AttachFtraceSibling(file->subParseFile, source, derived)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void AddFtraceProjectEntries(
+    std::vector<Global::ProjectExplorerInfo> &projects, const std::map<std::string, HostInfo> &hosts) {
+    auto &service = FullDb::MsprofFtraceImportService::Instance();
+    for (auto &project : projects) {
+        PruneFtraceProjectEntries(project);
+        for (const auto &host : hosts) {
+            for (const auto &source : host.second) {
+                const auto resource = service.GetResource(FullDb::MsprofFtraceImportService::ResourceId(source.first));
+                if (!resource || resource->projectName != project.projectName) {
+                    continue;
+                }
+                const auto existing = std::find_if(project.subParseFileInfo.begin(), project.subParseFileInfo.end(),
+                    [&resource](const auto &file) { return file && file->parseFilePath == resource->fileId; });
+                if (existing != project.subParseFileInfo.end()) {
+                    (*existing)->curDirName = "Ftrace";
+                    continue;
+                }
+                const auto binding = std::find_if(
+                    project.subParseFileInfo.begin(), project.subParseFileInfo.end(), [&source](const auto &file) {
+                        return file && !IsMsprofFtraceEntry(file) &&
+                            (file->fileId == source.first || FileUtil::IsSubDir(file->parseFilePath, source.first));
+                    });
+                if (binding == project.subParseFileInfo.end()) {
+                    continue;
+                }
+                auto derived = std::make_shared<ParseFileInfo>();
+                derived->projectExplorerId = (*binding)->projectExplorerId;
+                derived->clusterId = resource->cluster;
+                derived->parseFilePath = resource->fileId;
+                derived->fileId = resource->fileId;
+                derived->rankId = resource->rankId;
+                derived->host = resource->host;
+                derived->subId = FileUtil::SplicePath(
+                    (*binding)->parseFilePath, FileUtil::GetFileName(source.first) + "::msprof_ftrace");
+                derived->curDirName = "Ftrace";
+                derived->type = Global::ParseFileType::RANK;
+                derived->projectType = static_cast<int64_t>(ProjectTypeEnum::DB_FTRACE);
+                if (!AttachFtraceSibling(project.projectFileTree, *binding, derived)) {
+                    continue;
+                }
+                project.fileInfoMap.emplace(derived->subId, derived);
+                project.subParseFileInfo.push_back(derived);
+            }
+        }
+    }
+}
+
 bool HasNumaData(const Dic::Protocol::ImportActionResponse &response, const std::string &projectName) {
     std::set<std::pair<std::string, std::string>> candidates;
     const auto addCandidate = [&candidates](const std::string &rankId, const std::string &fileId) {
@@ -130,7 +234,9 @@ void CreateBaselineCommunicationDetailConnection(
 void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
     ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
-    auto hostInfoMap = GetReportFiles(projectInfos);
+    auto projects = projectInfos;
+    auto hostInfoMap = GetReportFiles(projects);
+    AddFtraceProjectEntries(projects, hostInfoMap);
     SetHostInfo(hostInfoMap, response, projectInfos[0].projectType);
     SetParseCallBack();
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
@@ -141,9 +247,9 @@ void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &pro
 
     bool isCluster = response.body.isCluster;
     bool isPending = response.body.isPending;
-    MergeFileTree(response.body.projectFileTree, projectInfos[0].projectFileTree);
+    MergeFileTree(response.body.projectFileTree, projects[0].projectFileTree);
     // add response to response queue in session
-    std::for_each(projectInfos.begin(), projectInfos.end(), [](const auto &project) {
+    std::for_each(projects.begin(), projects.end(), [](const auto &project) {
         if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(
                 project.projectName, project.subParseFileInfo)) {
             ServerLog::Error("Failed to update project in parsing");
@@ -151,8 +257,23 @@ void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &pro
     });
     for (const auto &hostInfo : hostInfoMap) {
         for (const auto &ranks : hostInfo.second) {
+            const auto resource = FullDb::MsprofFtraceImportService::Instance().GetResource(
+                FullDb::MsprofFtraceImportService::ResourceId(ranks.first));
             if (isPending) {
-                ParserStatusManager::Instance().SetPendingStatus(ranks.second[0], {ProjectTypeEnum::DB, {ranks.first}});
+                if (!ranks.second.empty()) {
+                    ParserStatusManager::Instance().SetPendingStatus(
+                        ranks.second.front(), {ProjectTypeEnum::DB, {ranks.first}});
+                }
+                if (resource) {
+                    ParserStatusManager::Instance().SetPendingStatus(
+                        resource->rankId, {ProjectTypeEnum::DB_FTRACE, {ranks.first}});
+                }
+                continue;
+            }
+            if (ranks.second.empty()) {
+                if (resource) {
+                    FullDb::MsprofFtraceImportService::Instance().Schedule(ranks.first);
+                }
                 continue;
             }
             FullDb::FullDbParser::Instance().Parse(ranks.second, ranks.first);
@@ -177,6 +298,7 @@ void ProjectParserDb::SetHostInfo(
     };
     std::map<std::string, RankActionSource> rankActions;
     std::map<std::string, PlatformActionSource> platformActions;
+    std::map<std::string, Action> ftraceActions;
     for (auto &hostInfo : hostInfoMap) {
         for (auto &ranks : hostInfo.second) {
             for (auto &rank : ranks.second) {
@@ -187,6 +309,22 @@ void ProjectParserDb::SetHostInfo(
                 if (action == rankActions.end() || normalizedFileId < action->second.normalizedFileId) {
                     rankActions[rank] = {rankName, hostInfo.first, ranks.first, normalizedFileId};
                 }
+            }
+            const auto resource = FullDb::MsprofFtraceImportService::Instance().GetResource(
+                FullDb::MsprofFtraceImportService::ResourceId(ranks.first));
+            if (resource) {
+                Action action;
+                action.cardName = "Ftrace";
+                action.cluster = resource->cluster;
+                action.rankId = resource->rankId;
+                action.host = hostInfo.first.empty() ? "" : hostInfo.first.substr(0, hostInfo.first.length() - 1);
+                action.fileId = resource->fileId;
+                action.projectType = static_cast<int64_t>(ProjectTypeEnum::DB_FTRACE);
+                action.cardPath = "Directory: " + FileUtil::GetRankIdFromPath(ranks.first);
+                action.dataPathList.push_back(resource->fileId);
+                action.dataPathList.push_back(ranks.first);
+                action.dataPathList.push_back(FileUtil::GetParentPath(ranks.first));
+                ftraceActions.emplace(resource->fileId, std::move(action));
             }
             if (ranks.second.empty()) {
                 continue;
@@ -222,6 +360,9 @@ void ProjectParserDb::SetHostInfo(
     }
     for (auto &item : platformActions) {
         response.body.result.emplace_back(std::move(item.second.action));
+    }
+    for (auto &item : ftraceActions) {
+        response.body.result.emplace_back(std::move(item.second));
     }
     bool isPendingParse = rankActions.size() >= PENDIND_CRITICAL_VALUE;
     response.body.isPending = isPendingParse;
@@ -264,6 +405,9 @@ std::map<std::string, HostInfo> ProjectParserDb::GetReportFiles(
     std::map<std::string, HostInfo> hostMap;
     for (const auto &project : projectInfos) {
         for (const auto &file : project.subParseFileInfo) {
+            if (!file || IsMsprofFtraceEntry(file)) {
+                continue;
+            }
             if (parseFilePathFilter.has_value() && file->parseFilePath != parseFilePathFilter.value()) {
                 continue;
             }
@@ -285,6 +429,10 @@ void ProjectParserDb::GetReportFilesOneFile(const Dic::Module::Global::ProjectEx
         return;
     }
     auto host = database->QueryHostInfo();
+    if (FullDb::MsprofFtraceImportService::Instance().Discover(file, host, clusterId, project.projectName)) {
+        // Keep an owning DB without accelerator ranks discoverable as a Host resource.
+        hostMap[host][file];
+    }
     auto rankList = database->QueryRankId();
     const bool hasPlatformData = FullDb::HasPlatformTimelineData(database);
     bool platformSourceRegistered = false;

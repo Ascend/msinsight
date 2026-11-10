@@ -33,6 +33,7 @@ class ParseUnitManager {
     ParseUnitManager &operator=(ParseUnitManager &&) = delete;
 
     void ExecuteUnitList(const ParseUnitParams &params, const std::vector<std::string> &unitNameList);
+    bool ExecuteUnitListChecked(const ParseUnitParams &params, const std::vector<std::string> &unitNameList);
     void RegisterUnit(const std::string &name, Creator unit);
 
   private:

@@ -36,6 +36,10 @@ bool FtraceIrqAggregationParseUnit::PreCheck(
 
 bool FtraceIrqAggregationParseUnit::HandleParseProcess(
     const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
+    if (!database->CommitTraceStatisticsChecked()) {
+        error = "Failed to flush ftrace statistics before IRQ aggregation.";
+        return false;
+    }
     return database->AggregateIrqToTaskSummary();
 }
 

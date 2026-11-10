@@ -42,6 +42,7 @@ import { MemcpyOverallMetrics } from './MemcpyOverallMetrics';
 import OperatorDetailView from './OperatorDetailView';
 import { KernelE2ETimeTable } from './KernelE2ETimeTable';
 import { FtraceTaskSummary } from './FtraceTaskSummary';
+import { isFullDbCard } from '../../utils/cardDataType';
 import { KernelMfuTable } from './KernelMfuTable';
 import { FreeAttribution } from './FreeAttribution';
 
@@ -62,7 +63,7 @@ const handleSelected = async(rowData: any, props: SelectContentViewProps): Promi
     jumpToUnitOperator({
         ...res,
         name: rowData.name,
-        id: props.session.isFullDb as boolean ? rowData.id : res.id,
+        id: isFullDbCard(props.session, props.card) ? rowData.id : res.id,
         cardId: props.card.cardId,
         dbPath: props.card.dbPath,
         tid: res.threadId,

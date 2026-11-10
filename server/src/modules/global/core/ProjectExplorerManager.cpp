@@ -25,9 +25,40 @@
 #include "TimeUtil.h"
 #include "ProjectExplorerManager.h"
 #include "ProjectParserJson.h"
+#include "MsprofFtraceImportService.h"
 
 namespace Dic::Module::Global {
 namespace {
+bool IsDerivedMsprofFtraceNode(const std::shared_ptr<ParseFileInfo> &file) {
+    if (!file || file->projectType != static_cast<int64_t>(ProjectTypeEnum::DB_FTRACE) ||
+        file->parseFilePath != file->fileId) {
+        return false;
+    }
+    const std::string suffix = FullDb::MsprofFtraceImportService::ResourceId("");
+    return file->fileId.size() > suffix.size() &&
+        file->fileId.compare(file->fileId.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+bool IsDerivedFromNode(const std::shared_ptr<ParseFileInfo> &derived, const std::shared_ptr<ParseFileInfo> &source) {
+    return IsDerivedMsprofFtraceNode(derived) && source && !IsDerivedMsprofFtraceNode(source) &&
+        (derived->fileId == FullDb::MsprofFtraceImportService::ResourceId(source->fileId) ||
+            FileUtil::IsSubDir(source->parseFilePath, derived->parseFilePath));
+}
+
+void ExcludeReferencedFtraceSources(ProjectExplorerManager &manager, std::set<std::string> &removed) {
+    if (removed.empty()) {
+        return;
+    }
+    // Different projects can share the same physical DB and logical Ftrace identity.
+    for (const auto &project : manager.QueryProjectExplorer("", {})) {
+        for (const auto &file : project.subParseFileInfo) {
+            if (IsDerivedMsprofFtraceNode(file)) {
+                removed.erase(file->fileId);
+            }
+        }
+    }
+}
+
 bool IsFtraceProfilingCompatible(ProjectTypeEnum importProjectType, const std::string &importFilePath,
     ProjectTypeEnum existedProjectType, const std::string &existedFilePath) {
     auto isFtraceData = [](ProjectTypeEnum projectType, const std::string &filePath) {
@@ -167,7 +198,9 @@ bool ProjectExplorerManager::SaveProjectExplorerToDb(
 
 bool ProjectExplorerManager::InitSystemMemoryDb() {
     if (!db) {
-        InitSystemMemoryDbPath(Server::ParamsParser::Instance().GetOption().logPath);
+        if (systemMemoryDbPath.empty()) {
+            InitSystemMemoryDbPath(Server::ParamsParser::Instance().GetOption().logPath);
+        }
         db = std::make_unique<SystemMemoryDatabase>(mutex);
     }
     // 如果db已经打开，则直接返回
@@ -208,29 +241,58 @@ bool ProjectExplorerManager::DeleteProjectAndFilePath(
     std::vector<int64_t> projectIdList;
     std::vector<int64_t> needDeleteImportFileList;
     std::vector<int64_t> needDeleteParseFileIdList;
+    std::set<std::string> removedFtraceIds;
     for (auto &project : infos) {
         projectIdList.push_back(project.id);
-        bool isNeedDeleteImportData = true;
+        std::set<int64_t> selectedIds;
+        std::vector<std::shared_ptr<ParseFileInfo>> selectedSources;
         for (const auto &item : project.subParseFileInfo) {
             if (filePathList.empty() ||
                 std::find(filePathList.begin(), filePathList.end(), item->parseFilePath) != filePathList.end()) {
-                auto deleteList = project.GetFileIdsToDelete(item);
-                std::copy(deleteList.begin(), deleteList.end(), std::back_inserter(needDeleteParseFileIdList));
-            } else if (!filePathList.empty()) {
-                // 如果出现了一个导入记录下，有文件没有被删除干净，则不删除该记录
-                isNeedDeleteImportData = false;
+                if (IsDerivedMsprofFtraceNode(item)) {
+                    // A logical resource is a leaf even when its identity resembles a source subdirectory.
+                    selectedIds.insert(item->id);
+                } else {
+                    const auto deleteList = project.GetFileIdsToDelete(item);
+                    selectedIds.insert(deleteList.begin(), deleteList.end());
+                    selectedSources.push_back(item);
+                }
             }
         }
+        for (const auto &item : project.subParseFileInfo) {
+            if (std::any_of(selectedSources.begin(), selectedSources.end(),
+                    [&item](const auto &source) { return IsDerivedFromNode(item, source); })) {
+                selectedIds.insert(item->id);
+            }
+        }
+        const bool isNeedDeleteImportData =
+            std::all_of(project.subParseFileInfo.begin(), project.subParseFileInfo.end(),
+                [&selectedIds](const auto &item) { return selectedIds.count(item->id) != 0; });
         if (isNeedDeleteImportData) {
             needDeleteImportFileList.push_back(project.id);
         }
+        needDeleteParseFileIdList.insert(needDeleteParseFileIdList.end(), selectedIds.begin(), selectedIds.end());
+        for (const auto &item : project.subParseFileInfo) {
+            if (selectedIds.count(item->id) != 0 && IsDerivedMsprofFtraceNode(item)) {
+                removedFtraceIds.insert(item->fileId);
+            }
+        }
     }
 
+    // An unmatched logical path must not become an unqualified delete of every parsed file in the project.
+    if (!filePathList.empty() && needDeleteParseFileIdList.empty()) {
+        return true;
+    }
     if (!needDeleteImportFileList.empty()) {
         db->DeleteFileMenu(std::vector<std::string>{projectName}, needDeleteImportFileList);
     }
     if (!db->DeleteParsedFile(projectIdList, needDeleteParseFileIdList)) {
         return false;
+    }
+    ExcludeReferencedFtraceSources(*this, removedFtraceIds);
+    lock.unlock();
+    for (const auto &fileId : removedFtraceIds) {
+        FullDb::MsprofFtraceImportService::Instance().Remove(fileId);
     }
     return true;
 }
@@ -336,6 +398,20 @@ bool ProjectExplorerManager::ClearProjectExplorer(const std::vector<std::string>
         Server::ServerLog::Warn("System db not init!");
         return true;
     }
+    std::set<std::string> removedFtraceIds;
+    if (!projectNameList.empty()) {
+        for (const auto &project : QueryProjectExplorer("", {})) {
+            if (std::find(projectNameList.begin(), projectNameList.end(), project.projectName) ==
+                projectNameList.end()) {
+                continue;
+            }
+            for (const auto &file : project.subParseFileInfo) {
+                if (IsDerivedMsprofFtraceNode(file)) {
+                    removedFtraceIds.insert(file->fileId);
+                }
+            }
+        }
+    }
     db->StartTransaction();
     // 根据项目名获取对应的id,如果projectNameList为空，代表要清空所有内容，因此这里多个if条件可以减少一次sql查询
     std::vector<int64_t> projectIdList;
@@ -350,7 +426,21 @@ bool ProjectExplorerManager::ClearProjectExplorer(const std::vector<std::string>
     // 删除两个表中对应的数据
     if (db->DeleteFileMenu(projectNameList, {}) && db->DeleteParsedFile(projectIdList, {})) {
         // 删除成功，提交事务
-        db->EndTransaction();
+        if (!db->EndTransaction()) {
+            db->RollbackTransaction();
+            Server::ServerLog::Error("Fail to commit project explorer cleanup.");
+            return false;
+        }
+        ExcludeReferencedFtraceSources(*this, removedFtraceIds);
+        lock.unlock();
+        auto &ftrace = FullDb::MsprofFtraceImportService::Instance();
+        if (projectNameList.empty()) {
+            ftrace.Reset();
+        } else {
+            for (const auto &fileId : removedFtraceIds) {
+                ftrace.Remove(fileId);
+            }
+        }
         Server::ServerLog::Info("Success to clear project explorer.");
         return true;
     }
@@ -415,7 +505,8 @@ void ProjectExplorerManager::RebuildParseFileInfo(
     std::sort(parseFileInfos.begin(), parseFileInfos.end(),
         [](const auto &lh, const auto &rh) { return lh->type < rh->type; });
     std::for_each(parseFileInfos.begin(), parseFileInfos.end(), [&projectInfo](const auto &fileInfo) {
-        fileInfo->curDirName = FileUtil::GetFileName(fileInfo->parseFilePath);
+        fileInfo->curDirName =
+            IsDerivedMsprofFtraceNode(fileInfo) ? "Ftrace" : FileUtil::GetFileName(fileInfo->parseFilePath);
         projectInfo.AddSubParseFileInfo(fileInfo);
     });
 }

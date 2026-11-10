@@ -51,6 +51,23 @@ void TraceTime::Reset() {
 
 TraceTime::TraceTime() { Reset(); }
 
+void TraceTime::RemoveCard(const std::string &fileId) {
+    std::lock_guard<std::mutex> lock(mutex);
+    cardTimeDurationMap.erase(fileId);
+    rankMinTimestampMap.erase(fileId);
+    cardGroupTimeDurations.clear();
+    minTimestamp = UINT64_MAX;
+    maxTimestamp = 0;
+    for (const auto &item : cardTimeDurationMap) {
+        UpdateCardGroupTime(item.second.first, item.second.second);
+        minTimestamp = std::min(minTimestamp, item.second.first);
+        maxTimestamp = std::max(maxTimestamp, item.second.second);
+    }
+    for (const auto &item : rankMinTimestampMap) {
+        minTimestamp = std::min(minTimestamp, item.second);
+    }
+}
+
 void TraceTime::UpdateTime(uint64_t min, uint64_t max) {
     std::unique_lock<std::mutex> lock(mutex);
     if (min > 0) {

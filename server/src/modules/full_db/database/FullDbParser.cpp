@@ -32,6 +32,7 @@
 #include "OperatorDepthPersistenceService.h"
 #include "FullDbParser.h"
 #include "ProtocolManager.h"
+#include "MsprofFtraceImportService.h"
 
 namespace Dic::Module::FullDb {
 using namespace Dic::Server;
@@ -57,6 +58,7 @@ bool FullDbParser::Parse(const std::vector<std::string> &rankIds, const std::str
 }
 
 void FullDbParser::Reset() {
+    MsprofFtraceImportService::Instance().Reset(true);
     ServerLog::Info("Reset. wait task completed.");
     Timeline::ParserStatusManager::Instance().SetAllTerminateStatus();
     threadPool->Reset();
@@ -89,6 +91,9 @@ std::shared_ptr<DbTraceDataBase> FullDbParser::GetTraceDatabase(const std::strin
 
 void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std::string> &rankIds) {
     ParserStatusManager::Instance().WaitStartParse();
+    if (MsprofFtraceImportService::Instance().HasSource(filePath)) {
+        MsprofFtraceImportService::Instance().Schedule(filePath);
+    }
     auto start = std::chrono::high_resolution_clock::now();
 
     std::string dbId = (rankIds.size() > 0 && Global::BaselineManager::Instance().IsBaselineRankId(rankIds[0]))

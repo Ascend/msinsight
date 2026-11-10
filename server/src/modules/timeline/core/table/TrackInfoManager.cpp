@@ -120,6 +120,30 @@ void TrackInfoManager::UpdateTrackIdMap(
     }
 }
 
+void TrackInfoManager::RemoveFile(const std::string &fileId, const std::string &rankId) {
+    std::lock_guard<std::mutex> lock(trackMutex);
+    trackIdMap.erase(fileId);
+    for (auto it = trackInfoMap.begin(); it != trackInfoMap.end();) {
+        if (it->second.cardId == fileId) {
+            it = trackInfoMap.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    hostMap.erase(fileId);
+    hostCardIdMap.erase(fileId);
+    deviceMap.erase(fileId);
+    deviceIdToRankIdMap.erase(fileId);
+    fileIdToRankListMap.erase(fileId + rankId);
+    fileIdToClusterMap.erase(fileId);
+    for (auto &item : clusterDbToFileIdMap) {
+        item.second.erase(fileId);
+    }
+    for (auto &item : clusterRankSetMap) {
+        item.second.erase(rankId);
+    }
+}
+
 void TrackInfoManager::UpdateDeviceMap(
     const std::string &cardId, const std::unordered_map<std::string, std::string> rankAndDeviceMap) {
     std::unique_lock<std::mutex> lock(trackMutex);

@@ -29,6 +29,7 @@ export interface TimelineCard {
     dbPath?: string;
     result: boolean;
     isFtrace?: boolean;
+    ftraceCapabilities?: string[];
 }
 
 export const buildBaselineCardMetadata = (item: TimelineCard, dataSource: any): CardMetaData => {
@@ -41,6 +42,8 @@ export const buildBaselineCardMetadata = (item: TimelineCard, dataSource: any): 
         cluster: item.cluster,
         cardName: item.cardName,
         cardPath: item.cardPath,
+        host: item.host,
         isFtrace: item.isFtrace,
+        ftraceCapabilities: item.ftraceCapabilities,
     };
 };

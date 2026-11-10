@@ -30,6 +30,7 @@
 #include "SearchSliceCacheManager.h"
 #include "MemSnapshotStateCache.h"
 #include "RankLaneMergeCoordinator.h"
+#include "MsprofFtraceImportService.h"
 
 // clang-format off
 namespace Dic {
@@ -98,6 +99,69 @@ bool DataBaseManager::CreateDerivedTraceConnectionPool(
         [&dbMutex]() { return new FullDb::DbTraceDataBase(dbMutex); }, sharedMemory);
     conn->SetMaxActiveCount(CPU_CORE_COUNT);
     traceDatabaseMap.emplace(fileId, std::move(conn));
+    return true;
+}
+
+bool DataBaseManager::PublishDerivedTextTraceConnectionPool(
+    const std::string &fileId, const std::string &rankId, const std::string &dbPath)
+{
+    if (fileId.empty() || rankId.empty() || dbPath.empty()) {
+        return false;
+    }
+    std::shared_ptr<DBConnectionPool<VirtualTraceDatabase>> previous;
+    {
+        std::unique_lock<std::recursive_mutex> lock(mutex);
+        auto dbMutex = GetDbMutexHandle(fileId);
+        auto pool = std::make_shared<DBConnectionPool<VirtualTraceDatabase>>(dbPath,
+            [dbMutex]() { return new TextTraceDatabase(*dbMutex); });
+        auto connection = pool->GetConnection();
+        if (!connection) {
+            return false;
+        }
+        connection.reset();
+        auto found = traceDatabaseMap.find(fileId);
+        if (found != traceDatabaseMap.end()) {
+            previous = std::move(found->second);
+            found->second = std::move(pool);
+        } else {
+            traceDatabaseMap.emplace(fileId, std::move(pool));
+        }
+        dataTypeMap[fileId] = DataType::TEXT;
+        derivedTextFileIds.insert(fileId);
+        databasePathSet.emplace(fileId);
+        SetRankIdFileIdMapping(rankId, fileId);
+    }
+    // A pool waits for leased connections in its destructor. Do not hold the manager lock here.
+    previous.reset();
+    return true;
+}
+
+bool DataBaseManager::AliasDerivedTextTraceConnectionPool(
+    const std::string &aliasFileId, const std::string &aliasRankId, const std::string &existingFileId)
+{
+    if (aliasFileId.empty() || aliasRankId.empty() || aliasFileId == existingFileId) {
+        return false;
+    }
+    std::shared_ptr<DBConnectionPool<VirtualTraceDatabase>> previous;
+    {
+        std::unique_lock<std::recursive_mutex> lock(mutex);
+        auto existing = traceDatabaseMap.find(existingFileId);
+        if (existing == traceDatabaseMap.end() || GetDataType(existingFileId) != DataType::TEXT) {
+            return false;
+        }
+        auto alias = traceDatabaseMap.find(aliasFileId);
+        if (alias != traceDatabaseMap.end()) {
+            previous = std::move(alias->second);
+            alias->second = existing->second;
+        } else {
+            traceDatabaseMap.emplace(aliasFileId, existing->second);
+        }
+        dataTypeMap[aliasFileId] = DataType::TEXT;
+        derivedTextFileIds.insert(aliasFileId);
+        databasePathSet.emplace(aliasFileId);
+        SetRankIdFileIdMapping(aliasRankId, aliasFileId);
+    }
+    previous.reset();
     return true;
 }
 
@@ -249,6 +313,9 @@ void DataBaseManager::ReleaseDatabaseByRankId(const std::string &rankId)
 
 void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
 {
+    // Call before taking the manager lock: child cancellation may wait for a worker/leased connection.
+    FullDb::MsprofFtraceImportService::Instance().OnDatabaseReleased(fileId);
+    std::shared_ptr<DBConnectionPool<VirtualTraceDatabase>> tracePool;
     std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> communicationDetailPool;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     const std::string normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(fileId);
@@ -262,6 +329,7 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
     }
     auto traceDataBase = traceDatabaseMap.find(fileId);
     if (traceDataBase != traceDatabaseMap.end()) {
+        tracePool = std::move(traceDataBase->second);
         traceDatabaseMap.erase(traceDataBase);
     }
     auto communicationDetailDatabase = communicationDetailDatabaseMap.find(fileId);
@@ -298,7 +366,15 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
     }
     fileIdToRankIdMap.erase(fileId);
     fileIdToRankIdMap.erase(normalizedFileId);
+    if (derivedTextFileIds.erase(fileId) != 0) {
+        dataTypeMap.erase(fileId);
+        fileTypeMap.erase(fileId);
+        databasePathSet.erase(fileId);
+        // Derived pools retain their shared mutex until the last alias/query has finished.
+        dbMutexMap.erase(fileId);
+    }
     lock.unlock();
+    tracePool.reset();
     communicationDetailPool.reset();
 }
 
@@ -411,10 +487,12 @@ std::vector<Platform::VirtualPlatformDataBase *> DataBaseManager::GetAllPlatform
 
 void DataBaseManager::Clear()
 {
+    FullDb::MsprofFtraceImportService::Instance().Reset(true);
     std::vector<std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailPools;
     std::vector<std::shared_ptr<FullDb::MemSnapshotDatabase>> memSnapshotDatabases;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     traceDatabaseMap.clear();
+    derivedTextFileIds.clear();
     memoryDatabaseMap.clear();
     summaryDatabaseMap.clear();
     platformDatabaseMap.clear();
@@ -449,12 +527,16 @@ void DataBaseManager::Clear()
 
 void DataBaseManager::Clear(DatabaseType type)
 {
+    if (type == DatabaseType::TRACE) {
+        FullDb::MsprofFtraceImportService::Instance().Reset(true);
+    }
     std::vector<std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailPools;
     std::vector<std::shared_ptr<FullDb::MemSnapshotDatabase>> memSnapshotDatabases;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     switch (type) {
         case DatabaseType::TRACE:
             traceDatabaseMap.clear();
+            derivedTextFileIds.clear();
             rankId2FileIdMap.clear();
             rankId2SourceFileIdsMap.clear();
             fileIdToRankIdMap.clear();
@@ -741,6 +823,8 @@ void DataBaseManager::SetDbPathMapping(const std::string &rankId, const std::str
 
 bool DataBaseManager::ResetBaseline(bool force)
 {
+    std::shared_ptr<DBConnectionPool<VirtualTraceDatabase>> tracePool;
+    std::string releasedBaseline;
     std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> communicationDetailPool;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     for (const auto &item : memoryBaselineDatabaseMap) {
@@ -758,7 +842,12 @@ bool DataBaseManager::ResetBaseline(bool force)
     auto baselineRankId = BaselineManager::Instance().GetBaselineId();
     if (force) {
         auto baseFileId = GetFileIdByRankId(baselineRankId);
-        traceDatabaseMap.erase(baseFileId);
+        releasedBaseline = baseFileId;
+        auto trace = traceDatabaseMap.find(baseFileId);
+        if (trace != traceDatabaseMap.end()) {
+            tracePool = std::move(trace->second);
+            traceDatabaseMap.erase(trace);
+        }
         auto communicationDetailDatabase = communicationDetailDatabaseMap.find(baseFileId);
         if (communicationDetailDatabase != communicationDetailDatabaseMap.end()) {
             communicationDetailPool = std::move(communicationDetailDatabase->second);
@@ -770,6 +859,10 @@ bool DataBaseManager::ResetBaseline(bool force)
         databasePathSet.erase(baseFileId);
     }
     lock.unlock();
+    tracePool.reset();
+    if (!releasedBaseline.empty()) {
+        FullDb::MsprofFtraceImportService::Instance().OnDatabaseReleased(releasedBaseline);
+    }
     communicationDetailPool.reset();
     return true;
 }

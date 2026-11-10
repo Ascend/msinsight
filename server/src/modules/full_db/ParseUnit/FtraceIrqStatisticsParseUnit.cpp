@@ -21,6 +21,9 @@
 #include "ParseUnitManager.h"
 #include "RenderEngine.h"
 #include "StringUtil.h"
+#include "FtraceStatisticsArgs.h"
+#include "FtraceStatisticsSliceReader.h"
+#include <algorithm>
 
 namespace Dic::Module::FullDb {
 
@@ -43,10 +46,11 @@ static int32_t ParseCpuIdFromTid(const std::string &tid) {
         return -1;
     }
     std::string numPart = tid.substr(4);
-    if (!StringUtil::IsAllDigits(numPart)) {
+    uint64_t cpu = 0;
+    if (!FtraceStatistics::ParseTid(numPart, cpu) || cpu > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
         return -1;
     }
-    return static_cast<int32_t>(std::stoi(numPart));
+    return static_cast<int32_t>(cpu);
 }
 
 /**
@@ -63,11 +67,7 @@ static bool ParseCommAndPid(const std::string &tid, std::string &comm, uint64_t 
         return false;
     }
     comm = tid.substr(0, lastColon);
-    if (!StringUtil::IsAllDigits(tid.substr(lastColon + 1))) {
-        return false;
-    }
-    pid = std::stoull(tid.substr(lastColon + 1));
-    return true;
+    return FtraceStatistics::ParseTid(tid.substr(lastColon + 1), pid);
 }
 
 bool FtraceIrqStatisticsParseUnit::PreCheck(
@@ -78,74 +78,83 @@ bool FtraceIrqStatisticsParseUnit::PreCheck(
 bool FtraceIrqStatisticsParseUnit::HandleParseProcess(
     const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     std::vector<std::string> nameList = {"irq", "softirq"};
-    auto allIrqSlice =
-        RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "CPU Scheduling", nameList);
-
-    if (allIrqSlice.empty()) {
-        return true;
-    }
-
-    auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
-
-    // 构建 trackId → tid 映射，用于从 CPU 线程 track 提取 cpu_id
     std::unordered_map<uint64_t, std::string> trackIdToTid;
-    for (const auto &pair : threadInfoMap) {
-        trackIdToTid[pair.first] = pair.second.second; // pair.second.second = tid
-    }
+    bool threadInfoLoaded = false;
 
     // 统计 Key：(comm, pid, cpu_id, irq_type, irq_name)
     struct IrqStats {
         uint64_t count = 0;
         uint64_t timeNs = 0;
+        bool msprof = false;
     };
     std::map<std::tuple<std::string, uint64_t, int32_t, std::string, std::string>, IrqStats> statsMap;
 
-    for (const auto &slice : allIrqSlice) {
-        auto argsMap = JsonUtil::JsonStrToMap(slice.args);
+    const bool read = FtraceStatistics::ForEachSlice(
+        *database, params.dbId, "CPU Scheduling", nameList,
+        [&](const CompeteSliceDomain &slice) {
+            auto argsMap = FtraceStatistics::ParseArgs(slice.args);
+            const bool msprof = FtraceStatistics::IsMsprof(argsMap);
+            std::string comm;
+            uint64_t pid = 0;
+            if (msprof) {
+                if (!FtraceStatistics::Task(argsMap, comm, pid)) {
+                    comm = "<unknown>";
+                    pid = std::numeric_limits<uint64_t>::max();
+                }
+            } else {
+                // Existing converted libraries expose only a display-label task identity.
+                const std::string task = argsMap["task"];
+                if (task.empty() || task == "<idle>" || !ParseCommAndPid(task, comm, pid) || IsKernelProcess(comm)) {
+                    return true;
+                }
+            }
 
-        // 提取 task（被中断的进程）
-        std::string task = argsMap["task"];
-        if (task.empty()) {
-            continue;
-        }
+            // 提取 irq_name：irq 类型取 name，softirq 类型取 action
+            std::string irqType = slice.name;
+            std::string irqName = (irqType == "irq") ? argsMap["name"] : argsMap["action"];
+            if (irqName.empty()) {
+                if (!msprof) {
+                    return true;
+                }
+                irqName = "<unknown>";
+            }
 
-        // 过滤 idle 进程
-        if (task == "<idle>") {
-            continue;
-        }
+            // 通过 CPU 线程 track 获取 cpu_id
+            int32_t cpuId = -1;
+            if (msprof) {
+                cpuId = FtraceStatistics::Cpu(argsMap);
+            } else {
+                if (!threadInfoLoaded) {
+                    const auto threads = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
+                    for (const auto &pair : threads) {
+                        trackIdToTid[pair.first] = pair.second.second;
+                    }
+                    threadInfoLoaded = true;
+                }
+                auto tidIt = trackIdToTid.find(slice.trackId);
+                if (tidIt != trackIdToTid.end()) {
+                    cpuId = ParseCpuIdFromTid(tidIt->second);
+                }
+            }
 
-        // 解析 comm 和 pid
-        std::string comm;
-        uint64_t pid = 0;
-        if (!ParseCommAndPid(task, comm, pid)) {
-            continue;
-        }
-
-        // 过滤内核进程
-        if (IsKernelProcess(comm)) {
-            continue;
-        }
-
-        // 提取 irq_name：irq 类型取 name，softirq 类型取 action
-        std::string irqType = slice.name;
-        std::string irqName = (irqType == "irq") ? argsMap["name"] : argsMap["action"];
-        if (irqName.empty()) {
-            continue;
-        }
-
-        // 通过 CPU 线程 track 获取 cpu_id
-        int32_t cpuId = -1;
-        auto tidIt = trackIdToTid.find(slice.trackId);
-        if (tidIt != trackIdToTid.end()) {
-            cpuId = ParseCpuIdFromTid(tidIt->second);
-        }
-
-        auto key = std::make_tuple(comm, pid, cpuId, irqType, irqName);
-        auto &stat = statsMap[key];
-        stat.count++;
-        stat.timeNs += slice.duration;
+            auto key = std::make_tuple(comm, pid, cpuId, irqType, irqName);
+            auto &stat = statsMap[key];
+            stat.count++;
+            stat.timeNs += slice.duration;
+            stat.msprof = stat.msprof || msprof;
+            return true;
+        },
+        error);
+    if (!read) {
+        return false;
     }
 
+    const bool hasMsprof =
+        std::any_of(statsMap.begin(), statsMap.end(), [](const auto &entry) { return entry.second.msprof; });
+    if (hasMsprof && !database->CreateTraceTaskSummaryTable()) {
+        error = "Failed to initialize task summary for msprof IRQ statistics.";
+        return false;
+    }
     for (auto &pair : statsMap) {
         const auto &key = pair.first;
         const auto &stat = pair.second;
@@ -159,9 +168,20 @@ bool FtraceIrqStatisticsParseUnit::HandleParseProcess(
         data.count = stat.count;
         data.timeNs = stat.timeNs;
 
-        database->InsertTraceIrqDetail(data);
+        if (stat.msprof && !FtraceStatistics::EnsureTaskSummaryRow(*database, data.comm, data.pid, data.cpuId)) {
+            error = "Failed to initialize task summary row for msprof IRQ statistics.";
+            return false;
+        }
+        if (!database->InsertTraceIrqDetail(data)) {
+            error = "Failed to insert ftrace IRQ statistics.";
+            return false;
+        }
     }
 
+    if (!database->CommitTraceStatisticsChecked()) {
+        error = "Failed to flush ftrace IRQ statistics.";
+        return false;
+    }
     database->CommitData();
     return true;
 }

@@ -1189,6 +1189,13 @@ template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const Parse
     JsonUtil::AddMember(body, "isFullDb", event.body.isFullDb, allocator);
     JsonUtil::AddMember(body, "isRl", event.body.isRl, allocator);
     JsonUtil::AddMember(body, "isFtrace", event.body.isFtrace, allocator);
+    if (event.body.ftraceCapabilities.has_value()) {
+        json_t capabilities(kArrayType);
+        for (const auto &capability : event.body.ftraceCapabilities.value()) {
+            capabilities.PushBack(json_t().SetString(capability.c_str(), allocator), allocator);
+        }
+        JsonUtil::AddMember(body, "ftraceCapabilities", capabilities, allocator);
+    }
     // 创建 unit 开始
     json_t unit(kObjectType);
     JsonUtil::AddMember(unit, "type", event.body.unit.type, allocator);

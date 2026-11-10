@@ -23,6 +23,7 @@
 #include "ParserStatusManager.h"
 #include "JsonFileParserManager.h"
 #include "RemoteDeleteHandler.h"
+#include "MsprofFtraceImportService.h"
 
 namespace Dic {
 namespace Module {
@@ -33,8 +34,16 @@ bool RemoteDeleteHandler::HandleRequest(std::unique_ptr<Protocol::Request> reque
     std::unique_ptr<RemoteDeleteResponse> responsePtr = std::make_unique<RemoteDeleteResponse>();
     RemoteDeleteResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
-    Timeline::JsonFileParserManager::GetTraceFileParser().DeleteParseFiles(request.params.rankId);
-    TraceFileSimulationParser::Instance().DeleteParseFiles(request.params.rankId);
+    std::vector<std::string> legacyRankIds;
+    for (const auto &rankId : request.params.rankId) {
+        if (!FullDb::MsprofFtraceImportService::Instance().Remove(rankId)) {
+            legacyRankIds.push_back(rankId);
+        }
+    }
+    if (!legacyRankIds.empty()) {
+        Timeline::JsonFileParserManager::GetTraceFileParser().DeleteParseFiles(legacyRankIds);
+        TraceFileSimulationParser::Instance().DeleteParseFiles(legacyRankIds);
+    }
     GetUpdateTime(response.body);
     SendResponse(std::move(responsePtr), true);
     return true;
@@ -45,7 +54,8 @@ void RemoteDeleteHandler::GetUpdateTime(RemoteDeleteBody &body) {
     TraceTime::Instance().Reset();
     auto &parseStatusInstance = ParserStatusManager::Instance();
     for (const auto &fileId : fileIdList) {
-        if (parseStatusInstance.GetParserStatus(fileId) == ParserStatus::FINISH) {
+        const auto status = parseStatusInstance.GetParserStatus(fileId);
+        if (status == ParserStatus::FINISH || status == ParserStatus::FINISH_ALL) {
             uint64_t min = UINT64_MAX;
             uint64_t max = 0;
             auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(fileId);
@@ -59,6 +69,8 @@ void RemoteDeleteHandler::GetUpdateTime(RemoteDeleteBody &body) {
             if (min != max || max != 0) {
                 body.startTimeUpdated = true;
                 TraceTime::Instance().UpdateTime(min, max);
+                TraceTime::Instance().UpdateCardTimeDuration(fileId, min, max);
+                TraceTime::Instance().UpdateCardMinTimestamp(fileId, min);
             }
             ServerLog::Info("update time. rankId:", fileId, ", min:", min, ", max:", max);
         }

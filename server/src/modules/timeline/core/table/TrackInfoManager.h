@@ -76,6 +76,7 @@ class TrackInfoManager {
         const std::string &fileId, const std::map<uint64_t, std::pair<std::string, std::string>> &threadMap);
     std::string GetRankId(const std::string &host, const std::string &deviceId);
     void Reset();
+    void RemoveFile(const std::string &fileId, const std::string &rankId);
     std::string GetDeviceId(const std::string &cardId);
     void UpdateClusterDbToFileIdMap(const std::string &clusterDb, const std::string &fileId);
     std::map<std::string, std::string> GetRankIdToFileIdByClusterDb(const std::string &clusterDb);

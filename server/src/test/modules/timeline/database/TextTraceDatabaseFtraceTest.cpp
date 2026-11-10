@@ -472,6 +472,64 @@ TEST_F(TextTraceDatabaseFtraceTest, QueryForHandler_Filtering) {
     EXPECT_EQ(totalCount, 2); // pid=100 和 pid=101
 }
 
+TEST_F(TextTraceDatabaseFtraceTest, QueryForHandler_BindsQuotedFilterValuesForCountAndSortedPages) {
+    TraceTaskSummaryData row;
+    row.comm = "a'b";
+    row.pid = 42;
+    row.cpuId = 8;
+    row.runningNs = 10;
+    ASSERT_TRUE(database.InsertTraceTaskSummary(row));
+    row.comm = "prefix a'b suffix";
+    row.pid = 43;
+    row.runningNs = 20;
+    ASSERT_TRUE(database.InsertTraceTaskSummary(row));
+    row.comm = "unrelated";
+    row.pid = 44;
+    row.runningNs = 100;
+    ASSERT_TRUE(database.InsertTraceTaskSummary(row));
+    ASSERT_TRUE(database.CommitTraceStatisticsChecked());
+
+    SystemViewFtraceStatParams params;
+    params.orderBy = "running";
+    params.order = "descend";
+    params.filters = {{"comm", "a'b"}, {"cpu", "8"}};
+    uint64_t count = 0;
+    const auto first = database.QueryTraceTaskSummary(params, 0, 1, count);
+    ASSERT_EQ(first.size(), 1u);
+    EXPECT_EQ(first[0].comm, "prefix a'b suffix");
+    EXPECT_EQ(count, 2u);
+    const auto second = database.QueryTraceTaskSummary(params, 1, 1, count);
+    ASSERT_EQ(second.size(), 1u);
+    EXPECT_EQ(second[0].comm, "a'b");
+    EXPECT_EQ(count, 2u);
+}
+
+TEST_F(TextTraceDatabaseFtraceTest, QueryForHandler_TreatsSqlLookingFilterAsTextAndPreservesLikeWildcards) {
+    TraceTaskSummaryData row;
+    row.comm = "x' OR 1=1 --";
+    row.pid = 42;
+    row.cpuId = 8;
+    ASSERT_TRUE(database.InsertTraceTaskSummary(row));
+    row.comm = "unrelated";
+    row.pid = 43;
+    ASSERT_TRUE(database.InsertTraceTaskSummary(row));
+    ASSERT_TRUE(database.CommitTraceStatisticsChecked());
+
+    SystemViewFtraceStatParams params;
+    params.filters = {{"comm", "' OR 1=1 --"}};
+    uint64_t count = 0;
+    auto rows = database.QueryTraceTaskSummary(params, 0, 10, count);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_EQ(rows[0].comm, "x' OR 1=1 --");
+    EXPECT_EQ(count, 1u);
+    params.filters = {{"comm", "un%ed"}};
+    rows = database.QueryTraceTaskSummary(params, 0, 10, count);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_EQ(rows[0].comm, "unrelated");
+    EXPECT_EQ(count, 1u);
+    EXPECT_EQ(QueryRowCount("trace_task_summary"), 2);
+}
+
 // IRQ 聚合测试：验证 softirq/hardirq 的 count 和 duration 聚合
 TEST_F(TextTraceDatabaseFtraceTest, QueryForHandler_IrqAggregation) {
     TraceTaskSummaryData d1;

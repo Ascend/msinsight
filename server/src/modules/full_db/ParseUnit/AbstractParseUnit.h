@@ -27,6 +27,8 @@
 namespace Dic::Module::FullDb {
 struct ParseUnitParams {
     std::string dbId;
+    // Derived databases run statistics before their public resource is published.
+    bool notify = true;
 };
 
 // 非模板的基类接口，用于注册和管理

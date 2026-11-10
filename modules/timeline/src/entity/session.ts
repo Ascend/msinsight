@@ -34,6 +34,7 @@ import { getCardOffsetKey, getCardSideOffset, type OffsetSide } from '../insight
 import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from './data';
 import type { CardRankInfo } from '../api/interface';
 import { getRootUnit } from '../utils';
+import { isMsprofFtraceCard } from '../utils/msprofFtraceLayout';
 import { getAutoKey } from '../utils/dataAutoKey';
 import type { FlowPoint } from '../insight/units/AscendUnit';
 import { MergedThreadData } from './mergedThreadData';
@@ -615,7 +616,9 @@ export class Session {
 
     // 对于 Text 的单 Host 多 Device 场景，只保留一个卡，对于 db 的单 Host 多 Device 场景，只保留一个 host
     updateUnitsForMultiDevice(): void {
-        const rootUnits = getRootUnit(this._units); // db 情况 this._units 不是根泳道，因此需要先获取根泳道
+        const roots = getRootUnit(this._units); // db 情况 this._units 不是根泳道，因此需要先获取根泳道
+        const rootUnits = roots.filter(unit => !isMsprofFtraceCard(unit.metadata));
+        roots.filter(unit => isMsprofFtraceCard(unit.metadata)).forEach(unit => this.setUnitMultiDeviceHidden(unit, false));
         if (!this.isMultiDevice) {
             return;
         }

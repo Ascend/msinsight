@@ -24,11 +24,13 @@
 #include "FtraceTimeStatisticsParseUnit.h"
 #include "FtraceSchedStatisticsParseUnit.h"
 #include "FtraceIrqStatisticsParseUnit.h"
+#include "FtraceIrqAggregationParseUnit.h"
 #include "RenderEngineInterface.h"
 #include "ThreadPool.h"
 #define private public
 #include "RenderEngine.h"
 #undef private
+#include "FtraceStatisticsSliceReader.h"
 
 namespace Dic::Module::FullDb {
 namespace {
@@ -54,9 +56,11 @@ class StatisticsDataEngine : public DataEngine {
     std::vector<CompeteSliceDomain> slices;
     ThreadInfoMap threads;
     unsigned threadQueryCount = 0;
+    unsigned sliceQueryCount = 0;
 
     bool QuerySliceDetailInfoByNameList(
         const SliceQueryByNameList &query, std::vector<CompeteSliceDomain> &result) override {
+        ++sliceQueryCount;
         result = slices;
         return true;
     }
@@ -129,6 +133,19 @@ class FtraceStatisticsParseUnitTest : public testing::Test {
         const int64_t value = step == SQLITE_ROW ? sqlite3_column_int64(statement, 0) : -1;
         EXPECT_EQ(sqlite3_finalize(statement), SQLITE_OK);
         return value;
+    }
+
+    void CreateStreamingCache() {
+        ASSERT_EQ(sqlite3_exec(rawDatabase, R"(
+CREATE TABLE msprof_ftrace_cache(marker TEXT);
+CREATE TABLE process(pid TEXT PRIMARY KEY,process_name TEXT);
+CREATE TABLE thread(track_id INTEGER PRIMARY KEY,pid TEXT);
+CREATE TABLE slice(track_id INTEGER,name TEXT,duration INTEGER,args TEXT);
+INSERT INTO process VALUES('task','Process Scheduling'),('cpu','CPU Scheduling');
+INSERT INTO thread VALUES(1,'task'),(2,'cpu');
+)",
+                      nullptr, nullptr, nullptr),
+            SQLITE_OK);
     }
 
     std::recursive_mutex sqlMutex;
@@ -303,6 +320,263 @@ TEST_F(FtraceStatisticsParseUnitTest, EmptySlicesDoNotQueryThreadsOrInsertStatis
     EXPECT_EQ(dataEngine->threadQueryCount, 0U);
     EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), 0);
     EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_irq_detail"), 0);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofTimeUsesEventIdentityAcrossRenameAndMissingTrack) {
+    dataEngine->threads = {{1, {"process", "obsolete:42"}}};
+    dataEngine->slices = {
+        Slice(1, "Running", 10, R"({"source":"msprof_ftrace","cpu":63,"tid":42,"comm":"worker:long-original"})"),
+        Slice(1, "Runnable", 3, R"({"source":"msprof_ftrace","cpu":63,"tid":42,"comm":"worker:renamed"})"),
+        Slice(99, "Running", 20, R"({"source":"msprof_ftrace","cpu":"64","tid":"43","comm":"kworker/0:1"})"),
+        Slice(100, "Sleeping", 7, R"({"source":"msprof_ftrace","tid":44,"comm":"task-without-cpu"})"),
+    };
+    Parse<FtraceTimeStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), 4);
+    EXPECT_EQ(
+        QueryInteger("SELECT running_ns FROM trace_task_summary WHERE comm='worker:long-original' AND cpu_id=63"), 10);
+    EXPECT_EQ(QueryInteger("SELECT runnable_ns FROM trace_task_summary WHERE comm='worker:renamed' AND pid=42"), 3);
+    EXPECT_EQ(QueryInteger("SELECT running_ns FROM trace_task_summary WHERE comm='kworker/0:1' AND cpu_id=64"), 20);
+    EXPECT_EQ(QueryInteger("SELECT sleeping_ns FROM trace_task_summary WHERE pid=44 AND cpu_id=-1"), 7);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofTimeDoesNotGuessTidFromDisplayLabel) {
+    dataEngine->threads = {{1, {"process", "display-only:42"}}};
+    dataEngine->slices = {
+        Slice(1, "Running", 100, R"({"source":"msprof_ftrace","cpu":1,"comm":"worker"})"),
+        Slice(1, "Running", 200, R"({"source":"msprof_ftrace","cpu":1,"tid":"18446744073709551616","comm":"worker"})"),
+    };
+    Parse<FtraceTimeStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), 0);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofSchedUsesCpuAndExplicitPreemptionWithoutTrackLookup) {
+    dataEngine->slices = {
+        Slice(99, "sched_switch", 0,
+            R"({"source":"msprof_ftrace","cpu":63,"prev_comm":"kworker/0:1","prev_pid":42,"prev_state":"R"})"),
+        Slice(99, "sched_switch", 0,
+            R"({"source":"msprof_ftrace","cpu":63,"prev_comm":"kworker/0:1","prev_pid":42,"prev_state":"R","preempted":false})"),
+        Slice(99, "sched_switch", 0,
+            R"({"source":"msprof_ftrace","cpu":63,"prev_comm":"kworker/0:1","prev_pid":42,"prev_state":"R+","preempted":true})"),
+        Slice(99, "sched_switch", 0,
+            R"({"source":"msprof_ftrace","cpu":64,"prev_comm":"swapper","prev_pid":0,"prev_state":"R"})"),
+    };
+    Parse<FtraceSchedStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), 2);
+    EXPECT_EQ(QueryInteger("SELECT cs_count FROM trace_task_summary WHERE pid=42 AND cpu_id=63"), 3);
+    EXPECT_EQ(QueryInteger("SELECT cs_involuntary_count FROM trace_task_summary WHERE pid=42 AND cpu_id=63"), 1);
+    EXPECT_EQ(QueryInteger("SELECT cs_count FROM trace_task_summary WHERE pid=0 AND cpu_id=64"), 1);
+    EXPECT_EQ(QueryInteger("SELECT cs_involuntary_count FROM trace_task_summary WHERE pid=0"), 0);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofSchedPreservesUnknownCpuInsteadOfUsingTrackLabel) {
+    dataEngine->threads = {{1, {"process", "CPU 0"}}};
+    dataEngine->slices = {Slice(
+        1, "sched_switch", 0, R"({"source":"msprof_ftrace","prev_comm":"worker","prev_pid":42,"prev_state":"R"})")};
+    Parse<FtraceSchedStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT cs_count FROM trace_task_summary WHERE pid=42 AND cpu_id=-1"), 1);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofIrqKeepsKernelIdleAndUnknownTaskWithEventCpu) {
+    dataEngine->threads = {{1, {"process", "CPU 0"}}};
+    dataEngine->slices = {
+        Slice(
+            1, "softirq", 10, R"({"source":"msprof_ftrace","cpu":63,"tid":42,"comm":"kworker/0:1","action":"NET_RX"})"),
+        Slice(1, "softirq", 20,
+            R"({"source":"msprof_ftrace","cpu":64,"tid":0,"comm":"swapper","task":"<idle>","action":"NET_RX"})"),
+        Slice(1, "softirq", 30,
+            R"({"source":"msprof_ftrace","cpu":65,"comm":"<unknown>","task":"<unknown>","action":"NET_RX"})"),
+        Slice(1, "softirq", 40, R"({"source":"msprof_ftrace","tid":43,"comm":"worker:long-name","action":"NET_RX"})"),
+    };
+    Parse<FtraceIrqStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_irq_detail"), 4);
+    EXPECT_EQ(QueryInteger("SELECT SUM(count) FROM trace_irq_detail"), 4);
+    EXPECT_EQ(QueryInteger("SELECT SUM(time_ns) FROM trace_irq_detail"), 100);
+    EXPECT_EQ(QueryInteger("SELECT time_ns FROM trace_irq_detail WHERE comm='kworker/0:1' AND cpu_id=63"), 10);
+    EXPECT_EQ(QueryInteger("SELECT time_ns FROM trace_irq_detail WHERE pid=0 AND cpu_id=64"), 20);
+    EXPECT_EQ(QueryInteger("SELECT time_ns FROM trace_irq_detail WHERE pid=-1 AND comm='<unknown>' AND cpu_id=65"), 30);
+    EXPECT_EQ(QueryInteger("SELECT time_ns FROM trace_irq_detail WHERE pid=43 AND cpu_id=-1"), 40);
+    Parse<FtraceIrqAggregationParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT SUM(soft_irq_count) FROM trace_task_summary"), 4);
+    EXPECT_EQ(QueryInteger("SELECT SUM(soft_irq_duration) FROM trace_task_summary"), 100);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofIrqWithUnknownActionRemainsInCpuTotals) {
+    dataEngine->slices = {Slice(99, "softirq", 10, R"({"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"worker"})")};
+    Parse<FtraceIrqStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT count FROM trace_irq_detail WHERE irq_name='<unknown>' AND cpu_id=8"), 1);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, StructuredArgsRejectObjectsArraysAndOverflowWithoutThrowing) {
+    dataEngine->threads = {{1, {"process", "worker:42"}}};
+    dataEngine->slices = {
+        Slice(1, "softirq", 100, R"([])"),
+        Slice(1, "softirq", 200, R"({"task":{"nested":42},"name":true})"),
+        Slice(1, "softirq", 300, R"({"task":"worker:18446744073709551616","action":"NET_RX"})"),
+    };
+    Parse<FtraceIrqStatisticsParseUnit>();
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_irq_detail"), 0);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, TimeUnitReportsFinalFlushFailureAndRetainsPendingRows) {
+    TestableStatisticsUnit<FtraceTimeStatisticsParseUnit> unit;
+    std::string error;
+    ASSERT_TRUE(unit.PreCheck({"statistics-ut"}, database, error));
+    ASSERT_EQ(sqlite3_exec(rawDatabase,
+                  "CREATE TRIGGER reject_summary BEFORE INSERT ON trace_task_summary "
+                  "BEGIN SELECT RAISE(ABORT,'forced statistics failure'); END",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    dataEngine->slices = {Slice(1, "Running", 10, R"({"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"worker"})")};
+
+    EXPECT_FALSE(unit.HandleParseProcess({"statistics-ut"}, database, error));
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), 0);
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "DROP TRIGGER reject_summary", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_TRUE(database->CommitTraceStatisticsChecked());
+    EXPECT_EQ(QueryInteger("SELECT running_ns FROM trace_task_summary WHERE pid=42 AND cpu_id=8"), 10);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, IrqUnitReportsFinalFlushFailureAndRetainsPendingRows) {
+    TestableStatisticsUnit<FtraceIrqStatisticsParseUnit> unit;
+    std::string error;
+    ASSERT_TRUE(unit.PreCheck({"statistics-ut"}, database, error));
+    ASSERT_EQ(sqlite3_exec(rawDatabase,
+                  "CREATE TRIGGER reject_irq BEFORE INSERT ON trace_irq_detail "
+                  "BEGIN SELECT RAISE(ABORT,'forced statistics failure'); END",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    dataEngine->slices = {
+        Slice(1, "softirq", 7, R"({"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"worker","action":"NET_RX"})")};
+
+    EXPECT_FALSE(unit.HandleParseProcess({"statistics-ut"}, database, error));
+    EXPECT_FALSE(error.empty());
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_irq_detail"), 0);
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "DROP TRIGGER reject_irq", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_TRUE(database->CommitTraceStatisticsChecked());
+    EXPECT_EQ(QueryInteger("SELECT time_ns FROM trace_irq_detail WHERE pid=42 AND cpu_id=8"), 7);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, SummaryBatchBoundaryReturnsWriteFailureWithoutDroppingRows) {
+    ASSERT_TRUE(database->CreateTraceTaskSummaryTable());
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "PRAGMA query_only=ON", nullptr, nullptr, nullptr), SQLITE_OK);
+    TraceTaskSummaryData row;
+    row.comm = "worker";
+    row.cpuId = 8;
+    row.runningNs = 1;
+    for (int index = 0; index < Timeline::CACHE_SIZE - 1; ++index) {
+        row.pid = index;
+        ASSERT_TRUE(database->InsertTraceTaskSummary(row));
+    }
+    row.pid = Timeline::CACHE_SIZE - 1;
+    EXPECT_FALSE(database->InsertTraceTaskSummary(row));
+    EXPECT_FALSE(database->CommitTraceStatisticsChecked());
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), 0);
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "PRAGMA query_only=OFF", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_TRUE(database->CommitTraceStatisticsChecked());
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_task_summary"), Timeline::CACHE_SIZE);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, IrqBatchBoundaryReturnsWriteFailureWithoutDroppingRows) {
+    ASSERT_TRUE(database->CreateTraceIrqDetailTable());
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "PRAGMA query_only=ON", nullptr, nullptr, nullptr), SQLITE_OK);
+    TraceIrqDetailData row;
+    row.comm = "worker";
+    row.cpuId = 8;
+    row.irqType = "softirq";
+    row.irqName = "NET_RX";
+    row.count = 1;
+    row.timeNs = 2;
+    for (int index = 0; index < Timeline::CACHE_SIZE - 1; ++index) {
+        row.pid = index;
+        ASSERT_TRUE(database->InsertTraceIrqDetail(row));
+    }
+    row.pid = Timeline::CACHE_SIZE - 1;
+    EXPECT_FALSE(database->InsertTraceIrqDetail(row));
+    EXPECT_FALSE(database->CommitTraceStatisticsChecked());
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_irq_detail"), 0);
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "PRAGMA query_only=OFF", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_TRUE(database->CommitTraceStatisticsChecked());
+    EXPECT_EQ(QueryInteger("SELECT COUNT(*) FROM trace_irq_detail"), Timeline::CACHE_SIZE);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, IrqAggregationReportsUpdateFailureInsteadOfSuccessfulZeroStatistics) {
+    dataEngine->slices = {
+        Slice(1, "softirq", 7, R"({"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"worker","action":"NET_RX"})")};
+    Parse<FtraceIrqStatisticsParseUnit>();
+    ASSERT_EQ(sqlite3_exec(rawDatabase,
+                  "CREATE TRIGGER reject_irq_update BEFORE UPDATE ON trace_task_summary "
+                  "BEGIN SELECT RAISE(ABORT,'forced aggregate failure'); END",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    TestableStatisticsUnit<FtraceIrqAggregationParseUnit> unit;
+    std::string error;
+    ASSERT_TRUE(unit.PreCheck({"statistics-ut"}, database, error));
+    EXPECT_FALSE(unit.HandleParseProcess({"statistics-ut"}, database, error));
+    EXPECT_EQ(QueryInteger("SELECT soft_irq_duration FROM trace_task_summary WHERE pid=42"), 0);
+    ASSERT_EQ(sqlite3_exec(rawDatabase, "DROP TRIGGER reject_irq_update", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_TRUE(unit.HandleParseProcess({"statistics-ut"}, database, error));
+    EXPECT_EQ(QueryInteger("SELECT soft_irq_duration FROM trace_task_summary WHERE pid=42"), 7);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, MsprofMarkedCacheStreamsAllStatisticsWithoutMaterializingDataEngineSlices) {
+    CreateStreamingCache();
+    ASSERT_EQ(sqlite3_exec(rawDatabase, R"(
+INSERT INTO slice VALUES(1,'Running',10,'{"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"worker"}');
+INSERT INTO slice VALUES(2,'sched_switch',0,
+ '{"source":"msprof_ftrace","cpu":8,"prev_pid":42,"prev_comm":"worker","prev_state":"R"}');
+INSERT INTO slice VALUES(2,'softirq',2,
+ '{"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"worker","action":"NET_RX"}');
+)",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    dataEngine->slices = {
+        Slice(1, "Running", 999, R"({"source":"msprof_ftrace","cpu":8,"tid":42,"comm":"unwanted-fake"})")};
+    Parse<FtraceTimeStatisticsParseUnit>();
+    Parse<FtraceSchedStatisticsParseUnit>();
+    Parse<FtraceIrqStatisticsParseUnit>();
+    Parse<FtraceIrqAggregationParseUnit>();
+    EXPECT_EQ(dataEngine->sliceQueryCount, 0u);
+    EXPECT_EQ(dataEngine->threadQueryCount, 0u);
+    EXPECT_EQ(QueryInteger("SELECT running_ns FROM trace_task_summary WHERE pid=42 AND cpu_id=8"), 10);
+    EXPECT_EQ(QueryInteger("SELECT cs_count FROM trace_task_summary WHERE pid=42 AND cpu_id=8"), 1);
+    EXPECT_EQ(QueryInteger("SELECT soft_irq_duration FROM trace_task_summary WHERE pid=42 AND cpu_id=8"), 2);
+}
+
+TEST_F(FtraceStatisticsParseUnitTest, StreamingStatisticsReaderVisitsRowsAndPropagatesSqliteStepErrors) {
+    CreateStreamingCache();
+    ASSERT_EQ(sqlite3_exec(rawDatabase, R"(
+WITH RECURSIVE numbers(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM numbers WHERE n<2048)
+INSERT INTO slice SELECT 2,'softirq',n,'{}' FROM numbers;
+INSERT INTO slice VALUES(1,'softirq',123,'{}'),(2,'unselected',456,'{}');
+)",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    uint64_t count = 0;
+    uint64_t duration = 0;
+    std::string error;
+    ASSERT_TRUE(FtraceStatistics::ForEachSlice(
+        *database, "unused", "CPU Scheduling", {"softirq"},
+        [&](const CompeteSliceDomain &slice) {
+            ++count;
+            duration += slice.duration;
+            return true;
+        },
+        error))
+        << error;
+    EXPECT_EQ(count, 2048u);
+    EXPECT_EQ(duration, 2048u * 2049u / 2u);
+    count = 0;
+    EXPECT_FALSE(FtraceStatistics::ForEachSlice(
+        *database, "unused", "CPU Scheduling", {"softirq"},
+        [&](const CompeteSliceDomain &) {
+            if (++count == 10) {
+                sqlite3_interrupt(rawDatabase);
+            }
+            return true;
+        },
+        error));
+    EXPECT_EQ(count, 10u);
+    EXPECT_FALSE(error.empty());
 }
 } // namespace
 } // namespace Dic::Module::FullDb

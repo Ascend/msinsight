@@ -36,4 +36,16 @@ void ParseUnitManager::ExecuteUnitList(const ParseUnitParams &params, const std:
         }
     }
 }
+
+bool ParseUnitManager::ExecuteUnitListChecked(
+    const ParseUnitParams &params, const std::vector<std::string> &unitNameList) {
+    for (const auto &name : unitNameList) {
+        auto unit = unitMap.find(name);
+        if (unit == unitMap.end() || !unit->second()->Handle(params)) {
+            Server::ServerLog::Error("Failed to execute required parse unit: ", name);
+            return false;
+        }
+    }
+    return true;
+}
 }

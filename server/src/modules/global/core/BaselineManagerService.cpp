@@ -24,6 +24,7 @@
 #include "ParallelStrategyAlgorithmManager.h"
 #include "ParserStatusManager.h"
 #include "BaselineManagerService.h"
+#include "MsprofFtraceImportService.h"
 using namespace Dic::Module::Summary;
 namespace Dic {
 namespace Module {
@@ -53,13 +54,70 @@ bool HasMemScopeData(const std::vector<ProjectExplorerInfo> &projects) {
         });
     });
 }
+
+bool InitMsprofFtraceBaseline(const std::vector<ProjectExplorerInfo> &projects,
+    const Protocol::BaselineSettingRequest &request, BaselineInfo &baselineInfo) {
+    auto &service = FullDb::MsprofFtraceImportService::Instance();
+    const auto &fileId = request.params.filePath;
+    const auto resource = service.GetResource(fileId);
+    const auto suffix = FullDb::MsprofFtraceImportService::ResourceId("");
+    const bool logicalId =
+        fileId.size() > suffix.size() && fileId.compare(fileId.size() - suffix.size(), suffix.size(), suffix) == 0;
+    if (!resource && !logicalId) {
+        return false;
+    }
+    std::shared_ptr<ParseFileInfo> selected;
+    for (const auto &project : projects) {
+        for (const auto &entry : project.fileInfoMap) {
+            const auto &file = entry.second;
+            if (!file || file->projectType != static_cast<int64_t>(ProjectTypeEnum::DB_FTRACE) ||
+                file->parseFilePath != fileId || file->fileId != fileId || !logicalId) {
+                continue;
+            }
+            if (selected) {
+                baselineInfo.errorMessage = "The Ftrace resource belongs to multiple imported records.";
+                return true;
+            }
+            selected = file;
+        }
+    }
+    if (!selected) {
+        baselineInfo.errorMessage = "The Ftrace resource does not belong to the baseline project.";
+        return true;
+    }
+    const bool reuseSource = request.projectName == request.params.projectName;
+    if (resource) {
+        service.CreateBaseline(fileId, baselineInfo, reuseSource);
+        return true;
+    }
+    // Persisted Ftrace leaves are logical IDs. Only the owning physical profiling DB can be reopened.
+    const auto source = fileId.substr(0, fileId.size() - suffix.size());
+    if (!service.Discover(source, selected->host, selected->clusterId, request.params.projectName)) {
+        baselineInfo.errorMessage = "Cannot reopen the Ftrace source for the baseline project.";
+        return true;
+    }
+    if (service.Import(source, baselineInfo.errorMessage, false)) {
+        service.CreateBaseline(fileId, baselineInfo, reuseSource);
+    }
+    // Cross-project aliases pin their cache independently. A current-project source remains the visible card.
+    if (!reuseSource) {
+        service.Remove(fileId, true);
+    }
+    if (baselineInfo.fileId.empty() && baselineInfo.errorMessage.empty()) {
+        baselineInfo.errorMessage = "Cannot create the Ftrace baseline.";
+    }
+    return true;
+}
 }
 
 void BaselineManagerService::ResetBaseline(bool force) {
     // 没有解析进程时才可以reset
     auto baselineId = Dic::Module::Timeline::BaselineManager::Instance().GetBaselineId();
     Dic::Module::Timeline::ParserStatusManager::Instance().WaitAllFinished({baselineId});
-    Dic::Module::Timeline::DataBaseManager::Instance().ResetBaseline(force);
+    const auto resource = FullDb::MsprofFtraceImportService::Instance().GetResource(baselineId);
+    const bool reusedFtraceSource =
+        resource && resource->fileId == FullDb::MsprofFtraceImportService::ResourceId(resource->sourceFileId);
+    Dic::Module::Timeline::DataBaseManager::Instance().ResetBaseline(force && !reusedFtraceSource);
     BaselineManager::Instance().Reset();
     Source::SourceFileParser::Instance().ResetBaseline();
 }
@@ -109,7 +167,6 @@ bool BaselineManagerService::CheckIsSupportCompare(const std::vector<ProjectExpl
 
 bool BaselineManagerService::InitBaselineData(
     const Protocol::BaselineSettingRequest &request, BaselineInfo &baselineInfo) {
-    ResetBaseline(true);
     // 多集群场景下需要把所有的信息查出来
     std::vector<ProjectExplorerInfo> projectExplorerList =
         ProjectExplorerManager::Instance().QueryProjectExplorer(request.params.projectName, {});
@@ -118,6 +175,18 @@ bool BaselineManagerService::InitBaselineData(
     if (projectExplorerList.empty() || curProject.empty()) {
         baselineInfo.errorMessage = "The project does not exist, baseline setting failed.";
         return false;
+    }
+
+    // Reject a known busy target before clearing the current baseline. This preflight
+    // does not reserve it; CreateBaseline still rechecks after taking its build lock.
+    auto &ftrace = FullDb::MsprofFtraceImportService::Instance();
+    if (ftrace.IsResource(request.params.filePath) &&
+        !ftrace.CheckBaselineReady(request.params.filePath, baselineInfo.errorMessage)) {
+        return true;
+    }
+    ResetBaseline(true);
+    if (InitMsprofFtraceBaseline(projectExplorerList, request, baselineInfo)) {
+        return true;
     }
 
     const auto matchesBaselinePath = [&request](const ProjectExplorerInfo &project) {
