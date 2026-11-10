@@ -134,15 +134,17 @@ const FreeAttributionDetails = observer(({ context, groupId, session }: DetailPr
     };
     const columns: ColumnsType<DetailRow> = copyColumns.map(column => {
         const field = String('dataIndex' in column ? column.dataIndex : '');
+        const title = ['nextBehaviorType', 'statusLabel'].includes(field) && typeof column.title === 'string'
+            ? longText(column.title)
+            : column.title;
         return {
             ...column,
             title: apiSortableFields.includes(field) && typeof column.title === 'string'
                 ? <Tooltip title={t('Candidate API Sort Tip')}><span>{column.title}</span></Tooltip>
-                : column.title,
+                : title,
             width: field === 'statusLabel' ? 220 : 150,
             ellipsis: true,
             sorter: sortableFields.includes(field) ? {} : false,
-            sortOrder: sorter.field === field ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
             render: (value: string, record): JSX.Element => apiSortableFields.includes(field)
                 ? renderApiValue(value, record, field)
                 : longText(value),
@@ -153,21 +155,22 @@ const FreeAttributionDetails = observer(({ context, groupId, session }: DetailPr
         dataIndex: 'freeDuration',
         sorter: {},
         render: freeTimeUs,
-        sortOrder: sorter.field === 'freeDuration' ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
     };
     columns.push({
-        title: t('Actions'),
+        title: <Tooltip title={t('Actions')}><span>{t('Actions')}</span></Tooltip>,
         key: 'actions',
         width: 240,
         render: (_value: unknown, record): JSX.Element => <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 4 }}>
-            {freeApiCandidates(record).map((target, index) => <Button key={`${target.dbPath}-${target.id}-${index}`}
-                type="link" title={`${target.name}\n${t('API Start Time')}: ${freeTargetStart(session, target)}\nPID/TID: ${target.pid}/${target.tid}\n${t('Source')}: ${target.dbPath ?? '--'}`}
-                onClick={(event): void => {
+            {freeApiCandidates(record).map((target, index) => <Tooltip key={`${target.dbPath}-${target.id}-${index}`} title={t('Jump API')}>
+                <Button type="link" onClick={(event): void => {
                     event.stopPropagation(); jumpToUnitOperator(target);
-                }}>{t('Jump API')}{freeApiCandidates(record).length > 1 ? ` ${index + 1}` : ''}</Button>)}
-            <Button type="link" onClick={(event): void => {
-                event.stopPropagation(); jumpToUnitOperator(record.freeTarget);
-            }}>{t('Jump Free')}</Button>
+                }}>{t('Jump API')}{freeApiCandidates(record).length > 1 ? ` ${index + 1}` : ''}</Button>
+            </Tooltip>)}
+            <Tooltip title={t('Jump Free')}>
+                <Button type="link" onClick={(event): void => {
+                    event.stopPropagation(); jumpToUnitOperator(record.freeTarget);
+                }}>{t('Jump Free')}</Button>
+            </Tooltip>
         </div>,
     });
 
@@ -242,21 +245,18 @@ const FreeAttributionTable = ({ context, session, bottomHeight, ready }: TablePr
             ...fetchColumnFilterProps('apiName', 'Name'),
             width: 300,
             sorter: {},
-            sortOrder: sorter.field === 'apiName' ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
             render: (_value: string, record): JSX.Element => longText(record.displayName),
         },
         {
             ...copyColumns[1],
             width: 180,
             sorter: {},
-            sortOrder: sorter.field === 'totalFreeDuration' ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
             title: <Tooltip title={t('Total Free Duration Tip')}><span>{t('Total Free Duration')}</span></Tooltip>,
         },
         {
             ...copyColumns[2],
             width: 180,
             sorter: {},
-            sortOrder: sorter.field === 'freeCount' ? (sorter.order === 'asc' ? 'ascend' : 'descend') : null,
             title: <Tooltip title={t('Total Free Interval Count Tip')}><span>{t('Total Free Interval Count')}</span></Tooltip>,
         },
     ];

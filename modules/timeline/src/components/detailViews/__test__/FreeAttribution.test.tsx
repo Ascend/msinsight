@@ -142,6 +142,8 @@ it('converts the selected range using the device offset and preserves whole-even
     expect(jumpToUnitOperator).toHaveBeenLastCalledWith(hostApi);
     fireEvent.click(view.getByText('Jump Free'));
     expect(jumpToUnitOperator).toHaveBeenLastCalledWith(free);
+    expect(view.getByText('Jump API').parentElement).toHaveAttribute('title', 'Jump API');
+    expect(view.getByText('Jump Free').parentElement).toHaveAttribute('title', 'Jump Free');
     expect(makeProps().session.timeAnalysisRange).toEqual([100, 200]);
     const detailTable = (ResizeTable as jest.Mock).mock.calls.map(call => call[0]).find(props => props.rowKey === 'detailId');
     expect(detailTable.copyColumns.every((column: any) => column.key !== 'actions')).toBe(true);
@@ -151,8 +153,8 @@ it('converts the selected range using the device offset and preserves whole-even
     expect(detailTable.columns.find((column: any) => column.dataIndex === 'statusLabel').width).toBe(220);
     expect(await view.findByText('status.matched')).toBeInTheDocument();
     const summaryTable = (ResizeTable as jest.Mock).mock.calls.map(call => call[0]).find(props => props.rowKey === 'groupId' && props.dataSource.length);
-    expect(summaryTable.columns.find((column: any) => column.dataIndex === 'totalFreeDuration').sortOrder).toBe('descend');
-    expect(detailTable.columns.find((column: any) => column.dataIndex === 'freeStartTime').sortOrder).toBe('ascend');
+    expect(summaryTable.columns.every((column: any) => !('sortOrder' in column))).toBe(true);
+    expect(detailTable.columns.every((column: any) => !('sortOrder' in column))).toBe(true);
     expect(summaryTable.copyColumns.every((column: any) => typeof column.title === 'string')).toBe(true);
 });
 
@@ -217,9 +219,8 @@ it('requests server sorting and exposes each ambiguous API target separately', a
     expect(detailTable.copyColumns.slice(0, 3).every((column: any) => column.render === undefined)).toBe(true);
     fireEvent.click(view.getByText('Jump API 2'));
     expect(jumpToUnitOperator).toHaveBeenLastCalledWith(anotherApi);
-    expect(view.getByText('Jump API 2').title).toContain('PID/TID: 1/2');
-    expect(view.getByText('Jump API 2').title).toContain('Source: source.db');
-    expect(view.getByText('Jump API 2').title).toContain('2.4');
+    expect(view.getByText('Jump API 2').parentElement).toHaveAttribute('title', 'Jump API');
+    expect(view.getByText('Jump API 2')).not.toHaveAttribute('title');
     const table = (ResizeTable as jest.Mock).mock.calls.map(call => call[0]).filter(props => props.rowKey === 'groupId').pop();
     act(() => table.onChange({}, {}, { field: 'freeCount', order: 'ascend' }, { action: 'sort' }));
     await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenLastCalledWith(expect.objectContaining({
