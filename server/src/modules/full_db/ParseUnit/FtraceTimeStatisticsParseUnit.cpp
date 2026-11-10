@@ -22,6 +22,8 @@
 #include "RenderEngine.h"
 #include "ServerLog.h"
 #include "StringUtil.h"
+#include "FtraceStatisticsArgs.h"
+#include "FtraceStatisticsSliceReader.h"
 
 namespace Dic::Module::FullDb {
 
@@ -46,44 +48,26 @@ static bool ParseCommAndPid(const std::string &tid, std::string &comm, uint64_t 
         return false;
     }
     comm = tid.substr(0, lastColon);
-    if (!StringUtil::IsAllDigits(tid.substr(lastColon + 1))) {
-        return false;
-    }
-    pid = std::stoull(tid.substr(lastColon + 1));
-    return true;
+    return FtraceStatistics::ParseTid(tid.substr(lastColon + 1), pid);
 }
 
 /**
  * 从 slice.args JSON 中提取 cpu 字段。
  * 缺失时返回 -1，并通过 missingCount 引用计数，由调用方统一打印 WARNING。
  */
-static int32_t ExtractCpuId(const std::string &argsJson, int &missingCount) {
-    auto argsMap = JsonUtil::JsonStrToMap(argsJson);
-    auto it = argsMap.find("cpu");
-    if (it == argsMap.end() || it->second.empty()) {
+static int32_t ExtractCpuId(const FtraceStatistics::Args &args, int &missingCount) {
+    const int32_t cpu = FtraceStatistics::Cpu(args);
+    if (cpu < 0) {
         missingCount++;
-        return -1;
     }
-    try {
-        return static_cast<int32_t>(std::stoi(it->second));
-    } catch (const std::exception &) {
-        missingCount++;
-        return -1;
-    }
+    return cpu;
 }
 
 bool FtraceTimeStatisticsParseUnit::HandleParseProcess(
     const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     std::vector<std::string> nameList = {"Sleeping", "Runnable", "Running"};
-    auto allTimeSlice = RenderEngine::Instance()->QuerySliceDetailByNameList(
-        params.dbId, DataType::TEXT, "Process Scheduling", nameList);
-
-    if (allTimeSlice.empty()) {
-        database->CommitData();
-        return true;
-    }
-
-    auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
+    std::unordered_map<uint64_t, std::pair<std::string, std::string>> threadInfoMap;
+    bool threadInfoLoaded = false;
 
     // 统计 Key：(comm, pid, cpuId)
     struct TimeStats {
@@ -95,35 +79,48 @@ bool FtraceTimeStatisticsParseUnit::HandleParseProcess(
 
     int cpuMissingCount = 0;
 
-    for (const auto &slice : allTimeSlice) {
-        uint64_t trackId = slice.trackId;
-        std::string timeType = slice.name;
-        uint64_t duration = slice.duration;
+    const bool read = FtraceStatistics::ForEachSlice(
+        *database, params.dbId, "Process Scheduling", nameList,
+        [&](const CompeteSliceDomain &slice) {
+            uint64_t trackId = slice.trackId;
+            std::string timeType = slice.name;
+            uint64_t duration = slice.duration;
 
-        // 提取 cpu_id
-        int32_t cpuId = ExtractCpuId(slice.args, cpuMissingCount);
+            const auto args = FtraceStatistics::ParseArgs(slice.args);
+            int32_t cpuId = ExtractCpuId(args, cpuMissingCount);
+            std::string comm;
+            uint64_t pid = 0;
+            if (FtraceStatistics::IsMsprof(args)) {
+                if (!FtraceStatistics::Task(args, comm, pid)) {
+                    return true;
+                }
+            } else {
+                // Existing converted ftrace libraries encode the identity in the track label.
+                if (!threadInfoLoaded) {
+                    threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
+                    threadInfoLoaded = true;
+                }
+                auto it = threadInfoMap.find(trackId);
+                if (it == threadInfoMap.end() || !ParseCommAndPid(it->second.second, comm, pid)) {
+                    return true;
+                }
+            }
 
-        // 通过 trackId 查找 threadInfo 获取 tid，进而解析 comm 和 pid
-        auto it = threadInfoMap.find(trackId);
-        if (it == threadInfoMap.end()) {
-            continue;
-        }
-        std::string comm;
-        uint64_t pid = 0;
-        if (!ParseCommAndPid(it->second.second, comm, pid)) {
-            continue;
-        }
+            auto key = std::make_tuple(comm, pid, cpuId);
+            auto &stat = statsMap[key];
 
-        auto key = std::make_tuple(comm, pid, cpuId);
-        auto &stat = statsMap[key];
-
-        if (timeType == "Running") {
-            stat.runningNs += duration;
-        } else if (timeType == "Sleeping") {
-            stat.sleepingNs += duration;
-        } else if (timeType == "Runnable") {
-            stat.runnableNs += duration;
-        }
+            if (timeType == "Running") {
+                stat.runningNs += duration;
+            } else if (timeType == "Sleeping") {
+                stat.sleepingNs += duration;
+            } else if (timeType == "Runnable") {
+                stat.runnableNs += duration;
+            }
+            return true;
+        },
+        error);
+    if (!read) {
+        return false;
     }
 
     if (cpuMissingCount > 0) {
@@ -143,9 +140,16 @@ bool FtraceTimeStatisticsParseUnit::HandleParseProcess(
         data.sleepingNs = stat.sleepingNs;
         data.runnableNs = stat.runnableNs;
 
-        database->InsertTraceTaskSummary(data);
+        if (!database->InsertTraceTaskSummary(data)) {
+            error = "Failed to insert ftrace task time statistics.";
+            return false;
+        }
     }
 
+    if (!database->CommitTraceStatisticsChecked()) {
+        error = "Failed to flush ftrace task time statistics.";
+        return false;
+    }
     database->CommitData();
     return true;
 }

@@ -25,9 +25,9 @@ import { ftraceUnifiedColumns, queryFtraceStat, getPageData } from './Common';
 import type { CardMetaData } from '../../entity/data';
 import { getTimeOffset } from '../../insight/units/utils';
 import { DETAIL_HEADER_HEIGHT_ETC_PX, SelectContentViewProps } from './SystemView';
+import { canShowFtraceTaskSummary, getFtraceSummaryDefaultSorter, isFtraceSummaryColumnAvailable } from '../../utils/ftraceCapabilities';
 
 const defaultPage = { current: 1, pageSize: 10, total: 0 };
-const defaultSorter = { field: 'running', order: 'descend' };
 
 /*
  * Ftrace 任务汇总表格
@@ -35,6 +35,13 @@ const defaultSorter = { field: 'running', order: 'descend' };
  */
 export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
+    const cardRankInfo = Array.from(props.session.rankCardInfoMap.values()).find(
+        info => info.rankInfo.rankId === props.card?.cardId && info.dbPath === props.card?.dbPath,
+    );
+    const capabilities = cardRankInfo?.ftraceCapabilities;
+    const capabilitySignature = JSON.stringify(capabilities);
+    const defaultSorter = getFtraceSummaryDefaultSorter(capabilities);
+    const summaryAvailable = canShowFtraceTaskSummary(cardRankInfo);
 
     const [dataSource, setDataSource] = useState<any[]>([]);
     const [page, setPage] = useState(defaultPage);
@@ -47,16 +54,6 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
     )?.phase;
 
     /**
-     * 检查 card 类型是否匹配（非 Ftrace 类型不应请求 Ftrace 数据）
-     */
-    const isCardTypeInvalid = (): boolean => {
-        const cardRankInfo = Array.from(props.session.rankCardInfoMap.values()).find(
-            (info) => info.rankInfo.rankId === props.card?.cardId && info.dbPath === props.card?.dbPath,
-        );
-        return cardRankInfo?.isFtrace !== true;
-    };
-
-    /**
      * 请求 Ftrace 数据（参考 BaseSummary 的 updateData 逻辑，传递排序/过滤/时间范围参数）
      */
     const fetchData = async (
@@ -64,7 +61,7 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
         sorters: typeof defaultSorter,
         filtersConditions: typeof filters,
     ): Promise<void> => {
-        if (props.card === undefined || props.card.cardId === '' || isCardTypeInvalid()) {
+        if (props.card === undefined || props.card.cardId === '' || !summaryAvailable) {
             setDataSource([]);
             setPage(defaultPage);
             return;
@@ -92,7 +89,9 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
                 dbPath: props.card.dbPath,
                 current: pages.current,
                 pageSize: pages.pageSize,
-                orderBy: sorters.order ? sorters.field : defaultSorter.field,
+                orderBy: sorters.order && isFtraceSummaryColumnAvailable(sorters.field, capabilities)
+                    ? sorters.field
+                    : defaultSorter.field,
                 order: sorters.order ?? defaultSorter.order,
                 startTime: Math.floor(startTime + timestampOffset),
                 endTime: Math.ceil(endTime + timestampOffset),
@@ -118,13 +117,16 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
         if (status === 'download') {
             fetchData(page, sorter, filters);
         }
-    }, [status, sorter, filters, page.current, page.pageSize, props.card?.cardId, props.card?.dbPath, props.session.timeAnalysisRange]);
+    }, [status, sorter, filters, page.current, page.pageSize, props.card?.cardId, props.card?.dbPath,
+        capabilitySignature, summaryAvailable, props.session.timeAnalysisRange]);
 
     // 列定义：将 title 映射为 i18n 翻译文本
-    const columns = ftraceUnifiedColumns.map(col => ({ ...col, title: t(col.title as string) }));
+    const columns = ftraceUnifiedColumns.filter(col =>
+        isFtraceSummaryColumnAvailable(String('dataIndex' in col ? col.dataIndex : ''), capabilities),
+    ).map(col => ({ ...col, title: t(col.title as string) }));
 
     return (
-        (props.card !== undefined && props.card.cardId !== '')
+        (props.card !== undefined && props.card.cardId !== '' && summaryAvailable)
             ? <ResizeTable
                 onChange={(_pagination: any, newFilters: any, newSorter: any): void => {
                     const field = typeof newSorter?.field === 'string' ? newSorter.field : '';

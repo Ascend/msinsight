@@ -21,6 +21,7 @@
 
 #include <vector>
 #include <memory>
+#include <optional>
 #include "GlobalDefs.h"
 #include "ProtocolDefs.h"
 #include "ProtocolMessage.h"
@@ -92,6 +93,7 @@ struct ParseSuccessEventBody {
     bool isFullDb = false;
     bool isRl = false;
     bool isFtrace = false;
+    std::optional<std::vector<std::string>> ftraceCapabilities;
     uint64_t maxTimeStamp = 0;
     uint64_t startTime = 0;
     uint64_t offset = 0;

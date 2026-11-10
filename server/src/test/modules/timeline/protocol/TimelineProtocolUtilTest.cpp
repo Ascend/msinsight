@@ -48,6 +48,33 @@ TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesTrackDatabasePath) {
     EXPECT_STREQ(metadata["dbPath"].GetString(), "source.db");
 }
 
+TEST_F(TimelineProtocolUtilTest, ParseSuccessEventOmitsCapabilitiesForLegacyFtrace) {
+    Dic::Protocol::ParseSuccessEvent event;
+    event.body.isFtrace = true;
+    auto jsonOp = Dic::Protocol::ToEventJson(event);
+    ASSERT_TRUE(jsonOp.has_value());
+    EXPECT_FALSE(jsonOp.value()["body"].HasMember("ftraceCapabilities"));
+}
+
+TEST_F(TimelineProtocolUtilTest, ParseSuccessEventPreservesEmptyAndExplicitFtraceCapabilities) {
+    Dic::Protocol::ParseSuccessEvent event;
+    event.body.isFtrace = true;
+    event.body.ftraceCapabilities = std::vector<std::string>{};
+    auto empty = Dic::Protocol::ToEventJson(event);
+    ASSERT_TRUE(empty.has_value());
+    ASSERT_TRUE(empty.value()["body"].HasMember("ftraceCapabilities"));
+    EXPECT_TRUE(empty.value()["body"]["ftraceCapabilities"].Empty());
+
+    event.body.ftraceCapabilities = std::vector<std::string>{"generic", "scheduling", "softirq"};
+    auto supported = Dic::Protocol::ToEventJson(event);
+    ASSERT_TRUE(supported.has_value());
+    const auto &capabilities = supported.value()["body"]["ftraceCapabilities"];
+    ASSERT_EQ(capabilities.Size(), 3U);
+    EXPECT_STREQ(capabilities[0].GetString(), "generic");
+    EXPECT_STREQ(capabilities[1].GetString(), "scheduling");
+    EXPECT_STREQ(capabilities[2].GetString(), "softirq");
+}
+
 TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesTrackSourceLabel) {
     Dic::Protocol::ParseSuccessEvent event;
     auto track = std::make_unique<Dic::Protocol::UnitTrack>();

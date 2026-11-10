@@ -236,6 +236,13 @@ void ParserStatusManager::WaitStartParse() {
     std::unique_lock lock(importMutex);
     importResCv.wait(lock, [this] { return importRes.load(); });
 }
+bool ParserStatusManager::WaitStartParse(const std::function<bool()> &cancelled) {
+    std::unique_lock lock(importMutex);
+    while (!importRes.load() && !cancelled()) {
+        importResCv.wait_for(lock, std::chrono::milliseconds(50));
+    }
+    return !cancelled();
+}
 void ParserStatusManager::NotifyStartParse() {
     std::lock_guard lock(importMutex);
     importResCv.notify_all();

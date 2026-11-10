@@ -19,6 +19,7 @@
 import { type ThreadMetaData } from '../entity/data';
 import { type InsightUnit } from '../entity/insight';
 import { forEach } from 'lodash';
+import { isMsprofFtraceCard } from './msprofFtraceLayout';
 
 export const getOperatingSystem = function (): string {
     const userAgent = navigator.userAgent.toLowerCase();
@@ -45,7 +46,10 @@ export const getRootUnit = (units: InsightUnit[]): InsightUnit[] => {
             result.push(unit);
         }
     });
-    return result;
+    return [
+        ...result.filter(unit => isMsprofFtraceCard(unit.metadata)),
+        ...result.filter(unit => !isMsprofFtraceCard(unit.metadata)),
+    ];
 };
 
 export const getUnitUniqueId = (unit: InsightUnit): string => {

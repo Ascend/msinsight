@@ -23,6 +23,7 @@
 #include <memory>
 #include <shared_mutex>
 #include <atomic>
+#include <functional>
 #include "vector"
 #include "condition_variable"
 #include "GlobalDefs.h"
@@ -68,6 +69,7 @@ class ParserStatusManager {
     std::pair<ProjectTypeEnum, std::vector<std::string>> QueryPendingFilePath(const std::string &fileId);
 
     void WaitStartParse();
+    bool WaitStartParse(const std::function<bool()> &cancelled);
 
     void NotifyStartParse();
 

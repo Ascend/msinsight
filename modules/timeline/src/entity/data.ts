@@ -872,8 +872,11 @@ export interface CardMetaData extends MetaDataBase {
     cluster: string;
     cardName: string;
     cardPath: string;
+    host?: string;
     label?: string;
     isFtrace?: boolean;
+    isFullDb?: boolean;
+    ftraceCapabilities?: string[];
 }
 
 export interface HostMetaData extends MetaDataBase {

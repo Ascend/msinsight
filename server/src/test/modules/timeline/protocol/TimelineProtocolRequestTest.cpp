@@ -513,10 +513,12 @@ TEST_F(TimelineProtocolRequestTest, SystemViewFtraceStatParams_CheckParams) {
     params.orderBy = "running_ns; DROP TABLE";
     EXPECT_FALSE(params.CheckParams(warnMsg));
 
-    // filter value 包含 SQL 注入 → 拒绝
+    // 筛选值使用绑定参数，完整名称中的引号和 SQL 文本都是普通字符串。
     params.orderBy = "running_ns";
     params.filters = {{"comm", "bash; DROP TABLE"}};
-    EXPECT_FALSE(params.CheckParams(warnMsg));
+    EXPECT_TRUE(params.CheckParams(warnMsg));
+    params.filters = {{"comm", "a'b"}};
+    EXPECT_TRUE(params.CheckParams(warnMsg));
 
     // filter columnName 包含非法字符 → 拒绝
     params.filters = {{"comm; DROP", "bash"}};

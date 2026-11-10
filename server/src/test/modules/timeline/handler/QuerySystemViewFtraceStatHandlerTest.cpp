@@ -101,4 +101,19 @@ TEST_F(QuerySystemViewFtraceStatHandlerTest, RejectsMissingDatabaseAndNonTextDat
     EXPECT_FALSE(handler.HandleRequest(Request(path)));
     ExpectFailure<Protocol::SystemViewFtraceStatResponse>(ErrorCode::CONNECT_DATABASE_FAILED);
 }
+
+TEST_F(QuerySystemViewFtraceStatHandlerTest, UnknownInterruptContextUsesMinusOneRatherThanIdlePid) {
+    const auto path = AddDatabase("unknown-irq");
+    auto db = std::dynamic_pointer_cast<TextTraceDatabase>(
+        DataBaseManager::Instance().GetTraceDatabaseByRankId("unknown-irq"));
+    ASSERT_NE(db, nullptr);
+    ASSERT_TRUE(db->CreateTraceTaskSummaryTable());
+    ASSERT_TRUE(db->ExecSql("INSERT INTO trace_task_summary(comm,pid,cpu_id) VALUES('Unknown',-1,8)"));
+    QuerySystemViewFtraceStatHandler handler;
+    ASSERT_TRUE(handler.HandleRequest(Request(path)));
+    const auto *response = session->Get<Protocol::SystemViewFtraceStatResponse>();
+    ASSERT_NE(response, nullptr);
+    ASSERT_EQ(response->data.size(), 1u);
+    EXPECT_EQ(response->data[0].at("pid"), "-1");
+}
 } // namespace Dic::Module::Timeline::Test

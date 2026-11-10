@@ -40,6 +40,8 @@ import { TIME_MAKER_DEFAULT } from '../entity/timeMaker';
 import { MAX_INITIAL_DURATION } from '../entity/domain';
 import { mergeUnitsWhenLoadProject } from '../actions/actionMergeUnits';
 import { buildBaselineCardMetadata, type TimelineCard } from './baseline';
+import { normalizeFtraceCapabilities } from '../utils/ftraceCapabilities';
+import { isMsprofFtraceCard } from '../utils/msprofFtraceLayout';
 
 const DEFAULT_EXPAND_UNIT_NUMBER = 1;
 const MAX_PARSE_SIZE = 32;
@@ -81,7 +83,8 @@ const updateKernelMfuClusterContext = (data: KernelMfuPageNotification): void =>
     });
 };
 
-function updateRankDbPathMap(rankList: RankInfo[], dbPath: string, isFtrace?: boolean): void {
+function updateRankDbPathMap(rankList: RankInfo[], dbPath: string, isFtrace?: boolean,
+    ftraceCapabilities?: string[], isFullDb?: boolean): void {
     const { sessionStore } = store;
     const session = sessionStore.activeSession;
     runInAction(() => {
@@ -89,7 +92,10 @@ function updateRankDbPathMap(rankList: RankInfo[], dbPath: string, isFtrace?: bo
             return;
         }
         rankList.forEach((rankInfo) => {
-            session.rankCardInfoMap.set(getRankInfoKey(rankInfo), { rankInfo, dbPath, isFtrace });
+            const key = isMsprofFtraceCard(rankInfo)
+                ? JSON.stringify(['msprof-ftrace', rankInfo.rankId, dbPath])
+                : getRankInfoKey(rankInfo);
+            session.rankCardInfoMap.set(key, { rankInfo, dbPath, isFtrace, ftraceCapabilities, isFullDb });
         });
     });
 }
@@ -148,11 +154,13 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
         // 第一次 parse/success 返回时，更新 isRL 字段
         session.rankCardInfoMap.size === 0 && connector.send({ event: 'updateSession', body: { isRL: data.isRl } });
         const isFtrace = unitData.isFtrace === true;
+        const isFullDb = unitData.isFullDb === true;
+        const ftraceCapabilities = normalizeFtraceCapabilities(unitData.ftraceCapabilities);
         // 更新排名数据库路径映射
-        updateRankDbPathMap(unitData.rankList ?? [], unitData.dbPath, isFtrace);
+        updateRankDbPathMap(unitData.rankList ?? [], unitData.dbPath, isFtrace, ftraceCapabilities, isFullDb);
         runInAction(() => {
             // 更新会话的 isFullDb 和 startTime 属性
-            session.isFullDb = unitData.isFullDb;
+            session.isFullDb = Array.from(session.rankCardInfoMap.values()).some(info => info.isFullDb === true);
             session.startTime = unitData.startTime;
             if (isFtrace) {
                 session.hasFtraceData = true;
@@ -173,6 +181,8 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
                     // 更新数据库路径和标签
                     updateDbPathAndLabelForCardUnit(unit, unitData);
                     (unit.metadata as CardMetaData).isFtrace = isFtrace;
+                    (unit.metadata as CardMetaData).isFullDb = isFullDb;
+                    (unit.metadata as CardMetaData).ftraceCapabilities = ftraceCapabilities;
                     // 更新卡默认对齐时间，并仅补充缺失的 Host/Device 偏移量
                     unit.alignStartTimestamp = unitData.offset as number;
                     const nextOffset = initializeCardOffsets(
@@ -276,6 +286,17 @@ export const parseFailHandler: NotificationHandler = (data): void => {
         if (failedUnit) {
             failedUnit.isWaitingParseSuccessEvent = false;
             failedUnit.isParseLoading = false;
+            const metadata = failedUnit.metadata as CardMetaData;
+            const hasPreviousMsprofResult = failedUnit.phase === 'download' && metadata.isFtrace === true &&
+                metadata.ftraceCapabilities !== undefined &&
+                ((data as any).dbPath === undefined || (data as any).dbPath === metadata.dbPath) &&
+                Array.from(session.rankCardInfoMap.values()).some(info =>
+                    info.rankInfo.rankId === metadata.cardId && info.dbPath === metadata.dbPath &&
+                    info.isFtrace === true && info.ftraceCapabilities !== undefined,
+                );
+            if (hasPreviousMsprofResult) {
+                return;
+            }
         }
         setUnitPhaseByCardId((data as any).rankId, session, 'error');
     });
@@ -286,7 +307,7 @@ const getRootUnit = (session: Session, host: string, dataSource: DataSource): In
     if (isEmpty(host)) {
         return undefined;
     }
-    const insightUnit = session.units.find(unit => (unit.metadata as CardMetaData)?.cardId.includes(host))?.parent;
+    const insightUnit = session.units.map(unit => unit.parent).find(parent => parent?.metadata.host === host);
     return insightUnit !== undefined ? insightUnit : new ROOT_UNIT({ dataSource, host });
 };
 
@@ -325,7 +346,7 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
     }
     initUnitSessionInfo(session, result, dataSource);
     // 更新 units
-    const hostInfo = groupBy(result.result, (item: ImportCardInfo) => item.host ?? '');
+    const hostInfo = groupBy(result.result, (item: ImportCardInfo) => isMsprofFtraceCard(item) ? '' : item.host ?? '');
     forEach(hostInfo, (cards, host) => {
         const unit = getRootUnit(session, host, dataSource);
         const cardUnits: InsightUnit[] = [];
@@ -334,7 +355,12 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
         }
         forEach(cards, (item: ImportCardInfo) => {
             const oldUnit = session.units.find(unitItem => (unitItem.metadata as CardMetaData)?.cardId === item.rankId);
-            if (oldUnit !== undefined) { return; }
+            if (oldUnit !== undefined) {
+                if (isMsprofFtraceCard(item)) {
+                    oldUnit.metadata.host = item.host;
+                }
+                return;
+            }
             const curDataSource = cloneDeep(dataSource);
             curDataSource.dataPath = item.dataPathList;
             const { rankId, dbPath, cluster, cardName, cardPath } = item;
@@ -345,6 +371,7 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
                 cluster,
                 cardName,
                 cardPath,
+                host: item.host,
             }, item.projectType);
             if (item.result as boolean) {
                 cardUnit.isParseLoading = !(result.isPending as boolean);
@@ -369,8 +396,11 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
     }
 
     if (session?.units?.[0]) {
-        session.units[0].isExpanded = true;
-        const rootUnit = getRootUnit(session, session.units[0].metadata.cardId as string, dataSource);
+        const firstUnit = session.units[0];
+        firstUnit.isExpanded = true;
+        const rootUnit = firstUnit.parent ?? (isMsprofFtraceCard(firstUnit.metadata)
+            ? session.units.find(unit => unit.parent !== undefined)?.parent
+            : undefined);
         if (rootUnit) {
             rootUnit.isExpanded = true;
         }
@@ -381,17 +411,23 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
 export const createBaselineCard = (session: Session | undefined, result: TimelineCard[], dataSource: DataSource): void => {
     if (!session) { return; }
     const singleDataPath = dataSource.dataPath[0];
-    const isSamePath = session?.units.some((unit) => {
-        const metadata = unit.metadata as any;
-        if ((metadata.dataSource.dataPath as string[]) === undefined) {
-            return false;
-        }
-        // metadata.dbPath===singleDataPath的判断仅用于npumonitor场景
-        return metadata.dataSource.remote !== dataSource.remote || (metadata.dataSource.dataPath as string[]).includes(singleDataPath) || metadata.dbPath === singleDataPath;
-    });
+    const isFtraceBaseline = result.length > 0 && result.every(item => item.isFtrace === true);
+    const isSamePath = isFtraceBaseline
+        ? result.every(item => session.units.some(unit => {
+            const metadata = unit.metadata as CardMetaData;
+            return metadata.cardId === (item.cardId ?? item.rankId) && metadata.dbPath === item.dbPath;
+        }))
+        : session.units.some((unit) => {
+            const metadata = unit.metadata as any;
+            if ((metadata.dataSource.dataPath as string[]) === undefined) {
+                return false;
+            }
+            // metadata.dbPath===singleDataPath的判断仅用于npumonitor场景
+            return metadata.dataSource.remote !== dataSource.remote || (metadata.dataSource.dataPath as string[]).includes(singleDataPath) || metadata.dbPath === singleDataPath;
+        });
     if (isSamePath) { return; }
     session.phase = 'download';
-    const hostInfo = groupBy(result, (item: TimelineCard) => item.host ?? '');
+    const hostInfo = groupBy(result, (item: TimelineCard) => isMsprofFtraceCard(item) ? '' : item.host ?? '');
     forEach(hostInfo, (cards, host) => {
         const unit = isEmpty(host) ? undefined : new ROOT_UNIT({ dataSource, host });
         const cardUnits: InsightUnit[] = [];
@@ -762,7 +798,7 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
             const dataSource = getPropFromData(data, 'dataSource') as DataSource;
             const singleDataPath = getPropFromData(data, 'singleDataPath') as string;
             const session = store.sessionStore.activeSession as Session;
-            const removeUnits = getRemoveUnits(session, dataSource, singleDataPath);
+            const unitsBeforeRemoval = session.units;
             session.units = session?.units.filter((unit) => {
                 const metadata = unit.metadata as any;
                 if (!((metadata.cardName.startsWith('Baseline')) as boolean)) {
@@ -773,6 +809,7 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
                 }
                 return metadata.dataSource.remote !== dataSource.remote || !(metadata.dataSource.dataPath as string[]).includes(singleDataPath);
             });
+            const removeUnits = unitsBeforeRemoval.filter(unit => !session.units.includes(unit));
             pruneMergedThreadDataForRemovedUnits(session, removeUnits);
             if (session.selectedUnits[0] !== undefined && !session.units.includes(session.selectedUnits[0])) {
                 session.selectedUnits = [];
@@ -791,13 +828,26 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
                     session.remoteAttrs.delete(remote);
                 }
             }
-            session.pinnedUnits = session?.pinnedUnits.filter((unit) => {
-                const metadata = unit.metadata as any;
-                return metadata.dataSource.remote !== dataSource.remote || !(metadata.dataSource.dataPath as string[]).includes(singleDataPath);
-            });
+            // A reused source and its baseline may share an import path. Only unpin removed cards and their lanes.
+            session.pinnedUnits = session.pinnedUnits.filter(unit => !removeUnits.some(removed => {
+                const metadata = unit.metadata as CardMetaData;
+                const removedMetadata = removed.metadata as CardMetaData;
+                return metadata.cardId === removedMetadata.cardId &&
+                    metadata.dataSource.remote === removedMetadata.dataSource.remote;
+            }));
             clearTimeMarkerFlags(session);
             // 取消对比时，删除底部面板Rank ID下拉框对比卡的数据选项
-            for (const [key] of session.rankCardInfoMap) {
+            for (const [key, info] of session.rankCardInfoMap) {
+                if (session.baselineCardInfo?.isFtrace) {
+                    if (info.rankInfo.rankId === session.baselineCardInfo.rankId &&
+                        info.dbPath === session.baselineCardInfo.dbPath) {
+                        session.rankCardInfoMap.delete(key);
+                    }
+                    continue;
+                }
+                if (!session.baselineCardInfo && isMsprofFtraceCard(info.rankInfo)) {
+                    continue;
+                }
                 // text数据比对情形，基线卡显式含有"Baseline"
                 if (!session.isFullDb) {
                     if (key.includes('_Baseline')) {

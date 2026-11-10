@@ -17,6 +17,7 @@
  */
 
 import { observer } from 'mobx-react';
+import { isFullDbCard } from '../../utils/cardDataType';
 import React from 'react';
 import {
     queryOneKernel,
@@ -115,7 +116,7 @@ export const handleAdvisorSelected = async (rowData: BaseSummaryRowItemType, pro
 
     jumpToUnitOperator({
         ...rowData,
-        id: props.session.isFullDb as boolean ? rowData.id : res.id,
+        id: isFullDbCard(props.session, { cardId: rowData.rankId, dbPath: rowData.dbPath }) ? rowData.id : res.id,
         cardId: rowData.rankId,
         dbPath: rowData.dbPath,
         timestamp: rowData.startTime,

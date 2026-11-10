@@ -87,9 +87,14 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
         handleClusterCompare({ projectName, fileType, filePath, ...result } as CompareData);
     } else {
         const { rankId: resultRankId, cardId: resultCardId, dbPath, cardName, host, isFtrace } = result as CompareData;
+        const resolvedCardId = typeof resultCardId === 'string' && resultCardId.trim() !== '' ? resultCardId : resultRankId;
+        if (typeof resolvedCardId !== 'string' || resolvedCardId.trim() === '') {
+            Message.warning(i18n.t('FileCheckFailedDescribe', { ns: 'framework' }));
+            return;
+        }
         const timelineCard: TimelineCard = {
             rankId: resultRankId,
-            cardId: resultCardId ?? resultRankId,
+            cardId: resolvedCardId,
             dbPath,
             result: true,
             cardName: cardName ?? '',

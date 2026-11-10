@@ -63,6 +63,10 @@ class DataBaseManager {
     bool CreateTraceConnectionPool(const std::string &rankId, const std::string &dbPath);
     bool CreateDerivedTraceConnectionPool(
         const std::string &fileId, const std::string &dbPath, bool sharedMemory = false);
+    bool PublishDerivedTextTraceConnectionPool(
+        const std::string &fileId, const std::string &rankId, const std::string &dbPath);
+    bool AliasDerivedTextTraceConnectionPool(
+        const std::string &aliasFileId, const std::string &aliasRankId, const std::string &existingFileId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByRankId(const std::string &rankId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByFileId(const std::string &fileId);
     // A stable, non-owning source identity for caches. Unlike a leased connection,
@@ -170,6 +174,7 @@ class DataBaseManager {
     std::map<HostId, std::vector<DbPath>> host2DbPath;
     std::unordered_set<std::string> databasePathSet;
     std::map<FileId, std::shared_ptr<DBConnectionPool<VirtualTraceDatabase>>> traceDatabaseMap;
+    std::set<FileId> derivedTextFileIds;
     std::map<ClusterDbPath, std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> clusterDatabaseMap;
     std::map<FileId, std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailDatabaseMap;
     std::map<FileId, CommunicationDetailSourceMode> communicationDetailSourceModeMap;

@@ -61,6 +61,7 @@ class ProjectParserBase {
     static void ParsePostProcess(const std::vector<std::shared_ptr<ParseFileInfo>> &clusterInfos);
     static bool ParseHeatMapToCluster(const std::vector<std::shared_ptr<ParseFileInfo>> &clusterInfos);
     static void SendAllParseSuccess();
+    static void SendAllParseSuccessIfReady();
     static bool CheckIsOpenClusterTag(
         ProjectActionEnum action, ProjectTypeEnum curType, const std::string &projectName);
     static bool IsParsedFile(const std::string &file);

@@ -102,6 +102,7 @@ include_directories(${SRC_HOME_DIR}/modules/full_db/ProjectParse)
 include_directories(${SRC_HOME_DIR}/modules/full_db/ProjectParse/ProjectChecker)
 include_directories(${SRC_HOME_DIR}/modules/full_db/ParseUnit)
 include_directories(${SRC_HOME_DIR}/modules/full_db/database)
+include_directories(${SRC_HOME_DIR}/modules/full_db/ftrace)
 # advisor
 include_directories(${SRC_HOME_DIR}/modules/advisor)
 include_directories(${SRC_HOME_DIR}/modules/advisor/handler)
@@ -202,6 +203,7 @@ aux_source_directory(${SRC_HOME_DIR}/modules/source/core DIC_MODULES_SOURCE_CORE
 aux_source_directory(${SRC_HOME_DIR}/modules/full_db  DIC_MODULES_FULL_DB_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/full_db/ProjectParse  DIC_MODULES_FULL_DB_PARSER_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/full_db/database  DIC_MODULES_FULL_DB_DATABASE_SRC)
+aux_source_directory(${SRC_HOME_DIR}/modules/full_db/ftrace DIC_MODULES_FULL_DB_FTRACE_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/full_db/ProjectParse/ProjectChecker DIC_MODULES_FULL_DB_PARSER_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/full_db/ParseUnit DIC_MODULES_FULL_DB_PARSER_UNIT_SRC)
 
@@ -321,6 +323,7 @@ list(APPEND DIC_MODULES_SRC_LIST
         ${DIC_MODULES_FULL_DB_PARSER_SRC}
         ${DIC_MODULES_FULL_DB_PARSER_UNIT_SRC}
         ${DIC_MODULES_FULL_DB_DATABASE_SRC}
+        ${DIC_MODULES_FULL_DB_FTRACE_SRC}
         ${DIC_MODULES_SOURCE_SRC}
         ${DIC_MODULES_SOURCE_PARSER_SRC}
         ${DIC_MODULES_SOURCE_HANDLER_SRC}

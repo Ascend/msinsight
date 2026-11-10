@@ -55,7 +55,7 @@ bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::R
         std::unordered_map<std::string, std::string> row;
         row["cpu"] = std::to_string(data.cpuId);
         row["comm"] = data.comm;
-        row["pid"] = std::to_string(data.pid);
+        row["pid"] = data.pid == UINT64_MAX ? "-1" : std::to_string(data.pid);
         row["runnable"] = std::to_string(data.runnableNs);
         row["running"] = std::to_string(data.runningNs);
         row["sleeping"] = std::to_string(data.sleepingNs);

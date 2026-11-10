@@ -22,6 +22,7 @@
 #include "DbPlatformDataBase.h"
 #include "JsonFileParserManager.h"
 #include "ParseCardsHandler.h"
+#include "MsprofFtraceImportService.h"
 
 namespace Dic::Module::Timeline {
 using namespace Dic;
@@ -31,6 +32,17 @@ bool Dic::Module::Timeline::ParseCardsHandler::HandleRequest(std::unique_ptr<Pro
     std::set<std::string> scheduledCards;
     for (size_t i = 0; i < request.params.cards.size() && i < request.params.fileIds.size(); i++) {
         const std::string &item = request.params.cards[i];
+        auto &ftraceService = FullDb::MsprofFtraceImportService::Instance();
+        auto resource = ftraceService.GetResource(item);
+        if (!resource) {
+            resource = ftraceService.GetResource(request.params.fileIds[i]);
+        }
+        if (resource) {
+            if (scheduledCards.emplace(resource->rankId).second) {
+                ftraceService.Schedule(resource->sourceFileId);
+            }
+            continue;
+        }
         const std::string parseRankId = FullDb::GetTraceRankIdFromEmbeddedPlatformRankId(item);
         if (!scheduledCards.emplace(parseRankId).second) {
             continue;

@@ -289,7 +289,7 @@ bool SystemViewFtraceStatParams::CheckParams(std::string &warnMsg) const {
         return false;
     }
     for (const auto &filter : filters) {
-        if (!StringUtil::CheckSqlValid(filter.first) || !StringUtil::CheckSqlValid(filter.second)) {
+        if (!StringUtil::CheckSqlValid(filter.first)) {
             warnMsg = "filters contain invalid string value for ftrace stat.";
             return false;
         }

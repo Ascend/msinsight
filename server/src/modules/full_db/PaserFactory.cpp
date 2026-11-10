@@ -53,6 +53,7 @@
 #include "ProjectParserFtrace.h"
 #include "ProjectParserPytorchTrace.h"
 #include "DbPlatformDataBase.h"
+#include "MsprofFtraceImportService.h"
 
 // clang-format off
 namespace Dic::Module {
@@ -302,7 +303,11 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
     event->body.isRl = !mstxSliceList.empty();
     event->body.rankList = TrackInfoManager::Instance().GetRankListByFileId(fileId, rankId);
     SearchMetaData(rankId, fileId, event->body.unit.children);
-    event->body.isFtrace = IsFtraceDbPath(fileId) || IsFtraceUnit(event->body.unit);
+    const bool msprofFtrace = FullDb::MsprofFtraceImportService::Instance().IsResource(fileId);
+    event->body.isFtrace = msprofFtrace || IsFtraceDbPath(fileId) || IsFtraceUnit(event->body.unit);
+    if (msprofFtrace) {
+        event->body.ftraceCapabilities = FullDb::MsprofFtraceImportService::Instance().GetCapabilities(fileId);
+    }
     SearchGroupedAscendHardwareThreads(fileId, event->body.unit, event->body.threadGroupList);
     SendEvent(std::move(event));
 }
@@ -758,6 +763,14 @@ void ProjectParserBase::SendAllParseSuccess() {
 #endif
         sleepTime = std::min(sleepTime * 2, maxSleepTimeMs);
         std::this_thread::sleep_for(std::chrono::milliseconds(sleepTime));
+    }
+    SendAllParseSuccessIfReady();
+}
+
+void ProjectParserBase::SendAllParseSuccessIfReady() {
+    std::string notFinishTask;
+    if (!ParserStatusManager::Instance().IsAllFinished(notFinishTask)) {
+        return;
     }
     ServerLog::Info("Send all parse finished");
     auto event = std::make_unique<AllSuccessEvent>();

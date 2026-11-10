@@ -25,6 +25,19 @@ class TraceTimeTest : public ::testing::Test {
     void TearDown() override { TraceTime::Instance().Reset(); }
 };
 
+TEST_F(TraceTimeTest, RemovingDerivedCardPreservesMainCardAndPinnedBaselineTiming) {
+    auto &time = TraceTime::Instance();
+    time.UpdateCardTimeDuration("main", 100, 200);
+    time.UpdateCardTimeDuration("kernel", 80, 240);
+    time.UpdateCardTimeDuration("baseline-alias", 60, 260);
+    time.RemoveCard("kernel");
+    EXPECT_EQ(time.GetStartTime(), 60u);
+    EXPECT_EQ(time.GetDuration(), 200u);
+    time.RemoveCard("baseline-alias");
+    EXPECT_EQ(time.GetStartTime(), 100u);
+    EXPECT_EQ(time.GetDuration(), 100u);
+}
+
 /**
  * 测试单卡情况
  */

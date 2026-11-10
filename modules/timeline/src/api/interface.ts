@@ -39,6 +39,8 @@ export interface CardRankInfo {
     dbPath: string;
     index?: number;
     isFtrace?: boolean;
+    isFullDb?: boolean;
+    ftraceCapabilities?: string[];
 }
 
 export interface KernelMfuListParams extends PaginationParams {

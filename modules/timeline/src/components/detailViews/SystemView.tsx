@@ -34,6 +34,7 @@ import {
 import { ResizeTable } from '@insight/lib/resize';
 import { limitInput, StyledEmpty, GroupCardRankInfosByHost, getRankInfoLabel } from '@insight/lib/utils';
 import type { CardMetaData } from '../../entity/data';
+import { canShowFtraceTaskSummary } from '../../utils/ftraceCapabilities';
 import { ChartErrorBoundary } from '../error/ChartErrorBoundary';
 import { getTimeOffset } from '../../insight/units/utils';
 import { getDetailTimeDisplay } from '../../insight/units/AscendUnit';
@@ -164,7 +165,7 @@ const findRankCardInfo = (session: Session, card: SelectedCardInfo): CardRankInf
 const isRequestCardTypeMismatch = (session: Session, card: SelectedCardInfo, isFtrace: boolean): boolean => {
     const rankCardInfo = findRankCardInfo(session, card);
     if (isFtrace) {
-        return rankCardInfo?.isFtrace !== true;
+        return !canShowFtraceTaskSummary(rankCardInfo);
     }
     return rankCardInfo?.isFtrace === true;
 };
@@ -264,6 +265,7 @@ export const RankFilter = observer((props: {
     const [hostCondition, setHostCondition] = useState<HostConditionType>({ options: [], value: '' });
     const { t } = useTranslation('timeline');
     const excludeFtraceRank = props.excludeFtraceRank ?? false;
+    const rankCardSignature = JSON.stringify(Array.from(props.session.rankCardInfoMap.values()));
 
     useEffect(() => {
         const cardList: CardRankInfo[] = [];
@@ -271,7 +273,7 @@ export const RankFilter = observer((props: {
             if (v.rankInfo.rankId.endsWith('Host')) {
                 continue;
             }
-            if (props.isFtraceRankOnly && v.isFtrace !== true) {
+            if (props.isFtraceRankOnly && !canShowFtraceTaskSummary(v)) {
                 continue;
             }
             if (excludeFtraceRank && v.isFtrace === true) {
@@ -296,7 +298,7 @@ export const RankFilter = observer((props: {
             }
         }
         setHostCondition({ options: hosts, value: initialHost, cardsMap });
-    }, [props.session.rankCardInfoMap.size, props.defaultRankId, props.isFtraceRankOnly, excludeFtraceRank]);
+    }, [rankCardSignature, props.defaultRankId, props.isFtraceRankOnly, excludeFtraceRank]);
 
     useEffect(() => {
         const rankOptions = hostCondition.cardsMap?.get(hostCondition.value) ?? [];
@@ -365,6 +367,7 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
     const [selectedKey, setSelectedKey] = useState(0);
     const [systemViewItems, setSystemViewItems] = useState<SystemViewItem[]>([]);
     const { t } = useTranslation('timeline', { keyPrefix: 'systemView' });
+    const rankCardSignature = JSON.stringify(Array.from(props.session.rankCardInfoMap.values()));
     const handleClick = (key: number): void => {
         props.setKey(key);
         setSelectedKey(key);
@@ -387,10 +390,12 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
             systemViewItems,
             props.session.hasFtraceData,
             props.session.hasNonFtraceData,
+            Array.from(props.session.rankCardInfoMap.values()).some(canShowFtraceTaskSummary),
         );
     }, [
         props.session.hasFtraceData,
         props.session.hasNonFtraceData,
+        rankCardSignature,
         props.viewOption,
         systemViewItems,
     ]);

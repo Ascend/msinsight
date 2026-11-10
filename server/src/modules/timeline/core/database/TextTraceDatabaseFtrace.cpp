@@ -73,8 +73,10 @@ bool TextTraceDatabase::CreateTraceTaskSummaryTable() {
 
 bool TextTraceDatabase::InsertTraceTaskSummary(const TraceTaskSummaryData &data) {
     traceTaskSummaryCache.emplace_back(data);
-    if (traceTaskSummaryCache.size() == CACHE_SIZE) {
-        InsertTraceTaskSummaryList(traceTaskSummaryCache);
+    if (traceTaskSummaryCache.size() >= CACHE_SIZE) {
+        if (!InsertTraceTaskSummaryList(traceTaskSummaryCache)) {
+            return false;
+        }
         traceTaskSummaryCache.clear();
     }
     return true;
@@ -156,8 +158,26 @@ bool TextTraceDatabase::CreateTraceIrqDetailTable() {
 
 bool TextTraceDatabase::InsertTraceIrqDetail(const TraceIrqDetailData &data) {
     traceIrqDetailCache.emplace_back(data);
-    if (traceIrqDetailCache.size() == CACHE_SIZE) {
-        InsertTraceIrqDetailList(traceIrqDetailCache);
+    if (traceIrqDetailCache.size() >= CACHE_SIZE) {
+        if (!InsertTraceIrqDetailList(traceIrqDetailCache)) {
+            return false;
+        }
+        traceIrqDetailCache.clear();
+    }
+    return true;
+}
+
+bool TextTraceDatabase::CommitTraceStatisticsChecked() {
+    if (!traceTaskSummaryCache.empty()) {
+        if (!InsertTraceTaskSummaryList(traceTaskSummaryCache)) {
+            return false;
+        }
+        traceTaskSummaryCache.clear();
+    }
+    if (!traceIrqDetailCache.empty()) {
+        if (!InsertTraceIrqDetailList(traceIrqDetailCache)) {
+            return false;
+        }
         traceIrqDetailCache.clear();
     }
     return true;
@@ -286,7 +306,8 @@ TraceIrqDetailResult TextTraceDatabase::QueryTraceIrqDetail(
 
 // ==================== Handler 查询方法（纯单表 SELECT，无 JOIN）====================
 
-static void AppendFtraceFilter(std::string &sql, const std::string &columnName, const std::string &value) {
+static void AppendFtraceFilter(
+    std::string &sql, std::vector<std::string> &patterns, const std::string &columnName, const std::string &value) {
     std::string sqlColumn;
     if (columnName == "cpu") {
         sqlColumn = "CAST(cpu_id AS TEXT)";
@@ -300,7 +321,16 @@ static void AppendFtraceFilter(std::string &sql, const std::string &columnName, 
     if (!sql.empty()) {
         sql += " AND ";
     }
-    sql += sqlColumn + " LIKE '%" + value + "%'";
+    sql += sqlColumn + " LIKE ?";
+    patterns.emplace_back("%" + value + "%");
+}
+
+static int BindFtraceFilters(sqlite3_stmt *stmt, const std::vector<std::string> &patterns) {
+    int bindIndex = 1;
+    for (const auto &pattern : patterns) {
+        sqlite3_bind_text(stmt, bindIndex++, pattern.data(), static_cast<int>(pattern.size()), SQLITE_TRANSIENT);
+    }
+    return bindIndex;
 }
 
 std::vector<TraceTaskSummaryData> TextTraceDatabase::QueryTraceTaskSummary(
@@ -314,8 +344,9 @@ std::vector<TraceTaskSummaryData> TextTraceDatabase::QueryTraceTaskSummary(
 
     // 拼接 WHERE 子句
     std::string whereClause;
+    std::vector<std::string> patterns;
     for (const auto &filter : params.filters) {
-        AppendFtraceFilter(whereClause, filter.first, filter.second);
+        AppendFtraceFilter(whereClause, patterns, filter.first, filter.second);
     }
     if (!whereClause.empty()) {
         whereClause = " WHERE " + whereClause;
@@ -343,6 +374,7 @@ std::vector<TraceTaskSummaryData> TextTraceDatabase::QueryTraceTaskSummary(
             sqlite3_finalize(stmt);
             return result;
         }
+        BindFtraceFilters(stmt, patterns);
         if (sqlite3_step(stmt) == SQLITE_ROW) {
             totalCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0));
         }
@@ -357,7 +389,7 @@ std::vector<TraceTaskSummaryData> TextTraceDatabase::QueryTraceTaskSummary(
             return result;
         }
 
-        int bindIndex = bindStartIndex;
+        int bindIndex = BindFtraceFilters(stmt, patterns);
         sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(limit));
         sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(offset));
 
@@ -403,7 +435,8 @@ bool TextTraceDatabase::AggregateIrqToTaskSummary() {
     }
 
     int updatedCount = 0;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    int step = SQLITE_DONE;
+    while ((step = sqlite3_step(stmt)) == SQLITE_ROW) {
         std::string comm = sqlite3_column_string(stmt, 0);
         int64_t pid = sqlite3_column_int64(stmt, 1);
         int32_t cpuId = static_cast<int32_t>(sqlite3_column_int64(stmt, 2));
@@ -429,13 +462,20 @@ bool TextTraceDatabase::AggregateIrqToTaskSummary() {
         sqlite3_bind_int64(updateStmt, 5, static_cast<int64_t>(cpuId));
 
         if (sqlite3_step(updateStmt) != SQLITE_DONE) {
-            ServerLog::Warn("Failed to update IRQ aggregate for comm=", comm, " pid=", pid, " cpu_id=", cpuId);
-        } else {
-            updatedCount++;
+            ServerLog::Error("Failed to update IRQ aggregate for comm=", comm, " pid=", pid, " cpu_id=", cpuId);
+            sqlite3_finalize(updateStmt);
+            sqlite3_finalize(stmt);
+            return false;
         }
+        updatedCount++;
         sqlite3_finalize(updateStmt);
     }
 
+    if (step != SQLITE_DONE) {
+        ServerLog::Error("Failed to read IRQ aggregates: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
     sqlite3_finalize(stmt);
     ServerLog::Info("IRQ aggregation complete. Updated ", updatedCount, " rows in trace_task_summary.");
     return true;

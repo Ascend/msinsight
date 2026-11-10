@@ -185,6 +185,7 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     bool CreateTraceIrqDetailTable();
     bool InsertTraceTaskSummary(const TraceTaskSummaryData &data);
     bool InsertTraceIrqDetail(const TraceIrqDetailData &data);
+    bool CommitTraceStatisticsChecked();
     bool UpdateTraceTaskSummaryCsCount(
         const std::string &comm, uint64_t pid, int32_t cpuId, uint64_t csCount, uint64_t csInvoluntaryCount);
 

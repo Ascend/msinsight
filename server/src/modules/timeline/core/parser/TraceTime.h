@@ -41,6 +41,7 @@ class TraceTime {
   public:
     static TraceTime &Instance();
     void Reset();
+    void RemoveCard(const std::string &fileId);
     void UpdateTime(uint64_t min, uint64_t max);
     void UpdateCardTimeDuration(const std::string &fileId, uint64_t min, uint64_t max);
     std::vector<std::pair<std::string, uint64_t>> ComputeCardMinTimeInfo();
