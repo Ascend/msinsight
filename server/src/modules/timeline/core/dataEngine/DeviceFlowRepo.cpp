@@ -18,6 +18,7 @@
 #include "TrackInfoManager.h"
 #include "NumberSafeUtil.h"
 #include "DeviceFlowRepo.h"
+#include "StringIdsTable.h"
 namespace Dic::Module::Timeline {
 void DeviceFlowRepo::AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     // task_info表中opId和globalTaskId的映射
@@ -28,6 +29,96 @@ void DeviceFlowRepo::AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<
     std::unordered_set<int64_t> hcclConnectionIdSet =
         AddGroupHcclFlowPoint(flowQuery, flowPointVec, opIdMap, deviceMap, host);
     AddHardWareFlowPoint(flowQuery, flowPointVec, host, hcclConnectionIdSet);
+}
+
+std::vector<TaskPO> DeviceFlowRepo::QueryModelExecuteTasks(const FlowQuery &flowQuery) {
+    // 类型编号随数据变化，按名称查编号，不能硬编码样例中的 taskType 数字。
+    StringIdsTable stringIdsTable;
+    std::vector<StringIdsPO> types;
+    stringIdsTable.Select(StringIdsColumn::ID)
+        .Eq(StringIdsColumn::VALUE, "MODEL_EXECUTE")
+        .ExcuteQuery(flowQuery.fileId, types);
+    std::vector<uint64_t> typeIds;
+    for (const auto &type : types) {
+        typeIds.emplace_back(type.id);
+    }
+    std::vector<TaskPO> tasks;
+    if (typeIds.empty()) {
+        return tasks;
+    }
+    taskTable->Select(TaskColumn::ROW_ID, TaskColumn::TIMESTAMP, TaskColumn::CONNECTION_ID)
+        .Select(TaskColumn::STREAM_ID, TaskColumn::DECICED_ID, TaskColumn::DEPTH, TaskColumn::GLOBAL_PID)
+        .In(TaskColumn::TASK_TYPE, typeIds)
+        .NotEq(TaskColumn::CONNECTION_ID, std::string("-1"))
+        .NotEq(TaskColumn::CONNECTION_ID, static_cast<uint64_t>(UINT32_MAX))
+        .GreaterEq(TaskColumn::TIMESTAMP, flowQuery.minTimestamp)
+        .ExcuteQuery(flowQuery.fileId, tasks);
+    return tasks;
+}
+
+void DeviceFlowRepo::AddModelExecuteFlowPoint(const FlowQuery &flowQuery, const std::vector<TaskPO> &tasks,
+    const std::unordered_map<int64_t, uint64_t> &hostProcesses, std::vector<FlowPoint> &flowPointVec) {
+    if (hostProcesses.empty()) {
+        return;
+    }
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(flowQuery.fileId);
+    if (database == nullptr) {
+        return;
+    }
+    // Hardware 将关联 MSTX 的任务展示在 stream_domain 泳道。一次查询匹配到的号码，避免逐任务查库。
+    std::string connectionIds;
+    for (const auto &entry : hostProcesses) {
+        if (!connectionIds.empty()) {
+            connectionIds += ",";
+        }
+        connectionIds += std::to_string(entry.first);
+    }
+    auto stmt = database->CreatPreparedStatement(
+        "SELECT DISTINCT connectionId, domainId FROM MSTX_EVENTS WHERE connectionId IN (" + connectionIds + ")");
+    auto result = stmt == nullptr ? nullptr : stmt->ExecuteQuery();
+    if (result == nullptr) {
+        ServerLog::Warn("Failed to query MSTX domains for Graph flow endpoints.");
+        return;
+    }
+    std::unordered_map<int64_t, std::vector<std::string>> domainsByConnection;
+    while (result->Next()) {
+        const auto domain = result->GetString("domainId");
+        auto &domains = domainsByConnection[result->GetInt64("connectionId")];
+        // "0" 是有效 domain；已有标记却无有效 domain 时，不伪造已被 Hardware 排除的普通泳道。
+        if (!domain.empty()) {
+            domains.emplace_back(domain);
+        }
+    }
+    // 只为匹配到 Host 起点的同进程任务生成终点，避免无起点的孤立连线。
+    const std::string host = hostInfoTable->GetHost(flowQuery.fileId);
+    auto &instance = TrackInfoManager::Instance();
+    for (const auto &task : tasks) {
+        const auto process = hostProcesses.find(task.connectionId);
+        if (process == hostProcesses.end() || process->second != task.globalPid) {
+            continue;
+        }
+        const std::string rankId = host + instance.GetRankId(host, std::to_string(task.deviceId));
+        const std::string streamId = std::to_string(task.streamId);
+        const auto appendPoint = [&](const std::string &threadId) {
+            FlowPoint point;
+            point.type = "f";
+            point.flowId = std::to_string(task.connectionId);
+            point.id = task.id;
+            point.timestamp = task.timestamp - flowQuery.minTimestamp;
+            point.rankId = rankId;
+            point.trackId = instance.GetTrackId(rankId, hardWarePid, threadId);
+            point.depth = task.depth;
+            flowPointVec.emplace_back(std::move(point));
+        };
+        const auto domains = domainsByConnection.find(task.connectionId);
+        if (domains == domainsByConnection.end()) {
+            appendPoint(streamId);
+        } else {
+            for (const auto &domain : domains->second) {
+                appendPoint(streamId + "_" + domain);
+            }
+        }
+    }
 }
 
 void DeviceFlowRepo::AddHardWareMstxFlowPoint(

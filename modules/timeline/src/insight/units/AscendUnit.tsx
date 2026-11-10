@@ -412,7 +412,8 @@ function isSameUnit(selectedMeta?: SelectedDataType, currentMeta?: ThreadMetaDat
  * @param flow
  * @param referFlow
  */
-export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow: { rankId: string; dbPath: string }): void {
+export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow: { rankId: string; dbPath: string },
+    preserveFlowCategory = false): void {
     const normalizedFlow = normalizeFlowEventSource(flow, referFlow, true);
     flow.from = normalizedFlow.from;
     flow.to = normalizedFlow.to;
@@ -420,8 +421,11 @@ export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow:
         const mKey = getFlowPointIdentity(flow[lineType]);
         const mVal = (session.mapOfLinkLines.get(mKey) ?? { cat: flow.cat, from: [], to: [], current: flow[lineType] }) as MapValueOfLinkLines;
         const attr = lineType === 'from' ? 'to' : 'from';
-        if (!mVal[attr].find(item => getFlowPointIdentity(item) === getFlowPointIdentity(flow[attr]))) {
-            mVal[attr].push(flow[attr]);
+        const targetKey = getFlowPointIdentity(flow[attr]);
+        // 仅 DB Graph 混合响应按边保存类别；JSON 和其他响应保持原端点去重及菜单语义。
+        if (!mVal[attr].some(item => (!preserveFlowCategory || (item.flowCategory ?? mVal.cat) === flow.cat) &&
+            getFlowPointIdentity(item) === targetKey)) {
+            mVal[attr].push(preserveFlowCategory ? { ...flow[attr], flowCategory: flow.cat } : flow[attr]);
             session.mapOfLinkLines.set(mKey, mVal);
         }
     };
@@ -432,6 +436,7 @@ export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow:
 interface FlowSourcePoint {
     rankId?: string;
     dbPath?: string;
+    metaType?: string;
 }
 
 export function normalizeFlowEventSource<T extends { from: FlowSourcePoint; to: FlowSourcePoint }>(
@@ -450,19 +455,27 @@ export function normalizeFlowEventSource<T extends { from: FlowSourcePoint; to: 
 }
 
 export function normalizeCategoryFlowEvent<T extends { from: FlowSourcePoint; to: FlowSourcePoint }>(
-    flow: T, referFlow: { rankId: string; dbPath?: string },
+    flow: T, referFlow: { rankId: string; dbPath?: string }, isDbGraph = false,
 ): T {
-    return normalizeFlowEventSource(flow, referFlow, true);
+    const normalized = normalizeFlowEventSource(flow, referFlow, true);
+    // 全量接口不返回端点类型；只由明确的 DB Graph 查询上下文补充，不按 JSON 类别猜测。
+    if (isDbGraph) {
+        normalized.from.metaType = 'CANN_API';
+    }
+    return normalized;
 }
 
 export function buildSingleLinkLines(session: Session, categoryFlowEvents: FlowItem[],
     referFlow: { rankId: string; dbPath: string }): LinkLines {
     const newLines: LinkLines = {};
+    // JSON 端点由 TEXT 路径标记，不能仅凭类别名称启用 DB 的关联展示规则。
+    const preserveFlowCategory = categoryFlowEvents.some(group => group.cat === 'HostToDevice(Graph)' &&
+        group.flows[0]?.cat === group.cat && group.flows[0]?.from.metaType === 'CANN_API');
     session.mapOfLinkLines.clear();
     for (const categoryFlowEvent of categoryFlowEvents) {
         const singleCatLinkLine: LinkLine = [];
         for (const flow of categoryFlowEvent.flows) {
-            handleLinkLinesMap(session, flow, referFlow);
+            handleLinkLinesMap(session, flow, referFlow, preserveFlowCategory);
             singleCatLinkLine.push({
                 category: flow.cat,
                 cardId: referFlow.rankId,

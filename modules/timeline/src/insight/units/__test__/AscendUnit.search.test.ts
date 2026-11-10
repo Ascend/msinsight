@@ -18,7 +18,7 @@
 
 import { message } from 'antd';
 import type { ChartHandle, Scale, StackStatusConfig, StackStatusData } from '../../../entity/chart';
-import type { LabelMetaData, ThreadMetaData } from '../../../entity/data';
+import { getFlowPointIdentity, type LabelMetaData, type ThreadMetaData } from '../../../entity/data';
 import type { ChartDesc, InsightUnit, SingleDataDesc } from '../../../entity/insight';
 import type { ReactElement } from 'react';
 import type { Theme } from '@emotion/react';
@@ -28,6 +28,8 @@ import { actionAlignByOperatorLeft, actionAlignByOperatorRight } from '../../../
 import { queryTimelineOffset } from '../../../api/request';
 import type { OffsetSide } from '../offset';
 import { renderRadiusBorder } from '../../../components/details/utils';
+import { actionJumpToLinkSlice } from '../../../actions/actionJumpToLinkSlice';
+import jumpToUnitOperator from '../../../utils/jumpToUnitOperator';
 import {
     drawForegroundTargetLayer,
     drawSearchResultLayers,
@@ -75,6 +77,7 @@ jest.mock('../unitFunc', () => ({
 }));
 jest.mock('../config/offsetConfig', () => ({ cardOffsetConfig: jest.fn() }));
 jest.mock('../../../utils/jumpToUnitOperator', () => jest.fn());
+jest.mock('../../../components/ContextMenu', () => ({ CONTEXT_MENU_SEPARATOR: 'separator' }));
 jest.mock('../../../utils/operatorUnit', () => ({ findOperatorUnit: jest.fn() }));
 jest.mock('../../../api/request', () => ({
     getUnitFlows: jest.fn(),
@@ -193,6 +196,100 @@ describe('AscendUnit link line identity', () => {
         expect(session.mapOfLinkLines.size).toBe(2);
         expect(Array.from(session.mapOfLinkLines.values()).every(value => value.current.dbPath === 'profile.text')).toBe(true);
     });
+
+    it.each([false, true])('keeps mixed response menu categories in both directions (Graph first: %s)', graphFirst => {
+        const base = createFlow();
+        const cann = { ...base.from, name: 'aclmdlRIExecuteAsync', tid: '20000', metaType: 'CANN_API' };
+        const hardware = { ...base.to, name: 'MODEL_EXECUTE', tid: '46' };
+        const python = { ...cann, id: 'python', name: 'aten::add', tid: 'pytorch', timestamp: 90, metaType: 'PYTORCH_API' };
+        const communication = { ...hardware, id: 'comm', name: 'hcom', pid: 'HCCL', tid: 'group', timestamp: 250, metaType: 'HCCL' };
+        const relation = (cat: string, from: typeof cann, to: typeof hardware): ReturnType<typeof createFlow> => ({ ...base, cat, from, to });
+        const graph = relation('HostToDevice(Graph)', cann, hardware);
+        const cannComm = relation('HostToDevice', cann, communication);
+        const pythonHardware = relation('async_npu', python, hardware);
+        const pythonComm = relation('async_npu', python, communication);
+        const legacy = [{ cat: 'HostToDevice', flows: [cannComm] }, { cat: 'async_npu', flows: [pythonHardware, pythonComm] }];
+        const graphGroup = { cat: graph.cat, flows: [graph] };
+        const session = { mapOfLinkLines: new Map() } as unknown as Session;
+        const source = { rankId: 'rank0', dbPath: 'mixed.db' };
+        const lines = buildSingleLinkLines(session, graphFirst ? [graphGroup, ...legacy] : [...legacy, graphGroup], source);
+        expect(lines.HostToDevice).toHaveLength(1);
+        expect(lines.async_npu).toHaveLength(2);
+        expect(lines['HostToDevice(Graph)']).toHaveLength(1);
+
+        for (const flow of [cannComm, pythonHardware, pythonComm, graph]) {
+            for (const [selected, target] of [[flow.from, flow.to], [flow.to, flow.from]]) {
+                session.selectedData = {
+                    ...selected, startTime: selected.timestamp, cardId: selected.rankId, processId: selected.pid, threadId: selected.tid,
+                } as SelectedDataType;
+                const expectedLabel = `${target.name}(${flow.cat})`;
+                const matches = actionJumpToLinkSlice.subMenus?.(session).filter(item =>
+                    typeof item === 'object' && item.label === expectedLabel) ?? [];
+                expect(matches).toHaveLength(1);
+                const menu = matches[0];
+                if (typeof menu === 'object') {
+                    menu.perform?.(session);
+                }
+                expect(jumpToUnitOperator).toHaveBeenLastCalledWith({ ...target, cardId: target.rankId });
+            }
+        }
+        expect(graph.from).not.toHaveProperty('flowCategory');
+        expect(graph.to).not.toHaveProperty('flowCategory');
+    });
+
+    it('deduplicates endpoint pairs within a category without merging distinct categories', () => {
+        const session = { mapOfLinkLines: new Map() } as unknown as Session;
+        const ordinary = createFlow();
+        const graph = { ...createFlow(), cat: 'HostToDevice(Graph)' };
+        graph.from.metaType = 'CANN_API';
+        const source = { rankId: 'rank0', dbPath: 'mixed.db' };
+        buildSingleLinkLines(session, [{ cat: ordinary.cat, flows: [ordinary] }, { cat: graph.cat, flows: [graph] }], source);
+        handleLinkLinesMap(session, graph, source, true);
+        expect(session.mapOfLinkLines.get(getFlowPointIdentity(graph.from))?.to).toHaveLength(2);
+        expect(session.mapOfLinkLines.get(getFlowPointIdentity(graph.to))?.from).toHaveLength(2);
+    });
+
+    it.each([false, true])('marks category source only for an explicit DB Graph query (%s)', isDbGraph => {
+        const flow = createFlow();
+        flow.cat = 'HostToDevice(Graph)';
+        flow.from.metaType = 'TEXT';
+        const result = normalizeCategoryFlowEvent(flow, { rankId: 'rank0', dbPath: 'source.db' }, isDbGraph);
+        expect(result.from.metaType).toBe(isDbGraph ? 'CANN_API' : 'TEXT');
+        expect(result.to.metaType).toBe(flow.to.metaType);
+        expect(flow.from.metaType).toBe('TEXT');
+        expect(result.cat).toBe(flow.cat);
+    });
+
+    it.each(['ModelExecute', 'MODEL_EXECUTE', 'Model Execute', 'HostToDevice(Graph)'])(
+        'keeps JSON category %s, endpoint deduplication and menu semantics unchanged', category => {
+            const ordinary = createFlow();
+            ordinary.from.metaType = 'TEXT';
+            ordinary.to.metaType = 'TEXT';
+            const graph = { ...ordinary, cat: category, from: { ...ordinary.from }, to: { ...ordinary.to } };
+            const session = { mapOfLinkLines: new Map() } as unknown as Session;
+            const lines = buildSingleLinkLines(session, [
+                { cat: ordinary.cat, flows: [ordinary] }, { cat: category, flows: [graph] },
+            ], { rankId: 'rank0', dbPath: 'profile.json' });
+
+            expect(Object.keys(lines)).toEqual([ordinary.cat, category]);
+            expect(lines[category]).toHaveLength(1);
+            expect(lines[category]?.[0].from).toBe(graph.from);
+            expect(lines[category]?.[0].to).toBe(graph.to);
+            // 与 master 一致：共享端点仅按端点去重，菜单仍使用首次关联类别。
+            for (const [selected, target, direction] of [
+                [ordinary.from, ordinary.to, 'to'], [ordinary.to, ordinary.from, 'from'],
+            ] as const) {
+                const value = session.mapOfLinkLines.get(getFlowPointIdentity(selected));
+                expect(value?.[direction]).toEqual([target]);
+                expect(value?.[direction][0]).not.toHaveProperty('flowCategory');
+                session.selectedData = {
+                    ...selected, startTime: selected.timestamp, cardId: selected.rankId, processId: selected.pid, threadId: selected.tid,
+                } as SelectedDataType;
+                const menus = actionJumpToLinkSlice.subMenus?.(session) ?? [];
+                expect(menus.filter(item => typeof item === 'object' && item.label === `${target.name}(${ordinary.cat})`)).toHaveLength(1);
+            }
+            expect(graph.cat).toBe(category);
+        });
 });
 
 const createForegroundTarget = (overrides: Partial<ForegroundTarget> = {}): ForegroundTarget => ({

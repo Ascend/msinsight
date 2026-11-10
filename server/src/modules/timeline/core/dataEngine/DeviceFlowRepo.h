@@ -32,6 +32,9 @@ namespace Dic::Module::Timeline {
 class DeviceFlowRepo {
   public:
     void AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
+    std::vector<TaskPO> QueryModelExecuteTasks(const FlowQuery &flowQuery);
+    void AddModelExecuteFlowPoint(const FlowQuery &flowQuery, const std::vector<TaskPO> &tasks,
+        const std::unordered_map<int64_t, uint64_t> &hostProcesses, std::vector<FlowPoint> &flowPointVec);
     void AddHardWareMstxFlowPoint(
         const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec, const std::vector<uint64_t> &connectionIds);
     void SetTaskTable(std::unique_ptr<TaskTable> taskTablePtr);

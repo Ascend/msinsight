@@ -27,6 +27,7 @@
 #include "StringIdsTable.h"
 #include "MstxEventsTable.h"
 #include "CANNApiTable.h"
+#include "TaskTable.h"
 namespace Dic::Module::Timeline {
 class HostFlowRepo {
   public:
@@ -34,6 +35,8 @@ class HostFlowRepo {
     void QueryAsyncTaskQueue(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
     void AddAsyncNpuFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
     void AddCANNFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
+    std::unordered_map<int64_t, uint64_t> AddModelExecuteFlowPoint(
+        const FlowQuery &flowQuery, const std::vector<TaskPO> &tasks, std::vector<FlowPoint> &flowPointVec);
     std::vector<uint64_t> AddMstxFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
 
   private:

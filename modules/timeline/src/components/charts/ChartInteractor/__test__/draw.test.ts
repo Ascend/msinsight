@@ -255,3 +255,64 @@ it('keeps async_task_queue on its process parent until the matching PyTorch lane
     expect(drawCurve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + sourceTop + UnitHeight.UPPER / 2);
     expect(drawCurve.mock.calls[0][5]).toBe(UNDRAW_HEIGHT + targetPytorchTop + UnitHeight.STANDARD / 2);
 });
+
+describe.each(['single', 'all'] as const)('CANN height fallback in %s mode', mode => {
+    it.each([
+        ['HostToDevice', 'TEXT', true],
+        ['HostToDevice(Graph)', 'CANN_API', true],
+        ['HostToDevice(Graph)', 'TEXT', false],
+        ['ModelExecute', 'TEXT', false],
+    ] as const)(
+        'preserves the %s fallback for %s endpoints', (category, metaType, useCannFallback) => {
+            const { card, thread, cann, flow } = createScene('model.db');
+            thread.children = [cann, ...(thread.children?.slice(1) ?? [])];
+            thread.isExpanded = true;
+            cann.isExpanded = false;
+            // 保留可见 CANN 分组，但不提供目标线程子节点，确保不能命中折叠祖先分支。
+            cann.children = [];
+            flow.category = category;
+            flow.from.metaType = metaType;
+            const session = createSession([card], [flow], mode);
+            session.singleLinkLine = { [category]: [{ ...flow }] };
+            session.linkLines = { [category]: [{ ...flow }] };
+            session.linkLineCategories = [category];
+            const curve = drawScene(session);
+            const threadTop = 2 * (UnitHeight.UPPER + 1) + UnitHeight.STANDARD * 4 + 1;
+            const cannTop = threadTop + UnitHeight.UPPER + 1;
+            const processFallbackTop = threadTop + 3 * (UnitHeight.UPPER + 1);
+
+            expect(curve).toHaveBeenCalledTimes(1);
+            const expectedTop = useCannFallback ? cannTop : processFallbackTop;
+            expect(curve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + expectedTop + UnitHeight.UPPER / 2);
+            expect(getHeight(session, flow.from, 'rank0', category)).toBe(
+                UNDRAW_HEIGHT + expectedTop + UnitHeight.UPPER / 2,
+            );
+            // 非 HostToDevice 类别仍使用原进程回退，不能一并改成 CANN 高度。
+            expect(getHeight(session, flow.from, 'rank0', 'async_npu')).toBe(
+                UNDRAW_HEIGHT + processFallbackTop + UnitHeight.UPPER / 2,
+            );
+        });
+});
+
+it.each(['single', 'all'] as const)('anchors HostToDevice(Graph) to collapsed CANN in %s mode', mode => {
+    const { card, thread, cann, flow } = createScene('model.db');
+    thread.children = [cann, ...(thread.children?.slice(1) ?? [])];
+    thread.isExpanded = true;
+    cann.isExpanded = false;
+    flow.category = 'HostToDevice(Graph)';
+    const session = createSession([card], [flow], mode);
+    session.singleLinkLine = { 'HostToDevice(Graph)': [{ ...flow }] };
+    session.linkLines = { 'HostToDevice(Graph)': [{ ...flow }] };
+    session.linkLineCategories = ['HostToDevice(Graph)'];
+
+    const curve = drawScene(session);
+    const threadTop = 2 * (UnitHeight.UPPER + 1) + UnitHeight.STANDARD * 4 + 1;
+    expect(curve).toHaveBeenCalledTimes(1);
+    expect(curve.mock.calls[0][1]).toBe(UNDRAW_HEIGHT + threadTop + UnitHeight.UPPER + 1 + UnitHeight.UPPER / 2);
+
+    cann.isExpanded = true;
+    drawScene(session);
+    expect(getHeight(session, flow.from, 'rank0', 'HostToDevice(Graph)')).toBe(
+        UNDRAW_HEIGHT + threadTop + 2 * (UnitHeight.UPPER + 1) + 2.5 * UnitHeight.STANDARD,
+    );
+});

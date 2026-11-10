@@ -209,6 +209,8 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     static std::vector<std::string> GetIdListByFuzzNameFromCache(
         const std::string &path, const std::string &fuzzName, const bool caseSensitive = true);
     bool InitConnectionCats();
+    // 旧缓存按版本补建；解析状态失效时 refresh 重建 Graph，零匹配也保存完成状态。
+    bool InitHostToDeviceGraphConnectionCats(bool refresh = false);
     void UpdateWaitTime();
     bool GenerateOverlapAnalysis();
     bool QueryRankOverlapInput(const std::string &deviceId, RANK_OVERLAP_INPUT &input);
@@ -379,6 +381,10 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     std::vector<FlowLocation> ExecuteQueryUnitFlowsForTable(const Protocol::UnitFlowsParams &requestParams,
         const std::pair<std::string, std::string> &tableAndSql, uint64_t minTimestamp, const std::string &connectionId,
         const std::vector<uint64_t> &deviceIdList);
+    // 图回放的单算子入口；调用方保留 MSTX 优先级和并行关系，仅替换 CANN→Hardware 边。
+    bool QueryUnitHostToDeviceGraphFlows(const Protocol::UnitFlowsParams &requestParams,
+        Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp, const std::string &connectionId,
+        const std::vector<FlowLocation> &sources);
     bool AssembleUnitFlowOfTypeMSTX(const std::vector<FlowLocation> &mstxFlowLocationList,
         const std::vector<FlowLocation> &taskFlowLocationList, const std::string &connectionId,
         Protocol::UnitFlowsBody &responseBody);
@@ -386,7 +392,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
         const std::vector<FlowLocation> &pytorchFlowLocationList, const std::vector<FlowLocation> &cannFlowLocationList,
         const std::vector<FlowLocation> &taskFlowLocationList,
         const std::vector<FlowLocation> &communicationOpFlowLocationList, const std::string &connectionId,
-        Protocol::UnitFlowsBody &responseBody);
+        Protocol::UnitFlowsBody &responseBody, bool skipCANNToHardware = false);
     bool AssembleUnitFlowOfTypeAsyncTaskQueue(const std::vector<FlowLocation> &pytorchFlowLocationList,
         const std::string &connectionId, Protocol::UnitFlowsBody &responseBody);
     bool AssembleUnitFlowOfTypeFwdBwd(const std::vector<FlowLocation> &pytorchFlowLocationList,

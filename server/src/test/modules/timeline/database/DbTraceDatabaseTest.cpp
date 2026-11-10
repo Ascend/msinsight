@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 #include <algorithm>
+#include <array>
 #include <gtest/gtest.h>
+#include <initializer_list>
 #include "DbTraceDataBase.h"
 #include "DataBaseManager.h"
 #include "DbSqlDefs.h"
@@ -1725,6 +1727,214 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsWhenConnectionIdIsEmptyThenReturnF
     bool result = database.QueryUnitFlows(requestParams, responseBody, 0, 0);
     EXPECT_EQ(result, false);
     RestoreRepoFunc();
+}
+
+// 仅本需求的用例复用夹具；TearDown 保证 ASSERT 提前结束时也恢复测试桩。
+class GraphUnitFlowsTest : public DbTraceDatabaseTest {
+  protected:
+    std::recursive_mutex testMutex;
+    MockDatabase2 database{testMutex};
+    sqlite3 *db = nullptr;
+    Dic::Protocol::UnitFlowsParams params;
+    Dic::Protocol::UnitFlowsBody body;
+    void SetUp() override {
+        DatabaseTestCaseMockUtil::OpenDB(db);
+        for (const auto &item : Dic::FULL_DB_TABLE_MAP) {
+            DatabaseTestCaseMockUtil::CreateTable(db, item.second);
+        }
+        DatabaseTestCaseMockUtil::CreateTablesFromList(db, {TableName::DB_RANK_DEVICE_MAP});
+        params.metaType = "CANN_API";
+        params.id = "7";
+        params.rankId = "15";
+    }
+    void Load(const std::string &sql) {
+        DatabaseTestCaseMockUtil::InsertData(db, sql);
+        database.SetDbPtr(db);
+        MockNpuInfoRepoFunc();
+    }
+    void TearDown() override { RestoreRepoFunc(); }
+    ::testing::AssertionResult Query(const std::string &type, const std::string &id,
+        std::initializer_list<std::pair<const char *, size_t>> groups) {
+        params.metaType = type;
+        params.id = id;
+        body.unitAllFlows.clear();
+        if (!database.QueryUnitFlows(params, body, 100, 0) || body.unitAllFlows.size() != groups.size()) {
+            return ::testing::AssertionFailure() << "Unexpected query result or group count for " << type;
+        }
+        size_t index = 0;
+        for (const auto &expected : groups) {
+            const auto &actual = body.unitAllFlows[index++];
+            if (actual.cat != expected.first || actual.flows.size() != expected.second) {
+                return ::testing::AssertionFailure() << "Expected " << expected.first << " with " << expected.second
+                    << " flows; got " << actual.cat << " with " << actual.flows.size();
+            }
+        }
+        return ::testing::AssertionSuccess();
+    }
+};
+
+TEST_F(GraphUnitFlowsTest, ModelExecuteUnitFlowsUseModelTaskAndSignedIdsForBothSelections) {
+    Load(
+        "INSERT INTO STRING_IDS(id,value) VALUES(13,'MODEL_EXECUTE'),(14,'NOTIFY_WAIT'),"
+        "(15,'aclmdlRIExecuteAsync');"
+        "INSERT INTO CANN_API(startNs,endNs,type,globalTid,connectionId,name,depth) "
+        "VALUES(110,120,20000,4294967298,7,15,2);"
+        // 将无关任务放在前面，验证终点由任务类型决定，而不是简单取第一条记录。
+        "INSERT INTO TASK(startNs,endNs,deviceId,connectionId,globalTaskId,globalPid,taskType,streamId,depth) "
+        "VALUES(125,129,15,7,1,1,14,46,0),(130,150,15,7,2,1,13,46,4);"
+        // 产品启动会为其他类别补齐临时空表；不插入这些类别的数据，验证模型连线仍能独立识别。
+        "INSERT INTO RANK_DEVICE_MAP(rankId,deviceId) VALUES(15,15);");
+    for (const std::string connectionId : {"7", "-2"}) {
+        SCOPED_TRACE(connectionId);
+        DatabaseTestCaseMockUtil::InsertData(db, "UPDATE CANN_API SET connectionId=" + connectionId +
+            "; UPDATE TASK SET connectionId=" + connectionId + ";");
+        for (const auto &selection : std::vector<std::pair<std::string, std::string>>{
+                 {"CANN_API", connectionId}, {"Ascend Hardware", "2"}}) {
+            ASSERT_TRUE(Query(selection.first, selection.second, {{"HostToDevice(Graph)", 1}}));
+            const auto &flow = body.unitAllFlows[0].flows[0];
+            EXPECT_EQ(flow.cat, "HostToDevice(Graph)");
+            EXPECT_EQ(flow.id, connectionId);
+            EXPECT_EQ(flow.from.id, connectionId);
+            EXPECT_EQ(flow.from.timestamp, 10U);
+            EXPECT_EQ(flow.from.depth, 2U);
+            EXPECT_EQ(flow.from.tid, "20000");
+            EXPECT_EQ(flow.to.id, "2");
+            EXPECT_EQ(flow.to.timestamp, 30U);
+            EXPECT_EQ(flow.to.duration, 20U);
+            EXPECT_EQ(flow.to.depth, 4U);
+            EXPECT_EQ(flow.to.tid, "46");
+            EXPECT_EQ(flow.to.name, "MODEL_EXECUTE");
+            EXPECT_EQ(flow.to.rankId, "15");
+        }
+    }
+}
+
+TEST_F(GraphUnitFlowsTest, GraphReturnsOneTargetAndPreservesSelectedHardwareTask) {
+    Load("INSERT INTO STRING_IDS(id,value) VALUES(13,'MODEL_EXECUTE'),(14,'NOTIFY_WAIT'),(15,'replay');"
+         "INSERT INTO CANN_API(startNs,endNs,type,globalTid,connectionId,name,depth) "
+         "VALUES(110,120,20000,4294967298,7,15,2),(110,120,20000,4294967298,8,15,2);"
+         "INSERT INTO TASK(startNs,endNs,deviceId,connectionId,globalTaskId,globalPid,taskType,streamId,depth) "
+         "VALUES(125,129,15,7,1,1,14,46,0),(130,150,15,7,2,1,13,46,4),"
+         "(140,160,15,7,3,1,13,46,4),(150,170,15,7,4,1,13,47,4),"
+         "(160,180,15,8,5,1,13,46,4),(100,120,15,7,6,2,13,46,4),"
+         "(120,140,16,7,7,1,13,46,4);"
+         "INSERT INTO RANK_DEVICE_MAP(rankId,deviceId) VALUES(15,15),(16,16);");
+    for (const std::string id : {"7", "-2"}) {
+        SCOPED_TRACE(id);
+        DatabaseTestCaseMockUtil::InsertData(db,
+            "UPDATE CANN_API SET connectionId=" + id + " WHERE connectionId=7;"
+            "UPDATE TASK SET connectionId=" + id + " WHERE connectionId=7;");
+        // CPU 只连首个有效模型；选中同泳道的后续任务或另一泳道任务时，必须保留所选任务。
+        const std::vector<std::array<std::string, 4>> selections{
+            {"CANN_API", id, "2", "46"}, {"Ascend Hardware", "3", "3", "46"},
+            {"Ascend Hardware", "4", "4", "47"}, {"CANN_API", "8", "5", "46"}};
+        for (const auto &[type, selected, target, lane] : selections) {
+            SCOPED_TRACE(type + ":" + selected);
+            ASSERT_TRUE(Query(type, selected, {{"HostToDevice(Graph)", 1}}));
+            const auto &flow = body.unitAllFlows[0].flows[0];
+            EXPECT_EQ(flow.id, target == "5" ? "8" : id);
+            EXPECT_EQ(flow.from.id, flow.id);
+            EXPECT_EQ(flow.to.id, target);
+            EXPECT_EQ(flow.to.tid, lane);
+            EXPECT_EQ(flow.to.name, "MODEL_EXECUTE");
+            EXPECT_EQ(flow.to.rankId, "15");
+        }
+        // 等待任务、错误进程和不匹配卡片都不能借用别的模型终点冒充 Graph。
+        for (const auto *invalid : {"1", "6", "7"}) {
+            ASSERT_TRUE(Query("Ascend Hardware", invalid, {{"HostToDevice", 1}}));
+        }
+    }
+}
+
+TEST_F(GraphUnitFlowsTest, ModelExecuteUsesIndependentCategoryAndPreservesLegacyPriority) {
+    Load(
+        "INSERT INTO STRING_IDS(id,value) VALUES(13,'MODEL_EXECUTE'),(14,'NOTIFY_WAIT'),"
+        "(15,'aclmdlRIExecuteAsync'),(16,'hcom'),(17,'aten::add');"
+        "INSERT INTO CANN_API(startNs,endNs,type,globalTid,connectionId,name,depth) "
+        "VALUES(110,120,20000,4294967298,7,15,2);"
+        "INSERT INTO TASK(startNs,endNs,deviceId,connectionId,globalTaskId,globalPid,taskType,streamId,depth) "
+        "VALUES(130,150,0,7,1,1,13,46,4);"
+        "INSERT INTO MSTX_EVENTS(startNs,endNs,globalTid,connectionId,message,domainId,depth) "
+        "VALUES(105,125,4294967298,7,15,9,0);"
+        "INSERT INTO PYTORCH_API(startNs,endNs,globalTid,connectionId,name,type,depth) "
+        "VALUES(100,120,4294967298,1,17,50002,0);"
+        "INSERT INTO CONNECTION_IDS(id,connectionId) VALUES(1,7);"
+        // NPU 测试桩返回 device 0，通信与硬件统一放在当前卡，避免构造跨卡的假旁路。
+        "INSERT INTO RANK_DEVICE_MAP(rankId,deviceId) VALUES(0,0);"
+        "INSERT INTO COMMUNICATION_OP(opName,startNs,endNs,connectionId,groupName,opId,deviceId) "
+        "VALUES(16,135,155,7,9,1,0);");
+    params.rankId = "0";
+    // 保持原有 MSTX 优先级，不能为了新增类别抢占原本明确属于 MSTX 的事件。
+    ASSERT_TRUE(Query("CANN_API", "7", {{"MsTx", 1}}));
+    EXPECT_EQ(body.unitAllFlows[0].flows[0].from.timestamp, 5U);
+    EXPECT_EQ(body.unitAllFlows[0].flows[0].to.tid, "46_9");
+
+    // 选中 MSTX 自身时仍只走原来的类别，不因为同关联 ID 存在模型任务就追加新连线。
+    ASSERT_TRUE(Query("MSTX_EVENTS", "1", {{"MsTx", 1}}));
+
+    DatabaseTestCaseMockUtil::InsertData(db, "DELETE FROM MSTX_EVENTS;");
+    // 仅把 CANN→Hardware 替换为图回放关系，保留同链路的通信和 Python 下发旁路。
+    for (const auto &selection : std::vector<std::pair<std::string, std::string>>{
+             {"CANN_API", "7"}, {"Ascend Hardware", "1"}}) {
+        ASSERT_TRUE(Query(selection.first, selection.second,
+            {{"HostToDevice", 1}, {"async_npu", 2}, {"HostToDevice(Graph)", 1}}));
+        EXPECT_EQ(body.unitAllFlows[0].flows[0].to.metaType, "HCCL");
+        EXPECT_EQ(body.unitAllFlows[0].flows[0].to.id, "1");
+        EXPECT_EQ(body.unitAllFlows[1].flows[0].from.name, "aten::add");
+        EXPECT_EQ(body.unitAllFlows[1].flows[1].from.name, "aten::add");
+        EXPECT_EQ(body.unitAllFlows[1].flows[0].to.metaType, "Ascend Hardware");
+        EXPECT_EQ(body.unitAllFlows[1].flows[1].to.metaType, "HCCL");
+        EXPECT_EQ(body.unitAllFlows[2].flows[0].to.id, "1");
+        EXPECT_EQ(body.unitAllFlows[2].flows[0].to.tid, "46");
+    }
+
+    // 新分类只作用于模型执行的 CPU/NPU 端点，选中 Python API 仍使用原来的下发链路。
+    ASSERT_TRUE(Query("PYTORCH_API", "1", {{"HostToDevice", 2}, {"async_npu", 2}}));
+    for (const auto &group : body.unitAllFlows) {
+        EXPECT_EQ(group.flows[0].to.metaType, "Ascend Hardware");
+        EXPECT_EQ(group.flows[1].to.metaType, "HCCL");
+    }
+
+    // 普通任务保持原有两个类别；新增类别的判定不能依赖算子的展示名称。
+    DatabaseTestCaseMockUtil::InsertData(db, "UPDATE TASK SET taskType=14;");
+    ASSERT_TRUE(Query("CANN_API", "7", {{"HostToDevice", 2}, {"async_npu", 2}}));
+}
+
+TEST_F(GraphUnitFlowsTest, OrdinaryUnitFlowQueriesDoNotProbeModelExecute) {
+    Load(
+        "INSERT INTO STRING_IDS(id,value) VALUES(13,'MODEL_EXECUTE'),(14,'NOTIFY_WAIT'),(15,'runtime-api');"
+        "INSERT INTO CANN_API(startNs,endNs,type,globalTid,connectionId,name,depth) "
+        "VALUES(110,120,5000,4294967298,7,15,2);"
+        "INSERT INTO RANK_DEVICE_MAP(rankId,deviceId) VALUES(15,15);");
+    for (const bool hasTask : {false, true}) {
+        if (hasTask) {
+            DatabaseTestCaseMockUtil::InsertData(db,
+                "INSERT INTO TASK(startNs,endNs,deviceId,connectionId,globalTaskId,globalPid,taskType,streamId,depth) "
+                "VALUES(130,150,15,7,1,1,14,46,0);");
+        }
+        std::vector<std::string> statements;
+        sqlite3_trace_v2(db, SQLITE_TRACE_STMT,
+            [](unsigned, void *context, void *statement, void *) -> int {
+                const char *sql = sqlite3_sql(static_cast<sqlite3_stmt *>(statement));
+                if (sql != nullptr) {
+                    static_cast<std::vector<std::string> *>(context)->emplace_back(sql);
+                }
+                return 0;
+            }, &statements);
+        body.unitAllFlows.clear();
+        const bool result = database.QueryUnitFlows(params, body, 100, 0);
+        sqlite3_trace_v2(db, 0, nullptr, nullptr);
+        EXPECT_EQ(result, hasTask);
+        EXPECT_EQ(body.unitAllFlows.size(), hasTask ? 1U : 0U);
+        if (!body.unitAllFlows.empty() && !body.unitAllFlows[0].flows.empty()) {
+            EXPECT_EQ(body.unitAllFlows[0].cat, "HostToDevice");
+            EXPECT_EQ(body.unitAllFlows[0].flows[0].to.name, "NOTIFY_WAIT");
+        }
+        // 有普通任务和无任务两种场景，均不应执行模型执行类别的额外 SQL。
+        EXPECT_TRUE(std::none_of(statements.begin(), statements.end(), [](const auto &sql) {
+            return sql.find("value = 'MODEL_EXECUTE'") != std::string::npos;
+        }));
+    }
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsWhenCANNAndNoDeviceDataThenReturnFalse) {

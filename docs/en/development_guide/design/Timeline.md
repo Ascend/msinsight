@@ -1566,6 +1566,14 @@ Connects from the CANN unit to hardware and HCCL, associated via connectionId. T
 DbFlowRepo::QueryHostToDevice
 ```
 
+###### HostToDevice(Graph)
+
+Connects CPU-side operators to `MODEL_EXECUTE` on the Hardware side, correlated by connectionId and host process. Only the overall graph-execution entry is linked; flows are not expanded to individual graph operators. For the specific logic, see:
+
+```cpp
+DbFlowRepo::QueryHostToDeviceGraph
+```
+
 ###### Mstx
 
 Connects from the mstx unit to hardware, associated via connectionId, where the mstx unit is always the source and hardware is the destination. For the specific logic, see:

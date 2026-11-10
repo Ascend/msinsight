@@ -248,6 +248,7 @@ void FlowAnalyzer::ComputeScreenFlowPoint(const std::vector<FlowPoint> &flowEven
  */
 void FlowAnalyzer::ComputeUintFlows(const std::vector<FlowPoint> &flowEventsVec, const std::string &category,
     std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList) {
+    const bool isGraph = category == "HostToDevice(Graph)";
     std::string curFlowId;
     Protocol::FlowLocation location;
     Protocol::FlowLocation onePointer;
@@ -257,6 +258,11 @@ void FlowAnalyzer::ComputeUintFlows(const std::vector<FlowPoint> &flowEventsVec,
         std::string flowId = flow.flowId;
         if (type == Protocol::LINE_START || flowId != curFlowId) {
             location = ComputeLocation(location, flow, type);
+            // DB Graph 的 CANN 起点 ID 就是 connectionId；从字符串恢复，避免负数被无符号化。
+            // TEXT 点、Device 端及其他类别仍保留原有端点 ID，不改变公共点结构。
+            if (isGraph && type == Protocol::LINE_START && !flow.resolveDepthAfterSampling) {
+                location.id = flowId;
+            }
             // 连线中 起点对终点是一对多关系，因此每一个新的起点都会对上一个起点进行覆盖
             onePointer = location;
         } else if ((type == Protocol::LINE_END_OPTIONAL || type == Protocol::LINE_END) && flowId == curFlowId) {

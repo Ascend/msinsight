@@ -17,6 +17,7 @@
  */
 #include "TrackInfoManager.h"
 #include "HostFlowRepo.h"
+#include <unordered_set>
 namespace Dic::Module::Timeline {
 void HostFlowRepo::QueryFwdbwd(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     std::vector<uint64_t> queueNameIds = QueryNameIds(flowQuery, "Enqueue%");
@@ -263,5 +264,63 @@ void HostFlowRepo::AddCANNFlowPoint(const FlowQuery &flowQuery, std::vector<Flow
         startPoint.depth = item.depth;
         flowPointVec.emplace_back(startPoint);
     }
+}
+
+std::unordered_map<int64_t, uint64_t> HostFlowRepo::AddModelExecuteFlowPoint(
+    const FlowQuery &flowQuery, const std::vector<TaskPO> &tasks, std::vector<FlowPoint> &flowPointVec) {
+    if (tasks.empty()) {
+        return {};
+    }
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(flowQuery.fileId);
+    if (database == nullptr) {
+        return {};
+    }
+    // 仅拼接 int64_t 数值，不拼接用户文本；一次查询保留符号，也不受绑定变量数量限制。
+    std::unordered_map<int64_t, std::unordered_set<uint64_t>> taskProcesses;
+    std::string connectionIds;
+    for (const auto &task : tasks) {
+        if (taskProcesses.count(task.connectionId) == 0) {
+            if (!connectionIds.empty()) {
+                connectionIds += ",";
+            }
+            connectionIds += std::to_string(task.connectionId);
+        }
+        taskProcesses[task.connectionId].emplace(task.globalPid);
+    }
+    auto stmt = database->CreatPreparedStatement(
+        "SELECT connectionId,startNs,globalTid,type,depth FROM CANN_API WHERE connectionId IN (" + connectionIds +
+        ") AND startNs >= ?");
+    if (stmt == nullptr) {
+        return {};
+    }
+    auto result = stmt->ExecuteQuery(flowQuery.minTimestamp);
+    if (result == nullptr) {
+        return {};
+    }
+    std::unordered_map<int64_t, uint64_t> hostProcesses;
+    auto &instance = TrackInfoManager::Instance();
+    while (result->Next()) {
+        const int64_t connectionId = result->GetInt64("connectionId");
+        const uint64_t globalTid = result->GetUint64("globalTid");
+        const uint64_t pid = globalTid >> 32;
+        // 关联 ID 相同仍需核对宿主进程，不能把其他进程的任务接到这个起点。
+        const auto processes = taskProcesses.find(connectionId);
+        if (processes == taskProcesses.end() || processes->second.count(pid) == 0) {
+            continue;
+        }
+        hostProcesses[connectionId] = pid;
+        FlowPoint point;
+        point.type = "s";
+        point.flowId = std::to_string(connectionId);
+        // 数值 id 只作内部排序，Graph 的 CANN 协议端点 ID 从有符号 flowId 输出。
+        point.id = static_cast<uint64_t>(connectionId);
+        point.timestamp = result->GetUint64("startNs") - flowQuery.minTimestamp;
+        point.rankId = flowQuery.fileId;
+        point.trackId =
+            instance.GetTrackId(flowQuery.fileId, std::to_string(globalTid), std::to_string(result->GetUint64("type")));
+        point.depth = result->GetUint64("depth");
+        flowPointVec.emplace_back(std::move(point));
+    }
+    return hostProcesses;
 }
 }

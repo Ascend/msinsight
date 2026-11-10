@@ -34,6 +34,8 @@ class DbFlowRepo : public FlowRepoInterface {
     void QueryHostToDevice(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
     void QueryMsTx(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
     void QueryAsyncNpu(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
+    // 图模式回放连线的全量入口，底层仍通过 MODEL_EXECUTE 任务定位整体图执行。
+    void QueryHostToDeviceGraph(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
 };
 }
 #endif // PROFILER_SERVER_DBFLOWREPO_H

@@ -43,6 +43,8 @@ static const std::string OVERLAP_ANALYSIS_SOURCE_UPSTREAM = "UPSTREAM";
 static const std::string OVERLAP_ANALYSIS_SOURCE_LOCAL = "LOCAL";
 static const std::string WAIT_TIME_UNIT = "WAIT_TIME";
 static const std::string CONNECTION_UNIT = "CONNECTION_CATEGORY";
+// Graph 分类缓存的补建版本，独立于旧解析状态，兼容已完成 CONNECTION_CATEGORY 的数据库。
+static const std::string GRAPH_CONNECTION_CATEGORY = "CONNECTION_CATEGORY_GRAPH_V1";
 static const std::string OPERATOR_DEPTH = "OPERATOR_DEPTH";
 static const std::string FTRACE_TIME_STATISTICS_UNIT = "FTRACE_TIME_STATISTICS";
 static const std::string FTRACE_IRQ_STATISTICS_UNIT = "FTRACE_IRQ_STATISTICS";

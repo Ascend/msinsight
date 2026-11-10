@@ -1566,6 +1566,14 @@ DbFlowRepo::QueryAsyncNpu
 DbFlowRepo::QueryHostToDevice
 ```
 
+###### HostToDevice(Graph)
+
+从 CPU 侧算子连到 Hardware 侧的 `MODEL_EXECUTE`，通过 connectionId 及宿主进程关联。仅连接整体图执行入口，不展开图内算子连线。具体逻辑见：
+
+```cpp
+DbFlowRepo::QueryHostToDeviceGraph
+```
+
 ###### Mstx
 
 从 mstx 泳道连到 hardware，通过 connectionId 关联，mstx 泳道都是起点，hardware 是终点。具体逻辑见：

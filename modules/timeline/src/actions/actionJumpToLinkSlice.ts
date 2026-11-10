@@ -61,10 +61,11 @@ function getMenuBySlices(mapValue: MapValueOfLinkLines, linkType: 'from' | 'to')
     menuItems.push(register({ name: '' as ActionName, label, disabled: () => true, perform: () => {} }), CONTEXT_MENU_SEPARATOR);
     for (let i = 0; i < slices.length; i++) {
         const slice = slices[i];
-        const isValidLabel = mapValue.cat && slice.name;
+        const categoryLabel = slice.flowCategory ?? mapValue.cat;
+        const isValidLabel = categoryLabel && slice.name;
         const menuItem = register({
             name: '' as ActionName,
-            label: isValidLabel ? `${slice.name}(${mapValue.cat})` : slice.name || mapValue.cat || '--',
+            label: isValidLabel ? `${slice.name}(${categoryLabel})` : slice.name || categoryLabel || '--',
             perform: (session: Session) => {
                 if (!session.selectedData) {
                     return;
@@ -73,7 +74,10 @@ function getMenuBySlices(mapValue: MapValueOfLinkLines, linkType: 'from' | 'to')
                 if (!mapValue) {
                     return;
                 }
-                jumpToUnitOperator({ ...slice, cardId: slice.rankId });
+                // 关联类别仅供菜单展示，原有跳转定位参数保持不变。
+                const target = { ...slice, cardId: slice.rankId };
+                delete target.flowCategory;
+                jumpToUnitOperator(target);
             },
         });
         menuItems.push(menuItem, CONTEXT_MENU_SEPARATOR);

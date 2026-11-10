@@ -190,6 +190,7 @@ const getLockRangeMetaList = (session: Session, cardId: string | undefined): any
 
 interface QueryFlowLinesConfig extends Pick<ProcessMetaData, 'dataSource' | 'cardId' | 'dbPath'> {
     sourceDbPath?: string;
+    isDbGraph?: boolean;
     host: string;
     category: string;
     timestampOffset: number;
@@ -233,7 +234,7 @@ const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Sessi
     try {
         const res = await window.request(dataSource, { command: 'flow/categoryEvents', params });
         return (res as CategoryEvents).flowDetailList.map(data => ({
-            ...normalizeCategoryFlowEvent(data, { rankId: cardId, dbPath: sourceDbPath }),
+            ...normalizeCategoryFlowEvent(data, { rankId: cardId, dbPath: sourceDbPath }, config.isDbGraph),
             cardId,
         }));
     } catch (e) {
@@ -309,6 +310,8 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
                         dataSource,
                         host,
                         category,
+                        isDbGraph: category === 'HostToDevice(Graph)' &&
+                            (unit.projectType === ProjectType.DB || unit.projectType === ProjectType.DB_CLUSTER),
                         timestampOffset,
                         domainStart,
                         domainEnd,
