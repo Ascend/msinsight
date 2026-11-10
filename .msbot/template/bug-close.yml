@@ -1,0 +1,112 @@
+# 参考用户提供的 bug-close.yml；Issue Forms 兼容格式。
+name: "缺陷关闭 / Bug Close"
+description: "Bug 类 Issue 关闭登记：缺陷引入、原因分析、修复、用户感知、回归与自测。"
+title: "[Bug Close] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "## 缺陷引入"
+  - type: input
+    id: defect_introduced_by
+    attributes:
+      label: "Commit 或 PR 编号"
+      description: "必填｜单行文本｜7–40 位 commit SHA，或 PR 编号（如 #123）；多个值用英文逗号分隔。"
+      placeholder: "3f2a9c1 或 #123"
+    validations:
+      required: true
+  - type: textarea
+    id: defect_pr_links
+    attributes:
+      label: "PR 链接"
+      description: "必填｜完整 PR URL，每行一个；无对应 PR 时填写「无」。"
+    validations:
+      required: true
+  - type: input
+    id: defect_milestone
+    attributes:
+      label: "里程碑"
+      description: "必填｜里程碑名称或版本号；无则填写「无」。"
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: "## 原因分析"
+  - type: textarea
+    id: root_cause
+    attributes:
+      label: "引入缺陷的原因"
+      description: "必填｜说明触发条件、根因与影响范围；建议附代码路径、日志或复现步骤。"
+    validations:
+      required: true
+  - type: textarea
+    id: fix_summary
+    attributes:
+      label: "修复说明"
+      description: "可选｜修复思路、改动范围；详细信息请查看关联 PR。"
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: "## 用户感知"
+  - type: dropdown
+    id: user_perceivable
+    attributes:
+      label: "是否引入用户可感知变更"
+      description: "必填｜选择「是」时填写变更说明并勾选类型；选择「否」时说明填写「无」。"
+      multiple: false
+      options: ["是", "否"]
+    validations:
+      required: true
+  - type: checkboxes
+    id: user_perceivable_types
+    attributes:
+      label: "可感知变更类型"
+      description: "可选｜仅当上一项选择「是」时勾选，可多选。"
+      options:
+        - label: "使用方式变化"
+        - label: "UI 变化"
+        - label: "接口 / 行为变化"
+        - label: "性能变化"
+        - label: "兼容性变化"
+        - label: "其他"
+  - type: textarea
+    id: user_perceivable_detail
+    attributes:
+      label: "变更说明"
+      description: "必填｜描述用户可见变化；若上一项为「否」，填写「无」。"
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: "## 测试回归"
+  - type: dropdown
+    id: regression_build_type
+    attributes:
+      label: "回归包类型"
+      description: "必填｜选择本次回归使用的包类型。"
+      multiple: false
+      options: ["daily", "tag"]
+    validations:
+      required: true
+  - type: textarea
+    id: regression_version_or_link
+    attributes:
+      label: "包名 / 版本号 / 包链接"
+      description: "必填｜daily 包名、tag 版本号，或华为云 OBS 包链接；至少提供一项。"
+    validations:
+      required: true
+  - type: textarea
+    id: related_components
+    attributes:
+      label: "关联组件"
+      description: "可选｜配套组件名称、版本号或链接，每行一个；无则填写「无」。"
+    validations:
+      required: false
+  - type: textarea
+    id: self_test_evidence
+    attributes:
+      label: "自测截图与结论"
+      description: "必填｜自测环境、步骤与结果，可拖入截图；无截图时填写命令、用例与结论。"
+    validations:
+      required: true
