@@ -104,22 +104,33 @@ const getHeader = (container: HTMLElement, title: string): HTMLElement => {
     return header;
 };
 
+const expectNoSortHighlight = (container: HTMLElement): void => {
+    expect(container.querySelector('th[aria-sort]')).toBeNull();
+    expect(container.querySelector('.ant-table-column-sorter .active')).toBeNull();
+};
+
 const openDetails = async (container: HTMLElement, groupId = 'matched:aten::add'): Promise<void> => {
     await waitFor(() => expect(container.querySelector('.ant-table-row-expand-icon-cell > div')).not.toBeNull());
     fireEvent.click(container.querySelector('.ant-table-row-expand-icon-cell > div') as HTMLElement);
     await waitFor(() => expect(queryFreeAttributionDetails).toHaveBeenCalledWith(expect.objectContaining({
         groupId, current: 1, orderBy: 'freeStartTime', order: 'asc',
     })));
-    await waitFor(() => expect(getHeader(container, 'Free Start Time')).toHaveAttribute('aria-sort', 'ascending'));
+    await waitFor(() => expect(getHeader(container, 'Free Start Time')).not.toHaveAttribute('aria-sort'));
+    expectNoSortHighlight(container.querySelector('.ant-table-expanded-row') as HTMLElement);
 };
 
 const clickSort = async (
     container: HTMLElement, title: string, request: jest.Mock, field: string, order: 'asc' | 'desc',
+    expectNewRequest = true,
 ): Promise<void> => {
     const previousCalls = request.mock.calls.length;
     fireEvent.click(getHeader(container, title));
     await waitFor(() => {
-        expect(request.mock.calls.length).toBeGreaterThan(previousCalls);
+        if (expectNewRequest) {
+            expect(request.mock.calls.length).toBeGreaterThan(previousCalls);
+        } else {
+            expect(request).toHaveBeenCalledTimes(previousCalls);
+        }
         expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ orderBy: field, order, current: 1 }));
         expect(getHeader(container, title)).toHaveAttribute('aria-sort', order === 'asc' ? 'ascending' : 'descending');
     });
@@ -134,20 +145,24 @@ it.each([
     await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenCalledWith(expect.objectContaining({
         current: 1, orderBy: 'totalFreeDuration', order: 'desc',
     })));
-    await waitFor(() => expect(getHeader(container, 'Total Free Duration')).toHaveAttribute('aria-sort', 'descending'));
+    await waitFor(() => expect(getHeader(container, 'Total Free Duration')).not.toHaveAttribute('aria-sort'));
+    expectNoSortHighlight(container);
     for (const order of ['asc', 'desc', 'asc', 'desc'] as const) {
         await clickSort(container, title, queryFreeAttributionSummary as jest.Mock, field, order);
     }
 });
 
 it.each([
-    ['Free Start Time', 'freeStartTime', ['desc', 'asc', 'desc', 'asc']],
-    ['Free Duration', 'freeDuration', ['asc', 'desc', 'asc', 'desc']],
-] as const)('keeps detail %s alternating through four header clicks', async (title, field, orders) => {
+    ['Free Start Time', 'freeStartTime'],
+    ['Free Duration', 'freeDuration'],
+] as const)('keeps detail %s alternating through four header clicks', async (title, field) => {
     const { container } = render(<FreeAttribution {...makeProps()} />);
     await openDetails(container);
-    for (const order of orders) {
-        await clickSort(container, title, queryFreeAttributionDetails as jest.Mock, field, order);
+    const orders = ['asc', 'desc', 'asc', 'desc'] as const;
+    for (const [index, order] of orders.entries()) {
+        // The first Free Start Time click selects the direction already used by the default request.
+        await clickSort(container, title, queryFreeAttributionDetails as jest.Mock, field, order,
+            field !== 'freeStartTime' || index !== 0);
     }
 });
 
@@ -210,6 +225,33 @@ it('resets the detail to page one when sorting from page two', async () => {
     await waitFor(() => expect(queryFreeAttributionDetails).toHaveBeenLastCalledWith(expect.objectContaining({ current: 2 })));
     await clickSort(container, 'Free Duration', queryFreeAttributionDetails as jest.Mock, 'freeDuration', 'asc');
     await waitFor(() => expect(details.querySelector('.ant-pagination-item-1')).toHaveClass('ant-pagination-item-active'));
+    fireEvent.click(details.querySelector('.ant-pagination-item-2') as HTMLElement);
+    await waitFor(() => expect(queryFreeAttributionDetails).toHaveBeenLastCalledWith(expect.objectContaining({
+        current: 2, orderBy: 'freeDuration', order: 'asc',
+    })));
+    expect(getHeader(details, 'Free Duration')).toHaveAttribute('aria-sort', 'ascending');
+});
+
+it('restores default requests without sort highlights when the analysis range changes', async () => {
+    const props = makeProps();
+    const view = render(<FreeAttribution {...props} />);
+    await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenCalled());
+    await clickSort(view.container, 'Total Free Interval Count', queryFreeAttributionSummary as jest.Mock, 'freeCount', 'asc');
+    await openDetails(view.container);
+    await clickSort(view.container, 'Free Duration', queryFreeAttributionDetails as jest.Mock, 'freeDuration', 'asc');
+
+    const session = { ...props.session, timeAnalysisRange: [100, 200] } as unknown as SelectContentViewProps['session'];
+    view.rerender(<FreeAttribution {...props} session={session} />);
+    await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenLastCalledWith(expect.objectContaining({
+        current: 1, rangeMode: 'range', startTime: 100, endTime: 200, orderBy: 'totalFreeDuration', order: 'desc',
+    })));
+    await waitFor(() => expect(getHeader(view.container, 'Total Free Duration')).not.toHaveAttribute('aria-sort'));
+    expectNoSortHighlight(view.container);
+    expect(view.container.querySelector('.ant-table-expanded-row')).toBeNull();
+    await openDetails(view.container);
+    expect(queryFreeAttributionDetails).toHaveBeenLastCalledWith(expect.objectContaining({
+        current: 1, rangeMode: 'range', startTime: 100, endTime: 200, orderBy: 'freeStartTime', order: 'asc',
+    }));
 });
 
 const openNameSearch = async (view: ReturnType<typeof render>): Promise<HTMLElement> => {
@@ -238,6 +280,7 @@ it('searches from page two and keeps the trimmed name in detail, sort and pagina
     await waitFor(() => expect(queryFreeAttributionSummary).toHaveBeenLastCalledWith(expect.objectContaining({
         searchName: 'ADD', current: 2, orderBy: 'freeCount', order: 'asc',
     })));
+    expect(getHeader(view.container, 'Total Free Interval Count')).toHaveAttribute('aria-sort', 'ascending');
 });
 
 it.each(['reset', 'empty input'])('clears a name search through %s and returns to the first page', async method => {
