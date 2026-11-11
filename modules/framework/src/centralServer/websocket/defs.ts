@@ -95,6 +95,7 @@ export interface FileOrDirectory {
     name: string;
     path: string;
     rankId?: string; // type === 'RANK' 时有值
+    projectType?: ProjectType;
     children: FileOrDirectory[];
 }
 

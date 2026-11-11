@@ -63,5 +63,6 @@ export enum ProjectType {
     DB_CLUSTER = 6,
     IE = 7,
     DB_NPUMONITOR = 8,
+    DB_FTRACE = 13,
     OTHER = 9,
 }
