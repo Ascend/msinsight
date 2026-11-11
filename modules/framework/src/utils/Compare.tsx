@@ -19,13 +19,14 @@ import { message as Message } from 'antd';
 import { runInAction } from 'mobx';
 import i18n from '@insight/lib/i18n';
 import connector from '@/connection';
-import { GLOBAL_HOST } from '@/centralServer/websocket/defs';
+import { FileOrDirectory, GLOBAL_HOST } from '@/centralServer/websocket/defs';
 import { ClusterFile, File } from '@/entity/session';
 import { store } from '@/store';
 import { cancelBaseline, setBaseline } from '@/utils/Request';
 import { sendClusterBaselineStatus } from '@/connection/sendNotification';
 import { notNull } from '@insight/lib/utils';
 import { getRankInfo } from '@/utils/Rank';
+import { ProjectType } from '@/utils/enum';
 
 export interface CompareData extends File {
     rankId: string;
@@ -109,7 +110,7 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
         runInAction(() => {
             // compareSet 用于匹配项目树节点，应保留用户选中的原始 rankId；
             // resultRankId 是后端解析基线使用的独立标识，仅用于页签数据请求。
-            session.compareSet.baseline = { projectName, fileType, filePath, rankId: rankId ?? resultRankId };
+            session.compareSet.baseline = { projectName, fileType, filePath, rankId: rankId ?? resultRankId, isFtrace };
         });
     }
 };
@@ -169,6 +170,29 @@ export const cancelBaselineData = async (): Promise<void> => {
     });
 };
 
+const getFtraceType = (files: FileOrDirectory[], filePath: string, rankId?: string): boolean | undefined => {
+    for (const file of files) {
+        if (file.path === filePath && (file.rankId ?? '') === (rankId ?? '')) {
+            switch (file.projectType) {
+                case ProjectType.DB_FTRACE:
+                    return true;
+                case ProjectType.DB:
+                case ProjectType.DB_CLUSTER:
+                case ProjectType.DB_NPUMONITOR:
+                    return false;
+                default:
+                    // JSON 的 projectType 无法区分 Ftrace 和 profiling，保留原有行为。
+                    return undefined;
+            }
+        }
+        const isFtrace = getFtraceType(file.children, filePath, rankId);
+        if (isFtrace !== undefined) {
+            return isFtrace;
+        }
+    }
+    return undefined;
+};
+
 /**
  * 设置对比数据
  * @param projectName 工程名
@@ -196,6 +220,12 @@ export const setCompareData = ({ projectName, fileType, filePath, rankId }: File
             };
         });
     } else {
+        const isFtrace = getFtraceType(activeDataSource.children, filePath, rankId);
+        const baselineIsFtrace = session.compareSet.baseline.isFtrace;
+        if (isFtrace !== undefined && baselineIsFtrace !== undefined && isFtrace !== baselineIsFtrace) {
+            Message.warning('Comparison is not allowed for different data types.');
+            return;
+        }
         runInAction(() => {
             const rank = getRankInfo({ projectName, filePath, rankId });
             session.compareSet.comparison = {

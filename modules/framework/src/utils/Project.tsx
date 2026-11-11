@@ -86,6 +86,7 @@ export const transformFile = (tree: ImportTreeInfo | undefined, depth: number): 
                 name: tree.fileDir,
                 path: tree.filePath,
                 rankId: tree.rankId,
+                projectType: tree.projectType,
                 children: tree.children.map((child) => transformFile(child, depth + 1))
                     .flat().filter((item) => item !== undefined) as FileOrDirectory[],
             }];
