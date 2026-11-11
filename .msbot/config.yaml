@@ -3,6 +3,7 @@ audits:
   bug_issue_close:
     enabled: true
     template: .msbot/template/bug-close.yml
+    notification: msinsight
     # 从实例 tester_authors 中再缩小范围，有效名单是两边的交集。
     # 比较不区分大小写。省略 authors 则审计全部测试同学。
     # authors:
