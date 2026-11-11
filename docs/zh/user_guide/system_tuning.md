@@ -55,7 +55,8 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 - 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7)。
 - 支持导入含有ACLGraph构图过程数据的单个json文件。
 - 当导入数据的目录中同时存在单卡数据和集群数据，MindStudio Insight仅支持解析集群数据并进行可视化展示。
-- 支持profiling采集数据（.text格式和.db格式）和ftrace采集数据（.json格式和.db格式）联合导入，先添加其中一个采集方式的数据工程，再从该工程中添加另一个采集方式的数据文件。
+- 支持profiling采集数据（.text格式和.db格式）与ftrace_tools转换的独立Ftrace数据（.json格式和.db格式）联合导入，先添加其中一个采集方式的数据工程，再从该工程中添加另一个采集方式的数据文件。
+- 支持随msprof profiling DB自动导入其中的Host Ftrace，无需额外转换或单独追加Ftrace文件。
 - 支持导入由PyTorch Profiler（基于mspti + kineto插件）采集的NPU数据可视化展示，文件格式为`.pt.trace.json`。针对多卡场景，目前暂不支持将多个文件放入同一目录下批量导入，仅支持“单卡追加导入”，在已导入的单卡`.pt.trace.json`项目中追加导入其他卡的`.pt.trace.json`文件实现数据可视化。
 
 **采集配置与参数说明**
@@ -1661,8 +1662,8 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
 
 >[!NOTE]
 >
-> - 当导入的数据为非Ftrace类型数据时，统计系统视图将展示：综合指标、内存拷贝总览、算子下发耗时统计、算子详情以及算子类型（包括Python API 汇总、CANN API 汇总、Ascend Hardware Task 汇总、通信汇总、覆盖分析）数据。
-> - 当导入的数据为Ftrace类型数据时，统计系统视图仅展示**Ftrace任务统计**数据。
+> - 当所选卡为非Ftrace数据时，统计系统视图将展示：综合指标、内存拷贝总览、算子下发耗时统计、算子详情以及算子类型（包括Python API 汇总、CANN API 汇总、Ascend Hardware Task 汇总、通信汇总、覆盖分析）数据。
+> - 当所选卡为具有统计能力的Ftrace数据时，统计系统视图展示**Ftrace任务统计**。
 
 - 综合指标
 
@@ -1748,6 +1749,40 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |Host API|按完整 API 名称归并。无法完成唯一关联的 Free 分别展示为未关联、关联不完整或关联不唯一分组。|
   |累计空闲时长（μs）|分组内关联 Free 事件的完整时长总和，不是 API 自身耗时。|
   |累计空闲区间数|当前分组包含的 Free 空闲区间数量，每个区间仅计数一次。|
+
+  **二级表字段说明**
+
+  单击一级表分组左侧的展开按钮，可查看该分组的二级表。每条明细对应一个 Free 空闲区间；即使存在多个候选 API，也不会将同一个 Free 拆分为多条明细。
+
+  |中文字段|英文字段|说明|
+  |--|--|--|
+  |Host API 名称|Host API Name|关联的 PyTorch Host API 名称。无法唯一关联时，展示已找到的候选 API；未找到 API 时显示“--”。|
+  |API 开始时间（μs）|API Start Time (μs)|关联或候选 Host API 在时间线中的开始时间，单位为 μs。未找到 API 时显示“--”。|
+  |API 时长（μs）|API Duration (μs)|关联或候选 Host API 自身的执行时长，单位为 μs，不是对应 Free 的时长。未找到 API 时显示“--”。|
+  |Free 开始时间（μs）|Free Start Time (μs)|当前 Free 空闲区间在时间线中的开始时间，单位为 μs。|
+  |Free 时长（μs）|Free Duration (μs)|当前 Free 空闲区间的完整持续时间，单位为 μs。一级表的累计空闲时长由该分组内这些 Free 时长累加得到。|
+  |后继行为类型|Next Behavior|Free 之后首个行为的类型，包括 Computing（计算）、Communication（通信），或同时包含两者。此列描述后继行为，不表示 API 的类型；无后继行为时为空。|
+  |关联状态|Association Status|唯一关联时显示“已唯一关联”；关联不唯一、关联不完整或未关联时，显示具体原因，详见下方关联状态说明。|
+  |操作|Actions|单击“跳转 API”定位关联或候选 API，单击“跳转 Free”定位当前 Free。多个候选 API 分别提供带序号的跳转按钮；没有 API 目标时隐藏“跳转 API”，仍可跳转 Free。|
+
+  存在多个候选 API 时，Host API 名称、API 开始时间和 API 时长显示为“第一个值 等 N 个”的摘要形式，悬浮可查看完整内容，复制时保留全部候选值。N 表示候选 API 实例数；不同实例的名称、开始时间或时长可以相同。
+
+  API 和 Free 的开始时间分别随相应的 Host、Device 时间偏移调整，时长不受平移影响。应用时间范围分析后，按 Free 区间与所选范围是否相交筛选记录；Free 时长仍为完整区间时长，不裁剪为相交部分，关联 API 的开始时间也可能在所选范围之外。
+
+  **关联状态说明**
+
+  |显示内容|含义|
+  |--|--|
+  |已唯一关联|关联链路完整，最终只找到一个 PyTorch Host API 实例。多个后继任务回溯到同一 API 实例时，仍视为唯一关联。|
+  |存在多个候选 API 实例|关联链路完整，但最终找到多个不同的 PyTorch Host API 实例，无法确定唯一目标；同名的不同 API 实例也属于多个候选。|
+  |部分候选链路缺失|已找到候选 API，但仍有部分关联链路缺失，不能确认完整关联结果。|
+  |无后继行为|未找到 Free 之后的计算或通信行为。|
+  |后继行为与 Free 不连续|找到后继行为，但其开始时间不等于 Free 的结束时间，无法按紧邻关系归因。|
+  |未找到同开始时间的设备算子|找到后继行为，但未找到与其开始时间相同的对应计算或通信算子。|
+  |缺少关联连线|找到对应设备算子，但缺少可用于回溯的关联连线。|
+  |未找到 PyTorch Host API|已找到关联连线，但未找到对应的 PyTorch Host API。|
+
+  原因缺失或无法识别时，关联状态回退显示“关联不唯一”“关联不完整”或“未关联”。存在候选 API 仅表示可供核查的关联线索，仍需结合时间线中的实际执行情况确认。
 
 - 算子跟踪
 
@@ -2898,6 +2933,6 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 在大模型系统中，CPU主要负责任务下发，NPU负责任务执行。在实际的推理或训练过程中，Host Bound问题较为常见。要解决Host Bound问题，通常需要通过收集Linux Kernel ftrace数据分析CPU调度问题，但目前缺乏将Linux Kernel ftrace数据与Profiling的数据统一展示的工具，导致Host Bound问题分析存在困难。
 
-MindStudio Insight工具提供了一套完整的数据采集和转化脚本，能够采集Linux Kernel ftrace数据，并将其转换为支持的json文件格式；同时，该工具还支持将转换后的Linux Kernel ftrace数据和Profiling的数据同时导入，实现在同一界面展示两种数据，便于联合分析，从而提高Host Bound问题定位的效率。
+MindStudio Insight支持两种Ftrace输入：MindStudio Insight工具提供的一套完整的数据采集和转化脚本采集并转换的独立DB/JSON，以及msprof profiling DB内置的Ftrace。前者与对应的profiling数据联合导入，后者随主DB自动识别；两者均可结合CPU Scheduling、Process Scheduling和profiling视图分析Host Bound问题。
 
 Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.zh-CN.md)》。
