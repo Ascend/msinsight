@@ -21,6 +21,8 @@
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
+#include <limits>
 #include <vector>
 #include "GlobalDefs.h"
 #include "ProtocolDefs.h"
@@ -147,22 +149,26 @@ struct DurationData {
 
     DurationData operator-(const DurationData &durationData) const {
         int precision = 4;
+        const auto difference = [precision](double left, double right) {
+            if (left < 0 || right < 0 || !std::isfinite(left) || !std::isfinite(right)) {
+                return std::numeric_limits<double>::quiet_NaN();
+            }
+            return NumberUtil::DoubleReservedNDigits(left - right, precision);
+        };
         DurationData res;
-        res.startTime = NumberUtil::DoubleReservedNDigits(this->startTime - durationData.startTime, precision);
-        res.elapseTime = NumberUtil::DoubleReservedNDigits(this->elapseTime - durationData.elapseTime, precision);
-        res.transitTime = NumberUtil::DoubleReservedNDigits(this->transitTime - durationData.transitTime, precision);
-        res.synchronizationTime =
-            NumberUtil::DoubleReservedNDigits(this->synchronizationTime - durationData.synchronizationTime, precision);
-        res.waitTime = NumberUtil::DoubleReservedNDigits(this->waitTime - durationData.waitTime, precision);
-        res.idleTime = NumberUtil::DoubleReservedNDigits(this->idleTime - durationData.idleTime, precision);
-        res.synchronizationTimeRatio = NumberUtil::DoubleReservedNDigits(
-            this->synchronizationTimeRatio - durationData.synchronizationTimeRatio, precision);
-        res.waitTimeRatio =
-            NumberUtil::DoubleReservedNDigits(this->waitTimeRatio - durationData.waitTimeRatio, precision);
-        res.sdmaBw = NumberUtil::DoubleReservedNDigits(this->sdmaBw - durationData.sdmaBw, precision);
-        res.rdmaBw = NumberUtil::DoubleReservedNDigits(this->rdmaBw - durationData.rdmaBw, precision);
-        res.sdmaTime = NumberUtil::DoubleReservedNDigits(this->sdmaTime - durationData.sdmaTime, precision);
-        res.rdmaTime = NumberUtil::DoubleReservedNDigits(this->rdmaTime - durationData.rdmaTime, precision);
+        res.startTime = difference(this->startTime, durationData.startTime);
+        res.elapseTime = difference(this->elapseTime, durationData.elapseTime);
+        res.transitTime = difference(this->transitTime, durationData.transitTime);
+        res.synchronizationTime = difference(this->synchronizationTime, durationData.synchronizationTime);
+        res.waitTime = difference(this->waitTime, durationData.waitTime);
+        res.idleTime = difference(this->idleTime, durationData.idleTime);
+        res.synchronizationTimeRatio =
+            difference(this->synchronizationTimeRatio, durationData.synchronizationTimeRatio);
+        res.waitTimeRatio = difference(this->waitTimeRatio, durationData.waitTimeRatio);
+        res.sdmaBw = difference(this->sdmaBw, durationData.sdmaBw);
+        res.rdmaBw = difference(this->rdmaBw, durationData.rdmaBw);
+        res.sdmaTime = difference(this->sdmaTime, durationData.sdmaTime);
+        res.rdmaTime = difference(this->rdmaTime, durationData.rdmaTime);
         return res;
     }
 };
@@ -180,6 +186,7 @@ struct BandwidthStatistic {
     double minBw; // 单位GB/s
     double diffBw; // 单位GB/s
     double allTime;
+    size_t validRankCount = 0;
 };
 
 struct DurationListsResponseBody {

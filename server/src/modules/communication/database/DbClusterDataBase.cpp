@@ -109,6 +109,10 @@ bool DbClusterDataBase::GetGroups(std::vector<GroupInfoDo> &groupList) {
 
 bool DbClusterDataBase::QueryMatrixList(
     Protocol::MatrixBandwidthParam &param, std::vector<MatrixInfoDo> &matrixInfoDoList) {
+    if (!CheckTableExist(TABLE_COMM_ANALYZER_MATRIX)) {
+        matrixInfoDoList.clear();
+        return true;
+    }
     std::string sql = "SELECT src_rank as srcRank, dst_rank as dstRank, "
                       "transport_type as transportType, "
                       "ROUND(transit_size, 4) as transitSize, "
@@ -126,7 +130,7 @@ bool DbClusterDataBase::QueryMatrixList(
 bool DbClusterDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
     std::string sql = "SELECT MIN(start_timestamp) * 1000 as minTime, MAX(start_timestamp) * 1000 as maxTime "
                       "FROM " +
-        TABLE_COMM_ANALYZER_TIME + " WHERE start_timestamp != 0";
+        TABLE_COMM_ANALYZER_TIME + " WHERE start_timestamp > 0";
     return ExecuteQueryExtremumTimestamp(sql, min, max);
 }
 
@@ -159,30 +163,51 @@ bool DbClusterDataBase::QueryIterationAndCommunicationGroup(
     return false;
 }
 
+std::string DbClusterDataBase::GetOptionalBandwidthTableSql() {
+    if (CheckTableExist(TABLE_COMM_ANALYZER_BANDWIDTH)) {
+        return TABLE_COMM_ANALYZER_BANDWIDTH;
+    }
+    return "(SELECT NULL AS step, NULL AS rank_id, NULL AS hccl_op_name, NULL AS group_name, "
+           "NULL AS band_type, NULL AS bandwidth, NULL AS transit_time WHERE 0)";
+}
+
+std::string DbClusterDataBase::GetTimeMetricsSql() {
+    std::string sql;
+    const std::vector<std::pair<std::string, std::string>> columns = {{"elapsed_time", "elapseTime"},
+        {"transit_time", "transitTime"}, {"synchronization_time", "synchronizationTime"}, {"wait_time", "waitTime"},
+        {"idle_time", "idleTime"}};
+    for (const auto &column : columns) {
+        sql += "ROUND(t." + column.first + ", 4) AS " + column.second + ", ";
+    }
+    const std::vector<std::pair<std::string, std::string>> ratios = {
+        {"synchronization_time", "synchronizationTimeRatio"}, {"wait_time", "waitTimeRatio"}};
+    for (const auto &column : ratios) {
+        const std::string time = "t." + column.first;
+        const std::string transit = "t.transit_time";
+        sql += "CASE WHEN " + time + " < 0 OR " + transit + " < 0 THEN -1 WHEN " + time +
+            " = 0 THEN 0 ELSE ROUND(1.0 * " + time + " / (" + time + " + " + transit + "), 4) END AS " + column.second +
+            ", ";
+    }
+    return sql;
+}
+
 bool DbClusterDataBase::QueryAllOperators(
     Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody) {
     uint64_t startTime = Module::Timeline::TraceTime::Instance().GetStartTime();
     std::string sql = "SELECT t.hccl_op_name as operatorName, "
-                      "ROUND((start_timestamp - ?/1000.0) / 1000.0, 3) as startTime, "
-                      "ROUND(elapsed_time, 4) as elapseTime, "
-                      "ROUND(transit_time, 4) as transitTime, "
-                      "ROUND(synchronization_time, 4) as synchronizationTime, "
-                      "ROUND(wait_time, 4) as waitTime, "
-                      "ROUND(idle_time, 4) as idleTime, "
-                      "CASE WHEN synchronization_time = 0 THEN 0 ELSE ROUND(synchronization_time "
-                      " / (synchronization_time + transit_time), 4) END AS synchronizationTimeRatio, "
-                      "CASE WHEN wait_time = 0 THEN 0 ELSE "
-                      "ROUND(wait_time / (wait_time + transit_time), 4) END AS waitTimeRatio, "
-                      "bw.sdma_bw as sdmaBw, bw.rdma_bw as rdmaBw "
-                      "FROM " +
+                      "CASE WHEN start_timestamp = -1 THEN -1 ELSE "
+                      "ROUND((start_timestamp - ?/1000.0) / 1000.0, 3) END as startTime, " +
+        GetTimeMetricsSql() +
+        "COALESCE(bw.sdma_bw, -1) as sdmaBw, COALESCE(bw.rdma_bw, -1) as rdmaBw "
+        "FROM " +
         TABLE_COMM_ANALYZER_TIME +
         " t "
         "LEFT JOIN ( "
         "    SELECT hccl_op_name, "
-        "    MAX(CASE WHEN band_type = 'SDMA' THEN bandwidth ELSE 0 END) AS sdma_bw, "
-        "    MAX(CASE WHEN band_type = 'RDMA' THEN bandwidth ELSE 0 END) AS rdma_bw "
+        "    MAX(CASE WHEN band_type = 'SDMA' THEN bandwidth ELSE -1 END) AS sdma_bw, "
+        "    MAX(CASE WHEN band_type = 'RDMA' THEN bandwidth ELSE -1 END) AS rdma_bw "
         "    FROM " +
-        TABLE_COMM_ANALYZER_BANDWIDTH +
+        GetOptionalBandwidthTableSql() +
         " b"
         "    WHERE b.step = ? AND b.rank_id = ? AND b.group_name = ? AND hccl_op_name != 'Total Op Info'"
         "    GROUP BY hccl_op_name "
@@ -201,6 +226,10 @@ bool DbClusterDataBase::QueryOperatorsCount(
 
 bool DbClusterDataBase::QueryBandwidthData(
     Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody) {
+    if (!CheckTableExist(TABLE_COMM_ANALYZER_BANDWIDTH)) {
+        resBody.items.clear();
+        return true;
+    }
     std::string sql = "SELECT band_type, ROUND(transit_size, 4) as transit_size,"
                       "ROUND(transit_time, 4) as transit_time,"
                       "ROUND(bandwidth, 4) as bandwidth_size,"
@@ -228,7 +257,7 @@ bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, cons
         const std::string timeSql =
             "SELECT step AS iteration, group_name AS communicationGroup, transit_time AS transitTime, "
             "wait_time AS waitTime, CASE WHEN step IS NOT NULL AND step != '' "
-            "AND group_name IS NOT NULL AND group_name != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
+            "AND group_name IS NOT NULL AND group_name != '' AND transit_time >= 0 AND wait_time >= 0 "
             "THEN 1 ELSE 0 END AS isComplete FROM " +
             singleRankTimeTable + " WHERE hccl_op_name = ? AND hccl_op_name != 'Total Op Info' LIMIT 2";
         const std::string bandwidthSql = "SELECT transport_type AS transportType, MIN(transit_size) AS transitSize, "
@@ -236,7 +265,7 @@ bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, cons
             singleRankBandwidthTable +
             " WHERE step = ? AND group_name = ? AND hccl_op_name = ? "
             "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO', 'UB') "
-            "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth IS NOT NULL "
+            "AND transit_size >= 0 AND transit_time >= 0 AND bandwidth >= 0 "
             "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
             "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
             "ORDER BY transport_type";
@@ -250,7 +279,7 @@ bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, cons
     const std::string timeSql =
         "SELECT step AS iteration, group_name AS communicationGroup, transit_time AS transitTime, "
         "wait_time AS waitTime, CASE WHEN step IS NOT NULL AND step != '' "
-        "AND group_name IS NOT NULL AND group_name != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
+        "AND group_name IS NOT NULL AND group_name != '' AND transit_time >= 0 AND wait_time >= 0 "
         "THEN 1 ELSE 0 END AS isComplete FROM " +
         TABLE_COMM_ANALYZER_TIME +
         " WHERE rank_id = ? AND hccl_op_name = ? AND hccl_op_name != 'Total Op Info' LIMIT 2";
@@ -259,7 +288,7 @@ bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, cons
         TABLE_COMM_ANALYZER_BANDWIDTH +
         " WHERE step = ? AND rank_id = ? AND group_name = ? AND hccl_op_name = ? "
         "AND band_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO', 'UB') "
-        "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth IS NOT NULL "
+        "AND transit_size >= 0 AND transit_time >= 0 AND bandwidth >= 0 "
         "GROUP BY band_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
         "ORDER BY band_type";
@@ -318,6 +347,10 @@ std::optional<std::string> DbClusterDataBase::QueryCommunicationRankId(
 
 bool DbClusterDataBase::QueryDistributionData(
     Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody) {
+    if (!CheckTableExist(TABLE_COMM_ANALYZER_BANDWIDTH)) {
+        resBody.distributionData.clear();
+        return true;
+    }
     std::string sql = "SELECT package_size, count, total_duration FROM " + TABLE_COMM_ANALYZER_BANDWIDTH +
         " t"
         " WHERE step = ? "
@@ -438,17 +471,12 @@ bool DbClusterDataBase::QueryDurationList(
         rankSqlTime = " AND t.rank_id IN " + ranks;
     }
 
-    std::string sql =
-        "SELECT t.rank_id as rank_id, "
-        "CASE WHEN start_timestamp = 0 THEN 0 ELSE ROUND((start_timestamp - ?/1000.0) / 1000.0, 4) END, "
-        "ROUND(elapsed_time, 4) as elapse_time, ROUND(transit_time, 4) as transit_time, "
-        "ROUND(synchronization_time, 4) as synchronization_time, ROUND(wait_time, 4) as wait_time, "
-        "ROUND(idle_time, 4) as idle_time, "
-        "CASE WHEN synchronization_time = 0 THEN 0 ELSE ROUND(synchronization_time "
-        " / (synchronization_time + transit_time), 4) END AS synchronization_time_ratio, "
-        "CASE WHEN wait_time = 0 THEN 0 ELSE "
-        " ROUND(wait_time / (wait_time + transit_time), 4) END AS wait_time_ratio, "
-        "bw.sdma_bw as sdma_bw, bw.rdma_bw as rdma_bw, bw.sdma_time as sdma_time, bw.rdma_time as rdma_time "
+    std::string sql = "SELECT t.rank_id as rank_id, "
+                      "CASE WHEN start_timestamp = -1 THEN -1 WHEN start_timestamp = 0 THEN 0 ELSE "
+                      "ROUND((start_timestamp - ?/1000.0) / 1000.0, 4) END, " +
+        GetTimeMetricsSql() +
+        "COALESCE(bw.sdma_bw, -1) as sdma_bw, COALESCE(bw.rdma_bw, -1) as rdma_bw, COALESCE(bw.sdma_time, -1) as "
+        "sdma_time, COALESCE(bw.rdma_time, -1) as rdma_time "
         "FROM " +
         TABLE_COMM_ANALYZER_TIME +
         " t "
@@ -457,12 +485,12 @@ bool DbClusterDataBase::QueryDurationList(
         " map ON map.group_name = t.group_name"
         " LEFT JOIN ("
         "    SELECT rank_id, "
-        "    MAX(CASE WHEN band_type = 'SDMA' THEN bandwidth ELSE 0 END) AS sdma_bw, "
-        "    MAX(CASE WHEN band_type = 'RDMA' THEN bandwidth ELSE 0 END) AS rdma_bw, "
-        "    MAX(CASE WHEN band_type = 'SDMA' THEN transit_time ELSE 0 END) AS sdma_time, "
-        "    MAX(CASE WHEN band_type = 'RDMA' THEN transit_time ELSE 0 END) AS rdma_time "
+        "    MAX(CASE WHEN band_type = 'SDMA' THEN bandwidth ELSE -1 END) AS sdma_bw, "
+        "    MAX(CASE WHEN band_type = 'RDMA' THEN bandwidth ELSE -1 END) AS rdma_bw, "
+        "    MAX(CASE WHEN band_type = 'SDMA' THEN b.transit_time ELSE -1 END) AS sdma_time, "
+        "    MAX(CASE WHEN band_type = 'RDMA' THEN b.transit_time ELSE -1 END) AS rdma_time "
         "    FROM " +
-        TABLE_COMM_ANALYZER_BANDWIDTH +
+        GetOptionalBandwidthTableSql() +
         " b"
         "    LEFT JOIN " +
         TABLE_COMM_GROUP +
@@ -488,7 +516,8 @@ bool DbClusterDataBase::QueryOperatorList(
         " LEFT JOIN " +
         TABLE_COMM_GROUP +
         " m ON m.group_name = t.group_name"
-        " WHERE step = ? AND m.group_name = ? AND hccl_op_name <> 'Total Op Info'";
+        " WHERE step = ? AND m.group_name = ? AND hccl_op_name <> 'Total Op Info' "
+        "AND start_timestamp >= 0 AND elapsed_time >= 0";
     std::vector<std::string> rankList = requestParams.rankList;
     if (!rankList.empty()) {
         std::string ranks = GetRanksSql(rankList);
@@ -505,6 +534,10 @@ bool DbClusterDataBase::QueryOperatorList(
 
 bool DbClusterDataBase::QueryMatrixSortOpNames(
     Protocol::OperatorNamesParams &requestParams, std::vector<Protocol::OperatorNamesObject> &responseBody) {
+    if (!CheckTableExist(TABLE_COMM_ANALYZER_MATRIX)) {
+        responseBody.clear();
+        return true;
+    }
     std::string sql = "SELECT DISTINCT t.hccl_op_name  FROM " + TABLE_COMM_ANALYZER_MATRIX +
         " t"
         " WHERE t.step = ? AND t.group_name = ?" +
@@ -706,6 +739,7 @@ bool DbClusterDataBase::QuerySlowOpByCommDuration(const Protocol::DurationListPa
         TABLE_COMM_ANALYZER_TIME +
         " t "
         "    where t.rank_id = ? and step = 'step' || ? and t.group_name = ? and opName != 'Total Op Info' "
+        "    AND start_timestamp >= 0 AND t.elapsed_time >= 0 "
         " ) fast "
         " join ( "
         "    select t.rank_id as rankId, t.hccl_op_name AS opName, "
@@ -714,13 +748,15 @@ bool DbClusterDataBase::QuerySlowOpByCommDuration(const Protocol::DurationListPa
         TABLE_COMM_ANALYZER_TIME +
         " t "
         "    where t.rank_id = ? and step = 'step' || ? and t.group_name = ? and opName != 'Total Op Info' "
+        "    AND start_timestamp >= 0 AND t.elapsed_time >= 0 "
         " ) slow "
         " on fast.opName = slow.opName ORDER BY diffElapseTime DESC;";
     return ExecuteQuerySlowOpByCommDuration(sql, params, fastestRankId, slowRank);
 }
 
 std::vector<CommInfoUnderRank> DbClusterDataBase::GetCommTimeForRankDim(const std::string &stepId) {
-    std::string sql = "SELECT t.rank_id as rankId, ROUND(sum(t.elapsed_time) * 1000, 3) as commTime, "
+    std::string sql = "SELECT t.rank_id as rankId, CASE WHEN MIN(t.elapsed_time) < 0 THEN -1 ELSE "
+                      "ROUND(sum(t.elapsed_time) * 1000, 3) END as commTime, "
                       "g.rank_set as rankSet, g.group_name as groupIdHash, g.pg_name as pgName "
                       "FROM " +
         TABLE_COMM_ANALYZER_TIME + " as t LEFT JOIN (SELECT rank_set, group_name, pg_name FROM " + TABLE_COMM_GROUP +
@@ -736,7 +772,8 @@ std::vector<CommInfoUnderRank> DbClusterDataBase::GetCommTimeForRankDim(const st
 
 bool DbClusterDataBase::QueryPacketAnalyzerData(std::vector<PacketAnalyzerData> &data) {
     std::string sql = "SELECT band_type, transit_size, transit_time FROM " + TABLE_COMM_ANALYZER_BANDWIDTH +
-        " WHERE (band_type = 'RDMA' OR band_type = 'SDMA') AND transit_size > 0 AND hccl_op_name != 'Total Op Info';";
+        " WHERE (band_type = 'RDMA' OR band_type = 'SDMA') AND transit_size > 0 AND hccl_op_name != "
+        "'Total Op Info' AND transit_time > 0;";
     return ExecuteQueryPacketAnalyzerData(data, sql);
 }
 
@@ -749,7 +786,8 @@ bool DbClusterDataBase::QueryBandwidthContentionAnalyzerData(
         " AS t2 ON"
         " t1.step = t2.step AND t1.group_name = t2.group_name AND "
         " t1.rank_id = t2.rank_id AND t1.hccl_op_name = t2.hccl_op_name " +
-        " WHERE t1.rank_id = ? AND band_type = 'SDMA' AND transit_size > 0 ORDER BY startTime;";
+        " WHERE t1.rank_id = ? AND band_type = 'SDMA' AND transit_size > 0 AND start_timestamp >= 0 AND "
+        "elapsed_time >= 0 AND bandwidth >= 0 ORDER BY startTime;";
     return ExecuteQueryBandwidthContentionAnalyzerData(res, rankId, sql);
 }
 
@@ -763,7 +801,7 @@ bool DbClusterDataBase::QueryRetransmissionAnalyzerData(std::vector<Retransmissi
         TABLE_COMM_GROUP +
         " AS t3 ON "
         " t1.group_name = t3.group_name WHERE band_type = 'RDMA' AND t1.hccl_op_name != 'Total Op Info' "
-        " GROUP BY t1.step, t3.rank_set, t1.hccl_op_name";
+        " AND t2.elapsed_time >= 0 AND t1.transit_time >= 0 GROUP BY t1.step, t3.rank_set, t1.hccl_op_name";
     return ExecuteQueryRetransmissionAnalyzerData(data, sql);
 }
 

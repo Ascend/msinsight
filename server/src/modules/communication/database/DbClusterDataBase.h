@@ -85,6 +85,8 @@ class DbClusterDataBase : public VirtualClusterDatabase {
     std::vector<OpTypeStatistics> GetOpStatByStepId(const std::string &stepId) override;
 
   private:
+    std::string GetTimeMetricsSql();
+    std::string GetOptionalBandwidthTableSql();
     std::string parseStatus = "UN_FINISH";
     // 标记初始状态的数据库是否有ClusterBaseInfo表
     bool hasClusterBaseInfoTable = false;

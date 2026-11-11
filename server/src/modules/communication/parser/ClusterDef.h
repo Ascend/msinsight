@@ -35,14 +35,14 @@ struct CommunicationTimeInfo {
     std::string rankId;
     std::string opName;
     std::string opSuffix;
-    uint64_t startTime = 0;
-    double elapseTime = 0;
-    double synchronizationTimeRatio = 0;
-    double synchronizationTime = 0;
-    double transitTime = 0;
-    double waitTimeRatio = 0;
-    double waitTime = 0;
-    double idleTime = 0;
+    int64_t startTime = -1;
+    double elapseTime = -1;
+    double synchronizationTimeRatio = -1;
+    double synchronizationTime = -1;
+    double transitTime = -1;
+    double waitTimeRatio = -1;
+    double waitTime = -1;
+    double idleTime = -1;
 };
 
 struct PackageInfo {
@@ -56,12 +56,12 @@ struct CommunicationBandWidth {
     std::string opName;
     std::string opSuffix;
     std::string transportType;
-    double bandwidthSize = 0;
-    double bandwidthUtilization = 0;
-    double largePackageRatio = 0;
+    double bandwidthSize = -1;
+    double bandwidthUtilization = -1;
+    double largePackageRatio = -1;
     std::string sizeDistribution;
-    double transitSize = 0;
-    double transitTime = 0;
+    double transitSize = -1;
+    double transitTime = -1;
     // the key is the size of package
     std::unordered_map<std::string, PackageInfo> packageMap;
 };

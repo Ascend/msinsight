@@ -17,6 +17,7 @@
  */
 
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <map>
 #include <memory>
@@ -533,17 +534,16 @@ void ClusterService::MergeDurationData(Protocol::DurationListsResponseBody &body
 
 void ClusterService::StatisticBandwidthData(const DurationDo &item, std::vector<Protocol::BandwidthStatistic> &bwStat) {
     for (auto &one : bwStat) {
-        if (one.type == "SDMA") {
-            one.maxBw = std::max(one.maxBw, item.sdmaBw);
-            one.minBw = std::min(one.minBw, item.sdmaBw);
-            one.avgBw += item.sdmaBw;
-            one.allTime += item.sdmaTime;
-        } else {
-            one.maxBw = std::max(one.maxBw, item.rdmaBw);
-            one.minBw = std::min(one.minBw, item.rdmaBw);
-            one.avgBw += item.rdmaBw;
-            one.allTime += item.rdmaTime;
+        const double bandwidth = one.type == "SDMA" ? item.sdmaBw : item.rdmaBw;
+        const double time = one.type == "SDMA" ? item.sdmaTime : item.rdmaTime;
+        if (!std::isfinite(bandwidth) || !std::isfinite(time) || bandwidth == -1 || time == -1) {
+            continue;
         }
+        one.maxBw = std::max(one.maxBw, bandwidth);
+        one.minBw = std::min(one.minBw, bandwidth);
+        one.avgBw += bandwidth;
+        one.allTime += time;
+        ++one.validRankCount;
     }
 }
 
@@ -554,10 +554,10 @@ void ClusterService::GetBandwidthStatisticResult(
     }
     int digit = 4;
     for (auto &item : bwStat) {
-        if (item.avgBw == 0) {
+        if (item.avgBw == 0 || item.validRankCount == 0) {
             continue;
         }
-        item.avgBw = NumberUtil::DoubleReservedNDigits(item.avgBw / responseBody.durationList.size(), digit);
+        item.avgBw = NumberUtil::DoubleReservedNDigits(item.avgBw / item.validRankCount, digit);
         if (item.minBw != DBL_MAX) {
             item.diffBw = NumberUtil::DoubleReservedNDigits(item.maxBw - item.minBw, digit);
         }
@@ -661,7 +661,7 @@ void ClusterService::FindSlowRankByCommDuration(const std::shared_ptr<VirtualClu
     std::vector<CommInfoUnderRank> commTimeForRankDim = database->GetCommTimeForRankDim(params.iterationId);
     std::set<RankDetailsForSlowRank> rankDetails;
     for (const auto &commInfo : commTimeForRankDim) {
-        if (commInfo.groupIdHash == params.groupIdHash) {
+        if (commInfo.groupIdHash == params.groupIdHash && std::isfinite(commInfo.commTime) && commInfo.commTime >= 0) {
             rankDetails.insert({commInfo.rankId, 0.0, commInfo.commTime, {}});
         }
     }

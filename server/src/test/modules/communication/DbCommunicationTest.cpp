@@ -17,6 +17,7 @@
  */
 
 #include <algorithm>
+#include <cmath>
 #include <gtest/gtest.h>
 #include "MemoryProtocolRequest.h"
 #include "DataBaseManager.h"
@@ -31,6 +32,151 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::Module::FullDb;
 using namespace Dic;
 using namespace Dic::Module::Communication;
+
+namespace {
+bool CreatePartialCommunicationData(DbClusterDataBase &database) {
+    return database.AttachDb(":memory:") &&
+        database.ExecSql(
+            "CREATE TABLE CommunicationGroupMapping (group_name TEXT, rank_set TEXT);"
+            "INSERT INTO CommunicationGroupMapping VALUES ('group', '(0,1)');"
+            "CREATE TABLE ClusterCommunicationTime (step TEXT, rank_id INTEGER, hccl_op_name TEXT, group_name TEXT, "
+            "start_timestamp REAL, elapsed_time REAL, transit_time REAL, synchronization_time REAL, wait_time REAL, "
+            "idle_time REAL, synchronization_time_ratio REAL, wait_time_ratio REAL);"
+            "INSERT INTO ClusterCommunicationTime VALUES "
+            "('step', 0, 'Total Op Info', 'group', 0, 51.9954, -1, -1, -1, -1, 0, 0),"
+            "('step', 0, 'hcom_test', 'group', -1, 4.9305, -1, -1, -1, -1, 0, -1),"
+            "('step', 1, 'hcom_test', 'group', 2000, 0, 0, 0, 0, 0, 0, 0);");
+}
+}
+
+TEST(DbCommunicationPartialDataTest, DurationDoesNotRequireBandwidthOrMatrixTables) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    Dic::Protocol::DurationListParams params;
+    params.groupIdHash = "group";
+    params.operatorName = "Total Op Info";
+    std::vector<Dic::Module::DurationDo> result;
+
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].elapseTime, 51.9954);
+    EXPECT_DOUBLE_EQ(result[0].transitTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].synchronizationTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].waitTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].idleTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].synchronizationTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result[0].waitTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result[0].sdmaBw, -1);
+    EXPECT_DOUBLE_EQ(result[0].rdmaBw, -1);
+}
+
+TEST(DbCommunicationPartialDataTest, OperatorDetailsKeepMissingValuesAndRealZero) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    Dic::Protocol::OperatorDetailsParam params;
+    params.iterationId = "step";
+    params.groupIdHash = "group";
+    params.rankId = "0";
+    params.currentPage = 1;
+    params.pageSize = 10;
+    Dic::Protocol::OperatorDetailsResBody result;
+
+    ASSERT_TRUE(database.QueryAllOperators(params, result));
+    ASSERT_EQ(result.allOperators.size(), 1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].elapseTime, 4.9305);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].startTime, -1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].transitTime, -1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].waitTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].synchronizationTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].sdmaBw, -1);
+
+    params.rankId = "1";
+    result.allOperators.clear();
+    ASSERT_TRUE(database.QueryAllOperators(params, result));
+    ASSERT_EQ(result.allOperators.size(), 1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].elapseTime, 0);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].transitTime, 0);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].waitTimeRatio, 0);
+}
+
+TEST(DbCommunicationPartialDataTest, DurationKeepsAvailableBandwidthAndRankFilter) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    ASSERT_TRUE(database.ExecSql(
+        "CREATE TABLE ClusterCommunicationBandwidth (step TEXT, rank_id INTEGER, hccl_op_name TEXT, "
+        "group_name TEXT, band_type TEXT, bandwidth REAL, transit_time REAL);"
+        "INSERT INTO ClusterCommunicationBandwidth VALUES ('step', 1, 'hcom_test', 'group', 'SDMA', 0, 0);"));
+    Dic::Protocol::DurationListParams params;
+    params.groupIdHash = "group";
+    params.operatorName = "hcom_test";
+    params.rankList = {"1"};
+    std::vector<Dic::Module::DurationDo> result;
+
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_EQ(result[0].rankId, "1");
+    EXPECT_DOUBLE_EQ(result[0].sdmaBw, 0);
+    EXPECT_DOUBLE_EQ(result[0].sdmaTime, 0);
+    EXPECT_DOUBLE_EQ(result[0].rdmaBw, -1);
+
+    params.iterationId.clear();
+    params.rankList = {"0"};
+    result.clear();
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].elapseTime, 4.9305);
+    EXPECT_DOUBLE_EQ(result[0].sdmaBw, -1);
+    EXPECT_DOUBLE_EQ(result[0].rdmaBw, -1);
+}
+
+TEST(DbCommunicationPartialDataTest, DerivesRatiosWhenOlderSchemaOmitsRatioColumns) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    ASSERT_TRUE(database.ExecSql(
+        "ALTER TABLE ClusterCommunicationTime DROP COLUMN synchronization_time_ratio;"
+        "ALTER TABLE ClusterCommunicationTime DROP COLUMN wait_time_ratio;"
+        "UPDATE ClusterCommunicationTime SET transit_time = 3, synchronization_time = 1, wait_time = 2 "
+        "WHERE rank_id = 1;"));
+    Dic::Protocol::DurationListParams params;
+    params.groupIdHash = "group";
+    params.operatorName = "hcom_test";
+    params.rankList = {"1"};
+    std::vector<Dic::Module::DurationDo> result;
+
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].synchronizationTimeRatio, 0.25);
+    EXPECT_DOUBLE_EQ(result[0].waitTimeRatio, 0.4);
+}
+
+TEST(DbCommunicationPartialDataTest, MissingOptionalTablesReturnEmptyData) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    Dic::Protocol::MatrixBandwidthParam matrixParams;
+    std::vector<Dic::Module::MatrixInfoDo> matrix;
+    EXPECT_TRUE(database.QueryMatrixList(matrixParams, matrix));
+    EXPECT_TRUE(matrix.empty());
+
+    Dic::Protocol::OperatorNamesParams namesParams;
+    std::vector<Dic::Protocol::OperatorNamesObject> names;
+    EXPECT_TRUE(database.QueryMatrixSortOpNames(namesParams, names));
+    EXPECT_TRUE(names.empty());
+
+    Dic::Protocol::BandwidthDataParam bandwidthParams;
+    Dic::Protocol::BandwidthDataResBody bandwidth;
+    EXPECT_TRUE(database.QueryBandwidthData(bandwidthParams, bandwidth));
+    EXPECT_TRUE(bandwidth.items.empty());
+
+    Dic::Protocol::DistributionDataParam distributionParams;
+    Dic::Protocol::DistributionResBody distribution;
+    EXPECT_TRUE(database.QueryDistributionData(distributionParams, distribution));
+    EXPECT_TRUE(distribution.distributionData.empty());
+}
 
 class DbCommunicationTest : public ::testing::Test {
   public:
@@ -222,16 +368,16 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
         "('', 0, 'hcom_empty_step', 'group', 1, 1), "
         "('step1', 0, 'hcom_null_group', NULL, 1, 1), "
         "('step1', 0, 'hcom_empty_group', '', 1, 1), "
-        "('step1', 0, 'hcom_null_transit', 'group', NULL, 1), "
-        "('step1', 0, 'hcom_null_wait', 'group', 1, NULL), "
+        "('step1', 0, 'hcom_null_transit', 'group', -1, 1), "
+        "('step1', 0, 'hcom_null_wait', 'group', 1, -1), "
         "('step1', 0, 'hcom_mixed_candidates', 'group', 1, 1), "
         "(NULL, 0, 'hcom_mixed_candidates', 'group', 1, 1);"
         "INSERT INTO ClusterCommunicationBandwidth VALUES "
         "('step1', 0, 'hcom_valid', 'group', 'HCCS', 0, 0, 0), "
         "('step1', 0, 'hcom_valid', 'group', 'UB', 3, 4, 5), "
-        "('step1', 0, 'hcom_valid', 'group', 'RDMA', NULL, 0, 0), "
-        "('step1', 0, 'hcom_valid', 'group', 'PCIE', 0, NULL, 0), "
-        "('step1', 0, 'hcom_valid', 'group', 'SDMA', 0, 0, NULL), "
+        "('step1', 0, 'hcom_valid', 'group', 'RDMA', -1, 0, 0), "
+        "('step1', 0, 'hcom_valid', 'group', 'PCIE', 0, -1, 0), "
+        "('step1', 0, 'hcom_valid', 'group', 'SDMA', 0, 0, -1), "
         "('step1', 0, 'hcom_valid', 'group', 'SIO', 1, 1, 1), "
         "('step1', 0, 'hcom_valid', 'group', 'SIO', 2, 1, 1);"));
 
@@ -590,4 +736,92 @@ TEST_F(DbCommunicationTest, GetOpStatByStepIdSuccess) {
     ASSERT_EQ(res.size(), expectSize);
     ASSERT_EQ(res[0].opType, "hcomallGather");
     ASSERT_EQ(res[1].opType, "hcomallReduce");
+}
+
+TEST(DbCommunicationPartialDataTest, MissingMetricsDoNotParticipateInDerivedRatios) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    ASSERT_TRUE(database.ExecSql(
+        "ALTER TABLE ClusterCommunicationTime DROP COLUMN synchronization_time_ratio;"
+        "ALTER TABLE ClusterCommunicationTime DROP COLUMN wait_time_ratio;"
+        "UPDATE ClusterCommunicationTime SET transit_time = 3, synchronization_time = -1, wait_time = 0 "
+        "WHERE rank_id = 0;"));
+    Dic::Protocol::DurationListParams params;
+    params.groupIdHash = "group";
+    params.operatorName = "hcom_test";
+    params.rankList = {"0"};
+    std::vector<Dic::Module::DurationDo> result;
+
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].startTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].synchronizationTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result[0].waitTimeRatio, 0);
+
+    ASSERT_TRUE(database.ExecSql("UPDATE ClusterCommunicationTime SET transit_time = -1 WHERE rank_id = 0;"));
+    params.iterationId.clear();
+    result.clear();
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].synchronizationTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result[0].waitTimeRatio, -1);
+}
+
+TEST(DbCommunicationPartialDataTest, InvalidBandwidthIsNotReplacedByAnotherTransportZero) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    ASSERT_TRUE(
+        database.ExecSql("CREATE TABLE ClusterCommunicationBandwidth (step TEXT, rank_id INTEGER, hccl_op_name TEXT, "
+                         "group_name TEXT, band_type TEXT, bandwidth REAL, transit_time REAL);"
+                         "INSERT INTO ClusterCommunicationBandwidth VALUES "
+                         "('step', 0, 'hcom_test', 'group', 'SDMA', -1, -1),"
+                         "('step', 0, 'hcom_test', 'group', 'RDMA', 0, 0);"));
+    Dic::Protocol::DurationListParams params;
+    params.groupIdHash = "group";
+    params.operatorName = "hcom_test";
+    params.rankList = {"0"};
+    std::vector<Dic::Module::DurationDo> result;
+
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].sdmaBw, -1);
+    EXPECT_DOUBLE_EQ(result[0].sdmaTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].rdmaBw, 0);
+    EXPECT_DOUBLE_EQ(result[0].rdmaTime, 0);
+}
+
+TEST(DbCommunicationPartialDataTest, RatiosAreDerivedFromTimesEvenWhenStoredRatiosAreZero) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(CreatePartialCommunicationData(database));
+    for (const double transitTime : {0.0, 3.0}) {
+        ASSERT_TRUE(database.ExecSql("UPDATE ClusterCommunicationTime SET synchronization_time = 1, wait_time = 2, "
+                                     "transit_time = " +
+            std::to_string(transitTime) + ", synchronization_time_ratio = 0, wait_time_ratio = 0 WHERE rank_id = 1;"));
+        const double expectedSynchronizationRatio = transitTime == 0 ? 1 : 0.25;
+        const double expectedWaitRatio = transitTime == 0 ? 1 : 0.4;
+        Dic::Protocol::OperatorDetailsParam operatorParams;
+        operatorParams.iterationId = "step";
+        operatorParams.groupIdHash = "group";
+        operatorParams.rankId = "1";
+        operatorParams.currentPage = 1;
+        operatorParams.pageSize = 10;
+        Dic::Protocol::OperatorDetailsResBody operators;
+        ASSERT_TRUE(database.QueryAllOperators(operatorParams, operators));
+        ASSERT_EQ(operators.allOperators.size(), 1);
+        EXPECT_DOUBLE_EQ(operators.allOperators[0].synchronizationTimeRatio, expectedSynchronizationRatio);
+        EXPECT_DOUBLE_EQ(operators.allOperators[0].waitTimeRatio, expectedWaitRatio);
+
+        Dic::Protocol::DurationListParams durationParams;
+        durationParams.groupIdHash = "group";
+        durationParams.operatorName = "hcom_test";
+        durationParams.rankList = {"1"};
+        std::vector<Dic::Module::DurationDo> durations;
+        ASSERT_TRUE(database.QueryDurationList(durationParams, durations));
+        ASSERT_EQ(durations.size(), 1);
+        EXPECT_DOUBLE_EQ(durations[0].synchronizationTimeRatio, expectedSynchronizationRatio);
+        EXPECT_DOUBLE_EQ(durations[0].waitTimeRatio, expectedWaitRatio);
+    }
 }

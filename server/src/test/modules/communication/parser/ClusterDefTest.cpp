@@ -187,3 +187,8 @@ TEST_F(ClusterDefTest, TestCheckTp2DSizeForMindSpeedForParallelStrategyConfigRet
     EXPECT_EQ(config1.CheckTp2DSizeForMindSpeed(error), true);
     EXPECT_EQ(error, "");
 }
+
+TEST_F(ClusterDefTest, MissingLargePacketRatioUsesInvalidSentinel) {
+    const CommunicationBandWidth bandwidth;
+    EXPECT_DOUBLE_EQ(bandwidth.largePackageRatio, -1.0);
+}

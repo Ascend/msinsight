@@ -28,6 +28,7 @@ import { chartColors, getAdaptiveEchart, getDefaultChartOptions, safeStr } from 
 import type { LegendComponentOption, TooltipComponentOption } from 'echarts/components';
 import type { ECharts } from 'echarts';
 import { CompareData, FormatterParams } from '../../utils/interface';
+import { CommunicationMetric, formatCommunicationMetric, isCommunicationMetric } from '../../utils/communicationMetrics';
 
 const ZOOM_SIZE = 6;
 
@@ -39,26 +40,26 @@ export interface DataItem {
 }
 
 export interface Duration {
-    elapseTime: number;
-    transitTime: number;
-    synchronizationTime: number;
-    waitTime: number;
-    synchronizationTimeRatio: number;
-    waitTimeRatio: number;
-    startTime: number;
-    idleTime: number;
-    sdmaBw: number;
-    rdmaBw: number;
+    elapseTime: CommunicationMetric;
+    transitTime: CommunicationMetric;
+    synchronizationTime: CommunicationMetric;
+    waitTime: CommunicationMetric;
+    synchronizationTimeRatio: CommunicationMetric;
+    waitTimeRatio: CommunicationMetric;
+    startTime: CommunicationMetric;
+    idleTime: CommunicationMetric;
+    sdmaBw: CommunicationMetric;
+    rdmaBw: CommunicationMetric;
 }
 
 export interface ChartData {
     rankId: string[];
-    elapseTime?: number[];
-    transitTime?: number[];
-    synchronizationTime?: number[];
-    waitTime?: number[];
-    synchronizationTimeRatio?: number[];
-    waitTimeRatio?: number[];
+    elapseTime?: CommunicationMetric[];
+    transitTime?: CommunicationMetric[];
+    synchronizationTime?: CommunicationMetric[];
+    waitTime?: CommunicationMetric[];
+    synchronizationTimeRatio?: CommunicationMetric[];
+    waitTimeRatio?: CommunicationMetric[];
 }
 
 function handleChartClick(myChart: ECharts, data: ChartData, event: { dataIndex?: number }): void {
@@ -105,7 +106,7 @@ function wrapData(data: ChartData, isCompare: boolean): any {
     const options = cloneDeep(baseOption);
     options.xAxis[0].data = data.rankId;
     options.legend = getLegend();
-    options.series = getSeries({ data });
+    options.series = getSeries({ data, isCompare });
     options.tooltip = getTooltip(isCompare);
     return options;
 }
@@ -122,11 +123,11 @@ function getLegend(): LegendComponentOption {
     };
 }
 
-function getSeries({ data }: {data: ChartData}): any {
+function getSeries({ data, isCompare }: {data: ChartData; isCompare: boolean}): any {
     return baseOption.series.map((serie: any) => ({
         ...serie,
         name: i18n.t(`tableHead.${serie.name}`, { ns: 'communication' }),
-        data: data[serie.id as keyof ChartData],
+        data: data[serie.id as keyof ChartData]?.map(value => isCommunicationMetric(value, isCompare) ? value : null),
     }));
 }
 
@@ -140,17 +141,20 @@ function getTooltip(isCompare: boolean): TooltipComponentOption {
 }
 
 function getTooltipFormatter(params: FormatterParams[], isCompare: boolean): string {
+    if (params.length === 0) {
+        return '';
+    }
     let html = params[0].name;
     params.forEach(serie => {
         const { marker, seriesName, seriesType, value } = serie;
         let valueClass = '';
-        if (isCompare) {
+        if (isCompare && isCommunicationMetric(value, isCompare)) {
             valueClass = value >= 0 ? 'positive-number' : 'negative-number';
         }
         html += `
 <div>
     <span>${marker}${safeStr(seriesName)}</span>
-    <span class="tooltip-value ${valueClass}">${safeStr(value)} ${seriesType === 'line' ? '' : 'ms'}</span>
+    <span class="tooltip-value ${valueClass}">${safeStr(formatCommunicationMetric(value, isCompare))} ${seriesType === 'line' || !isCommunicationMetric(value, isCompare) ? '' : 'ms'}</span>
 </div>`;
     });
     return html;

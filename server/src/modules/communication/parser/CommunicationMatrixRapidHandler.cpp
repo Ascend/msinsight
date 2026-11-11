@@ -17,6 +17,9 @@
  */
 
 #include "pch.h"
+#include <cerrno>
+#include <cmath>
+#include <cstdlib>
 #include "ParserStatusManager.h"
 #include "TextClusterDatabase.h"
 #include "CommunicationMatrixRapidHandler.h"
@@ -25,6 +28,25 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
+namespace {
+double ReadMatrixMetric(const rapidjson::Document &json, const char *key) {
+    if (!json.HasMember(key)) {
+        return -1;
+    }
+    const auto &value = json[key];
+    if (value.IsNumber()) {
+        return std::isfinite(value.GetDouble()) ? value.GetDouble() : -1;
+    }
+    if (!value.IsString() || value.GetStringLength() == 0) {
+        return -1;
+    }
+    char *end = nullptr;
+    errno = 0;
+    const double metric = std::strtod(value.GetString(), &end);
+    return errno == 0 && end == value.GetString() + value.GetStringLength() && std::isfinite(metric) ? metric : -1;
+}
+}
+
 CommunicationMatrixRapidHandler::CommunicationMatrixRapidHandler(
     std::shared_ptr<TextClusterDatabase> database, const std::string &uniqueKey)
     : uniqueKey(uniqueKey) {
@@ -119,10 +141,17 @@ void CommunicationMatrixRapidHandler::StatTotalOpInfo(const CommunicationMatrixI
     }
     std::string key = GenerateMatrixKey(matrixInfo);
     if (matrixTotalOpInfoMap.find(key) != matrixTotalOpInfoMap.end()) {
-        matrixTotalOpInfoMap[key].transitSize += matrixInfo.transitSize;
-        matrixTotalOpInfoMap[key].transitTime += matrixInfo.transitTime;
-        matrixTotalOpInfoMap[key].bandwidth = NumberUtil::DoubleReservedNDigits(
-            matrixTotalOpInfoMap[key].transitSize / matrixTotalOpInfoMap[key].transitTime, 4);
+        matrixTotalOpInfoMap[key].transitSize = matrixTotalOpInfoMap[key].transitSize < 0 || matrixInfo.transitSize < 0
+            ? -1
+            : matrixTotalOpInfoMap[key].transitSize + matrixInfo.transitSize;
+        matrixTotalOpInfoMap[key].transitTime = matrixTotalOpInfoMap[key].transitTime < 0 || matrixInfo.transitTime < 0
+            ? -1
+            : matrixTotalOpInfoMap[key].transitTime + matrixInfo.transitTime;
+        const auto &total = matrixTotalOpInfoMap[key];
+        matrixTotalOpInfoMap[key].bandwidth = total.transitSize < 0 || total.transitTime < 0
+            ? -1
+            : (total.transitTime == 0 ? 0
+                                      : NumberUtil::DoubleReservedNDigits(total.transitSize / total.transitTime, 4));
     } else {
         matrixTotalOpInfoMap[key] = {matrixInfo.groupId, matrixInfo.iterationId, "Total Op Info", "",
             matrixInfo.groupName, matrixInfo.srcRank, matrixInfo.dstRank, matrixInfo.transportType,
@@ -191,9 +220,9 @@ CommunicationMatrixInfo CommunicationMatrixRapidHandler::MapToMatrixInfo(const r
         matrixInfo.srcRank = NumberUtil::StringToInt(tempRank);
     }
     matrixInfo.transportType = JsonUtil::GetDumpString(json, "Transport Type");
-    matrixInfo.transitTime = JsonUtil::GetDouble(json, "Transit Time(ms)");
-    matrixInfo.transitSize = JsonUtil::GetDouble(json, "Transit Size(MB)");
-    matrixInfo.bandwidth = JsonUtil::GetDouble(json, "Bandwidth(GB/s)");
+    matrixInfo.transitTime = ReadMatrixMetric(json, "Transit Time(ms)");
+    matrixInfo.transitSize = ReadMatrixMetric(json, "Transit Size(MB)");
+    matrixInfo.bandwidth = ReadMatrixMetric(json, "Bandwidth(GB/s)");
     matrixInfo.opName = JsonUtil::GetString(json, "Op Name");
     matrixInfo.groupId = GenerateAndGetGroupInfoId(groupId, matrixInfo.groupName);
     return matrixInfo;

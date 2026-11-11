@@ -34,6 +34,7 @@ import AdviceLabel, { type CommunicationAdvice } from './CommunicationDuration/A
 import Operators from './CommunicationDuration/Opertators';
 import DiffTimeTable from './DiffTimeTable';
 import { ClickOperatorItem, GetSlowRankListResult } from '../../utils/interface';
+import { compareCommunicationMetrics } from '../../utils/communicationMetrics';
 
 interface ShowDataType {
     chartData: DataItem[];
@@ -54,8 +55,8 @@ const parseDurationData = (res: any, isCompare: boolean): Pick<ShowDataType, 'ch
     const data: DataItem[] = [...items];
     // 默认按总时间降序排序
     data.sort((a: DataItem, b: DataItem) => isCompare
-        ? b.compareData.diff.elapseTime - a.compareData.diff.elapseTime
-        : b.compareData.compare.elapseTime - a.compareData.compare.elapseTime);
+        ? compareCommunicationMetrics(b.compareData.diff.elapseTime, a.compareData.diff.elapseTime, true)
+        : compareCommunicationMetrics(b.compareData.compare.elapseTime, a.compareData.compare.elapseTime));
     return { tableData: data, chartData: data, adviceData: advice };
 };
 

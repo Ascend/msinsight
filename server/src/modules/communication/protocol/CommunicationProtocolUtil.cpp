@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
+#include <cmath>
 #include "CommunicationProtocol.h"
 #include "CommunicationProtocolUtil.h"
 
@@ -23,6 +24,19 @@ namespace Dic {
 namespace Protocol {
 using namespace Dic::Server;
 using namespace rapidjson;
+
+namespace {
+void AddCommunicationMetric(
+    json_t &json, std::string_view key, double value, Document::AllocatorType &allocator, bool isDifference = false) {
+    json_t metric;
+    if (isDifference && !std::isfinite(value)) {
+        metric.SetNull();
+    } else {
+        metric.SetDouble(std::isfinite(value) ? value : -1);
+    }
+    JsonUtil::AddMember(json, key, metric, allocator);
+}
+}
 #pragma region <<Response to json>>
 template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response) {
     ServerLog::Warn("ToResponseJson is not implemented. command:", response.command);
@@ -38,16 +52,16 @@ template <> std::optional<document_t> ToResponseJson<OperatorDetailsResponse>(co
     for (const OperatorItem &operatorItem : response.body.allOperators) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "operatorName", operatorItem.operatorName, allocator);
-        JsonUtil::AddMember(itemJson, "startTime", operatorItem.startTime, allocator);
-        JsonUtil::AddMember(itemJson, "elapseTime", operatorItem.elapseTime, allocator);
-        JsonUtil::AddMember(itemJson, "transitTime", operatorItem.transitTime, allocator);
-        JsonUtil::AddMember(itemJson, "synchronizationTime", operatorItem.synchronizationTime, allocator);
-        JsonUtil::AddMember(itemJson, "waitTime", operatorItem.waitTime, allocator);
-        JsonUtil::AddMember(itemJson, "idleTime", operatorItem.idleTime, allocator);
-        JsonUtil::AddMember(itemJson, "synchronizationTimeRatio", operatorItem.synchronizationTimeRatio, allocator);
-        JsonUtil::AddMember(itemJson, "waitTimeRatio", operatorItem.waitTimeRatio, allocator);
-        JsonUtil::AddMember(itemJson, "sdmaBw", operatorItem.sdmaBw, allocator);
-        JsonUtil::AddMember(itemJson, "rdmaBw", operatorItem.rdmaBw, allocator);
+        AddCommunicationMetric(itemJson, "startTime", operatorItem.startTime, allocator);
+        AddCommunicationMetric(itemJson, "elapseTime", operatorItem.elapseTime, allocator);
+        AddCommunicationMetric(itemJson, "transitTime", operatorItem.transitTime, allocator);
+        AddCommunicationMetric(itemJson, "synchronizationTime", operatorItem.synchronizationTime, allocator);
+        AddCommunicationMetric(itemJson, "waitTime", operatorItem.waitTime, allocator);
+        AddCommunicationMetric(itemJson, "idleTime", operatorItem.idleTime, allocator);
+        AddCommunicationMetric(itemJson, "synchronizationTimeRatio", operatorItem.synchronizationTimeRatio, allocator);
+        AddCommunicationMetric(itemJson, "waitTimeRatio", operatorItem.waitTimeRatio, allocator);
+        AddCommunicationMetric(itemJson, "sdmaBw", operatorItem.sdmaBw, allocator);
+        AddCommunicationMetric(itemJson, "rdmaBw", operatorItem.rdmaBw, allocator);
         allOperators.PushBack(itemJson, allocator);
     }
     JsonUtil::AddMember(body, "currentPage", response.body.currentPage, allocator);
@@ -141,18 +155,20 @@ std::optional<document_t> ToResponseJson<MatrixSortOpNamesResponse>(const Matrix
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> DurationDataToJson(const DurationData &durationData, Document::AllocatorType &allocator) {
+std::optional<document_t> DurationDataToJson(
+    const DurationData &durationData, Document::AllocatorType &allocator, bool isDifference = false) {
     document_t res(kObjectType);
-    JsonUtil::AddMember(res, "startTime", durationData.startTime, allocator);
-    JsonUtil::AddMember(res, "elapseTime", durationData.elapseTime, allocator);
-    JsonUtil::AddMember(res, "transitTime", durationData.transitTime, allocator);
-    JsonUtil::AddMember(res, "synchronizationTime", durationData.synchronizationTime, allocator);
-    JsonUtil::AddMember(res, "waitTime", durationData.waitTime, allocator);
-    JsonUtil::AddMember(res, "idleTime", durationData.idleTime, allocator);
-    JsonUtil::AddMember(res, "synchronizationTimeRatio", durationData.synchronizationTimeRatio, allocator);
-    JsonUtil::AddMember(res, "waitTimeRatio", durationData.waitTimeRatio, allocator);
-    JsonUtil::AddMember(res, "sdmaBw", durationData.sdmaBw, allocator);
-    JsonUtil::AddMember(res, "rdmaBw", durationData.rdmaBw, allocator);
+    AddCommunicationMetric(res, "startTime", durationData.startTime, allocator, isDifference);
+    AddCommunicationMetric(res, "elapseTime", durationData.elapseTime, allocator, isDifference);
+    AddCommunicationMetric(res, "transitTime", durationData.transitTime, allocator, isDifference);
+    AddCommunicationMetric(res, "synchronizationTime", durationData.synchronizationTime, allocator, isDifference);
+    AddCommunicationMetric(res, "waitTime", durationData.waitTime, allocator, isDifference);
+    AddCommunicationMetric(res, "idleTime", durationData.idleTime, allocator, isDifference);
+    AddCommunicationMetric(
+        res, "synchronizationTimeRatio", durationData.synchronizationTimeRatio, allocator, isDifference);
+    AddCommunicationMetric(res, "waitTimeRatio", durationData.waitTimeRatio, allocator, isDifference);
+    AddCommunicationMetric(res, "sdmaBw", durationData.sdmaBw, allocator, isDifference);
+    AddCommunicationMetric(res, "rdmaBw", durationData.rdmaBw, allocator, isDifference);
     return std::optional<document_t>(std::move(res));
 }
 
@@ -171,7 +187,7 @@ template <> std::optional<document_t> ToResponseJson<DurationResponse>(const Dur
         JsonUtil::AddMember(compareData, "compare", compare, allocator);
         auto baseline = DurationDataToJson(duration.durationData.baseline, allocator);
         JsonUtil::AddMember(compareData, "baseline", baseline, allocator);
-        auto diff = DurationDataToJson(duration.durationData.diff, allocator);
+        auto diff = DurationDataToJson(duration.durationData.diff, allocator, true);
         JsonUtil::AddMember(compareData, "diff", diff, allocator);
         JsonUtil::AddMember(itemJson, "compareData", compareData, allocator);
         items.PushBack(itemJson, allocator);

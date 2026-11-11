@@ -155,3 +155,107 @@ TEST_F(TextClusterDatabaseTest, UpdateCollectTimeInfoSuccess) {
     EXPECT_EQ(baseInfo.collectStartTime, ans.collectStartTime);
     EXPECT_EQ(baseInfo.collectDuration, ans.collectDuration);
 }
+
+TEST_F(TextClusterDatabaseTest, MissingMetricsAreStoredAsMinusOneAndPreserveRealZero) {
+    std::recursive_mutex sqlMutex;
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+    ASSERT_TRUE(database.CreateTable());
+    Dic::Module::CommunicationTimeInfo time;
+    time.iterationId = "1";
+    time.rankId = "0";
+    time.opName = "hcom_test";
+    time.opSuffix = "group";
+    time.elapseTime = 0;
+    std::vector<Dic::Module::CommunicationTimeInfo> times{time};
+    database.InsertTimeInfoList(times);
+    Dic::Module::CommunicationBandWidth bandwidth;
+    bandwidth.iterationId = "1";
+    bandwidth.rankId = "0";
+    bandwidth.opName = "hcom_test";
+    bandwidth.opSuffix = "group";
+    bandwidth.transportType = "SDMA";
+    std::vector<Dic::Module::CommunicationBandWidth> bandwidths{bandwidth};
+    database.InsertBandwidthList(bandwidths);
+
+    sqlite3_stmt *statement = nullptr;
+    ASSERT_EQ(sqlite3_prepare_v2(dbPtr,
+                  "SELECT start_time, elapse_time, transit_time, synchronization_time, wait_time, idle_time, "
+                  "synchronization_time_ratio, wait_time_ratio FROM communication_time_info",
+                  -1, &statement, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_step(statement), SQLITE_ROW);
+    for (int column = 0; column < 8; ++column) {
+        EXPECT_NE(sqlite3_column_type(statement, column), SQLITE_NULL);
+        EXPECT_DOUBLE_EQ(sqlite3_column_double(statement, column), column == 1 ? 0 : -1);
+    }
+    sqlite3_finalize(statement);
+    statement = nullptr;
+    ASSERT_EQ(
+        sqlite3_prepare_v2(dbPtr, "SELECT bandwidth_size, transit_size, transit_time FROM communication_bandwidth_info",
+            -1, &statement, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_step(statement), SQLITE_ROW);
+    for (int column = 0; column < 3; ++column) {
+        EXPECT_NE(sqlite3_column_type(statement, column), SQLITE_NULL);
+        EXPECT_DOUBLE_EQ(sqlite3_column_double(statement, column), -1);
+    }
+    sqlite3_finalize(statement);
+
+    Dic::Protocol::OperatorDetailsParam params;
+    params.iterationId = "1";
+    params.groupIdHash = "group";
+    params.rankId = "0";
+    params.currentPage = 1;
+    params.pageSize = 10;
+    Dic::Protocol::OperatorDetailsResBody result;
+    ASSERT_TRUE(database.QueryAllOperators(params, result));
+    ASSERT_EQ(result.allOperators.size(), 1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].startTime, -1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].elapseTime, 0);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].sdmaBw, -1);
+    EXPECT_DOUBLE_EQ(result.allOperators[0].rdmaBw, -1);
+}
+
+TEST_F(TextClusterDatabaseTest, DurationPreservesMissingTransportAndAbsentBandwidthRows) {
+    std::recursive_mutex sqlMutex;
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+    ASSERT_TRUE(database.CreateTable());
+    ASSERT_TRUE(database.ExecSql(
+        "INSERT INTO communication_time_info "
+        "(iteration_id, rank_id, op_name, op_suffix, start_time, elapse_time, transit_time, "
+        "synchronization_time, wait_time, idle_time, synchronization_time_ratio, wait_time_ratio) "
+        "VALUES ('1', '0', 'hcom_test', 'group', -1, 5, -1, -1, -1, -1, -1, -1);"
+        "INSERT INTO communication_bandwidth_info "
+        "(iteration_id, rank_id, op_name, op_suffix, transport_type, bandwidth_size, transit_time) VALUES "
+        "('1', '0', 'hcom_test', 'group', 'SDMA', -1, -1),"
+        "('1', '0', 'hcom_test', 'group', 'RDMA', 0, 0);"));
+    Dic::Protocol::DurationListParams params;
+    params.iterationId = "1";
+    params.groupIdHash = "group";
+    params.operatorName = "hcom_test";
+    std::vector<Dic::Module::DurationDo> result;
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].startTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].transitTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].synchronizationTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].waitTimeRatio, -1);
+    EXPECT_DOUBLE_EQ(result[0].sdmaBw, -1);
+    EXPECT_DOUBLE_EQ(result[0].sdmaTime, -1);
+    EXPECT_DOUBLE_EQ(result[0].rdmaBw, 0);
+    EXPECT_DOUBLE_EQ(result[0].rdmaTime, 0);
+
+    ASSERT_TRUE(database.ExecSql("DELETE FROM communication_bandwidth_info;"));
+    result.clear();
+    ASSERT_TRUE(database.QueryDurationList(params, result));
+    ASSERT_EQ(result.size(), 1);
+    EXPECT_DOUBLE_EQ(result[0].elapseTime, 5);
+    EXPECT_DOUBLE_EQ(result[0].sdmaBw, -1);
+    EXPECT_DOUBLE_EQ(result[0].rdmaBw, -1);
+}
