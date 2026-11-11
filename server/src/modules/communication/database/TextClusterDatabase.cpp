@@ -224,7 +224,7 @@ void TextClusterDatabase::InsertTimeInfoList(std::vector<CommunicationTimeInfo> 
         sqlite3_bind_text(stmt, idx++, timeInfo.rankId.c_str(), timeInfo.rankId.length(), SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, idx++, timeInfo.opName.c_str(), timeInfo.opName.length(), SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, idx++, timeInfo.opSuffix.c_str(), timeInfo.opSuffix.length(), SQLITE_TRANSIENT);
-        sqlite3_bind_int64(stmt, idx++, NumberUtil::CeilingClamp(timeInfo.startTime, static_cast<uint64_t>(INT64_MAX)));
+        sqlite3_bind_int64(stmt, idx++, timeInfo.startTime);
         sqlite3_bind_double(stmt, idx++, timeInfo.elapseTime);
         sqlite3_bind_double(stmt, idx++, timeInfo.synchronizationTimeRatio);
         sqlite3_bind_double(stmt, idx++, timeInfo.synchronizationTime);
@@ -651,7 +651,7 @@ bool TextClusterDatabase::QueryMatrixList(
 bool TextClusterDatabase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
     std::string sql = "SELECT MIN(start_time) as minTime, MAX(start_time) as maxTime "
                       "FROM " +
-        TABLE_TIME_INFO + " WHERE start_time != 0";
+        TABLE_TIME_INFO + " WHERE start_time > 0";
     return ExecuteQueryExtremumTimestamp(sql, min, max);
 }
 
@@ -677,7 +677,7 @@ bool TextClusterDatabase::QueryIterationAndCommunicationGroup(
 std::string TextClusterDatabase::GetAllOperatorsSql(
     const std::string &startTime, const std::string &bandwidthCondition, const std::string &timeCondition) const {
     std::string sql = "SELECT t.op_name as operatorName, "
-                      "CASE WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - " +
+                      "CASE WHEN start_time = -1 THEN -1 WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - " +
         startTime +
         ") / 1000000.0, 4) END as startTime, "
         "ROUND(elapse_time, 4) as elapseTime, "
@@ -687,14 +687,14 @@ std::string TextClusterDatabase::GetAllOperatorsSql(
         "ROUND(idle_time, 4) as idleTime, "
         "ROUND(synchronization_time_ratio, 4) as synchronizationTimeRatio, "
         "ROUND(wait_time_ratio, 4) as waitTimeRatio, "
-        "bw.sdma_bw as sdmaBw, bw.rdma_bw as rdmaBw "
+        "COALESCE(bw.sdma_bw, -1) as sdmaBw, COALESCE(bw.rdma_bw, -1) as rdmaBw "
         "FROM " +
         TABLE_TIME_INFO +
         " t "
-        "JOIN ( "
+        "LEFT JOIN ( "
         "    SELECT op_name, "
-        "    MAX(CASE WHEN transport_type = 'SDMA' THEN bandwidth_size ELSE 0 END) AS sdma_bw, "
-        "    MAX(CASE WHEN transport_type = 'RDMA' THEN bandwidth_size ELSE 0 END) AS rdma_bw "
+        "    MAX(CASE WHEN transport_type = 'SDMA' THEN bandwidth_size ELSE -1 END) AS sdma_bw, "
+        "    MAX(CASE WHEN transport_type = 'RDMA' THEN bandwidth_size ELSE -1 END) AS rdma_bw "
         "    FROM " +
         TABLE_BANDWIDTH + bandwidthCondition +
         "    GROUP BY op_name "
@@ -748,7 +748,7 @@ bool TextClusterDatabase::QueryCommunicationDetail(const std::string &rankId, co
     const std::string timeSql =
         "SELECT iteration_id AS iteration, op_suffix AS communicationGroup, transit_time AS transitTime, "
         "wait_time AS waitTime, CASE WHEN iteration_id IS NOT NULL AND iteration_id != '' "
-        "AND op_suffix IS NOT NULL AND op_suffix != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
+        "AND op_suffix IS NOT NULL AND op_suffix != '' AND transit_time >= 0 AND wait_time >= 0 "
         "THEN 1 ELSE 0 END AS isComplete FROM " +
         TABLE_TIME_INFO + " WHERE rank_id = ? AND op_name = ? AND op_name != 'Total Op Info' LIMIT 2";
     const std::string bandwidthSql = "SELECT transport_type AS transportType, MIN(transit_size) AS transitSize, "
@@ -756,7 +756,7 @@ bool TextClusterDatabase::QueryCommunicationDetail(const std::string &rankId, co
         TABLE_BANDWIDTH +
         " WHERE iteration_id = ? AND rank_id = ? AND op_suffix = ? AND op_name = ? "
         "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO', 'UB') "
-        "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth_size IS NOT NULL "
+        "AND transit_size >= 0 AND transit_time >= 0 AND bandwidth_size >= 0 "
         "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth_size) = MAX(bandwidth_size) "
         "ORDER BY transport_type";
@@ -809,21 +809,23 @@ std::string TextClusterDatabase::GetDurationListSql(
     const std::string &bandwidthCondition, const std::string &timeCondition) const {
     std::string sql =
         "SELECT t.rank_id as rank_id, "
-        "CASE WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - ?) / 1000000.0, 4) END as startTime, "
+        "CASE WHEN start_time = -1 THEN -1 WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - ?) / "
+        "1000000.0, 4) END as startTime, "
         "ROUND(elapse_time, 4) as elapse_time, ROUND(transit_time, 4) as transit_time, "
         "ROUND(synchronization_time, 4) as synchronization_time, ROUND(wait_time, 4) as wait_time, "
         "ROUND(idle_time, 4) as idle_time, ROUND(synchronization_time_ratio, 4) as synchronization_time_ratio, "
         "ROUND(wait_time_ratio, 4) as wait_time_ratio, "
-        "bw.sdma_bw as sdma_bw, bw.rdma_bw as rdma_bw, bw.sdma_time as sdma_time, bw.rdma_time as rdma_time "
+        "COALESCE(bw.sdma_bw, -1) as sdma_bw, COALESCE(bw.rdma_bw, -1) as rdma_bw, COALESCE(bw.sdma_time, -1) as "
+        "sdma_time, COALESCE(bw.rdma_time, -1) as rdma_time "
         "FROM " +
         TABLE_TIME_INFO +
         " t "
-        "JOIN ( "
+        "LEFT JOIN ( "
         "    SELECT rank_id, "
-        "    MAX(CASE WHEN transport_type = 'SDMA' THEN bandwidth_size ELSE 0 END) AS sdma_bw, "
-        "    MAX(CASE WHEN transport_type = 'RDMA' THEN bandwidth_size ELSE 0 END) AS rdma_bw, "
-        "    MAX(CASE WHEN transport_type = 'SDMA' THEN transit_time ELSE 0 END) AS sdma_time, "
-        "    MAX(CASE WHEN transport_type = 'RDMA' THEN transit_time ELSE 0 END) AS rdma_time "
+        "    MAX(CASE WHEN transport_type = 'SDMA' THEN bandwidth_size ELSE -1 END) AS sdma_bw, "
+        "    MAX(CASE WHEN transport_type = 'RDMA' THEN bandwidth_size ELSE -1 END) AS rdma_bw, "
+        "    MAX(CASE WHEN transport_type = 'SDMA' THEN transit_time ELSE -1 END) AS sdma_time, "
+        "    MAX(CASE WHEN transport_type = 'RDMA' THEN transit_time ELSE -1 END) AS rdma_time "
         "    FROM " +
         TABLE_BANDWIDTH + bandwidthCondition +
         "    GROUP BY rank_id "
@@ -873,7 +875,8 @@ bool TextClusterDatabase::QueryOperatorList(
                       " (elapse_time * 1000000) as elapse_time From " +
         TABLE_TIME_INFO;
     // 拼接集群通信查询sql
-    std::string collectiveCondition = " WHERE iteration_id = ? AND op_suffix = ? ";
+    std::string collectiveCondition =
+        " WHERE iteration_id = ? AND op_suffix = ? AND start_time >= 0 AND elapse_time >= 0 ";
     std::string opNameQuerySql =
         requestParams.operatorName == totalOpInfo ? " AND op_name <> 'Total Op Info'" : " AND op_name = ?";
     std::string collectiveSql = sql + collectiveCondition + opNameQuerySql + " ORDER by CAST(rank_id AS UNSIGNED) ASC";
@@ -958,27 +961,32 @@ bool TextClusterDatabase::QuerySlowOpByCommDuration(const Protocol::DurationList
                       " from ( "
                       "    select t.rank_id as rankId, t.op_name AS opName, "
                       "    ROUND(t.elapse_time * 1000, 3) AS elapseTime, "
-                      "    CASE WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - ?) / 1000.0, 3) END as startTime "
+                      "    CASE WHEN start_time = -1 THEN -1 WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - ?) / "
+                      "1000.0, 3) END as startTime "
                       "    from " +
         TABLE_TIME_INFO +
         " t "
         "    where t.rank_id = ? and iteration_id = ? and t.op_suffix = ? and opName != 'Total Op Info' "
+        "AND start_time >= 0 AND t.elapse_time >= 0 "
         " ) fast "
         " join ( "
         "    select t.rank_id as rankId, t.op_name AS opName, "
         "    ROUND(t.elapse_time * 1000, 3) AS elapseTime, "
-        "    CASE WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - ?) / 1000.0, 3) END as startTime "
+        "    CASE WHEN start_time = -1 THEN -1 WHEN start_time = 0 THEN 0 ELSE ROUND((start_time - ?) / "
+        "1000.0, 3) END as startTime "
         "    from " +
         TABLE_TIME_INFO +
         " t "
         "    where t.rank_id = ? and iteration_id = ? and t.op_suffix = ? and opName != 'Total Op Info' "
+        "AND start_time >= 0 AND t.elapse_time >= 0 "
         " ) slow "
         " on fast.opName = slow.opName ORDER BY diffElapseTime DESC;";
     return ExecuteQuerySlowOpByCommDuration(sql, params, fastestRankId, slowRank);
 }
 
 std::vector<CommInfoUnderRank> TextClusterDatabase::GetCommTimeForRankDim(const std::string &stepId) {
-    std::string sql = "SELECT t.rank_id as rankId, ROUND(sum(t.elapse_time) * 1000, 3) as commTime, g.rank_set as "
+    std::string sql = "SELECT t.rank_id as rankId, CASE WHEN MIN(t.elapse_time) < 0 THEN -1 ELSE "
+                      "ROUND(sum(t.elapse_time) * 1000, 3) END as commTime, g.rank_set as "
                       " rankSet, g.group_id_hash as groupIdHash, g.pg_name as pgName FROM " +
         TABLE_TIME_INFO + " as t LEFT JOIN (SELECT rank_set, group_id_hash, pg_name FROM " + TABLE_GROUP_ID +
         " group by "
@@ -993,7 +1001,7 @@ std::vector<CommInfoUnderRank> TextClusterDatabase::GetCommTimeForRankDim(const 
 bool TextClusterDatabase::QueryPacketAnalyzerData(std::vector<PacketAnalyzerData> &data) {
     std::string sql = "SELECT transport_type, transit_size, transit_time FROM " + TABLE_BANDWIDTH +
         " WHERE (transport_type = 'RDMA' OR transport_type = 'SDMA') AND transit_size > 0 AND"
-        " op_name != 'Total Op Info';";
+        " op_name != 'Total Op Info' AND transit_time > 0;";
     return ExecuteQueryPacketAnalyzerData(data, sql);
 }
 
@@ -1006,7 +1014,8 @@ bool TextClusterDatabase::QueryBandwidthContentionAnalyzerData(
         " AS t2 ON "
         " t1.iteration_id = t2.iteration_id AND t1.rank_id = t2.rank_id AND"
         " t1.op_name = t2.op_name AND t1.op_suffix = t2.op_suffix "
-        " WHERE t1.rank_id = ? AND transport_type = 'SDMA' AND transit_size > 0 ORDER BY startTime;";
+        " WHERE t1.rank_id = ? AND transport_type = 'SDMA' AND transit_size > 0 AND start_time >= 0 AND "
+        "elapse_time >= 0 AND bandwidth_size >= 0 ORDER BY startTime;";
     return ExecuteQueryBandwidthContentionAnalyzerData(res, rankId, sql);
 }
 
@@ -1020,7 +1029,7 @@ bool TextClusterDatabase::QueryRetransmissionAnalyzerData(std::vector<Retransmis
         TABLE_GROUP_ID +
         " AS t3 ON "
         " t1.op_suffix = t3.group_id_hash WHERE transport_type = 'RDMA' AND t1.op_name != 'Total Op Info' "
-        " GROUP BY t1.iteration_id, t3.rank_set, t1.op_name";
+        " AND t2.elapse_time >= 0 AND t1.transit_time >= 0 GROUP BY t1.iteration_id, t3.rank_set, t1.op_name";
     return ExecuteQueryRetransmissionAnalyzerData(data, sql);
 }
 

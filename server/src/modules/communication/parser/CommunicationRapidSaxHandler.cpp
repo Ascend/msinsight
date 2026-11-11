@@ -17,6 +17,9 @@
  */
 
 #include "pch.h"
+#include <cmath>
+#include <cerrno>
+#include <cstdlib>
 #include "ParserStatusManager.h"
 #include "TextClusterDatabase.h"
 #include "CommunicationRapidSaxHandler.h"
@@ -25,6 +28,19 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
+namespace {
+double SumCommunicationMetrics(double left, double right) {
+    return left < 0 || right < 0 || !std::isfinite(left) || !std::isfinite(right) ? -1 : left + right;
+}
+
+double CommunicationMetricRatio(double time, double transitTime) {
+    if (time < 0 || transitTime < 0 || !std::isfinite(time) || !std::isfinite(transitTime)) {
+        return -1;
+    }
+    return time == 0 ? 0 : NumberUtil::DoubleReservedNDigits(time / (time + transitTime), 4);
+}
+}
+
 CommunicationRapidSaxHandler::CommunicationRapidSaxHandler(
     std::shared_ptr<TextClusterDatabase> database, const std::string &uniqueKey)
     : uniqueKey(uniqueKey) {
@@ -57,48 +73,63 @@ bool CommunicationRapidSaxHandler::RawNumber(const char *str, SizeType len, bool
         bandwidth.sizeDistribution += s + ",";
         return true;
     }
+    char *end = nullptr;
+    errno = 0;
+    const double value = std::strtod(s.c_str(), &end);
+    if (errno != 0 || end == s.c_str() || end != s.c_str() + s.size() || !std::isfinite(value)) {
+        return true;
+    }
     if (currentDepth == tableFlagDepth + 1 && tableFlag == "Communication Time Info") {
         if (currentKey == "Start Timestamp(us)") {
             int64_t tempStartTime = NumberUtil::TimestampUsToNs(s);
-            timeInfo.startTime = NumberUtil::Int64ToUint64(tempStartTime);
+            timeInfo.startTime = tempStartTime < 0 ? -1 : tempStartTime;
         }
         if (currentKey == "Elapse Time(ms)") {
-            timeInfo.elapseTime = NumberUtil::StringToDouble(s);
+            timeInfo.elapseTime = value;
         }
         if (currentKey == "Idle Time(ms)") {
-            timeInfo.idleTime = NumberUtil::StringToDouble(s);
+            timeInfo.idleTime = value;
         }
         if (currentKey == "Synchronization Time Ratio") {
-            timeInfo.synchronizationTimeRatio = NumberUtil::StringToDouble(s);
+            timeInfo.synchronizationTimeRatio = value;
         }
         if (currentKey == "Synchronization Time(ms)") {
-            timeInfo.synchronizationTime = NumberUtil::StringToDouble(s);
+            timeInfo.synchronizationTime = value;
         }
         if (currentKey == "Transit Time(ms)") {
-            timeInfo.transitTime = NumberUtil::StringToDouble(s);
+            timeInfo.transitTime = value;
         }
         if (currentKey == "Wait Time Ratio") {
-            timeInfo.waitTimeRatio = NumberUtil::StringToDouble(s);
+            timeInfo.waitTimeRatio = value;
         }
         if (currentKey == "Wait Time(ms)") {
-            timeInfo.waitTime = NumberUtil::StringToDouble(s);
+            timeInfo.waitTime = value;
         }
     }
     if (currentDepth == infoDepth + 1 && tableFlag == "Communication Bandwidth Info") {
+        if (currentKey == "Large Packet Ratio") {
+            bandwidth.largePackageRatio = value;
+        }
         if (currentKey == "Bandwidth(GB/s)") {
-            bandwidth.bandwidthSize = NumberUtil::StringToDouble(s);
+            bandwidth.bandwidthSize = value;
         }
         if (currentKey == "Transit Size(MB)") {
-            bandwidth.transitSize = NumberUtil::StringToDouble(s);
+            bandwidth.transitSize = value;
         }
         if (currentKey == "Transit Time(ms)") {
-            bandwidth.transitTime = NumberUtil::StringToDouble(s);
+            bandwidth.transitTime = value;
         }
     }
     return true;
 }
 
-bool CommunicationRapidSaxHandler::String(const char *str, rapidjson::SizeType length, bool copy) { return true; }
+bool CommunicationRapidSaxHandler::String(const char *str, rapidjson::SizeType length, bool copy) {
+    if ((currentDepth == tableFlagDepth + 1 && tableFlag == "Communication Time Info") ||
+        (currentDepth == infoDepth + 1 && tableFlag == "Communication Bandwidth Info")) {
+        return RawNumber(str, length, copy);
+    }
+    return true;
+}
 
 bool CommunicationRapidSaxHandler::StartObject() {
     currentDepth++;
@@ -149,18 +180,18 @@ void CommunicationRapidSaxHandler::StatTimeTotalOpInfo(const CommunicationTimeIn
     }
     std::string key = GenerateTimeInfoKey(info);
     if (timeOpTotalInfoMap.find(key) != timeOpTotalInfoMap.end()) {
-        timeOpTotalInfoMap[key].elapseTime += info.elapseTime;
-        timeOpTotalInfoMap[key].synchronizationTime += info.synchronizationTime;
-        timeOpTotalInfoMap[key].transitTime += info.transitTime;
-        timeOpTotalInfoMap[key].waitTime += info.waitTime;
-        timeOpTotalInfoMap[key].idleTime += info.idleTime;
+        timeOpTotalInfoMap[key].elapseTime =
+            SumCommunicationMetrics(timeOpTotalInfoMap[key].elapseTime, info.elapseTime);
+        timeOpTotalInfoMap[key].synchronizationTime =
+            SumCommunicationMetrics(timeOpTotalInfoMap[key].synchronizationTime, info.synchronizationTime);
+        timeOpTotalInfoMap[key].transitTime =
+            SumCommunicationMetrics(timeOpTotalInfoMap[key].transitTime, info.transitTime);
+        timeOpTotalInfoMap[key].waitTime = SumCommunicationMetrics(timeOpTotalInfoMap[key].waitTime, info.waitTime);
+        timeOpTotalInfoMap[key].idleTime = SumCommunicationMetrics(timeOpTotalInfoMap[key].idleTime, info.idleTime);
         timeOpTotalInfoMap[key].synchronizationTimeRatio =
-            NumberUtil::DoubleReservedNDigits(timeOpTotalInfoMap[key].synchronizationTime /
-                    (timeOpTotalInfoMap[key].synchronizationTime + timeOpTotalInfoMap[key].transitTime),
-                4);
-        timeOpTotalInfoMap[key].waitTimeRatio = NumberUtil::DoubleReservedNDigits(
-            timeOpTotalInfoMap[key].waitTime / (timeOpTotalInfoMap[key].waitTime + timeOpTotalInfoMap[key].transitTime),
-            4);
+            CommunicationMetricRatio(timeOpTotalInfoMap[key].synchronizationTime, timeOpTotalInfoMap[key].transitTime);
+        timeOpTotalInfoMap[key].waitTimeRatio =
+            CommunicationMetricRatio(timeOpTotalInfoMap[key].waitTime, timeOpTotalInfoMap[key].transitTime);
     } else {
         timeOpTotalInfoMap[key] = info;
         timeOpTotalInfoMap[key].opName = "Total Op Info";
@@ -178,12 +209,15 @@ void CommunicationRapidSaxHandler::StatBandwidthTotalOpInfo(const CommunicationB
     }
     std::string key = GenerateBandwidthInfoKey(info);
     if (bandwidthOpTotalInfoMap.find(key) != bandwidthOpTotalInfoMap.end()) {
-        bandwidthOpTotalInfoMap[key].transitSize += info.transitSize;
-        bandwidthOpTotalInfoMap[key].transitTime += info.transitTime;
-        if (bandwidthOpTotalInfoMap[key].transitTime != 0) {
-            bandwidthOpTotalInfoMap[key].bandwidthSize = NumberUtil::DoubleReservedNDigits(
-                bandwidthOpTotalInfoMap[key].transitSize / bandwidthOpTotalInfoMap[key].transitTime, 4);
-        }
+        bandwidthOpTotalInfoMap[key].transitSize =
+            SumCommunicationMetrics(bandwidthOpTotalInfoMap[key].transitSize, info.transitSize);
+        bandwidthOpTotalInfoMap[key].transitTime =
+            SumCommunicationMetrics(bandwidthOpTotalInfoMap[key].transitTime, info.transitTime);
+        const auto &total = bandwidthOpTotalInfoMap[key];
+        bandwidthOpTotalInfoMap[key].bandwidthSize = total.transitSize < 0 || total.transitTime < 0
+            ? -1
+            : (total.transitTime == 0 ? 0
+                                      : NumberUtil::DoubleReservedNDigits(total.transitSize / total.transitTime, 4));
         for (const auto &item : info.packageMap) {
             if (bandwidthOpTotalInfoMap[key].packageMap.find(item.first) !=
                 bandwidthOpTotalInfoMap[key].packageMap.end()) {

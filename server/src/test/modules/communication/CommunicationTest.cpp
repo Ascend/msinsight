@@ -122,14 +122,17 @@ TEST_F(TestSuit, QueryBandwidthData) {
     requestParams.operatorName = "hcom_send__822_0";
     requestParams.rankId = "1";
     requestParams.groupIdHash = "13337953553061386822";
-    database->QueryBandwidthData(requestParams, responseBody);
+    ASSERT_TRUE(database->QueryBandwidthData(requestParams, responseBody));
     int expectSize = 4;
-    EXPECT_EQ(responseBody.items.size(), expectSize);
+    ASSERT_EQ(responseBody.items.size(), expectSize);
     EXPECT_EQ(responseBody.items[0].transportType, "RDMA");
     EXPECT_EQ(responseBody.items[0].transitSize, 20.9715); // transitSize = 20.9715
     EXPECT_EQ(responseBody.items[0].transitTime, 0.8638); // transitTime = 0.8638
     EXPECT_EQ(responseBody.items[0].bandwidth, 24.2777); // bandwidth = 24.2777
-    EXPECT_EQ(responseBody.items[0].largePacketRatio, 0.0);
+    EXPECT_DOUBLE_EQ(responseBody.items[0].largePacketRatio, 1.0);
+    for (size_t index = 1; index < responseBody.items.size(); ++index) {
+        EXPECT_DOUBLE_EQ(responseBody.items[index].largePacketRatio, 0.0);
+    }
 }
 
 TEST_F(TestSuit, QueryBandwidthDataWithErrorParamReturnExpectSize0) {
@@ -242,16 +245,16 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsIncompleteRecordsAndPreservesRea
         "('', '0', 'hcom_empty_iteration', 'group', 1, 1), "
         "('1', '0', 'hcom_null_group', NULL, 1, 1), "
         "('1', '0', 'hcom_empty_group', '', 1, 1), "
-        "('1', '0', 'hcom_null_transit', 'group', NULL, 1), "
-        "('1', '0', 'hcom_null_wait', 'group', 1, NULL), "
+        "('1', '0', 'hcom_null_transit', 'group', -1, 1), "
+        "('1', '0', 'hcom_null_wait', 'group', 1, -1), "
         "('1', '0', 'hcom_mixed_candidates', 'group', 1, 1), "
         "(NULL, '0', 'hcom_mixed_candidates', 'group', 1, 1);"
         "INSERT INTO communication_bandwidth_info "
         "(iteration_id, rank_id, op_name, op_suffix, transport_type, transit_size, transit_time, bandwidth_size) "
         "VALUES ('1', '0', 'hcom_valid', 'group', 'HCCS', 0, 0, 0), "
-        "('1', '0', 'hcom_valid', 'group', 'RDMA', NULL, 0, 0), "
-        "('1', '0', 'hcom_valid', 'group', 'PCIE', 0, NULL, 0), "
-        "('1', '0', 'hcom_valid', 'group', 'SDMA', 0, 0, NULL), "
+        "('1', '0', 'hcom_valid', 'group', 'RDMA', -1, 0, 0), "
+        "('1', '0', 'hcom_valid', 'group', 'PCIE', 0, -1, 0), "
+        "('1', '0', 'hcom_valid', 'group', 'SDMA', 0, 0, -1), "
         "('1', '0', 'hcom_valid', 'group', 'SIO', 1, 1, 1), "
         "('1', '0', 'hcom_valid', 'group', 'SIO', 2, 1, 1);"));
 

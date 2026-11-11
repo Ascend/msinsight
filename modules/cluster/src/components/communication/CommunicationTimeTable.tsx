@@ -35,6 +35,7 @@ import i18n from '@insight/lib/i18n';
 import type { DataItem, Duration } from './CommunicationTimeChart';
 import connector from '../../connection';
 import { CardInfo } from './CommunicationAnalysis';
+import { CommunicationMetric, compareCommunicationMetrics, formatCommunicationMetric, isCommunicationMetric } from '../../utils/communicationMetrics';
 
 export type DataType = Duration & {
     rankId: string;
@@ -49,52 +50,52 @@ type TableDataItem = DataItem & {
     source: Source;
 };
 
-const useCommonColumns = (t: TFunction<'communication'>): ColumnsType<DataType> => {
+const useCommonColumns = (t: TFunction<'communication'>, isDifference = false): ColumnsType<DataType> => {
     return [
-        { title: `${t('tableHead.Elapse Time')}(ms)`, dataIndex: 'elapseTime', sorter: (a: DataType, b: DataType) => a.elapseTime - b.elapseTime, ellipsis: true, showSorterTooltip: { title: `${t('tableHeadTooltip.Elapse Time')}` } },
+        { title: `${t('tableHead.Elapse Time')}(ms)`, dataIndex: 'elapseTime', sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.elapseTime, b.elapseTime, isDifference), ellipsis: true, showSorterTooltip: { title: `${t('tableHeadTooltip.Elapse Time')}` } },
         {
             title: `${t('tableHead.Transit Time')}(ms)`,
             dataIndex: 'transitTime',
-            sorter: (a: DataType, b: DataType) => a.transitTime - b.transitTime,
+            sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.transitTime, b.transitTime, isDifference),
             ellipsis: true,
             showSorterTooltip: { title: `${t('tableHeadTooltip.Transit Time')}` },
         },
         {
             title: `${t('tableHead.Synchronization Time')}(ms)`,
             dataIndex: 'synchronizationTime',
-            sorter: (a: DataType, b: DataType) => a.synchronizationTime - b.synchronizationTime,
+            sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.synchronizationTime, b.synchronizationTime, isDifference),
             ellipsis: true,
             showSorterTooltip: { title: `${t('tableHeadTooltip.Synchronization Time')}` },
         },
         {
             title: `${t('tableHead.Wait Time')}(ms)`,
             dataIndex: 'waitTime',
-            sorter: (a: DataType, b: DataType) => a.waitTime - b.waitTime,
+            sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.waitTime, b.waitTime, isDifference),
             ellipsis: true,
             showSorterTooltip: { title: `${t('tableHeadTooltip.Wait Time')}` },
         },
         {
             title: `${t('tableHead.Synchronization Time Ratio')}`,
             dataIndex: 'synchronizationTimeRatio',
-            sorter: (a: DataType, b: DataType) => a.synchronizationTimeRatio - b.synchronizationTimeRatio,
+            sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.synchronizationTimeRatio, b.synchronizationTimeRatio, isDifference),
             ellipsis: true,
             showSorterTooltip: { title: `${t('tableHeadTooltip.Synchronization Time Ratio')}` },
         },
         {
             title: `${t('tableHead.Wait Time Ratio')}`,
             dataIndex: 'waitTimeRatio',
-            sorter: (a: DataType, b: DataType) => a.waitTimeRatio - b.waitTimeRatio,
+            sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.waitTimeRatio, b.waitTimeRatio, isDifference),
             ellipsis: true,
             showSorterTooltip: { title: `${t('tableHeadTooltip.Wait Time Ratio')}` },
         },
         {
-            title: `${t('tableHead.Idle Time')}(ms)`, dataIndex: 'idleTime', sorter: (a: DataType, b: DataType) => a.idleTime - b.idleTime, ellipsis: true, showSorterTooltip: { title: `${t('tableHeadTooltip.Idle Time')}` },
+            title: `${t('tableHead.Idle Time')}(ms)`, dataIndex: 'idleTime', sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.idleTime, b.idleTime, isDifference), ellipsis: true, showSorterTooltip: { title: `${t('tableHeadTooltip.Idle Time')}` },
         },
         {
-            title: `${t('tableHead.SDMABW')}(GB)`, dataIndex: 'sdmaBw', sorter: (a: DataType, b: DataType) => a.sdmaBw - b.sdmaBw, ellipsis: true,
+            title: `${t('tableHead.SDMABW')}(GB)`, dataIndex: 'sdmaBw', sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.sdmaBw, b.sdmaBw, isDifference), ellipsis: true,
         },
         {
-            title: `${t('tableHead.RDMABW')}(GB)`, dataIndex: 'rdmaBw', sorter: (a: DataType, b: DataType) => a.rdmaBw - b.rdmaBw, ellipsis: true,
+            title: `${t('tableHead.RDMABW')}(GB)`, dataIndex: 'rdmaBw', sorter: (a: DataType, b: DataType) => compareCommunicationMetrics(a.rdmaBw, b.rdmaBw, isDifference), ellipsis: true,
         },
     ];
 };
@@ -120,7 +121,7 @@ function updateSelectedOpDetail(record: any, row: any): void {
 }
 
 async function redirectToTimeline(): Promise<void> {
-    if (selectedOpDetail === null) {
+    if (selectedOpDetail === null || !isCommunicationMetric(selectedOpDetail.elapseTime)) {
         return;
     }
     const name = selectedOpDetail.operatorName;
@@ -202,7 +203,7 @@ const OperatorsTable = ({ record: parentRow, conditions }: any): JSX.Element => 
         setPage({ ..._page, total: res?.count ?? 0 });
     };
 
-    const commonColumns = useCommonColumns(t).map(item => ({ ...item, sorter: true }));
+    const commonColumns = useCommonColumns(t).map(item => ({ ...item, sorter: true, render: (value: CommunicationMetric) => formatCommunicationMetric(value) }));
     const columns: TableColumnsType<DataType> = useMemo(() => [
         { title: t('tableHead.Operator Name'), dataIndex: 'operatorName', key: 'operatorName', sorter: true, ellipsis: true },
         ...commonColumns,
@@ -289,9 +290,11 @@ const useRankColumns = (handleAction: VoidFunction[], conditions: ConditionDataT
                 {i18n.t(data.source)} </div>),
             display: [TableLevel.DIFF, TableLevel.DIFF_SOURCE].includes(tableLevel),
         },
-        ...useCommonColumns(t).map(commonCol => ({
+        ...useCommonColumns(t, tableLevel === TableLevel.DIFF).map(commonCol => ({
             ...commonCol,
-            render: (data: string | number) => tableLevel === TableLevel.DIFF ? <CompareNumber data={data}/> : data,
+            render: (data: CommunicationMetric) => tableLevel === TableLevel.DIFF && isCommunicationMetric(data, tableLevel === TableLevel.DIFF)
+                ? <CompareNumber data={data}/>
+                : formatCommunicationMetric(data, tableLevel === TableLevel.DIFF),
         })),
         {
             title: t('tableHead.Bandwidth Analysis'),

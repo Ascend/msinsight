@@ -38,7 +38,7 @@ using Dic::Server::ServerLog;
 constexpr const char *CACHE_SUFFIX = ".communication_detail.db";
 constexpr const char *TEMP_SUFFIX = ".tmp";
 constexpr const char *META_TABLE = "TimelineCommunicationDetailMeta";
-constexpr int64_t CACHE_SCHEMA_VERSION = 1;
+constexpr int64_t CACHE_SCHEMA_VERSION = 2;
 
 struct SourceFingerprint {
     std::string path;
@@ -51,14 +51,14 @@ struct SourceFingerprint {
 };
 
 struct TimeRecord {
-    std::optional<double> transitTime;
-    std::optional<double> waitTime;
+    double transitTime = -1;
+    double waitTime = -1;
 };
 
 struct BandwidthRecord {
-    std::optional<double> transitSize;
-    std::optional<double> transitTime;
-    std::optional<double> bandwidth;
+    double transitSize = -1;
+    double transitTime = -1;
+    double bandwidth = -1;
 };
 
 std::optional<SourceFingerprint> GetSourceFingerprint(const std::string &path) {
@@ -279,7 +279,7 @@ class SingleRankCommunicationJsonHandler
         char *end = nullptr;
         errno = 0;
         const double parsed = std::strtod(number.c_str(), &end);
-        if (errno != 0 || end != number.c_str() + number.size() || !std::isfinite(parsed)) {
+        if (errno != 0 || end == number.c_str() || end != number.c_str() + number.size() || !std::isfinite(parsed)) {
             return true;
         }
         return SetNumber(parsed);

@@ -16,6 +16,8 @@
  * -------------------------------------------------------------------------
  */
 
+#include <cmath>
+#include <limits>
 #include <gtest/gtest.h>
 #include <GlobalDefs.h>
 #include "ProtocolDefs.h"
@@ -333,6 +335,49 @@ TEST_F(CommunicationProtocolUtilTest, ToDurationListResponseKeepsLegacyShape) {
     EXPECT_TRUE(jsonOptional.value()["body"].HasMember("items"));
     EXPECT_TRUE(jsonOptional.value()["body"].HasMember("advice"));
     EXPECT_FALSE(jsonOptional.value()["body"].HasMember("total"));
+}
+
+TEST_F(CommunicationProtocolUtilTest, MissingDurationMetricsKeepRawSentinelAndSerializeInvalidDifferencesAsNull) {
+    Dic::Protocol::DurationResponse response;
+    response.body.durationList.emplace_back();
+    auto &data = response.body.durationList.back().durationData;
+    data.compare.elapseTime = 12;
+    data.baseline.elapseTime = 2;
+    data.compare.transitTime = -1;
+    data.baseline.transitTime = 3;
+    data.diff = data.compare - data.baseline;
+    std::string err;
+
+    auto json = protocol.ToJson(response, err);
+
+    ASSERT_TRUE(json.has_value());
+    const auto &item = (*json)["body"]["items"][0]["compareData"];
+    EXPECT_DOUBLE_EQ(item["compare"]["transitTime"].GetDouble(), -1);
+    EXPECT_TRUE(item["diff"]["transitTime"].IsNull());
+    EXPECT_DOUBLE_EQ(item["compare"]["waitTime"].GetDouble(), 0);
+    EXPECT_DOUBLE_EQ(item["diff"]["elapseTime"].GetDouble(), 10);
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    EXPECT_TRUE(json->Accept(writer));
+}
+
+TEST_F(CommunicationProtocolUtilTest, MissingOperatorMetricsSerializeAsMinusOne) {
+    Dic::Protocol::OperatorDetailsResponse response;
+    Dic::Protocol::OperatorItem item{};
+    item.elapseTime = 4.9305;
+    item.transitTime = -1;
+    item.sdmaBw = -1;
+    response.body.allOperators.push_back(item);
+    std::string err;
+
+    auto json = protocol.ToJson(response, err);
+
+    ASSERT_TRUE(json.has_value());
+    const auto &result = (*json)["body"]["allOperators"][0];
+    EXPECT_DOUBLE_EQ(result["elapseTime"].GetDouble(), 4.9305);
+    EXPECT_DOUBLE_EQ(result["transitTime"].GetDouble(), -1);
+    EXPECT_DOUBLE_EQ(result["sdmaBw"].GetDouble(), -1);
+    EXPECT_DOUBLE_EQ(result["waitTime"].GetDouble(), 0);
 }
 
 TEST_F(CommunicationProtocolUtilTest, ToPaginatedDurationListResponseIncludesTotal) {
@@ -732,4 +777,69 @@ TEST_F(CommunicationProtocolUtilTest, TestCommunicationSlowRankAnalysisResponse)
     EXPECT_EQ(opDetail1["maxTime"].GetDouble(), op1.maxElapseTime);
     ASSERT_TRUE(opDetail1.HasMember("maxStartTime"));
     EXPECT_EQ(opDetail1["maxStartTime"].GetDouble(), op1.maxStartTime);
+}
+
+TEST_F(CommunicationProtocolUtilTest, DurationDifferencePropagatesInvalidMetricsFromEitherSide) {
+    Dic::Protocol::DurationData compare;
+    Dic::Protocol::DurationData baseline;
+    compare.startTime = -1;
+    baseline.startTime = 100;
+    compare.transitTime = 5;
+    baseline.transitTime = -1;
+    compare.waitTime = -1;
+    baseline.waitTime = -1;
+    compare.elapseTime = 0;
+    baseline.elapseTime = 2;
+    const auto difference = compare - baseline;
+    EXPECT_TRUE(std::isnan(difference.startTime));
+    EXPECT_TRUE(std::isnan(difference.transitTime));
+    EXPECT_TRUE(std::isnan(difference.waitTime));
+    EXPECT_DOUBLE_EQ(difference.elapseTime, -2);
+    EXPECT_DOUBLE_EQ(difference.idleTime, 0);
+}
+
+TEST_F(CommunicationProtocolUtilTest, DurationDifferencePreservesMinusOneAfterRounding) {
+    for (double compareTime : {5.0, 5.00001}) {
+        Dic::Protocol::DurationResponse response;
+        response.body.durationList.emplace_back();
+        auto &data = response.body.durationList.back().durationData;
+        data.compare.elapseTime = compareTime;
+        data.baseline.elapseTime = 6;
+        data.compare.sdmaBw = 3;
+        data.baseline.sdmaBw = 4;
+        data.compare.startTime = 2;
+        data.baseline.startTime = 3;
+        data.compare.synchronizationTimeRatio = 0;
+        data.baseline.synchronizationTimeRatio = 1;
+        data.compare.transitTime = -1;
+        data.baseline.transitTime = 3;
+        data.diff = data.compare - data.baseline;
+        EXPECT_DOUBLE_EQ(data.diff.elapseTime, -1);
+        std::string err;
+        auto json = protocol.ToJson(response, err);
+        ASSERT_TRUE(json.has_value());
+        const auto &item = (*json)["body"]["items"][0]["compareData"];
+        EXPECT_DOUBLE_EQ(item["compare"]["transitTime"].GetDouble(), -1);
+        const auto &difference = item["diff"];
+        for (const char *field : {"elapseTime", "sdmaBw", "startTime", "synchronizationTimeRatio"}) {
+            ASSERT_TRUE(difference[field].IsNumber());
+            EXPECT_DOUBLE_EQ(difference[field].GetDouble(), -1);
+        }
+        EXPECT_TRUE(difference["transitTime"].IsNull());
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        EXPECT_TRUE(json->Accept(writer));
+    }
+}
+
+TEST_F(CommunicationProtocolUtilTest, DurationDifferenceRejectsNegativeAndNonFiniteInputsFromEitherSide) {
+    for (double invalid : {-1.0, -2.0, std::numeric_limits<double>::quiet_NaN(),
+             std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity()}) {
+        Dic::Protocol::DurationData compare;
+        Dic::Protocol::DurationData baseline;
+        compare.elapseTime = invalid;
+        baseline.elapseTime = 3;
+        EXPECT_TRUE(std::isnan((compare - baseline).elapseTime));
+        EXPECT_TRUE(std::isnan((baseline - compare).elapseTime));
+    }
 }
