@@ -30,14 +30,20 @@ class ExportAffinityAPIAdvice : public AdvisorRequestHandler {
     ExportAffinityAPIAdvice() { command = Protocol::REQ_RES_ADVISOR_EXPORT_AFFINITY_API; }
     ~ExportAffinityAPIAdvice() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
+    // 按CSV规范转义单个字段，供导出使用并便于单元测试覆盖分隔符、引号和换行场景。
+    static std::string EscapeCsvField(const std::string &value);
+    // 清洗文件名中的非法字符，避免文本工程以文件路径作为rankId时导出失败。
+    static std::string SanitizeFileName(const std::string &value);
 
   private:
+    friend class ExportAffinityAPIIntegrationTest;
     static std::string CheckColumn(const std::string &column);
-    static std::string GenerateCsv(const std::vector<Protocol::AffinityAPIData> &data);
+    static std::string GenerateCsvRow(const Protocol::AffinityAPIData &item);
     bool CreateCsvFile(
         const std::string &rankId, const std::string &projectName, Protocol::ExportAffinityAPIResBody &resBody);
+    bool OpenUniqueCsvFile(const std::string &fileStem, Protocol::ExportAffinityAPIResBody &resBody);
     bool AppendFileContent(const std::string &str);
-    void DestroyFile();
+    bool DestroyFile();
 
     std::ofstream ofs;
     uint64_t currentFileSize = 0;

@@ -133,7 +133,8 @@ class AffinityAPIAdvisor {
         std::vector<Protocol::FlowLocation> &result);
     static bool CheckApiSeqWithRule(
         const std::vector<std::string> &rule, const std::vector<Protocol::FlowLocation> &dataList, uint32_t index);
-    static std::vector<Protocol::FlowLocation> GetFlowLocationData(const Protocol::APITypeParams &params);
+    static std::vector<Protocol::FlowLocation> GetFlowLocationData(
+        const Protocol::APITypeParams &params, bool *querySucceeded = nullptr);
 };
 } // Dic::Module::Advisor
 

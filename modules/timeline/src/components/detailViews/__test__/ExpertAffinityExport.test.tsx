@@ -48,6 +48,7 @@ const button = (view: ReturnType<typeof render>): HTMLElement => view.getByRole(
 describe.each(['zh', 'en'] as const)('Affinity API export feedback (%s)', (language) => {
     let success: jest.SpyInstance;
     let failure: jest.SpyInstance;
+    let info: jest.SpyInstance;
     const filePath = 'C:\\性能数据\\demo & test\\advisor_affinity_api_0.csv';
 
     beforeEach(async () => {
@@ -55,6 +56,7 @@ describe.each(['zh', 'en'] as const)('Affinity API export feedback (%s)', (langu
         await translations.use(initReactI18next).init({ lng: language, resources, defaultNS: 'timeline', interpolation: { escapeValue: false } });
         success = jest.spyOn(message, 'success').mockImplementation((() => () => {}) as any);
         failure = jest.spyOn(message, 'error').mockImplementation((() => () => {}) as any);
+        info = jest.spyOn(message, 'info').mockImplementation((() => () => {}) as any);
     });
     afterEach(() => { jest.restoreAllMocks(); });
 
@@ -73,6 +75,18 @@ describe.each(['zh', 'en'] as const)('Affinity API export feedback (%s)', (langu
         await waitFor(() => expect(button(view).querySelector('.anticon-loading')).toBeNull());
     });
 
+    it('reports a successful empty query without claiming a file was exported', async () => {
+        const exportRequest = jest.fn().mockResolvedValue({ count: 0, filePath: '', exceedingFileLimit: false });
+        const view = renderSummary(exportRequest);
+        fireEvent.click(button(view));
+        await waitFor(() => expect(info).toHaveBeenCalledWith(language === 'zh' ? '暂无可导出的数据。' : 'No data to export.'));
+        expect(info).toHaveBeenCalledTimes(1);
+        expect(success).not.toHaveBeenCalled();
+        expect(failure).not.toHaveBeenCalled();
+        expect(exportRequest).toHaveBeenCalledTimes(1);
+        await waitFor(() => expect(button(view).querySelector('.anticon-loading')).toBeNull());
+    });
+
     it('includes only the reported size warning and returned path', async () => {
         const view = renderSummary(jest.fn().mockResolvedValue({ filePath, exceedingFileLimit: true }));
         fireEvent.click(button(view));
@@ -82,7 +96,7 @@ describe.each(['zh', 'en'] as const)('Affinity API export feedback (%s)', (langu
     });
 
     it.each(['', undefined, 42])('reports failure rather than success for invalid path %s', async (path) => {
-        const view = renderSummary(jest.fn().mockResolvedValue({ filePath: path }));
+        const view = renderSummary(jest.fn().mockResolvedValue({ count: 1, filePath: path }));
         fireEvent.click(button(view));
         await waitFor(() => expect(failure).toHaveBeenCalledWith(translations.t('Export Failed')));
         expect(failure).toHaveBeenCalledTimes(1);
