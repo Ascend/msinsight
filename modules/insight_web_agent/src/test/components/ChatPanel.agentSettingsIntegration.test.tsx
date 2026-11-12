@@ -80,6 +80,8 @@ jest.mock('../../env', () => ({
 }));
 
 jest.mock('../../api', () => ({
+    ApiRequestError: jest.requireActual('../../api').ApiRequestError,
+    isBackendUnavailableError: jest.fn(() => false),
     cancelPrompt: jest.fn(),
     createSession: jest.fn(),
     deleteSession: jest.fn(),
@@ -183,7 +185,7 @@ beforeEach(() => {
     });
     mockFetchAgentConfig.mockResolvedValue(JSON.parse(JSON.stringify(snapshot)));
     mockFetchAgents.mockResolvedValue({
-        activeAgentName: 'Claude',
+        activeAgentName: 'OpenCode',
         agentServers: [{ name: 'OpenCode' }, { name: 'Claude' }],
         discoveryLoading: false,
     });
@@ -342,7 +344,7 @@ test.each([
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
 });
 
-test('settings save success preserves visible messages, applies agent state from a backend event, and avoids the stale session', async () => {
+test('settings save for the same agent preserves the visible conversation', async () => {
     mockSaveAgentServersConfig.mockResolvedValue({ ok: true });
 
     render(
@@ -365,13 +367,13 @@ test('settings save success preserves visible messages, applies agent state from
         fakeEventSourceInstances[0].emit({
             type: 'state',
             state: {
-                activeAgentName: 'Claude',
+                activeAgentName: 'OpenCode',
                 agentServers: [{ name: 'OpenCode' }, { name: 'Claude' }],
             },
         });
     });
 
-    expect(screen.getByLabelText('active agent')).toHaveTextContent('Claude');
+    expect(screen.getByLabelText('active agent')).toHaveTextContent('OpenCode');
     expect(screen.getByLabelText('agent servers')).toHaveTextContent('OpenCode,Claude');
     expect(screen.getByText(previousAssistantReply)).toBeVisible();
 
@@ -379,10 +381,10 @@ test('settings save success preserves visible messages, applies agent state from
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after event reload', true, undefined, [], undefined, undefined, undefined);
+    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after event reload', false, 'session-open', [], undefined, undefined, undefined);
 });
 
-test('settings save-and-switch preserves visible messages, refreshes agent state, and does not send the next prompt to the stale session', async () => {
+test.each([false, true])('settings save-and-switch replaces the old conversation and routes the next prompt to the new session (SSE first: %s)', async (eventFirst) => {
     render(
         <ChatStateProvider>
             <SessionSidebar />
@@ -395,6 +397,20 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     expect(screen.getByLabelText('active agent')).toHaveTextContent('OpenCode');
     expect(screen.getByLabelText('current session')).toHaveTextContent('session-open');
 
+    const newState = { initialized: true, activeAgentName: 'Claude' };
+    mockFetchState.mockResolvedValue(newState);
+    mockFetchAgents.mockResolvedValue({ activeAgentName: 'Claude', agentServers: [{ name: 'OpenCode' }, { name: 'Claude' }] });
+    mockFetchSessions.mockResolvedValue([{ sessionId: 'session-claude', title: 'Claude session' }]);
+    mockLoadSession.mockResolvedValue({
+        messages: [{ id: 'claude-message', role: 'assistant', content: [{ type: 'text', text: 'Claude conversation' }] }],
+    });
+    mockSaveAgentServersConfig.mockImplementationOnce(async () => {
+        if (eventFirst) {
+            fakeEventSourceInstances[0].emit({ type: 'state', state: newState });
+        }
+        return { ok: true, snapshot: { ...snapshot, activeAgentName: 'Claude' } };
+    });
+
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     expect(await screen.findByText('Agent Configuration')).toBeVisible();
     fireEvent.click(await screen.findByRole('button', { name: /Claude/ }));
@@ -404,11 +420,13 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByLabelText('active agent')).toHaveTextContent('Claude'));
     expect(screen.getByLabelText('agent servers')).toHaveTextContent('OpenCode,Claude');
-    expect(screen.getByText(previousAssistantReply)).toBeVisible();
+    expect(await screen.findByText('Claude conversation')).toBeVisible();
+    expect(screen.queryByText(previousAssistantReply)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('current session')).toHaveTextContent('session-claude');
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'prompt after reload' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after reload', true, undefined, [], undefined, undefined, undefined);
+    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after reload', false, 'session-claude', [], undefined, undefined, undefined);
 });

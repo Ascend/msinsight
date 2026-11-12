@@ -28,12 +28,12 @@ import {
 test("publicState exposes agent availability for the picker", () => {
     const state = createRuntimeState();
     state.agentServers = [
-        { name: "OpenCode(auto)", available: false },
+        { name: "OpenCode", available: false },
         { name: "Stable", available: true },
     ];
 
     assert.deepEqual(publicState(state).agentServers, [
-        { name: "OpenCode(auto)", available: false },
+        { name: "OpenCode", available: false },
         { name: "Stable", available: true },
     ]);
 });

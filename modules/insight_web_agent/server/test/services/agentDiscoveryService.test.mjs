@@ -98,8 +98,8 @@ test("compares complete ACP launch settings", () => {
     assert.equal(sameAgentLaunch(catalog[0].config, { ...catalog[0].config, args: [] }), false);
 });
 
-test("marks every built-in discovered agent as automatic", () => {
-    assert.equal(ACP_AGENT_CATALOG.every(({ config }) => config.name.endsWith("(auto)")), true);
+test("uses plain names for built-in discovered agents", () => {
+    assert.equal(ACP_AGENT_CATALOG.every(({ config }) => !config.name.endsWith("(auto)")), true);
 });
 
 test("always presents catalog agents and marks missing ones unavailable", () => {
@@ -107,17 +107,17 @@ test("always presents catalog agents and marks missing ones unavailable", () => 
     const configured = [{ name: "OpenCode", command: "opencode", args: ["acp"], env: {} }];
 
     assert.deepEqual(presentCatalogAgents({ discovered }).map(({ name, available }) => ({ name, available })), [
-        { name: "OpenCode(auto)", available: true },
-        { name: "Claude Code(auto)", available: false },
-        { name: "Codex(auto)", available: false },
-        { name: "Trae(auto)", available: false },
+        { name: "OpenCode", available: true },
+        { name: "Claude Code", available: false },
+        { name: "Codex", available: false },
+        { name: "Trae", available: false },
     ]);
-    assert.equal(presentCatalogAgents({ discovered, configured }).find(({ name }) => name === "OpenCode(auto)").available, true);
-    assert.equal(presentCatalogAgents({ discovered: [], configured }).find(({ name }) => name === "OpenCode(auto)").available, true);
+    assert.equal(presentCatalogAgents({ discovered, configured }).find(({ name }) => name === "OpenCode").available, true);
+    assert.equal(presentCatalogAgents({ discovered: [], configured }).find(({ name }) => name === "OpenCode").available, true);
     assert.equal(presentCatalogAgents({
         discovered: [],
         configured: [{ name: "Custom", command: "custom-acp", args: [], env: {} }],
-    }).find(({ name }) => name === "OpenCode(auto)").available, false);
+    }).find(({ name }) => name === "OpenCode").available, false);
 });
 
 test("registers CodeAgent as a success-only ACP candidate", () => {
@@ -186,16 +186,16 @@ test("lists catalog agents before configured agents for the picker", () => {
     });
 
     assert.deepEqual(listed.map(({ name, available, kind }) => ({ name, available, kind })), [
-        { name: "OpenCode(auto)", available: false, kind: "discovered" },
-        { name: "Claude Code(auto)", available: true, kind: "discovered" },
-        { name: "Codex(auto)", available: false, kind: "discovered" },
-        { name: "Trae(auto)", available: false, kind: "discovered" },
+        { name: "OpenCode", available: false, kind: "discovered" },
+        { name: "Claude Code", available: true, kind: "discovered" },
+        { name: "Codex", available: false, kind: "discovered" },
+        { name: "Trae", available: false, kind: "discovered" },
         { name: "msinsight-native", available: true, kind: "builtin" },
         { name: "Custom", available: true, kind: "configured" },
     ]);
 });
 
-test("keeps a catalog agent available when a configured agent uses the same launch", () => {
+test("prefers the configured agent when its name matches a catalog agent", () => {
     const listed = presentListedAgentServers({
         discovered: [],
         configured: [
@@ -205,17 +205,16 @@ test("keeps a catalog agent available when a configured agent uses the same laun
     });
 
     assert.deepEqual(listed.map(({ name, available, kind }) => ({ name, available, kind })), [
-        { name: "OpenCode(auto)", available: true, kind: "discovered" },
-        { name: "Claude Code(auto)", available: false, kind: "discovered" },
-        { name: "Codex(auto)", available: false, kind: "discovered" },
-        { name: "Trae(auto)", available: false, kind: "discovered" },
+        { name: "Claude Code", available: false, kind: "discovered" },
+        { name: "Codex", available: false, kind: "discovered" },
+        { name: "Trae", available: false, kind: "discovered" },
         { name: "msinsight-native", available: true, kind: "builtin" },
         { name: "OpenCode", available: true, kind: "configured" },
     ]);
 });
 
 test("keeps catalog and configured agents independently runnable when they share a launch", () => {
-    const configured = { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } };
+    const configured = { name: "Custom OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } };
     const runnable = presentRunnableAgentServers({
         discovered: [],
         configured: [
@@ -225,19 +224,31 @@ test("keeps catalog and configured agents independently runnable when they share
     });
 
     assert.deepEqual(runnable.map(({ name, command, args, env }) => ({ name, command, args, env })), [
-        { name: "OpenCode(auto)", command: "opencode", args: ["acp"], env: {} },
+        { name: "OpenCode", command: "opencode", args: ["acp"], env: {} },
         { name: "msinsight-native", command: "node", args: [], env: {} },
-        { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
+        { name: "Custom OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
     ]);
-    assert.equal(resolveAgentServer("OpenCode(auto)", runnable)?.name, "OpenCode(auto)");
     assert.equal(resolveAgentServer("OpenCode", runnable)?.name, "OpenCode");
+    assert.equal(resolveAgentServer("Custom OpenCode", runnable)?.name, "Custom OpenCode");
 });
 
 test("does not resolve a catalog agent onto a configured agent with the same launch", () => {
-    const configured = { name: "OpenCode", command: "opencode", args: ["acp"], env: {} };
-    assert.equal(resolveAgentServer("OpenCode(auto)", [configured]), undefined);
+    const configured = { name: "Custom OpenCode", command: "opencode", args: ["acp"], env: {} };
+    assert.equal(resolveAgentServer("OpenCode", [configured]), undefined);
     assert.equal(resolveAgentServer("Custom", [configured]), undefined);
-    assert.equal(resolveAgentServer("OpenCode", [configured])?.name, "OpenCode");
+    assert.equal(resolveAgentServer("Custom OpenCode", [configured])?.name, "Custom OpenCode");
+});
+
+test("runs only the user configuration when a discovered agent has the same name", () => {
+    const configured = { name: "OpenCode", command: "custom-opencode", args: [], env: { ACP_DEBUG: "1" } };
+    const discovered = [ACP_AGENT_CATALOG[0].config];
+    const runnable = presentRunnableAgentServers({ discovered, configured: [configured] });
+    assert.deepEqual(runnable, [configured]);
+    assert.equal(resolveAgentServer("OpenCode", runnable), configured);
+    const listed = presentListedAgentServers({ discovered, configured: [configured] });
+    assert.deepEqual(listed.filter(({ name }) => name === "OpenCode"), [
+        { name: "OpenCode", available: true, kind: "configured" },
+    ]);
 });
 
 test("logs only ACP launch shape without credentials, arguments, endpoints, or paths", () => {

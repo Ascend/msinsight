@@ -90,34 +90,34 @@ test('disables agent refresh while discovery is running', async () => {
 
 test('renders theme-following logos for catalog agents', async () => {
     renderSidebar({
-        activeAgentName: 'OpenCode(auto)',
+        activeAgentName: 'OpenCode',
         agentServers: [
-            { name: 'OpenCode(auto)', available: true },
-            { name: 'Claude Code(auto)', available: true },
-            { name: 'Codex(auto)', available: true },
-            { name: 'Trae(auto)', available: true },
+            { name: 'OpenCode', available: true },
+            { name: 'Claude Code', available: true },
+            { name: 'Codex', available: true },
+            { name: 'Trae', available: true },
         ],
     });
 
-    const trigger = screen.getByRole('button', { name: /OpenCode\(auto\)/i });
+    const trigger = screen.getByRole('button', { name: /^OpenCode$/i });
     expect(trigger.querySelector('[data-agent-icon="themed"]')).not.toBeNull();
 
     fireEvent.click(trigger);
-    expect((await screen.findByRole('option', { name: 'OpenCode(auto)' })).querySelector('[data-agent-icon="themed"]')).not.toBeNull();
-    expect((await screen.findByRole('option', { name: 'Codex(auto)' })).querySelector('[data-agent-icon="themed"]')).not.toBeNull();
-    expect((await screen.findByRole('option', { name: 'Claude Code(auto)' })).querySelector('[data-agent-icon="static"]')).not.toBeNull();
-    expect((await screen.findByRole('option', { name: 'Trae(auto)' })).querySelector('[data-agent-icon="static"]')).not.toBeNull();
+    expect((await screen.findByRole('option', { name: 'OpenCode' })).querySelector('[data-agent-icon="themed"]')).not.toBeNull();
+    expect((await screen.findByRole('option', { name: 'Codex' })).querySelector('[data-agent-icon="themed"]')).not.toBeNull();
+    expect((await screen.findByRole('option', { name: 'Claude Code' })).querySelector('[data-agent-icon="static"]')).not.toBeNull();
+    expect((await screen.findByRole('option', { name: 'Trae' })).querySelector('[data-agent-icon="static"]')).not.toBeNull();
 });
 
 test('hides undetected catalog agents from the picker', async () => {
     renderSidebar({
         agentServers: [
             { name: 'DeepSeek', available: true },
-            { name: 'OpenCode(auto)', available: false },
+            { name: 'OpenCode', available: false },
         ],
     });
 
     fireEvent.click(screen.getByRole('button', { name: /DeepSeek/i }));
     expect(await screen.findByRole('option', { name: 'DeepSeek' })).toBeVisible();
-    expect(screen.queryByRole('option', { name: /OpenCode\(auto\)/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /OpenCode/i })).not.toBeInTheDocument();
 });

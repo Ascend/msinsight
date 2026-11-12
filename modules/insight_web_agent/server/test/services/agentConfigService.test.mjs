@@ -147,7 +147,7 @@ test("reads a normalized agent and session config snapshot", async () => {
             contextBudgetTokens: 200000,
             autoCompactThreshold: 80,
         },
-        catalogAgents: presentCatalogAgents(),
+        catalogAgents: presentCatalogAgents().filter((agent) => agent.name !== "OpenCode"),
         sessionConfig: {
             requestTimeoutMs: 1000,
             promptRequestTimeoutMs: 2000,
@@ -292,24 +292,26 @@ test("marks a catalog agent available when a configured agent uses the same laun
         state: fixture.state,
         secretCrypto: fixture.crypto,
         getConfiguredAgents: () => [
-            { name: "OpenCode", command: "opencode", args: ["acp"], env: {} },
+            { name: "CustomClaude", command: "claude-agent-acp", args: [], env: {} },
         ],
         reloadRuntime: async () => ({}),
     });
 
     const snapshot = await service.readSnapshot();
 
-    assert.equal(snapshot.catalogAgents.find((agent) => agent.name === "OpenCode(auto)").available, true);
-    assert.equal(snapshot.catalogAgents.find((agent) => agent.name === "Claude Code(auto)").available, false);
+    assert.equal(snapshot.catalogAgents.find((agent) => agent.name === "Claude Code").available, true);
+    assert.equal(snapshot.catalogAgents.find((agent) => agent.name === "Codex").available, false);
+    assert.equal(snapshot.catalogAgents.some((agent) => agent.name === "OpenCode"), false);
+    assert.equal(snapshot.agentServers.some((agent) => agent.name === "OpenCode"), true);
 });
 
-test("keeps a catalog active agent when a custom copy uses the same launch", async () => {
+test("keeps a configured active agent when the catalog uses the same name and launch", async () => {
     const fixture = await createFixture();
     const service = createAgentConfigService({
         rootDir: fixture.rootDir,
         state: fixture.state,
         secretCrypto: fixture.crypto,
-        getDiscoveredAgents: () => [{ name: "OpenCode(auto)", command: "opencode", args: ["acp"], env: {} }],
+        getDiscoveredAgents: () => [{ name: "OpenCode", command: "opencode", args: ["acp"], env: {} }],
         getConfiguredAgents: () => [
             { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
         ],
@@ -319,7 +321,7 @@ test("keeps a catalog active agent when a custom copy uses the same launch", asy
     });
 
     const result = await service.saveAgentServers({
-        activeAgentName: "OpenCode(auto)",
+        activeAgentName: "OpenCode",
         agentServers: [
             { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
             { name: "Claude", command: "claude", args: [], env: {} },
@@ -327,14 +329,14 @@ test("keeps a catalog active agent when a custom copy uses the same launch", asy
     });
 
     assert.equal(result.ok, true);
-    assert.equal(result.snapshot.activeAgentName, "OpenCode(auto)");
-    assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode(auto)");
+    assert.equal(result.snapshot.activeAgentName, "OpenCode");
+    assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode");
 });
 
 test("rejects an unavailable catalog agent as the active agent", async () => {
     const fixture = await createFixture();
     const result = await fixture.service.saveAgentServers({
-        activeAgentName: "Claude Code(auto)",
+        activeAgentName: "Claude Code",
         agentServers: [
             { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
             { name: "Claude", command: "claude", args: [], env: {} },

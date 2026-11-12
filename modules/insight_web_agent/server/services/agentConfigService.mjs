@@ -74,7 +74,7 @@ export const createAgentConfigService = ({
 
     const withCatalogAgents = (snapshot) => ({
         ...snapshot,
-        catalogAgents: catalogAgents(),
+        catalogAgents: catalogAgents().filter((agent) => !snapshot.agentServers.some((configured) => configured.name === agent.name)),
     });
 
     const saveAgentServers = async (input) => {

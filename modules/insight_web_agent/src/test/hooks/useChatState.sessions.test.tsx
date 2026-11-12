@@ -401,10 +401,153 @@ test('saving a different active agent does not reopen the previous agent session
     await send('first');
     emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false });
     (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers: [] });
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-b' });
     await act(async () => { await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' }); });
     expect(api.loadSession).not.toHaveBeenCalled();
     expect(chat.sessions).toEqual([]);
     expect(chat.isDraftSession).toBe(true);
+    expect(chat.messages).toEqual([]);
+    expect(chat.currentSessionId).toBeUndefined();
+    expect(chat.switchingAgent).toBe(false);
+});
+
+test.each(['response-first', 'event-first', 'event-during-fetch'])('configuration switching loads the new agent history: %s', async (order) => {
+    await send('old agent question');
+    emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false });
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-b' });
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers: [] });
+    (api.fetchSessions as jest.Mock).mockResolvedValue([{ sessionId: 'new-history', title: 'Agent B history' }]);
+    const messages = [{ id: 'new-message', role: 'assistant', content: [{ type: 'text', text: 'Agent B reply' }] }];
+    (api.loadSession as jest.Mock).mockResolvedValue({ sessionId: 'new-history', messages });
+    const stateEvent: ServerEvent = { type: 'state', state: { activeAgentName: 'agent-b', initialized: true, discoveryLoading: false } };
+    if (order === 'event-first') {
+        emit(stateEvent);
+        expect(chat.messages).toEqual([]);
+    }
+    if (order === 'event-during-fetch') {
+        (api.fetchAgents as jest.Mock).mockImplementationOnce(async () => {
+            emit(stateEvent);
+            return { activeAgentName: 'agent-a', agentServers: [] };
+        });
+    }
+    await act(async () => {
+        await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' });
+    });
+    if (order === 'response-first') {
+        emit(stateEvent);
+    }
+    expect(chat.activeAgentName).toBe('agent-b');
+    expect(chat.currentSessionId).toBe('new-history');
+    expect(chat.messages).toEqual(messages);
+    expect(chat.sessions.map((session) => session.sessionId)).toEqual(['new-history']);
+    expect(api.loadSession).toHaveBeenCalledWith('new-history');
+    expect(chat.switchingAgent).toBe(false);
+});
+
+test('a failed configuration-switch session refresh releases the mask and discards old messages', async () => {
+    await send('old question');
+    emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false });
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers: [] });
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-b' });
+    (api.fetchSessions as jest.Mock).mockRejectedValueOnce(new Error('sessions unavailable'));
+    await act(async () => {
+        try {
+            await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' });
+        } catch (error) {
+            expect((error as Error).message).toBe('sessions unavailable');
+        }
+    });
+    expect(chat.switchingAgent).toBe(false);
+    expect(chat.messages).toEqual([]);
+});
+
+test('a late old-agent session load cannot overwrite the new agent session with the same ID', async () => {
+    let finishOldLoad!: (value: object) => void;
+    (api.loadSession as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finishOldLoad = resolve; }));
+    let selecting!: Promise<void>;
+    act(() => { selecting = chat.selectSession({ sessionId: 'shared-id' }); });
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers: [] });
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-b' });
+    (api.fetchSessions as jest.Mock).mockResolvedValue([{ sessionId: 'shared-id' }]);
+    const messages = [{ id: 'new', role: 'assistant', content: [] }];
+    (api.loadSession as jest.Mock).mockResolvedValue({ messages });
+    emit({ type: 'state', state: { activeAgentName: 'agent-b', initialized: true } });
+    await act(async () => {
+        await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' });
+    });
+    await act(async () => {
+        finishOldLoad({ messages: [{ id: 'old', role: 'assistant', content: [] }] });
+        await selecting;
+    });
+    expect(chat.currentSessionId).toBe('shared-id');
+    expect(chat.messages).toEqual(messages);
+});
+
+test.each(['state', 'sessions', 'history'] as const)('configuration switching supersedes the first initialization waiting for %s', async (stage) => {
+    testingLibrary.cleanup();
+    let finishOldRequest!: (value: object) => void;
+    const pending = new Promise((resolve) => { finishOldRequest = resolve; });
+    const oldState = { initialized: true, activeAgentName: 'agent-a' };
+    (api.fetchState as jest.Mock).mockResolvedValue(oldState);
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-a', discoveryLoading: false });
+    (api.fetchSessions as jest.Mock).mockResolvedValue([{ sessionId: 'history-a' }]);
+    (api.loadSession as jest.Mock).mockResolvedValue({ messages: [] });
+    const waitingMethod = stage === 'state' ? api.fetchState : stage === 'sessions' ? api.fetchSessions : api.loadSession;
+    (waitingMethod as jest.Mock).mockClear();
+    if (stage === 'state') {
+        (api.fetchState as jest.Mock).mockResolvedValueOnce(oldState).mockReturnValueOnce(pending);
+    } else {
+        (waitingMethod as jest.Mock).mockReturnValueOnce(pending);
+    }
+    render(<ChatStateProvider><Probe /></ChatStateProvider>);
+    await waitFor(() => expect(waitingMethod).toHaveBeenCalledTimes(stage === 'state' ? 2 : 1));
+
+    (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName: 'agent-b' });
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', discoveryLoading: false });
+    (api.fetchSessions as jest.Mock).mockResolvedValue([{ sessionId: 'history-b' }]);
+    const messages = [{ id: 'b', role: 'assistant', content: [] }];
+    (api.loadSession as jest.Mock).mockResolvedValue({ messages });
+    emit({ type: 'state', state: { initialized: true, activeAgentName: 'agent-b' } });
+    await act(async () => {
+        await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' });
+    });
+    await act(async () => {
+        finishOldRequest(stage === 'state' ? oldState : stage === 'sessions' ? [{ sessionId: 'history-a' }] : { messages: [] });
+    });
+    expect(chat.activeAgentName).toBe('agent-b');
+    expect(chat.currentSessionId).toBe('history-b');
+    expect(chat.messages).toEqual(messages);
+    expect(chat.switchingAgent).toBe(false);
+    const sessionFetchCount = (api.fetchSessions as jest.Mock).mock.calls.length;
+    await act(async () => {
+        await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName: 'agent-b' });
+    });
+    expect(api.fetchSessions).toHaveBeenCalledTimes(sessionFetchCount);
+    expect(chat.messages).toEqual(messages);
+});
+
+test('switching back to an agent does not accept its previous in-flight history response', async () => {
+    let finishOldLoad!: (value: object) => void;
+    (api.loadSession as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finishOldLoad = resolve; }));
+    let selecting!: Promise<void>;
+    act(() => { selecting = chat.selectSession({ sessionId: 'shared-id' }); });
+    const messages = [{ id: 'latest', role: 'assistant', content: [] }];
+    (api.fetchSessions as jest.Mock).mockResolvedValue([{ sessionId: 'shared-id' }]);
+    (api.loadSession as jest.Mock).mockResolvedValue({ messages });
+    for (const activeAgentName of ['agent-b', 'agent-a']) {
+        (api.fetchState as jest.Mock).mockResolvedValue({ initialized: true, activeAgentName });
+        (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName, discoveryLoading: false });
+        await act(async () => {
+            await chat.applyAgentConfigSnapshot({ ...savedConfig, activeAgentName });
+        });
+    }
+    await act(async () => {
+        finishOldLoad({ messages: [{ id: 'outdated', role: 'assistant', content: [] }] });
+        await selecting;
+    });
+    expect(chat.activeAgentName).toBe('agent-a');
+    expect(chat.currentSessionId).toBe('shared-id');
+    expect(chat.messages).toEqual(messages);
 });
 
 test('permission mode can change during a reply and becomes the next draft default', async () => {

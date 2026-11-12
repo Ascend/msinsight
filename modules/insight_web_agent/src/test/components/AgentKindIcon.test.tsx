@@ -31,28 +31,28 @@ const renderIcon = (name: string, mode: 'light' | 'dark') => {
 };
 
 test('switches OpenCode and Codex between dedicated light and dark SVGs', () => {
-    const lightOpenCode = renderIcon('OpenCode(auto)', 'light');
-    const darkOpenCode = renderIcon('OpenCode(auto)', 'dark');
+    const lightOpenCode = renderIcon('OpenCode', 'light');
+    const darkOpenCode = renderIcon('OpenCode', 'dark');
     expect(lightOpenCode).toHaveAttribute('data-agent-icon', 'themed');
     expect(darkOpenCode).toHaveAttribute('data-agent-icon', 'themed');
     expect(lightOpenCode?.getAttribute('src')).toBe('logo-opencode.svg');
     expect(darkOpenCode?.getAttribute('src')).toBe('logo-opencode-dark.svg');
 
-    const lightCodex = renderIcon('Codex(auto)', 'light');
-    const darkCodex = renderIcon('Codex(auto)', 'dark');
+    const lightCodex = renderIcon('Codex', 'light');
+    const darkCodex = renderIcon('Codex', 'dark');
     expect(lightCodex?.getAttribute('src')).toBe('logo-openai.svg');
     expect(darkCodex?.getAttribute('src')).toBe('logo-openai-dark.svg');
 });
 
 test('keeps Claude, Trae, and the built-in agent on a fixed colorful logo', () => {
-    const lightClaude = renderIcon('Claude Code(auto)', 'light');
-    const darkClaude = renderIcon('Claude Code(auto)', 'dark');
+    const lightClaude = renderIcon('Claude Code', 'light');
+    const darkClaude = renderIcon('Claude Code', 'dark');
     expect(lightClaude).toHaveAttribute('data-agent-icon', 'static');
     expect(lightClaude?.getAttribute('src')).toBe(darkClaude?.getAttribute('src'));
     expect(lightClaude?.getAttribute('src')).toBe('logo-claude.svg');
 
-    const lightTrae = renderIcon('Trae(auto)', 'light');
-    const darkTrae = renderIcon('Trae(auto)', 'dark');
+    const lightTrae = renderIcon('Trae', 'light');
+    const darkTrae = renderIcon('Trae', 'dark');
     expect(lightTrae).toHaveAttribute('data-agent-icon', 'static');
     expect(lightTrae?.getAttribute('src')).toBe(darkTrae?.getAttribute('src'));
     expect(lightTrae?.getAttribute('src')).toBe('logo-trae.svg');
@@ -63,6 +63,6 @@ test('keeps Claude, Trae, and the built-in agent on a fixed colorful logo', () =
 });
 
 test('does not render a brand icon for copied or custom agent names', () => {
-    expect(renderIcon('OpenCode', 'light')).toBeNull();
-    expect(renderIcon('Claude Code', 'dark')).toBeNull();
+    expect(renderIcon('OpenCode Copy', 'light')).toBeNull();
+    expect(renderIcon('Claude Code Copy', 'dark')).toBeNull();
 });
