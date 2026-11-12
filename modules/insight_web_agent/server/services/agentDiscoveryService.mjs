@@ -37,6 +37,11 @@ export const ACP_AGENT_CATALOG = [
         id: "trae",
         config: { name: "Trae(auto)", command: "traecli", args: ["acp", "serve"], env: {} },
     },
+    {
+        id: "codeagent",
+        showOnlyWhenDetected: true,
+        config: { name: "CodeAgent(auto)", command: "codeagent", args: ["--acp"], env: {} },
+    },
 ];
 
 const INITIALIZE_PARAMS = {
@@ -110,7 +115,12 @@ export const presentCatalogAgents = ({
 } = {}) => {
     const discoveredByLaunch = new Map(discovered.map((agent) => [agentLaunchKey(agent), agent]));
     const configuredKeys = new Set(configured.map(agentLaunchKey));
-    return catalog.map(({ config }) => {
+    // Optional catalog entries are visible only after a successful ACP probe.
+    // A configured launch still follows the existing skip rule, without creating an automatic alias.
+    const visibleCatalog = catalog.filter(({ config, showOnlyWhenDetected }) => (
+        !showOnlyWhenDetected || discoveredByLaunch.has(agentLaunchKey(config))
+    ));
+    return visibleCatalog.map(({ config }) => {
         const launchKey = agentLaunchKey(config);
         const discoveredAgent = discoveredByLaunch.get(launchKey);
         return {

@@ -120,6 +120,62 @@ test("always presents catalog agents and marks missing ones unavailable", () => 
     }).find(({ name }) => name === "OpenCode(auto)").available, false);
 });
 
+test("registers CodeAgent as a success-only ACP candidate", () => {
+    const candidate = ACP_AGENT_CATALOG.find(({ id }) => id === "codeagent");
+    assert.equal(candidate.showOnlyWhenDetected, true);
+    assert.deepEqual(candidate.config, { name: "CodeAgent(auto)", command: "codeagent", args: ["--acp"], env: {} });
+});
+
+test("success-only candidates are hidden until detected and disappear after an unsuccessful rescan", async () => {
+    const candidate = ACP_AGENT_CATALOG.find(({ id }) => id === "codeagent");
+    const cwd = await mkdtemp(join(tmpdir(), "insight-codeagent-discovery-"));
+    let available = true;
+    const adapterFactory = ({ agentServer }) => ({
+        async request(method) {
+            assert.equal(method, "initialize");
+            assert.equal(agentServer.command, "codeagent");
+            assert.deepEqual(agentServer.args, ["--acp"]);
+            if (!available) {
+                throw Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" });
+            }
+            return { agentInfo: { name: "CodeAgent" } };
+        },
+        async disconnect() {},
+    });
+    assert.equal(presentCatalogAgents().some(({ name }) => name === candidate.config.name), false);
+    for (const success of [true, false]) {
+        available = success;
+        const result = await discoverAgents({ catalog: [candidate], cwd, adapterFactory });
+        const inputs = { discovered: result.agentServers };
+        for (const present of [presentCatalogAgents, presentListedAgentServers, presentRunnableAgentServers]) {
+            assert.equal(present(inputs).some(({ name }) => name === candidate.config.name), success);
+        }
+        assert.equal(result.results[0].available, success);
+        assert.equal(presentCatalogAgents(inputs).find(({ name }) => name === "OpenCode(auto)").available, false);
+    }
+});
+
+test("a configured success-only launch is skipped and does not produce an automatic alias", async () => {
+    const candidate = ACP_AGENT_CATALOG.find(({ id }) => id === "codeagent");
+    const configured = [{ ...candidate.config, name: "My CodeAgent" }];
+    const cwd = await mkdtemp(join(tmpdir(), "insight-codeagent-configured-"));
+    const result = await discoverAgents({
+        catalog: [candidate], cwd,
+        excludedLaunchKeys: new Set(configured.map(agentLaunchKey)),
+        adapterFactory() {
+            assert.fail("configured candidates must not be probed");
+        },
+    });
+    assert.equal(result.results[0].reason, "skipped_configured");
+    const inputs = { configured, discovered: result.agentServers };
+    assert.equal(presentCatalogAgents(inputs).some(({ name }) => name === candidate.config.name), false);
+    for (const present of [presentListedAgentServers, presentRunnableAgentServers]) {
+        const agents = present(inputs);
+        assert.equal(agents.some(({ name }) => name === candidate.config.name), false);
+        assert.equal(agents.some(({ name }) => name === "My CodeAgent"), true);
+    }
+});
+
 test("lists catalog agents before configured agents for the picker", () => {
     const listed = presentListedAgentServers({
         discovered: [ACP_AGENT_CATALOG[1].config],
