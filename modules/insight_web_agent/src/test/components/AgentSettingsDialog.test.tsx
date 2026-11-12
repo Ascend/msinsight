@@ -630,9 +630,8 @@ test('shows auto-detected agents as read-only and copies them into a custom draf
     mockFetchAgentConfig.mockResolvedValue({
         ...snapshot,
         catalogAgents: [
-            { name: 'OpenCode(auto)', command: 'opencode', args: ['acp'], env: {}, available: true },
             {
-                name: 'Claude Code(auto)',
+                name: 'Claude Code',
                 command: 'claude-agent-acp',
                 args: [],
                 env: { API_TOKEN: '******', BASE_URL: 'https://example.test' },
@@ -645,7 +644,7 @@ test('shows auto-detected agents as read-only and copies them into a custom draf
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Configuration');
 
-    fireEvent.click(await screen.findByRole('button', { name: /Claude Code\(auto\) \(Unavailable\)/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Claude Code \(Unavailable\)/ }));
     expect(screen.getByRole('alert')).toHaveTextContent('This agent was not detected, so it cannot be switched to or edited.');
     expect(screen.getByLabelText('Command')).toHaveValue('claude-agent-acp');
     expect(screen.getByLabelText('Command')).toHaveProperty('readOnly', true);
@@ -653,7 +652,7 @@ test('shows auto-detected agents as read-only and copies them into a custom draf
     expect(screen.getByLabelText('Save and switch to selected agent')).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy as custom agent' }));
-    expect(screen.getByLabelText('Agent name')).toHaveValue('Claude Code');
+    expect(screen.getByLabelText('Agent name')).toHaveValue('Claude Code Copy');
     expect(screen.getByLabelText('Command')).toHaveProperty('readOnly', false);
     expect(screen.getByLabelText('Env value 1')).toHaveValue('');
     expect(screen.getByLabelText('Env value 1')).toHaveAttribute('type', 'password');
@@ -662,7 +661,7 @@ test('shows auto-detected agents as read-only and copies them into a custom draf
 
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentServersConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: 'Claude Code', command: 'claude-agent-acp' }),
+        expect.objectContaining({ name: 'Claude Code Copy', command: 'claude-agent-acp' }),
     ]));
 });
 

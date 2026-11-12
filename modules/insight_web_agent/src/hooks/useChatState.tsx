@@ -181,6 +181,9 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const receiptControllersRef = useRef(new Map<string, AbortController>());
     const cancelledFrontendCommandsRef = useRef(new Set<string>());
     const initialSessionInitializedRef = useRef(false);
+    // The dropdown can already reflect an SSE update before its sessions have been loaded.
+    const sessionAgentNameRef = useRef<string>();
+    const sessionInitializationRevisionRef = useRef(0);
     const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
     const discoveryRevisionRef = useRef(0);
     const discoveryCompletionCountRef = useRef(0);
@@ -197,10 +200,12 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => ({ ...current, sessions: mergeSessionStatuses(sessions, current.sessionRecords) }));
     };
 
-    const refreshInitialState = async (): Promise<Partial<AppState>> => {
+    const refreshInitialState = async (sessionInitializationRevision?: number): Promise<Partial<AppState>> => {
         const discoveryRevision = discoveryRevisionRef.current;
         const nextState = await fetchState();
-        if (discoveryRevision !== discoveryRevisionRef.current) {
+        if (discoveryRevision !== discoveryRevisionRef.current
+            || (sessionInitializationRevision !== undefined
+                && sessionInitializationRevision !== sessionInitializationRevisionRef.current)) {
             return {};
         }
         setState((current) => ({
@@ -388,7 +393,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     isDraftSession: true,
                     draftMode: undefined,
                     preferredMode: undefined,
-                    draftMessages: activeMessages(current),
+                    draftMessages: [],
                     draftPendingPrompt: false,
                     draftQueuedPrompts: [],
                     draftNotices: [],
@@ -635,21 +640,29 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     }, [state]);
 
     const initializeActiveSession = async (): Promise<void> => {
+        const sessionInitializationRevision = ++sessionInitializationRevisionRef.current;
+        // Track ownership before awaiting history so a concurrent configuration switch is detected.
+        sessionAgentNameRef.current = stateRef.current.activeAgentName;
         const discoveryRevision = discoveryRevisionRef.current;
-        const nextState = await refreshInitialState();
-        if (discoveryRevision !== discoveryRevisionRef.current) {
+        const nextState = await refreshInitialState(sessionInitializationRevision);
+        if (discoveryRevision !== discoveryRevisionRef.current
+            || sessionInitializationRevision !== sessionInitializationRevisionRef.current) {
             return;
         }
         const next = await fetchSessions();
-        if (discoveryRevision !== discoveryRevisionRef.current) {
+        if (discoveryRevision !== discoveryRevisionRef.current
+            || sessionInitializationRevision !== sessionInitializationRevisionRef.current) {
             return;
         }
         setState((current) => ({ ...current, sessions: mergeSessionStatuses(next, current.sessionRecords) }));
 
-        if (nextState.agentError || nextState.initialized === false) return;
+        if (nextState.agentError || nextState.initialized === false) {
+            return;
+        }
+        sessionAgentNameRef.current = nextState.activeAgentName;
         const firstSession = next.find((session) => !session.isPending);
         if (firstSession) {
-            await selectSessionById(firstSession.sessionId);
+            await selectSessionById(firstSession.sessionId, nextState.activeAgentName);
             return;
         }
         await createDraftSession();
@@ -676,8 +689,11 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         await selectSessionById(session.sessionId);
     };
 
-    const selectSessionById = async (sessionId: string): Promise<void> => {
-        if (sessionId === stateRef.current.activeSessionId) return;
+    const selectSessionById = async (sessionId: string, agentName = stateRef.current.activeAgentName): Promise<void> => {
+        if (sessionId === stateRef.current.activeSessionId) {
+            return;
+        }
+        const sessionInitializationRevision = sessionInitializationRevisionRef.current;
         setDraft((current) => ({ text: current.text }));
 
         const existingRecord = stateRef.current.sessionRecords[sessionId];
@@ -697,11 +713,19 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }));
 
         try {
-            if (existingRecord?.loaded) return;
+            if (existingRecord?.loaded) {
+                return;
+            }
 
             const response = await loadSession(sessionId);
-            setState((current) => cacheLoadedSession(current, sessionId, response));
+            setState((current) => current.activeAgentName === agentName
+                && sessionInitializationRevision === sessionInitializationRevisionRef.current
+                ? cacheLoadedSession(current, sessionId, response) : current);
         } catch (error) {
+            if (stateRef.current.activeAgentName !== agentName
+                || sessionInitializationRevision !== sessionInitializationRevisionRef.current) {
+                return;
+            }
             updateSessionRecord(sessionId, (record) => ({ ...record, status: 'error' }));
             showError(error);
         }
@@ -1022,18 +1046,22 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const applyAgentConfigSnapshot = async (snapshot: AgentConfigSnapshot): Promise<void> => {
-        const previousAgentName = stateRef.current.activeAgentName;
-        const discoveryRevision = discoveryRevisionRef.current;
-        const agents = await fetchAgents();
-        if (discoveryRevision !== discoveryRevisionRef.current) {
-            return;
+        let discoveryRevision: number;
+        let agents: Awaited<ReturnType<typeof fetchAgents>>;
+        do {
+            discoveryRevision = discoveryRevisionRef.current;
+            agents = await fetchAgents();
+        } while (discoveryRevision !== discoveryRevisionRef.current);
+        const { effectiveAgentName, changed: agentChanged } = resolveAppliedAgentChange(
+            sessionAgentNameRef.current,
+            snapshot.activeAgentName,
+            agents.activeAgentName,
+        );
+        const changed = agentChanged || sessionAgentNameRef.current === undefined;
+        if (changed) {
+            sessionInitializationRevisionRef.current += 1;
         }
         setState((current) => {
-            const { effectiveAgentName, changed: activeAgentChanged } = resolveAppliedAgentChange(
-                current.activeAgentName,
-                snapshot.activeAgentName,
-                agents.activeAgentName,
-            );
             const nextState = {
                 ...current,
                 activeAgentName: effectiveAgentName,
@@ -1041,7 +1069,9 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 agentDiscoveryLoading: discoveryRevision === discoveryRevisionRef.current
                     ? agents.discoveryLoading ?? current.agentDiscoveryLoading : current.agentDiscoveryLoading,
             };
-            if (!activeAgentChanged) return nextState;
+            if (!changed) {
+                return nextState;
+            }
 
             return {
                 ...nextState,
@@ -1049,7 +1079,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 isDraftSession: true,
                 draftMode: undefined,
                 preferredMode: undefined,
-                draftMessages: activeMessages(current),
+                draftMessages: [],
                 draftPendingPrompt: false,
                 draftQueuedPrompts: [],
                 draftNotices: [],
@@ -1057,8 +1087,19 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 sessionRecords: {},
             };
         });
-        const { effectiveAgentName, changed } = resolveAppliedAgentChange(previousAgentName, snapshot.activeAgentName, agents.activeAgentName);
-        if (!changed) await refreshSessionConfigOptions(effectiveAgentName);
+        if (!changed) {
+            await refreshSessionConfigOptions(effectiveAgentName);
+            return;
+        }
+        setState((current) => ({ ...current, switchingAgent: true }));
+        try {
+            do {
+                discoveryRevision = discoveryRevisionRef.current;
+                await initializeActiveSession();
+            } while (discoveryRevision !== discoveryRevisionRef.current);
+        } finally {
+            setState((current) => ({ ...current, switchingAgent: false }));
+        }
     };
 
     const value = useMemo<ChatStateValue>(() => ({

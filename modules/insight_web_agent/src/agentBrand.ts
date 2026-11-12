@@ -40,10 +40,10 @@ export const AGENT_KIND_LOGOS: Record<AgentKind, AgentLogoAsset> = {
 
 const BRANDED_AGENT_KINDS: Array<{ kind: AgentKind; name: string }> = [
     { kind: 'insight', name: 'msinsight-native' },
-    { kind: 'opencode', name: 'OpenCode(auto)' },
-    { kind: 'claude', name: 'Claude Code(auto)' },
-    { kind: 'codex', name: 'Codex(auto)' },
-    { kind: 'trae', name: 'Trae(auto)' },
+    { kind: 'opencode', name: 'OpenCode' },
+    { kind: 'claude', name: 'Claude Code' },
+    { kind: 'codex', name: 'Codex' },
+    { kind: 'trae', name: 'Trae' },
 ];
 
 const normalizeAgentName = (name: string) => name.trim().toLowerCase();

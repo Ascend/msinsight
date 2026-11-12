@@ -390,7 +390,7 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
         initialized: true,
         activeAgentName: "Stable",
         agentInfoName: "Stable",
-        agentServerNames: ["OpenCode(auto)", "Claude Code(auto)", "Codex(auto)", "Trae(auto)", "msinsight-native", "Stable"],
+        agentServerNames: ["OpenCode", "Claude Code", "Codex", "Trae", "msinsight-native", "Stable"],
         availableCommands: [],
         failedDisconnected: true,
     });

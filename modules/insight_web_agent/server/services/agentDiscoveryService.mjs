@@ -23,19 +23,19 @@ import { agentLaunchKey, withAgentIdentity } from "./agentIdentityService.mjs";
 export const ACP_AGENT_CATALOG = [
     {
         id: "opencode",
-        config: { name: "OpenCode(auto)", command: "opencode", args: ["acp"], env: {} },
+        config: { name: "OpenCode", command: "opencode", args: ["acp"], env: {} },
     },
     {
         id: "claude-code",
-        config: { name: "Claude Code(auto)", command: "claude-agent-acp", args: [], env: {} },
+        config: { name: "Claude Code", command: "claude-agent-acp", args: [], env: {} },
     },
     {
         id: "codex",
-        config: { name: "Codex(auto)", command: "codex-acp", args: [], env: {} },
+        config: { name: "Codex", command: "codex-acp", args: [], env: {} },
     },
     {
         id: "trae",
-        config: { name: "Trae(auto)", command: "traecli", args: ["acp", "serve"], env: {} },
+        config: { name: "Trae", command: "traecli", args: ["acp", "serve"], env: {} },
     },
     {
         id: "codeagent",
@@ -97,8 +97,9 @@ export const presentRunnableAgentServers = ({
     discovered = [],
     configured = [],
 } = {}) => {
+    const configuredNames = new Set(configured.map((agent) => agent.name));
     const catalogRunners = presentCatalogAgents({ catalog, discovered, configured })
-        .filter((agent) => agent.available)
+        .filter((agent) => agent.available && !configuredNames.has(agent.name))
         .map((agent) => withAgentIdentity({
             name: agent.name,
             command: agent.command,
@@ -138,11 +139,14 @@ export const presentListedAgentServers = ({
     discovered = [],
     configured = [],
 } = {}) => {
-    const catalogItems = presentCatalogAgents({ catalog, discovered, configured }).map((agent) => ({
-        name: agent.name,
-        available: agent.available,
-        kind: "discovered",
-    }));
+    const configuredNames = new Set(configured.map((agent) => agent.name));
+    const catalogItems = presentCatalogAgents({ catalog, discovered, configured })
+        .filter((agent) => !configuredNames.has(agent.name))
+        .map((agent) => ({
+            name: agent.name,
+            available: agent.available,
+            kind: "discovered",
+        }));
     const configuredItems = configured.map((agent) => ({
         name: agent.name,
         available: true,
