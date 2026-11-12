@@ -71,7 +71,11 @@ bool AffinityAPIAdvisor::ProcessAll(
     Protocol::APITypeParams exportParams = params;
     exportParams.currentPage = 1;
     exportParams.pageSize = UINT32_MAX;
-    std::vector<Protocol::FlowLocation> results = GetFlowLocationData(exportParams);
+    bool querySucceeded = false;
+    std::vector<Protocol::FlowLocation> results = GetFlowLocationData(exportParams, &querySucceeded);
+    if (!querySucceeded) {
+        return false;
+    }
     for (const auto &item : results) {
         Protocol::AffinityAPIData one{};
         one.name = item.name;
@@ -96,7 +100,11 @@ bool AffinityAPIAdvisor::ProcessAll(
     return true;
 }
 
-std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(const Protocol::APITypeParams &params) {
+std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(
+    const Protocol::APITypeParams &params, bool *querySucceeded) {
+    if (querySucceeded != nullptr) {
+        *querySucceeded = false;
+    }
     std::vector<Protocol::FlowLocation> results;
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
     if (database == nullptr) {
@@ -130,6 +138,10 @@ std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(cons
         FilterAffinityApiData(params, data, indexList, results);
     }
     AdvisorProcessUtil::SortFlowLocationData(results, param);
+    // 导出需区分“查询失败”和“查询正常但没有匹配项”；原列表查询仍沿用默认调用。
+    if (querySucceeded != nullptr) {
+        *querySucceeded = true;
+    }
     return results;
 }
 

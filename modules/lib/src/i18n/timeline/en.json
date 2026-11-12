@@ -501,6 +501,7 @@
     "Export": "Export",
     "Export Success": "Export succeeded. File saved to: {{filePath}}",
     "Export Failed": "Export failed. Please try again.",
+    "No Export Data": "No data to export.",
     "Export File Exceeds Limit": "The exported file exceeds the size limit."
   }
 }

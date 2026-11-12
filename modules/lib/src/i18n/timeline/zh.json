@@ -501,6 +501,7 @@
     "Export": "导出",
     "Export Success": "导出成功，文件已保存至：{{filePath}}",
     "Export Failed": "导出失败，请重试。",
+    "No Export Data": "暂无可导出的数据。",
     "Export File Exceeds Limit": "导出文件已超出大小限制。"
   }
 }

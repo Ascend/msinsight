@@ -27,9 +27,30 @@
 #include "ExportOpDetailsHandler.h"
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <thread>
+#include <set>
+#include <limits>
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Protocol;
+
+namespace {
+// 统计一行中的CSV字段数，引号内的逗号不拆分，用于校验导出列不会错位。
+size_t CountCsvFields(const std::string &line) {
+    size_t fields = 1;
+    bool inQuotes = false;
+    for (const char character : line) {
+        if (character == '"') {
+            // 转义引号成对出现，连续切换两次后仍保持原来的字段状态。
+            inQuotes = !inQuotes;
+        } else if (character == ',' && !inQuotes) {
+            ++fields;
+        }
+    }
+    return fields;
+}
+} // namespace
 
 class ExportAffinityAPIAdviceTest : public ::testing::Test {
   public:
@@ -67,6 +88,31 @@ TEST_F(ExportAffinityAPIAdviceTest, HandleRequestReturnsFalseWhenStartTimeGreate
     request.endTime = 50;
     bool result = handler.HandleRequest(std::move(requestPtr));
     EXPECT_EQ(result, false);
+}
+
+TEST_F(ExportAffinityAPIAdviceTest, EscapeCsvFieldQuotesOnlyWhenSeparatorOrQuoteOrNewlinePresent) {
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField("aten::add"), "aten::add");
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField(""), "");
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField("\\=formula"), "\\=formula");
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField("aten::mul, aten::sigmoid"), "\"aten::mul, aten::sigmoid\"");
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField("say \"hi\""), "\"say \"\"hi\"\"\"");
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField("line1\nline2"), "\"line1\nline2\"");
+    EXPECT_EQ(ExportAffinityAPIAdvice::EscapeCsvField("line1\r\nline2"), "\"line1\r\nline2\"");
+    EXPECT_EQ(CountCsvFields(ExportAffinityAPIAdvice::EscapeCsvField("aten::mul, aten::sigmoid")), 1U);
+}
+
+TEST_F(ExportAffinityAPIAdviceTest, SanitizeFileNameKeepsCardIdAndReplacesPathCharacters) {
+    EXPECT_EQ(
+        ExportAffinityAPIAdvice::SanitizeFileName("node18899436934890168541_0 3"), "node18899436934890168541_0 3");
+    EXPECT_EQ(ExportAffinityAPIAdvice::SanitizeFileName(
+                  "D:\\test\\async_task_queue\\ASCEND_PROFILER_OUTPUT\\trace_view.json"),
+        "D__test_async_task_queue_ASCEND_PROFILER_OUTPUT_trace_view.json");
+    EXPECT_EQ(ExportAffinityAPIAdvice::SanitizeFileName("rank<>:\"|?*id"), "rank_______id");
+    EXPECT_EQ(ExportAffinityAPIAdvice::SanitizeFileName("rank\nid"), "rank_id");
+    const auto sanitized = ExportAffinityAPIAdvice::SanitizeFileName("D:\\demo &%$;'`\x7F\\trace_view.json");
+    EXPECT_EQ(sanitized, "D__demo ________trace_view.json");
+    EXPECT_FALSE(FileUtil::CheckPathInvalidChar(sanitized));
+    EXPECT_EQ(ExportAffinityAPIAdvice::SanitizeFileName("前端工程"), "前端工程");
 }
 
 TEST_F(ExportAffinityAPIAdviceTest, HandleRequestReturnsFalseWhenNoDatabase) {
@@ -126,7 +172,96 @@ class ExportAffinityAPIIntegrationTest : public TestSuit {
         info.AddSubParseFileInfo(parsedFile);
         ASSERT_TRUE(Global::ProjectExplorerManager::Instance().SaveProjectExplorer(info, false));
     }
+
+    void VerifySizeBoundary() {
+        ExportAffinityAPIAdvice handler;
+        const auto path = exportDir / "size_boundary.csv";
+        handler.ofs = FileUtil::OpenWrite(path.string(), std::ios::out | std::ios::trunc);
+        ASSERT_TRUE(handler.ofs.is_open());
+        const std::string row = "a,b\n";
+        // 设置逻辑计数接近1GB，避免测试实际写入1GB；阈值判断及写入仍运行真实代码。
+        handler.currentFileSize = handler.maxFileSize - row.size();
+        EXPECT_TRUE(handler.AppendFileContent(row));
+        EXPECT_EQ(handler.currentFileSize, handler.maxFileSize);
+        EXPECT_FALSE(handler.AppendFileContent(row));
+        EXPECT_EQ(handler.currentFileSize, handler.maxFileSize + row.size());
+        EXPECT_TRUE(handler.DestroyFile());
+        std::ifstream input(path);
+        const std::string bytes{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
+        EXPECT_EQ(bytes, row + row); // 超限时该行已完整写入，与算子导出策略一致。
+        EXPECT_FALSE(handler.AppendFileContent(row));
+    }
+
+    void VerifyOverlongPathRejected() {
+        RegisterProject(exportDir.string());
+        ExportAffinityAPIAdvice handler;
+        ExportAffinityAPIResBody body;
+        EXPECT_FALSE(handler.CreateCsvFile(std::string(FileUtil::GetFilePathLengthLimit(), 'a'), projectName, body));
+        EXPECT_TRUE(body.filePath.empty());
+        EXPECT_FALSE(handler.ofs.is_open());
+    }
+
+    void VerifyUniqueExports() {
+        constexpr size_t count = 8;
+        const auto rank = ExportAffinityAPIAdvice::SanitizeFileName("/tmp/a_b/x");
+        ASSERT_EQ(rank, ExportAffinityAPIAdvice::SanitizeFileName("/tmp/a/b/x"));
+        const std::string stem = (exportDir / ("advisor_affinity_api_" + rank + "_1700000000")).string();
+        std::vector<std::string> paths(count);
+        const auto write = [&](size_t index) {
+            ExportAffinityAPIAdvice handler;
+            ExportAffinityAPIResBody body;
+            if (handler.OpenUniqueCsvFile(stem, body) &&
+                handler.AppendFileContent("export " + std::to_string(index) + "\n") && handler.DestroyFile()) {
+                paths[index] = body.filePath;
+            }
+        };
+        // 先验证原名及重复导出的序号，再让并发导出与已有文件碰撞；最后统一核对所有内容。
+        write(0);
+        write(1);
+        EXPECT_EQ(paths[0], stem + ".csv");
+        EXPECT_EQ(paths[1], stem + "_1.csv");
+        std::vector<std::thread> workers;
+        for (size_t index = 2; index < count; ++index) {
+            workers.emplace_back(write, index);
+        }
+        for (auto &worker : workers) {
+            worker.join();
+        }
+        EXPECT_EQ(std::set<std::string>(paths.begin(), paths.end()).size(), count);
+        for (size_t index = 0; index < count; ++index) {
+            ASSERT_FALSE(paths[index].empty());
+            auto input = FileUtil::OpenRead(paths[index]);
+            EXPECT_EQ((std::string{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()}),
+                "export " + std::to_string(index) + "\n");
+        }
+    }
 };
+
+TEST_F(ExportAffinityAPIIntegrationTest, EmptyQuerySucceedsWithoutCreatingFileOrRequiringExportDirectory) {
+    auto request = RequestForExport();
+    request->startTime = std::numeric_limits<uint64_t>::max() / 2;
+    request->endTime = request->startTime + 1;
+    APITypeParams params;
+    params.rankId = request->rankId;
+    params.orderBy = request->orderBy;
+    params.orderType = request->orderType;
+    params.startTime = request->startTime;
+    params.endTime = request->endTime;
+    std::vector<AffinityAPIData> rows;
+    ASSERT_TRUE(AffinityAPIAdvisor::ProcessAll(params, rows));
+    ASSERT_TRUE(rows.empty());
+    ExportAffinityAPIAdvice handler;
+    EXPECT_TRUE(handler.HandleRequest(std::move(request)));
+    EXPECT_TRUE(std::filesystem::is_empty(exportDir));
+}
+
+TEST_F(ExportAffinityAPIIntegrationTest, SizeLimitIsCheckedAfterWritingCompleteRow) { VerifySizeBoundary(); }
+
+TEST_F(ExportAffinityAPIIntegrationTest, OverlongExportPathDoesNotOpenFile) { VerifyOverlongPathRejected(); }
+
+TEST_F(ExportAffinityAPIIntegrationTest, CollidingRepeatedAndConcurrentExportsPreserveAllFiles) {
+    VerifyUniqueExports();
+}
 
 TEST_F(ExportAffinityAPIIntegrationTest, ExportWritesBomHeadersAndAllMatchingRows) {
     RegisterProject(exportDir.string());
@@ -153,6 +288,13 @@ TEST_F(ExportAffinityAPIIntegrationTest, ExportWritesBomHeadersAndAllMatchingRow
         std::string::npos);
     EXPECT_NE(content.find(expected.front().name), std::string::npos);
     EXPECT_EQ(std::count(content.begin(), content.end(), '\n'), expected.size() + 1);
+    // 每行数据都必须保持8列；多API规则拼接出的逗号不能把后续列挤偏。
+    std::istringstream lines(content.substr(3));
+    std::string line;
+    std::getline(lines, line);
+    while (std::getline(lines, line)) {
+        EXPECT_EQ(CountCsvFields(line), 8U) << line;
+    }
 }
 
 TEST_F(ExportAffinityAPIIntegrationTest, ExportFailsWhenProjectIsMissing) {

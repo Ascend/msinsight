@@ -618,6 +618,10 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
                 startTime: Math.floor(startTime + timestampOffset),
                 endTime: Math.ceil(endTime + timestampOffset),
             });
+            if (res?.count === 0 && res.filePath === '') {
+                message.info(t('No Export Data', { keyPrefix: '' }));
+                return;
+            }
             if (typeof res?.filePath !== 'string' || res.filePath.length === 0) {
                 message.error(t('Export Failed', { keyPrefix: '' }));
                 return;
