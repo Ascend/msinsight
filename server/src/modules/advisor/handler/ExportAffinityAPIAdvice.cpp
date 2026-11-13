@@ -174,8 +174,12 @@ bool ExportAffinityAPIAdvice::CreateCsvFile(
 #else
     const std::string_view SEP = "/";
 #endif
-    const std::string fileStem = projectInfo[0].fileName + std::string(SEP) + "advisor_affinity_api_" +
-        SanitizeFileName(rankId) + "_" + std::to_string(timestamp);
+    // 单文件导入的工程路径是JSON文件，CSV应写入其父目录，目录工程保持原位置。
+    const std::string &projectPath = projectInfo[0].fileName;
+    const std::string exportDir =
+        FileUtil::IsRegularFile(projectPath) ? fs::u8path(projectPath).parent_path().u8string() : projectPath;
+    const std::string fileStem = exportDir + std::string(SEP) + "advisor_affinity_api_" + SanitizeFileName(rankId) +
+        "_" + std::to_string(timestamp);
     return OpenUniqueCsvFile(fileStem, resBody);
 }
 
