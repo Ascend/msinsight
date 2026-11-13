@@ -38,15 +38,18 @@ export abstract class MemoryAnalysisPage {
         await this.page.mouse.click(0, 0);
     }
 
-    async waitForReady(): Promise<void> {
+    async waitForReady(timeout = 30000): Promise<void> {
         await expect(this.page.locator(`iframe#${this.application}`)).toBeVisible();
         const otherApplication = this.application === 'MemScope' ? 'MemSnapshot' : 'MemScope';
         await expect(this.page.locator(`iframe#${otherApplication}`)).toHaveCount(0);
         const diagram = this.memoryFrame.getByTestId('blockDiagramSection');
-        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
+        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout });
         await expect(diagram).toHaveAttribute('data-blocking-spinner-visible', 'false');
-        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
-        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 30000 });
+        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout });
+        // Cache hits render directly without progressive events, so their percentage remains zero.
+        if (await diagram.getAttribute('data-progressive-total-event-count') !== '0') {
+            await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout });
+        }
         await expect(diagram).toHaveAttribute('data-graph-max-size', /[1-9]/);
         await expect(diagram.locator('canvas')).toBeVisible();
     }
@@ -57,7 +60,7 @@ export abstract class MemoryAnalysisPage {
         await expect(this.memoryFrame.getByTestId('blocksTable').locator('tbody .locate-link').first()).toBeVisible();
     }
 
-    async selectOption(input: Locator, option: string): Promise<void> {
+    async selectOption(input: Locator, option: string, timeout = 5000): Promise<void> {
         await input.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
             .locator('.ant-select-selector').click();
         const menuId = await input.getAttribute('aria-controls');
@@ -66,8 +69,8 @@ export abstract class MemoryAnalysisPage {
             .filter({ has: this.memoryFrame.locator(`[id="${menuId}"]`) });
         await menu.getByTitle(option, { exact: true }).click();
         await input.press('Escape');
-        await expect(menu).toBeHidden();
         await this.page.mouse.click(0, 0);
+        await expect(menu).toBeHidden({ timeout });
     }
 
     async selectedDetailPanel(): Promise<Locator> {
@@ -102,9 +105,8 @@ export abstract class MemoryAnalysisPage {
         await this.page.getByText('All', { exact: true }).click();
         await framework.deleteSelectedBtn.click();
         await expect(framework.deleteProjectsDialog).toBeVisible();
-        // 确认浮层出现时可能仍在移动，键盘确认避免鼠标点击落在旧位置。
-        await framework.deleteProjectsConfirmBtn.focus();
-        await framework.deleteProjectsConfirmBtn.press('Enter');
+        // Click waits for the confirmation to settle without relying on global Enter handling.
+        await framework.deleteProjectsConfirmBtn.click();
         // 大数据清理可能超过公共辅助方法的 5 秒等待，必须等项目确实移除后再结束用例。
         await expect(framework.projectList).toHaveText('', { timeout: 30000 });
         await expect(framework.deleteProjectsDialog).toBeHidden();
