@@ -18,7 +18,7 @@
 import type { MemSnapshotContext } from '../state/MemSnapshotContext';
 import { getStateRenderer } from '../rendering/stateWorker/worker';
 import { useLifecycleRange } from '../common/shared/hooks/useLifecycleRange';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Select, CollapsiblePanel } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import { observer } from 'mobx-react';
@@ -36,6 +36,8 @@ import { getBlockRenderer } from '../common/leaksWorker/blockWorker/worker';
 import { MemoryStateDiagram } from './MemoryStateDiagram';
 import PotentialLeakStats from './PotentialLeakStats';
 import MemSnapshotSliceOverview from './MemSnapshotSliceOverview';
+import { FrameTreePanel } from './FrameTreePanel';
+import { resolveFrameTreeEvent } from '../frameTree/timeline';
 const isValidRange = (range: [number, number]): boolean => Number.isFinite(range[0]) && Number.isFinite(range[1]) && range[0] < range[1];
 const MemoryStack = observer(({ session }: {
     session: MemSnapshotContext;
@@ -44,6 +46,46 @@ const MemoryStack = observer(({ session }: {
     const { selectItem: workerSelectStateItem } = getStateRenderer(session);
 
     const { t } = useTranslation('leaks');
+    const frameTreeDataKey = JSON.stringify([
+        session.fileHash, session.dbPath, session.deviceId, session.eventType, session.selectedSliceIndex,
+        session.memSnapshotParseFileId, session.memSnapshotParseLoading, session.memSnapshotCacheRefreshPending,
+    ]);
+    const frameTreeDataKeyRef = useRef(frameTreeDataKey);
+    frameTreeDataKeyRef.current = frameTreeDataKey;
+    const frameTreeSequence = useRef(0);
+    const frameTreeTimer = useRef<ReturnType<typeof setTimeout>>();
+    const [frameTreeSelection, setFrameTreeSelection] = useState<{
+        key: string; eventId?: number; resolving?: boolean; error?: string;
+    }>();
+    const currentFrameTreeSelection = frameTreeSelection?.key === frameTreeDataKey ? frameTreeSelection : undefined;
+    useEffect(() => {
+        frameTreeSequence.current++;
+        return () => {
+            frameTreeSequence.current++;
+            clearTimeout(frameTreeTimer.current);
+        };
+    }, [frameTreeDataKey]);
+    const selectFrameTreeEvent = (coordinate: number): void => {
+        const key = frameTreeDataKey;
+        const deviceId = session.deviceId;
+        const sliceIndex = session.selectedSliceIndex;
+        const sequence = ++frameTreeSequence.current;
+        clearTimeout(frameTreeTimer.current);
+        setFrameTreeSelection({ key, resolving: true });
+        if (session.memSnapshotParseLoading || session.memSnapshotCacheRefreshPending || !session.snapshotParsingComplete) {
+            setFrameTreeSelection({ key, error: t('frameTree.parsing') });
+            return;
+        }
+        frameTreeTimer.current = setTimeout(() => {
+            void resolveFrameTreeEvent(coordinate, deviceId, sliceIndex).then(eventId => {
+                if (sequence !== frameTreeSequence.current || frameTreeDataKeyRef.current !== key) return;
+                setFrameTreeSelection(eventId === null ? { key, error: t('frameTree.noEvent') } : { key, eventId });
+            }).catch(error => {
+                if (sequence !== frameTreeSequence.current || frameTreeDataKeyRef.current !== key) return;
+                setFrameTreeSelection({ key, error: error instanceof Error ? error.message : String(error) });
+            });
+        }, 150);
+    };
     const [zoomData, setZoomData] = useState<Array<[number, number]>>([]);
     const [zoomMinTime, setZoomMinTime] = useState<number>(Number.MAX_SAFE_INTEGER);
     const [zoomMaxTime, setZoomMaxTime] = useState<number>(Number.MIN_SAFE_INTEGER);
@@ -222,22 +264,24 @@ const MemoryStack = observer(({ session }: {
                 }))}/>
                 {<PotentialLeakStats session={session}/>}
                 <div id="barContent" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
-                    <MemoryBlockDiagram session={session} enhancedControls windowKey={session.selectedSliceIndex} onSelectBlock={(selectionVersion): void => {
-                        workerSelectStateItem({ item: null, selectionVersion });
-                        runInAction(() => { session.stateWorkerInfo.clickItem = null; session.clickEventItem = null; });
-                    }} onResetTransform={() => {
-                        const { min, max } = zoomRangeRef.current;
-                        const fullRange: [number, number] = [min, max];
-                        if (!isValidRange(fullRange)) {
-                            return;
-                        }
-                        selectedRangeRef.current = fullRange;
-                        setSelectedRange(fullRange);
-                        debouncedRangeRequestRef.current?.cancel();
-                        debouncedCommitRangeRef.current?.cancel();
-                        commitRangeSideEffects(fullRange);
-                        requestRangeData(fullRange);
-                    }} onTransformChange={syncDataZoomRange}/>
+                    <MemoryBlockDiagram session={session} enhancedControls windowKey={session.selectedSliceIndex}
+                        selectedEventId={currentFrameTreeSelection?.eventId} onSelectTimestamp={selectFrameTreeEvent}
+                        onSelectBlock={(selectionVersion): void => {
+                            workerSelectStateItem({ item: null, selectionVersion });
+                            runInAction(() => { session.stateWorkerInfo.clickItem = null; session.clickEventItem = null; });
+                        }} onResetTransform={() => {
+                            const { min, max } = zoomRangeRef.current;
+                            const fullRange: [number, number] = [min, max];
+                            if (!isValidRange(fullRange)) {
+                                return;
+                            }
+                            selectedRangeRef.current = fullRange;
+                            setSelectedRange(fullRange);
+                            debouncedRangeRequestRef.current?.cancel();
+                            debouncedCommitRangeRef.current?.cancel();
+                            commitRangeSideEffects(fullRange);
+                            requestRangeData(fullRange);
+                        }} onTransformChange={syncDataZoomRange}/>
                     {deviceSlices
                         ? <MemSnapshotSliceOverview deviceSlices={deviceSlices} overviewData={session.sliceOverviewData[session.deviceId] ?? {}} selectedSliceIndex={session.selectedSliceIndex} selectedRange={selectedRange} onSelectSlice={(sliceIndex): void => {
                             if (!(deviceSlices.slices[sliceIndex]?.ready)) {
@@ -251,7 +295,11 @@ const MemoryStack = observer(({ session }: {
                 </div>
             </CollapsiblePanel>
         </div>
-        {(<></>)}
+        <FrameTreePanel context={currentFrameTreeSelection?.eventId === undefined
+            ? null
+            : {
+                datasetKey: frameTreeDataKey, deviceId: session.deviceId, eventId: currentFrameTreeSelection.eventId,
+            }} resolving={currentFrameTreeSelection?.resolving} selectionError={currentFrameTreeSelection?.error} />
         {<CollapsiblePanel title={t('stateDiagram')} testId="stateDiagramPanel" style={{ minWidth: 1000 }}>
             <MemoryStateDiagram session={session}/>
         </CollapsiblePanel>}

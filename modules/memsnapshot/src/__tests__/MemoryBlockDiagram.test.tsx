@@ -103,6 +103,54 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         jest.clearAllMocks();
     });
 
+    it('selects time only from the marker strip and uses the latest callback after a context change', () => {
+        const session = createFeatureSession();
+        session.deviceId = '0';
+        const first = jest.fn();
+        const next = jest.fn();
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={first} selectedEventId={135} /></ThemeProvider>);
+        const canvas = view.container.querySelector('canvas') as HTMLCanvasElement;
+        jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+            left: 0, top: 0, right: 1000, bottom: 480, width: 1000, height: 480, x: 0, y: 0, toJSON: () => ({}),
+        });
+        act(() => runInAction(() => {
+            session.leaksWorkerInfo.sizeInfo.minTimestamp = 100;
+            session.leaksWorkerInfo.sizeInfo.maxTimestamp = 200;
+            session.leaksWorkerInfo.renderOptions.viewport = { width: 1000, height: 480 };
+            session.leaksWorkerInfo.renderOptions.zoom.x = 10;
+            session.leaksWorkerInfo.renderOptions.transform = { x: -200, y: 0, scaleX: 2, scaleY: 1 };
+        }));
+        const click = (): void => {
+            fireEvent.mouseDown(canvas, { clientX: 500, clientY: 50, button: 0 });
+            fireEvent.mouseUp(canvas, { clientX: 500, clientY: 50 });
+            fireEvent.click(canvas, { clientX: 500, clientY: 50 });
+        };
+        click();
+        expect(first).not.toHaveBeenCalled();
+        expect(require('../common/leaksWorker/blockWorker/worker').workerClickItem).toHaveBeenCalledTimes(1);
+        const surface = view.getByRole('button', { name: 'frameTree.selectEventFromAxis' });
+        jest.spyOn(surface, 'getBoundingClientRect').mockReturnValue({
+            left: 0, top: -38, right: 1000, bottom: -8, width: 1000, height: 30, x: 0, y: -38, toJSON: () => ({}),
+        });
+        fireEvent.mouseMove(surface, { clientX: 500 });
+        expect(first).not.toHaveBeenCalled();
+        fireEvent.click(surface, { clientX: 500, detail: 1 });
+        expect(first).toHaveBeenCalledWith(135);
+        expect(view.getByTestId('snapshot-event-flag').style.left).toBe('500px');
+        expect(view.getAllByTestId('snapshot-event-flag')).toHaveLength(1);
+        view.rerender(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={next} selectedEventId={135} /></ThemeProvider>);
+        fireEvent.click(view.getByRole('button', { name: 'frameTree.selectEventFromAxis' }), { clientX: 500, detail: 1 });
+        expect(next).toHaveBeenCalledWith(135);
+        expect(first).toHaveBeenCalledTimes(1);
+        expect(require('../common/leaksWorker/blockWorker/worker').workerClickItem).toHaveBeenCalledTimes(1);
+        expect(view.getByTestId('blockDiagramSection').style.paddingTop).toBe('58px');
+        jest.spyOn(view.getByTestId('blockDiagramSection'), 'getBoundingClientRect').mockReturnValue({
+            left: 0, top: 0, right: 1205, bottom: 568, width: 1205, height: 568, x: 0, y: 0, toJSON: () => ({}),
+        });
+        fireEvent(window, new Event('resize'));
+        expect(session.leaksWorkerInfo.renderOptions.viewport).toEqual({ width: 1000, height: 480 });
+    });
+
     it('restores a hidden Block Flag without losing its presentation', () => {
         const session = createFeatureSession();
         session.module = 'memsnapshot'; session.fileHash = 'snapshot'; session.deviceId = '0'; session.eventType = 'malloc';

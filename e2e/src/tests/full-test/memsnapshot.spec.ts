@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { test as baseTest, expect } from '@playwright/test';
+import { test as baseTest, expect, type Locator } from '@playwright/test';
 import { MemSnapshotPage } from '@/page-object';
 import { importData, waitForWebSocketEvent } from '@/utils';
 import { FilePath } from '@/utils/constants';
@@ -30,6 +30,13 @@ const test = baseTest.extend<TestFixtures>({
         await use(new MemSnapshotPage(page));
     },
 });
+
+async function expectCanvasScreenshot(canvas: Locator, name: string): Promise<void> {
+    // Two stable frames can still be the old worker image; wait for the expected frame without relaxing pixel checks.
+    await expect(async () => {
+        await expect(canvas).toHaveScreenshot(name, { maxDiffPixels: 100 });
+    }).toPass({ timeout: 30000 });
+}
 
 test.describe('MemSnapshot', () => {
     let getAllocationsSuccess: Promise<unknown>;
@@ -45,7 +52,8 @@ test.describe('MemSnapshot', () => {
     test.afterEach(async ({ memSnapshotPage }, testInfo) => {
         try {
             if (testInfo.status !== testInfo.expectedStatus) {
-                await testInfo.attach('memsnapshot-ui', { body: await memSnapshotPage.memoryFrame.locator('body').ariaSnapshot(), contentType: 'text/plain' });
+                await testInfo.attach('memsnapshot-ui', { body: await memSnapshotPage.memoryFrame.locator('body')
+                    .ariaSnapshot({ timeout: 5000 }).catch(String), contentType: 'text/plain' });
             }
         } finally {
             await memSnapshotPage.clearData();
@@ -185,19 +193,19 @@ test.describe('MemSnapshot', () => {
     });
 
     test('toggle reserved memory legend', async ({ memSnapshotPage, page }) => {
-        await expect(memSnapshotPage.memoryFrame.getByTestId('blockDiagramSection').locator('canvas')).toHaveScreenshot('snapshot-reserved-line-visible.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(memSnapshotPage.memoryFrame.getByTestId('blockDiagramSection').locator('canvas'), 'snapshot-reserved-line-visible.png');
         const legend = memSnapshotPage.memoryFrame.getByTestId('allocationLineLegend').getByRole('button', { name: 'PTA Reserved', exact: true });
         await expect(legend).toHaveAttribute('aria-pressed', 'true');
         await legend.click();
         await expect(legend).toHaveAttribute('aria-pressed', 'false');
         await page.mouse.move(0, 0);
         await page.waitForTimeout(2000);
-        await expect(memSnapshotPage.memoryFrame.getByTestId('blockDiagramSection').locator('canvas')).toHaveScreenshot('snapshot-reserved-line-hidden.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(memSnapshotPage.memoryFrame.getByTestId('blockDiagramSection').locator('canvas'), 'snapshot-reserved-line-hidden.png');
         await legend.click();
         await expect(legend).toHaveAttribute('aria-pressed', 'true');
         await page.mouse.move(0, 0);
         await page.waitForTimeout(1000);
-        await expect(memSnapshotPage.memoryFrame.getByTestId('blockDiagramSection').locator('canvas')).toHaveScreenshot('snapshot-reserved-line-visible.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(memSnapshotPage.memoryFrame.getByTestId('blockDiagramSection').locator('canvas'), 'snapshot-reserved-line-visible.png');
     });
 
     test('locate block and show matching detail', async ({ memSnapshotPage }) => {
@@ -276,8 +284,13 @@ test.describe('MemSnapshot', () => {
                 await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(1);
                 await page.mouse.move(0, 0);
             }
+            await page.mouse.move(0, 0);
             const graph = isMarkerLayer ? diagram : diagram.locator('canvas');
-            await expect(graph).toHaveScreenshot(`snapshot-${attribute}-visible.png`, { maxDiffPixels: 100, timeout: 30000 });
+            const screenshot = async (state: string): Promise<void> => {
+                const name = `snapshot-${attribute}-${state}.png`;
+                await expectCanvasScreenshot(graph, name);
+            };
+            await screenshot('visible');
             await frame.getByRole('button', { name: 'Layer management', exact: true }).click();
             const toggle = frame.getByTestId('lifecycleGraphLayerPanel').getByRole('button', { name: new RegExp(label) });
             await expect(toggle).toHaveAttribute('aria-pressed', 'true');
@@ -286,18 +299,16 @@ test.describe('MemSnapshot', () => {
             if (isMarkerLayer) await expect(frame.getByTestId('lifecycleMemoryMarkerOverlay')).toHaveCount(0);
             await frame.getByRole('button', { name: 'Layer management', exact: true }).click();
             await expect(frame.getByTestId('lifecycleGraphLayerPanel')).toBeHidden();
-            await page.waitForTimeout(1000);
             await page.mouse.move(0, 0);
-            await expect(graph).toHaveScreenshot(`snapshot-${attribute}-hidden.png`, { maxDiffPixels: 100 });
+            await screenshot('hidden');
             await frame.getByRole('button', { name: 'Layer management', exact: true }).click();
             await toggle.click();
             await expect(frame.getByTestId('blockDiagramSection')).toHaveAttribute(attribute, 'true');
             if (isMarkerLayer) await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(1);
             await frame.getByRole('button', { name: 'Layer management', exact: true }).click();
             await expect(frame.getByTestId('lifecycleGraphLayerPanel')).toBeHidden();
-            await page.waitForTimeout(1000);
             await page.mouse.move(0, 0);
-            await expect(graph).toHaveScreenshot(`snapshot-${attribute}-visible.png`, { maxDiffPixels: 100 });
+            await screenshot('visible');
         });
     }
 
@@ -315,7 +326,8 @@ test.describe('MemSnapshot', () => {
         await memSnapshotPage.addMemoryMarker(280);
         await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(2);
         await expect(frame.getByTestId('memoryMarkerGapSegment')).toHaveCount(1);
-        await expect(frame.getByTestId('blockDiagramSection')).toHaveScreenshot('snapshot-two-markers.png', { maxDiffPixels: 100 });
+        await page.mouse.move(0, 0);
+        await expectCanvasScreenshot(frame.getByTestId('blockDiagramSection'), 'snapshot-two-markers.png');
         await frame.getByRole('button', { name: 'Marker management', exact: true }).click();
         const manager = frame.getByTestId('memoryMarkerManagerFloatingPanel');
         await expect(manager.getByTestId('memoryMarkerManagerRow')).toHaveCount(2);
@@ -350,14 +362,13 @@ test.describe('MemSnapshot', () => {
         await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(0);
         await frame.getByRole('button', { name: 'Close marker management', exact: true }).click();
         await page.mouse.move(0, 0);
-        await expect(frame.getByTestId('blockDiagramSection')).toHaveScreenshot('snapshot-single-marker-hidden.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(frame.getByTestId('blockDiagramSection'), 'snapshot-single-marker-hidden.png');
         await frame.getByRole('button', { name: 'Marker management', exact: true }).click();
         await manager.getByRole('button', { name: 'Show Flag 1', exact: true }).click();
         await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(1);
         await frame.getByRole('button', { name: 'Close marker management', exact: true }).click();
         await page.mouse.move(0, 0);
-        await page.waitForTimeout(1000);
-        await expect(frame.getByTestId('blockDiagramSection')).toHaveScreenshot('snapshot-single-marker-restored.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(frame.getByTestId('blockDiagramSection'), 'snapshot-single-marker-restored.png');
     });
 
     test('delete one marker and keep the other marker', async ({ memSnapshotPage, page }) => {
@@ -373,7 +384,7 @@ test.describe('MemSnapshot', () => {
         await expect(frame.getByTestId('memoryMarkerGapSegment')).toHaveCount(0);
         await frame.getByRole('button', { name: 'Close marker management', exact: true }).click();
         await page.mouse.move(0, 0);
-        await expect(frame.getByTestId('blockDiagramSection')).toHaveScreenshot('snapshot-marker-after-delete.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(frame.getByTestId('blockDiagramSection'), 'snapshot-marker-after-delete.png');
     });
 
     test('cancel then confirm clearing all markers', async ({ memSnapshotPage, page }) => {
@@ -406,8 +417,7 @@ test.describe('MemSnapshot', () => {
         await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(1);
         await expect(frame.getByRole('button', { name: /Flag 1, Linked block, Baseline:/ })).toBeVisible();
         await page.mouse.move(0, 0);
-        await page.waitForTimeout(1000);
-        await expect(frame.getByTestId('blockDiagramSection')).toHaveScreenshot('snapshot-keyboard-block-marker.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(frame.getByTestId('blockDiagramSection'), 'snapshot-keyboard-block-marker.png');
         await frame.getByRole('button', { name: 'Marker management', exact: true }).click();
         const manager = frame.getByTestId('memoryMarkerManagerFloatingPanel');
         await expect(manager.getByTestId('memoryMarkerManagerRow')).toHaveCount(1);
@@ -424,8 +434,7 @@ test.describe('MemSnapshot', () => {
         await page.keyboard.press('k');
         await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(0);
         await page.mouse.move(0, 0);
-        await page.waitForTimeout(1000);
-        await expect(frame.getByTestId('blockDiagramSection')).toHaveScreenshot('snapshot-keyboard-marker-removed.png', { maxDiffPixels: 100 });
+        await expectCanvasScreenshot(frame.getByTestId('blockDiagramSection'), 'snapshot-keyboard-marker-removed.png');
         await frame.getByRole('button', { name: 'Marker management', exact: true }).click();
         await expect(frame.getByTestId('memoryMarkerManagerFloatingPanel')).toContainText('No flags');
     });
@@ -440,13 +449,21 @@ test.describe('MemSnapshot slice windows', () => {
         await importData(page, FilePath.SNAPSHOT_PKL_SLICE_WINDOW);
         await memSnapshotPage.goto();
         await getAllocationsSuccess;
-        await memSnapshotPage.waitForReady();
+        // Either window can finish first; prepare both before checking navigation or switching.
+        const frame = memSnapshotPage.memoryFrame;
+        const overview = frame.getByTestId('snapshotSliceOverview');
+        await expect(overview.getByRole('button', { name: /^Window \d+ · Peak:/ })).toHaveCount(2, { timeout: 90000 });
+        const secondWindow = overview.getByRole('button', { name: /^Window 2 · Peak:/ });
+        await memSnapshotPage.selectOption(frame.getByRole('combobox', { name: 'Window', exact: true }), 'Window 2', 90000);
+        await expect(secondWindow).toHaveAttribute('aria-pressed', 'true');
+        await memSnapshotPage.waitForReady(90000);
     });
 
     test.afterEach(async ({ memSnapshotPage }, testInfo) => {
         try {
             if (testInfo.status !== testInfo.expectedStatus) {
-                await testInfo.attach('memsnapshot-ui', { body: await memSnapshotPage.memoryFrame.locator('body').ariaSnapshot(), contentType: 'text/plain' });
+                await testInfo.attach('memsnapshot-ui', { body: await memSnapshotPage.memoryFrame.locator('body')
+                    .ariaSnapshot({ timeout: 5000 }).catch(String), contentType: 'text/plain' });
             }
         } finally {
             await memSnapshotPage.clearData();
@@ -471,7 +488,7 @@ test.describe('MemSnapshot slice windows', () => {
         await expect(overview.getByRole('button', { name: /^Window 2 · Peak:/ })).toHaveAttribute('aria-pressed', 'true');
         await expect(overview.getByTestId('sliceAxisCoordinate')).toHaveCount(3);
         await page.mouse.move(0, 0);
-        await expect(overview).toHaveScreenshot('snapshot-slice-window-overview.png', { maxDiffPixels: 100 });
+        await expect(overview).toHaveScreenshot('snapshot-slice-window-overview.png', { maxDiffPixels: 100, timeout: 30000 });
     });
 
     test('switch snapshot window from selector', async ({ memSnapshotPage, page }) => {
@@ -479,17 +496,12 @@ test.describe('MemSnapshot slice windows', () => {
         const windowSelect = frame.getByRole('combobox', { name: 'Window', exact: true });
         const overview = frame.getByTestId('snapshotSliceOverview');
 
-        await windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
-            .locator('.ant-select-selector').click();
-        await windowSelect.press('ArrowUp');
-        await windowSelect.press('Enter');
+        await memSnapshotPage.selectOption(windowSelect, 'Window 1', 90000);
         await expect(overview.getByRole('button', { name: /^Window 1 · Peak:/ })).toHaveAttribute('aria-pressed', 'true');
         await expect(windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
             .locator('.ant-select-selection-item')).toHaveText('Window 1');
         const diagram = frame.getByTestId('blockDiagramSection');
-        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
-        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
-        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
+        await memSnapshotPage.waitForReady(90000);
         await page.mouse.move(0, 0);
         await expect(diagram).toHaveScreenshot('snapshot-slice-window-1.png', {
             maxDiffPixels: 100,
@@ -508,9 +520,7 @@ test.describe('MemSnapshot slice windows', () => {
         await expect(windowSelect.locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " ant-select ")][1]')
             .locator('.ant-select-selection-item')).toHaveText('Window 1');
         const diagram = frame.getByTestId('blockDiagramSection');
-        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
-        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
-        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
+        await memSnapshotPage.waitForReady(90000);
         await page.mouse.move(0, 0);
         await expect(diagram).toHaveScreenshot('snapshot-overview-switch-window-1.png', {
             maxDiffPixels: 100,
@@ -544,9 +554,7 @@ test.describe('MemSnapshot slice windows', () => {
             .locator('.ant-select-selection-item')).toHaveText('Window 1');
 
         const diagram = frame.getByTestId('blockDiagramSection');
-        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
-        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
-        await expect(diagram).toHaveAttribute('data-progressive-loading-visible', 'false', { timeout: 30000 });
+        await memSnapshotPage.waitForReady(90000);
         await page.mouse.move(0, 0);
         await expect(dialog).toHaveScreenshot('snapshot-expanded-overview-window-1.png', {
             maxDiffPixels: 100,
@@ -589,9 +597,7 @@ test.describe('MemSnapshot slice windows', () => {
             .getByRole('button', { name: /^Window 1 · Peak:/ });
         await firstWindow.click();
         await expect(firstWindow).toHaveAttribute('aria-pressed', 'true');
-        const diagram = frame.getByTestId('blockDiagramSection');
-        await expect(diagram).toHaveAttribute('data-progressive-render-percent', '100', { timeout: 90000 });
-        await expect(diagram).toHaveAttribute('data-loading-blocks', 'false', { timeout: 30000 });
+        await memSnapshotPage.waitForReady(90000);
 
         const firstWindowDetail = await queryBlockDetail(0);
         expectCompleteDetail(firstWindowDetail);

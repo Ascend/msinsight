@@ -75,6 +75,7 @@ import {
     type AllocationLineKey,
 } from '../../leaksWorker/blockWorker/allocationLineStyles';
 import { isHostMemoryEventType } from '../../utils/utils';
+import { SnapshotEventFlag, SNAPSHOT_EVENT_AXIS_OFFSET } from '../../../frameTree/SnapshotEventFlag';
 
 const BASE_MOVE_STEP = 5;
 const TOOLBAR_HEIGHT = 36;
@@ -214,6 +215,7 @@ export const MemoryBlockDiagram = observer(({
     windowKey = -1,
     onSelectBlock,
     onSelectTimestamp,
+    selectedEventId,
     onTransformChange,
 }: {
     session: Session;
@@ -221,6 +223,7 @@ export const MemoryBlockDiagram = observer(({
     windowKey?: number;
     onSelectBlock?: (selectionVersion: number) => void;
     onSelectTimestamp?: (timestamp: number) => void;
+    selectedEventId?: number;
     onResetTransform?: () => void;
     onTransformChange?: (transform: RenderOptions['transform'], source?: TransformChangeSource) => void;
 }): JSX.Element => {
@@ -229,6 +232,9 @@ export const MemoryBlockDiagram = observer(({
     const { t } = useTranslation('leaks');
     const containerRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLCanvasElement>(null);
+    const eventAxisOffset = onSelectTimestamp === undefined ? 0 : SNAPSHOT_EVENT_AXIS_OFFSET;
+    const eventAxisOffsetRef = useRef(eventAxisOffset);
+    eventAxisOffsetRef.current = eventAxisOffset;
     const [xZoomMode, setXZoomMode] = useState(DEFAULT_X_ZOOM_MODE);
     const xZoomModeRef = useRef(DEFAULT_X_ZOOM_MODE);
     const lifecycleDataContextKey = session.getLifecycleMemoryMarkerContextKey();
@@ -406,7 +412,7 @@ export const MemoryBlockDiagram = observer(({
         }
         const containerRect = containerRef.current.getBoundingClientRect();
         const width = containerRect.width - BLOCK_DIAGRAM_OFFSET_LEFT - BLOCK_DIAGRAM_OFFSET_RIGHT;
-        const height = containerRect.height - 50;
+        const height = containerRect.height - 50 - eventAxisOffsetRef.current;
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.viewport = { width, height };
         });
@@ -546,11 +552,6 @@ export const MemoryBlockDiagram = observer(({
                 session.selectionVersion = selectionVersion;
             });
             workerClickItem({ clientX: ev.clientX - rect.left, clientY: rect.height - (ev.clientY - rect.top), selectionVersion });
-            if (session.markLineInfo.block.x > -1) {
-                runInAction(() => {
-                    onSelectTimestamp?.(Math.round(session.markLineInfo.currentTimestamp));
-                });
-            }
         }
     };
 
@@ -731,7 +732,7 @@ export const MemoryBlockDiagram = observer(({
         try {
             const containerRect = containerRef.current.getBoundingClientRect();
             const width = containerRect.width - BLOCK_DIAGRAM_OFFSET_LEFT - BLOCK_DIAGRAM_OFFSET_RIGHT;
-            const height = containerRect.height - 50;
+            const height = containerRect.height - 50 - eventAxisOffsetRef.current;
 
             runInAction(() => {
                 session.leaksWorkerInfo.renderOptions.viewport = { width, height };
@@ -795,7 +796,7 @@ export const MemoryBlockDiagram = observer(({
 
     const legacyToolbarHeight = enhancedControls ? 0 : TOOLBAR_HEIGHT;
 
-    return <div style={{ width: '100%', height: 530 + legacyToolbarHeight, boxSizing: 'border-box' }}>
+    return <div style={{ width: '100%', height: 530 + legacyToolbarHeight + eventAxisOffset, boxSizing: 'border-box' }}>
         {!enhancedControls
             ? <>
                 <GraphToolbarTooltipStyle />
@@ -840,10 +841,10 @@ export const MemoryBlockDiagram = observer(({
             ref={containerRef}
             style={{
                 width: '100%',
-                height: 530,
+                height: 530 + eventAxisOffset,
                 paddingLeft: BLOCK_DIAGRAM_OFFSET_LEFT,
                 paddingRight: BLOCK_DIAGRAM_OFFSET_RIGHT,
-                paddingTop: 20,
+                paddingTop: 20 + eventAxisOffset,
                 boxSizing: 'border-box',
             }}
         >
@@ -887,6 +888,9 @@ export const MemoryBlockDiagram = observer(({
                     </AllocationLineLegend>
                     : <></>}
                 <MarkLineBlock session={session} />
+                {onSelectTimestamp !== undefined || selectedEventId !== undefined
+                    ? <SnapshotEventFlag key={lifecycleGraphDataContextKey} session={session} eventId={selectedEventId} onSelect={onSelectTimestamp} />
+                    : null}
                 {enhancedControls && layerVisibility.markers
                     ? <LifecycleMemoryMarkerOverlay
                         session={session}
