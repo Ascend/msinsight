@@ -302,6 +302,21 @@ TEST_F(ExportAffinityAPIIntegrationTest, ExportFailsWhenProjectIsMissing) {
     EXPECT_FALSE(handler.HandleRequest(RequestForExport()));
 }
 
+TEST_F(ExportAffinityAPIIntegrationTest, JsonFileProjectExportsBesideSourceFile) {
+    const auto source = exportDir / "trace_view.json";
+    { std::ofstream(source) << "{}"; }
+    RegisterProject(source.string());
+    ExportAffinityAPIAdvice handler;
+    EXPECT_TRUE(handler.HandleRequest(RequestForExport()));
+    std::ifstream input(source);
+    EXPECT_EQ((std::string{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()}), "{}");
+    input.close();
+    std::filesystem::remove(source);
+    EXPECT_EQ(std::count_if(std::filesystem::directory_iterator(exportDir), std::filesystem::directory_iterator(),
+                  [](const auto &entry) { return entry.path().extension() == ".csv"; }),
+        1);
+}
+
 TEST_F(ExportAffinityAPIIntegrationTest, ExportFailsWhenProjectDirectoryDoesNotExist) {
     RegisterProject((exportDir / "missing").string());
     ExportAffinityAPIAdvice handler;
