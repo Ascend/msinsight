@@ -186,6 +186,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const sessionInitializationRevisionRef = useRef(0);
     const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
     const discoveryRevisionRef = useRef(0);
+    const discoverySnapshotLoadingRef = useRef<boolean>();
     const discoveryCompletionCountRef = useRef(0);
     const discoveryRuntimeChangedRef = useRef(false);
     const completedDiscoveryIdsRef = useRef(new Set<string>());
@@ -227,11 +228,19 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const refreshAgentList = async (): Promise<{ activeAgentName?: string; discoveryLoading?: boolean }> => {
-        const discoveryRevision = discoveryRevisionRef.current;
-        const agents = await fetchAgents();
-        if (discoveryRevision !== discoveryRevisionRef.current) {
-            return {};
-        }
+        const startRevision = discoveryStartRevisionRef.current;
+        let discoveryRevision: number;
+        let agents: Awaited<ReturnType<typeof fetchAgents>>;
+        // An invalidated initial response must be replaced, not silently discarded.
+        do {
+            discoveryRevision = discoveryRevisionRef.current;
+            agents = await fetchAgents();
+            if (startRevision !== discoveryStartRevisionRef.current &&
+                discoverySnapshotLoadingRef.current === true) {
+                // The newer scan owns loading and will synchronize its list on completion.
+                return {};
+            }
+        } while (discoveryRevision !== discoveryRevisionRef.current);
         setState((current) => ({
             ...current,
             agentServers: agents.agentServers ?? [],
@@ -257,6 +266,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             }
         }
         discoveryRevisionRef.current += 1;
+        discoverySnapshotLoadingRef.current = false;
         discoveryCompletionCountRef.current += 1;
         discoveryRuntimeChangedRef.current ||= Boolean(event.runtimeChanged);
         if (discoverySyncPromiseRef.current) {
@@ -349,6 +359,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
 
         if (event.type === 'agent_discovery_started') {
+            discoverySnapshotLoadingRef.current = true;
             discoveryStartRevisionRef.current += 1;
             discoveryRevisionRef.current += 1;
             setState((current) => ({ ...current, agentDiscoveryLoading: true }));
@@ -365,6 +376,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 discoveryStartRevisionRef.current += 1;
             }
             if (event.state.discoveryLoading !== undefined) {
+                discoverySnapshotLoadingRef.current = event.state.discoveryLoading;
                 discoveryRevisionRef.current += 1;
             }
             setState((current) => {

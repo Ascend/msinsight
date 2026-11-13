@@ -112,6 +112,57 @@ test('a state snapshot clears discovery loading after a missed completion event'
     expect(chat.agentDiscoveryLoading).toBe(false);
 });
 
+test('an initial list invalidated by a completed state snapshot is fetched again', async () => {
+    testingLibrary.cleanup();
+    let finish!: (value: object) => void;
+    const agentServers = [{ name: 'OpenCode', available: true }, { name: 'Codex', available: true }];
+    (api.fetchAgents as jest.Mock)
+        .mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }))
+        .mockResolvedValue({ agentServers, discoveryLoading: false });
+    const previousCalls = (api.fetchAgents as jest.Mock).mock.calls.length;
+    render(<ChatStateProvider><Probe /></ChatStateProvider>);
+    emit({ type: 'state', state: { initialized: true, discoveryLoading: false } });
+    await act(async () => { finish({ agentServers: [], discoveryLoading: true }); });
+    await waitFor(() => expect(chat.agentServers).toEqual(agentServers));
+    expect(chat.agentDiscoveryLoading).toBe(false);
+    expect(api.fetchAgents).toHaveBeenCalledTimes(previousCalls + 2);
+});
+
+test('RAG state updates during discovery synchronization still leave a populated list', async () => {
+    let finish!: (value: object) => void;
+    const agentServers = [{ name: 'OpenCode', available: true }];
+    (api.fetchAgents as jest.Mock)
+        .mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }))
+        .mockResolvedValue({ agentServers, discoveryLoading: false });
+    const previousCalls = (api.fetchAgents as jest.Mock).mock.calls.length;
+    emit({ type: 'agent_discovery_completed', discoveryId: 'initial-scan' });
+    emit({ type: 'state', state: { discoveryLoading: false, ragStatus: { enabled: false, phase: 'initializing', reason: 'initializing' } } });
+    emit({ type: 'state', state: { discoveryLoading: false, ragStatus: { enabled: true, phase: 'ready' } } });
+    await act(async () => { finish({ agentServers, discoveryLoading: false }); });
+    await waitFor(() => expect(chat.agentServers).toEqual(agentServers));
+    expect(api.fetchAgents).toHaveBeenCalledTimes(previousCalls + 2);
+    expect(chat.agentDiscoveryLoading).toBe(false);
+});
+
+test('a state snapshot with unchanged discovery status still protects newer agent data', async () => {
+    emit({ type: 'state', state: { discoveryLoading: false } });
+    let finish!: (value: object) => void;
+    (api.fetchAgents as jest.Mock).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+    let applying!: Promise<void>;
+    act(() => { applying = chat.applyAgentConfigSnapshot(savedConfig); });
+    const agentServers = [{ name: 'agent-b', available: true }];
+    (api.fetchAgents as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', agentServers, discoveryLoading: false });
+    (api.fetchState as jest.Mock).mockResolvedValue({ activeAgentName: 'agent-b', initialized: true });
+    emit({ type: 'state', state: { activeAgentName: 'agent-b', initialized: true, discoveryLoading: false } });
+    await act(async () => {
+        finish({ activeAgentName: 'agent-a', agentServers: [], discoveryLoading: false });
+        await applying;
+    });
+    expect(chat.activeAgentName).toBe('agent-b');
+    expect(chat.agentServers).toEqual(agentServers);
+    expect(chat.switchingAgent).toBe(false);
+});
+
 test.each(['fetchAgents', 'fetchState'] as const)('a late initial %s response cannot restore completed discovery loading', async (method) => {
     testingLibrary.cleanup();
     let finish!: (value: { discoveryLoading: boolean }) => void;
