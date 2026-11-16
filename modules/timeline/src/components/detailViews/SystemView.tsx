@@ -206,7 +206,7 @@ export const SystemView = observer((props: any) => {
                     viewOption={viewOption}
                     handleChange={handleChange}
                     isFtraceRankOnly={isFtraceStatsItem}
-                    excludeFtraceRank={viewOption === 0 && !isFtraceStatsItem}
+                    excludeFtraceRank={!isFtraceStatsItem}
                 />
             )}
             <SelectList viewOption={viewOption} selectKey={key} setKey={setKey} card={conditions} session={props.session}></SelectList>
