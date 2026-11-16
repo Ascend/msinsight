@@ -115,7 +115,7 @@ After optimization, it is recommended to re-collect profile data and compare the
 
 ## Reference
 
-- [System Tuning](../user_guide/system_tuning.md)
+- [System Tuning](../user_guide/system_tuning/system_tuning_overview.md)
 - [Common Units and Interfaces Introduction](./Timeline_Common_Lanes_and_Interface.md)
 - [Observing Dispatch Bottlenecks](https://www.hiascend.com/document/detail/en/mindstudio/830/practicalcases/GeneralPerformanceIssue/toolsample6_022.html?framework=mindspore#ZH-CN_TOPIC_0000002535807019__section1664916388559)
 - [Issue #324: Add Case-Specific Documentation](https://gitcode.com/Ascend/msinsight/issues/324)

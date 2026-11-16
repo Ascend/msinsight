@@ -100,7 +100,7 @@ NUMA高层架构图中的指标用于描述所选时间范围内不同层级的�
 
 ## 时间线（Timeline）中查看NUMA数据
 
-时间线（Timeline）用于展示模型运行过程中的事件、算子、系统指标和硬件指标。导入的数据包含对应指标时，Timeline中可展示NUMA Platform Metric、Thread State和LLC Cache泳道，帮助开发者将NUMA访问异常、线程调度状态与模型执行阶段进行关联。Timeline的基础使用方式请参见[时间线（Timeline）](./system_tuning.md#timeline)。
+时间线（Timeline）用于展示模型运行过程中的事件、算子、系统指标和硬件指标。导入的数据包含对应指标时，Timeline中可展示NUMA Platform Metric、Thread State和LLC Cache泳道，帮助开发者将NUMA访问异常、线程调度状态与模型执行阶段进行关联。Timeline的基础使用方式请参见[时间线（Timeline）](./system_tuning/timeline.md#timeline)。
 
 ### NUMA Platform Metric泳道
 

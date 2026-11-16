@@ -17,7 +17,7 @@ This document is intended for developers who want to quickly experience the syst
 
 > [!NOTE]
 >
-> This document uses prepared sample data to demonstrate the analysis path, without elaborating on msProf data collection commands. If you need to collect real system data, refer to the data description in [MindStudio Insight System Tuning](../user_guide/system_tuning.md) and the msProf tool documentation.
+> This document uses prepared sample data to demonstrate the analysis path, without elaborating on msProf data collection commands. If you need to collect real system data, refer to the data description in [MindStudio Insight System Tuning](../user_guide/system_tuning/system_tuning_overview.md) and the msProf tool documentation.
 
 ### 1.2 Pre-Start Check
 
@@ -180,7 +180,7 @@ Observe the **Slice List** section after the selection. The Free time is approxi
 ## 4. More Information
 
 - For data import, opening views, and basic operations: see [MindStudio Insight Basic Operations](../user_guide/basic_operations.md).
-- For in-depth learning of system tuning capabilities: see [MindStudio Insight System Tuning](../user_guide/system_tuning.md).
+- For in-depth learning of system tuning capabilities: see [MindStudio Insight System Tuning](../user_guide/system_tuning/system_tuning_overview.md).
 - For common **Timeline** units and interactions: see [Timeline Unit Introduction](../best_practices/Timeline_Common_Lanes_and_Interface.md).
 - For further understanding of host-side idle and bottleneck analysis: see [Host Bound Analysis Based on Linux Kernel Trace](../best_practices/host_bound_analysis_with_linux_kernel_trace.md).
 - If you encounter import or interface anomalies, see [FAQs](../support/faq.md).

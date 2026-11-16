@@ -115,7 +115,7 @@
 
 ## 参考信息
 
-- [系统调优](../user_guide/system_tuning.md)
+- [系统调优](../user_guide/system_tuning/system_tuning_overview.md)
 - [通用泳道和界面介绍](./Timeline_Common_Lanes_and_Interface.md)
 - [观察下发瓶颈](https://www.hiascend.com/document/detail/zh/mindstudio/830/practicalcases/GeneralPerformanceIssue/toolsample6_022.html?framework=mindspore#ZH-CN_TOPIC_0000002535807019__section1664916388559)
 - [Issue #324：添加案例专项文档](https://gitcode.com/Ascend/msinsight/issues/324)
