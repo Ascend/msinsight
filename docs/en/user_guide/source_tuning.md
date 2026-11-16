@@ -20,7 +20,7 @@ MTE3 unit: UB --> GM
 
 FixPipe unit: L0 -> GM/L1
 
-> For an introduction to the storage and transfer units, see [Storage Units and DMA Units](https://gitcode.com/cann/asc-devkit/blob/master/docs/en/guide/programming_guide/advanced_programming/hardware_implementation/basic_architecture.md#storage-units-and-dma-units).
+> For an introduction to the storage and transfer units, see [Storage Units and DMA Units](https://gitcode.com/cann/asc-devkit/blob/9.2.0/docs/en/guide/programming_guide/advanced_programming/hardware_implementation/basic_architecture.md#storage-units-and-dma-units).
 
 **Control Flow**
 

@@ -477,7 +477,7 @@ For the complete code and detailed description of the two examples, see the offi
 
 ## References
 
-- [Operator Tuning](../user_guide/operator_tuning.md)
+- [Operator Tuning](../user_guide/operator_tuning/operator_tuning_overview.md)
 - [Ascend C MatmulLeakyRelu fusion operator example (Basic API)](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
 - [Ascend C MatmulLeakyRelu fusion operator example (Advanced API)](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
 - [Ascend C Fusion Operator Programming Guide (CV Fusion)](https://gitcode.com/cann/asc-devkit/tree/master/docs/en/guide/operator_practice/simd_operator_impl/fusion_operator_programming/cv_fusion)

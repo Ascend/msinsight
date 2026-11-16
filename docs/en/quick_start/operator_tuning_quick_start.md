@@ -16,7 +16,7 @@ This document is intended for developers who want to quickly experience the oper
 
 > [!NOTE]
 >
-> This document uses prepared sample data to demonstrate the analysis path, without elaborating on msOpProf data collection commands. If you need to collect real operator data, refer to the data description in [MindStudio Insight Operator Tuning](../user_guide/operator_tuning.md) and the msOpProf tool documentation.
+> This document uses prepared sample data to demonstrate the analysis path, without elaborating on msOpProf data collection commands. If you need to collect real operator data, refer to the data description in [MindStudio Insight Operator Tuning](../user_guide/operator_tuning/operator_tuning_overview.md) and the msOpProf tool documentation.
 
 ### 1.2 Pre-Start Check
 
@@ -138,12 +138,12 @@ You can locate the user code position from the details area. An example path is 
 | --- | --- |
 | No data is displayed after importing `visualize_data.bin` | First confirm that the correct `visualize_data.bin` file from the on-board data or simulation data has been imported, and then refer to the data import-related issues in [FAQs](../support/faq.md). |
 | The page display does not exactly match the screenshots in this document | The interface fields may vary slightly across different versions of MindStudio Insight, CANN, or msOpProf. Refer to the key metrics and source code location information in the **Details**, **Timeline**, and **Source** tabs as the authoritative reference. |
-| Unable to locate the source code | Check whether source code information was included during msOpProf collection, or refer to the data description in [MindStudio Insight Operator Tuning](../user_guide/operator_tuning.md). |
+| Unable to locate the source code | Check whether source code information was included during msOpProf collection, or refer to the data description in [MindStudio Insight Operator Tuning](../user_guide/operator_tuning/operator_tuning_overview.md). |
 | Meaning of Timeline units | Refer to [Timeline Unit Introduction](../best_practices/Timeline_Common_Lanes_and_Interface.md). |
 
 ## 4. More Information
 
 - To learn about data import, opening views, and basic operations, see [MindStudio Insight Basic Operations](../user_guide/basic_operations.md).
-- To gain in-depth knowledge of operator tuning capabilities, see [MindStudio Insight Operator Tuning](../user_guide/operator_tuning.md).
+- To gain in-depth knowledge of operator tuning capabilities, see [MindStudio Insight Operator Tuning](../user_guide/operator_tuning/operator_tuning_overview.md).
 - To learn about common Timeline units and interactions, see [Timeline Unit Introduction](../best_practices/Timeline_Common_Lanes_and_Interface.md).
 - If you encounter import or UI issues, see [FAQs](../support/faq.md).

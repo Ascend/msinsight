@@ -16,7 +16,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 > [!NOTE]
 >
-> 本文使用已准备好的样例数据演示分析路径，不展开 msOpProf 数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning.md) 中的数据说明和 msOpProf 工具文档。
+> 本文使用已准备好的样例数据演示分析路径，不展开 msOpProf 数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md) 中的数据说明和 msOpProf 工具文档。
 
 ### 1.2 开始前检查
 
@@ -138,12 +138,12 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 | --- | --- |
 | 导入 `visualize_data.bin` 后无数据显示 | 先确认导入的是上板或仿真数据中正确的 `visualize_data.bin` 文件，再参考 [FAQ](../support/faq.md) 中的数据导入相关问题。 |
 | 页面显示与本文截图不完全一致 | 不同 MindStudio Insight、CANN 或 msOpProf 版本的界面字段可能略有差异，请以 Details、Timeline、Source 页签中的关键指标和源码定位信息为准。 |
-| 无法定位到源码 | 检查 msOpProf 采集时是否包含源码信息，或参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning.md) 的数据说明。 |
+| 无法定位到源码 | 检查 msOpProf 采集时是否包含源码信息，或参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md) 的数据说明。 |
 | 想了解 Timeline 泳道含义 | 参考 [Timeline 泳道介绍](../best_practices/Timeline_Common_Lanes_and_Interface.md)。 |
 
 ## 4. 下一步阅读
 
 - 了解数据导入、打开视图和基础操作：参考 [MindStudio Insight 基础操作](../user_guide/basic_operations.md)。
-- 深入学习算子调优能力：参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning.md)。
+- 深入学习算子调优能力：参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md)。
 - 了解 Timeline 常见泳道和交互：参考 [Timeline 泳道介绍](../best_practices/Timeline_Common_Lanes_and_Interface.md)。
 - 遇到导入或界面异常：参考 [FAQ](../support/faq.md)。
