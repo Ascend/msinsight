@@ -28,6 +28,7 @@ import * as path from 'path';
  * See https://playwright.dev/docs/test-configuration.
  */
 const isCI = !!process.env.CI;
+const baseURL = 'http://localhost:5174';
 const getProfilerServerCmd = (port = 9000) => {
     const platform = os.platform();
     let serverBinDir = '../server/output/';
@@ -78,7 +79,14 @@ export default defineConfig({
         /* Maximum time each action such as `click()` can take. Defaults to 0 (no limit). */
         actionTimeout: 0,
         /* Base URL to use in actions like `await page.goto('/')`. */
-        baseURL: 'http://localhost:5174',
+        baseURL,
+        storageState: {
+            cookies: [],
+            origins: [{
+                origin: baseURL,
+                localStorage: [{ name: 'language', value: JSON.stringify('enUS') }],
+            }],
+        },
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
         /* Only on CI systems run the tests headless */
@@ -115,7 +123,7 @@ export default defineConfig({
              */
             command: 'npm run staging',
             cwd: path.resolve(__dirname, '../modules/framework'),
-            url: 'http://localhost:5174',
+            url: baseURL,
             reuseExistingServer: !isCI,
         },
     ],
