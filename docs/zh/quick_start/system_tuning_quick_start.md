@@ -17,7 +17,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 > [!NOTE]
 >
-> 本文使用已准备好的样例数据演示分析路径，不展开 msProf 数据采集命令。若需要采集真实系统数据，请参考 [MindStudio Insight 系统调优](../user_guide/system_tuning.md) 中的数据说明和 msProf 工具文档。
+> 本文使用已准备好的样例数据演示分析路径，不展开 msProf 数据采集命令。若需要采集真实系统数据，请参考 [MindStudio Insight 系统调优](../user_guide/system_tuning/system_tuning_overview.md) 中的数据说明和 msProf 工具文档。
 
 ### 1.2 开始前检查
 
@@ -180,7 +180,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 ## 4. 下一步阅读
 
 - 了解数据导入、打开视图和基础操作：参考 [MindStudio Insight 基础操作](../user_guide/basic_operations.md)。
-- 深入学习系统调优能力：参考 [MindStudio Insight 系统调优](../user_guide/system_tuning.md)。
+- 深入学习系统调优能力：参考 [MindStudio Insight 系统调优](../user_guide/system_tuning/system_tuning_overview.md)。
 - 了解 Timeline 常见泳道和交互：参考 [Timeline 泳道介绍](../best_practices/Timeline_Common_Lanes_and_Interface.md)。
 - 进一步理解 Host 侧空闲和瓶颈分析：参考 [基于 Linux Kernel Trace 的 Host Bound 问题分析](../best_practices/Host_Bound_Analysis_with_Linux_Kernel_Trace.md)。
 - 遇到导入或界面异常：参考 [FAQ](../support/faq.md)。

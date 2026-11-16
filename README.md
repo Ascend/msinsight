@@ -49,7 +49,7 @@ MindStudio Insight 围绕昇腾 AI 性能分析主路径提供多维可视化调
 
 | 功能名称 | 功能描述 | 详细说明 |
 | --- | --- | --- |
-| **系统调优** | 分析 Timeline、通信、内存、算子耗时等系统性能瓶颈。 | 《[系统调优](./docs/zh/user_guide/system_tuning.md)》 |
+| **系统调优** | 分析 Timeline、通信、内存、算子耗时等系统性能瓶颈。 | 《[系统调优](./docs/zh/user_guide/system_tuning/system_tuning_overview.md)》 |
 | **算子调优** | 展示指令流水、源码映射、负载分析和 Cache 等算子性能信息。 | 《[算子调优](./docs/zh/user_guide/operator_tuning.md)》 |
 | **服务化调优** | 通过请求端到端 Timeline 和性能曲线定位推理服务化瓶颈。 | 《[服务化调优](./docs/zh/user_guide/service_optimization.md)》 |
 | **内存调优** | 展示 device 侧内存分配、调用栈和标签信息，辅助定位内存问题。 | 《[内存调优](./docs/zh/user_guide/memory_tuning.md)》 |
@@ -69,7 +69,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时
 工具的详细使用方法和功能说明，请参见以下文档：<br>
 🔹 《[产品概览](./docs/zh/user_guide/overview.md)》<br>
 🔹 《[基础操作](./docs/zh/user_guide/basic_operations.md)》<br>
-🔹 《[系统调优](./docs/zh/user_guide/system_tuning.md)》<br>
+🔹 《[系统调优](./docs/zh/user_guide/system_tuning/system_tuning_overview.md)》<br>
 🔹 《[算子调优](./docs/zh/user_guide/operator_tuning.md)》<br>
 🔹 《[服务化调优](./docs/zh/user_guide/service_optimization.md)》<br>
 🔹 《[内存调优](./docs/zh/user_guide/memory_tuning.md)》

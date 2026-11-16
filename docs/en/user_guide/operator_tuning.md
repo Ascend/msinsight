@@ -278,11 +278,11 @@ MindStudio Insight allows you to search for instructions on the **Timeline** tab
 
 **Hide Units**
 
-For details about how to hide units in the operator tuning scenario, see [hiding units](./system_tuning.md#displaying-page-optimization).
+For details about how to hide units in the operator tuning scenario, see [hiding units](./system_tuning/timeline.md#displaying-page-optimization).
 
 **Auto Unit Height**
 
-For details about the auto unit height function in operator tuning scenarios, see [Auto Unit Height](./system_tuning.md#displaying-page-optimization).
+For details about the auto unit height function in operator tuning scenarios, see [Auto Unit Height](./system_tuning/timeline.md#displaying-page-optimization).
 
 #### Displaying Statistics
 

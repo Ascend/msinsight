@@ -126,7 +126,7 @@ After optimization, it is recommended to re-collect profile data from the same s
 
 ## Reference
 
-- [System Tuning](../user_guide/system_tuning.md)
+- [System Tuning](../user_guide/system_tuning/system_tuning_overview.md)
 - [Common Units and Interfaces Introduction](./Timeline_Common_Lanes_and_Interface.md)
 - [Fast/Slow Rank Issue Locating Method](https://www.hiascend.com/document/detail/en/mindstudio/830/practicalcases/GeneralPerformanceIssue/toolsample6_019.html?framework=mindspore)
 - [Summary: Cluster Performance Analysis](https://www.hiascend.com/document/detail/en/mindstudio/830/practicalcases/GeneralPerformanceIssue/toolsample6_031.html?framework=mindspore)

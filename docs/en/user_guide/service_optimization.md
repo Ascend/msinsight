@@ -108,7 +108,7 @@ The **Timeline** tab page consists of the toolbar (area 1), graphical display (a
 
 ### Usage Description
 
-For details about how to use the **Timeline** tab page in the serving tuning scenario, see [Usage Description](./system_tuning.md#usage-description) in the *MindStudio Insight System Tuning*.
+For details about how to use the **Timeline** tab page in the serving tuning scenario, see [Usage Description](./system_tuning/timeline.md#usage-description) in the *MindStudio Insight System Tuning*.
 
 **Slice Detail**
 

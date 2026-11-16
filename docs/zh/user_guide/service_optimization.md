@@ -108,7 +108,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 
 ### 使用说明
 
-服务化调优场景下，时间线（Timeline）界面的使用说明可参见《MindStudio Insight系统调优》的“[使用说明](./system_tuning.md#使用说明)”。
+服务化调优场景下，时间线（Timeline）界面的使用说明可参见《MindStudio Insight系统调优》的“[使用说明](./system_tuning/timeline.md#使用说明)”。
 
 **选中详情**
 

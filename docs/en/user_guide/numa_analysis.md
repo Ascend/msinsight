@@ -100,7 +100,7 @@ The metrics in the NUMA high-level architecture diagram describe access traffic 
 
 ## Viewing NUMA Data in the Timeline
 
-The Timeline displays events, operators, system metrics, and hardware metrics during model execution. When the imported data contains the corresponding metrics, the Timeline can display NUMA Platform Metric, Thread State, and LLC Cache units, helping developers correlate NUMA access anomalies and thread scheduling states with model execution phases. For basic Timeline usage, see [Timeline](./system_tuning.md#timeline).
+The Timeline displays events, operators, system metrics, and hardware metrics during model execution. When the imported data contains the corresponding metrics, the Timeline can display NUMA Platform Metric, Thread State, and LLC Cache units, helping developers correlate NUMA access anomalies and thread scheduling states with model execution phases. For basic Timeline usage, see [Timeline](./system_tuning/timeline.md#timeline).
 
 ### NUMA Platform Metric Unit
 

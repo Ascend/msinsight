@@ -21,7 +21,7 @@ When using MindStudio Insight for performance analysis, follow the process below
 
 | Issue Symptom | Recommended Entry | Data Collection Tool | Key Content to View |
 | --- | --- | --- | --- |
-| Slow overall model running, imbalance between ranks, abnormal communication duration | [System Tuning](./system_tuning.md) | msProf | Summary, Communication, Timeline, Host Bound analysis |
+| Slow overall model running, imbalance between ranks, abnormal communication duration | [System Tuning](./system_tuning/system_tuning_overview.md) | msProf | Summary, Communication, Timeline, Host Bound analysis |
 | High duration of a single operator, insufficient pipeline parallelism, obvious source code hotspots | [Operator Tuning](./operator_tuning.md) | msOpProf | Timeline, Source, Details, Cache |
 | High inference request latency, long TTFT, abnormal KV Cache usage | [Serving Tuning](./service_optimization.md) | Serving Profiling | Timeline, Curve, request_data, batch_info, forward_info |
 | Continuous memory growth, OOM, unreleased memory, or memory pool anomalies | [Memory Tuning](./memory_tuning.md) | msMemScope | MemScope memory details, PyTorch Snapshot, call stack flame graph |

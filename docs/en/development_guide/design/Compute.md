@@ -69,7 +69,7 @@ Content example:
 #### Bin File
 
 File format: *.bin
-Determination logic: Import a single file && ends with *.bin
+Determination logic: Import a single file && ends with `*.bin`
 Content format:
 The operator bin file uses a binary format, where each data unit takes the following form.
 ![compute_bin](./figures/compute_bin.png)
