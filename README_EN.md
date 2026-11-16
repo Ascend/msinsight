@@ -52,7 +52,7 @@ MindStudio Insight provides multi-dimensional visualized tuning capabilities aro
 | **System Tuning** | Analyzes system performance bottlenecks such as Timeline, communication, memory, and operator duration. | *[System Tuning](./docs/en/user_guide/system_tuning/system_tuning_overview.md)* |
 | **Operator Tuning** | Displays operator performance information such as instruction pipeline, source code mapping, load analysis, and Cache. | *[Operator Tuning](./docs/en/user_guide/operator_tuning.md)* |
 | **Serving Tuning** | Locates inference service bottlenecks through request end-to-end Timeline and performance curves. | *[Service-Oriented Tuning](./docs/en/user_guide/service_optimization.md)* |
-| **Memory Tuning** | Displays device-side memory allocation, call stacks, and tag information to help locate memory issues. | *[Memory Tuning](./docs/en/user_guide/memory_tuning.md)* |
+| **Memory Tuning** | Displays device-side memory allocation, call stacks, and tag information to help locate memory issues. | *[Memory Tuning](./docs/en/user_guide/memory_tuning/memscope_memory_tuning.md)* |
 
 ## 🚀 Quick Start
 
@@ -72,7 +72,7 @@ For detailed usage and feature descriptions of the tool, see the following docum
 🔹 [System Tuning](./docs/en/user_guide/system_tuning/system_tuning_overview.md)<br>
 🔹 [Operator Tuning](./docs/en/user_guide/operator_tuning.md)<br>
 🔹 [Serving Tuning](./docs/en/user_guide/service_optimization.md)<br>
-🔹 [Memory Tuning](./docs/en/user_guide/memory_tuning.md)
+🔹 [Memory Tuning](./docs/en/user_guide/memory_tuning/memscope_memory_tuning.md)
 
 ## 💡 Typical Cases
 

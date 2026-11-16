@@ -36,8 +36,8 @@
 
 | 需求编号 | 需求名称 | 特性描述 | 可验证资料 |
 | --- | --- | --- | --- |
-| 1 | 支持 PyTorch Snapshot 内存分析 | 支持 snapshot 中内存生命周期展示、内存池状态分析和内存事件详情展示 | `docs/zh/user_guide/memory_tuning.md` |
-| 2 | 支持 MindStudio Memory Scope 内存分析 | 支持 msMemScope 数据导入后的调用栈、内存块生命周期、内存分类拆解等功能 | `docs/zh/user_guide/memory_tuning.md` |
+| 1 | 支持 PyTorch Snapshot 内存分析 | 支持 snapshot 中内存生命周期展示、内存池状态分析和内存事件详情展示 | `docs/zh/user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md` |
+| 2 | 支持 MindStudio Memory Scope 内存分析 | 支持 msMemScope 数据导入后的调用栈、内存块生命周期、内存分类拆解等功能 | `docs/zh/user_guide/memory_tuning/memscope_memory_tuning.md` |
 
 # 2. 需求场景分析
 
@@ -108,7 +108,7 @@ MindStudio Insight 是本地分析工具，但输入文件可能包含用户路�
 ## 3.3 与其他文档的关系
 
 - Snapshot 详细设计请参见 `support_snapshot_analysis.md`。
-- 用户侧采集和使用流程请参见 `docs/zh/user_guide/memory_tuning.md`。
+- 用户侧采集和使用流程请参见 `docs/zh/user_guide/memory_tuning/memscope_memory_tuning.md`。
 - 普通 Memory 模块开发说明请参见 `Memory.md`。
 
 # 4. Use Case 一：PyTorch Snapshot 内存分析
@@ -138,7 +138,7 @@ Snapshot 页面可展示：
 - 选中详情。
 - 自动筛选区间未释放内存块。
 
-字段含义和用户操作以 `docs/zh/user_guide/memory_tuning.md` 中“PyTorch Snapshot 数据内存详情（内存快照）”章节为准。
+字段含义和用户操作以 `docs/zh/user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md` 中“PyTorch Snapshot 数据内存详情（内存快照）”章节为准。
 
 ## 4.4 待确认事项
 
@@ -175,7 +175,7 @@ msMemScope 数据导入后，页面可展示：
 3. 内存详情拆解图：按类型展示 CANN、PTA 等内存层级。
 4. 内存详情表：在内存块视图和内存事件视图中查看明细。
 
-字段含义和用户操作以 `docs/zh/user_guide/memory_tuning.md` 中“MemScope 数据内存详情”章节为准。
+字段含义和用户操作以 `docs/zh/user_guide/memory_tuning/memscope_memory_tuning.md` 中“MemScope 数据内存详情”章节为准。
 
 # 6. DFX 设计
 

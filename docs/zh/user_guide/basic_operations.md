@@ -28,7 +28,7 @@ MindStudio Insight工具支持三种数据导入方式，本节主要介绍数�
 | --- | --- | --- |
 | 系统调优 | `json`、`db`、`csv`、集群分析目录 | 参见[系统调优数据说明](./system_tuning/system_tuning_overview.md#数据说明)。 |
 | 算子调优 | `trace.json`、`visualize_data.bin` | 参见[算子调优数据说明](./operator_tuning.md#数据说明)。 |
-| 内存调优 | `memscope_dump_*.db`、`pickle` | 参见[内存调优数据说明](./memory_tuning.md#数据说明)。 |
+| 内存调优 | `memscope_dump_*.db`、`pickle` | 参见[内存调优数据说明](./memory_tuning/memscope_memory_tuning.md#数据说明)。 |
 | 服务化调优 | `profiler.db`、`chrome_tracing.json`、`ms_service_*.db` | 参见[服务化调优数据说明](./service_optimization.md#数据说明)。 |
 
 **操作步骤**
