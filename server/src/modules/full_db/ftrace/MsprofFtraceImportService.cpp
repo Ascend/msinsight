@@ -418,7 +418,17 @@ bool MsprofFtraceImportService::Build(const std::shared_ptr<Entry> &entry, std::
     MsprofFtraceReader::Cancelled cancelled = [&]() {
         return entry->cancelled.load() || (managedSource && sourceToken.expired());
     };
+    // Stage completion, not a byte or elapsed-time percentage. Success closes the progress bar.
+    const auto reportProgress = [&](int progress) {
+        if (notify && !cancelled()) {
+            ProjectParserBase::ParseProgressCallBack(resource.rankId, 0, 0, progress);
+        }
+    };
+    reportProgress(1);
     const auto inspection = MsprofFtraceReader::Inspect(resource.sourceFileId);
+    if (inspection.IsReady()) {
+        reportProgress(5);
+    }
     std::string fingerprint;
     std::string privateId;
     std::string buildingPath;
@@ -428,6 +438,7 @@ bool MsprofFtraceImportService::Build(const std::shared_ptr<Entry> &entry, std::
         if (!inspection.IsReady()) {
             error = inspection.error;
         } else if (Fingerprint(resource.sourceFileId, fingerprint, error, cancelled)) {
+            reportProgress(25);
             ContentHash sourceHash;
             sourceHash.Text(
                 std::filesystem::weakly_canonical(std::filesystem::u8path(resource.sourceFileId)).u8string());
@@ -488,9 +499,12 @@ bool MsprofFtraceImportService::Build(const std::shared_ptr<Entry> &entry, std::
                                 cancelled) &&
                             builder.Finish(error) && writer.Finish(error);
                         if (built && !cancelled()) {
+                            reportProgress(60);
                             built = OperatorDepthPersistenceService::CalculateAndPersistTextDepth(*db, privateId);
                             if (!built) {
                                 error = "Cannot persist ftrace operator depths";
+                            } else {
+                                reportProgress(70);
                             }
                         }
                         if (built) {
@@ -529,6 +543,8 @@ bool MsprofFtraceImportService::Build(const std::shared_ptr<Entry> &entry, std::
                         }
                         if (!built) {
                             error = "Cannot build ftrace statistics";
+                        } else {
+                            reportProgress(85);
                         }
                         manager.ReleaseDatabaseByFileId(privateId);
                     }
@@ -555,6 +571,7 @@ bool MsprofFtraceImportService::Build(const std::shared_ptr<Entry> &entry, std::
                 }
             }
             if (cached && !cancelled()) {
+                reportProgress(95);
                 reusePublished = resource.ready && resource.cachePath == cachePath &&
                     entry->fingerprint == fingerprint && !manager.GetTraceDatabasePoolToken(resource.fileId).expired();
                 if (!entry->cancelled &&
