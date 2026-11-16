@@ -131,5 +131,5 @@ The complete analysis loop is as follows: first determine the problem type throu
 
 ## Reference
 
-- [MindStudio Insight Memory Tuning](../user_guide/memory_tuning.md)
+- [MindStudio Insight Memory Tuning](../user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md)
 - [Issue #324: Add Case-Specific Documentation](https://gitcode.com/Ascend/msinsight/issues/324)

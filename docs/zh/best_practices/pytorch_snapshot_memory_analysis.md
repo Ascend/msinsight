@@ -131,5 +131,5 @@ Snapshot 数据适合在内存问题已经初步定界后做深入分析。定�
 
 ## 参考信息
 
-- [MindStudio Insight 内存调优](../user_guide/memory_tuning.md)
+- [MindStudio Insight 内存调优](../user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md)
 - [Issue #324：添加案例专项文档](https://gitcode.com/Ascend/msinsight/issues/324)

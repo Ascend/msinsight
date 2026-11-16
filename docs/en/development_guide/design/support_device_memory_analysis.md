@@ -36,8 +36,8 @@ This document does not supplement internal database schemas, algorithm details, 
 
 | Requirement ID | Requirement Name | Feature Description | Verifiable Material |
 | --- | --- | --- | --- |
-| 1 | Support PyTorch Snapshot Memory Analysis | Supports memory lifetime display, memory pool status analysis, and memory event details display in snapshots | `docs/en/user_guide/memory_tuning.md` |
-| 2 | Support MindStudio Memory Scope Memory Analysis | Supports call stack, memory block lifecycle, and memory classification breakdown after importing msMemScope data | `docs/en/user_guide/memory_tuning.md` |
+| 1 | Support PyTorch Snapshot Memory Analysis | Supports memory lifetime display, memory pool status analysis, and memory event details display in snapshots | `docs/en/user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md` |
+| 2 | Support MindStudio Memory Scope Memory Analysis | Supports call stack, memory block lifecycle, and memory classification breakdown after importing msMemScope data | `docs/en/user_guide/memory_tuning/memscope_memory_tuning.md` |
 
 # 2. Requirement Scenario Analysis
 
@@ -108,7 +108,7 @@ MindStudio Insight is a local analysis tool, but input files may contain user pa
 ## 3.3 Relationship with Other Documents
 
 - For detailed Snapshot design, see `support_snapshot_analysis.md`.
-- For the user-side collection and usage process, see `docs/en/user_guide/memory_tuning.md`.
+- For the user-side collection and usage process, see `docs/en/user_guide/memory_tuning/memscope_memory_tuning.md`.
 - For general Memory module development instructions, see `Memory.md`.
 
 # 4. Use Case 1: PyTorch Snapshot Memory Analysis
@@ -138,7 +138,7 @@ The Snapshot page can display:
 - Selected details.
 - Automatically filter unreleased memory blocks within the interval.
 
-For field meanings and user operations, refer to the "PyTorch Snapshot Data Memory Details (Memory Snapshot)" section in `docs/en/user_guide/memory_tuning.md`.
+For field meanings and user operations, refer to the "PyTorch Snapshot Data Memory Details (Memory Snapshot)" section in `docs/en/user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md`.
 
 ## 4.4 Items to be Confirmed
 
@@ -175,7 +175,7 @@ After msMemScope data is imported, the page can display:
 3. Memory Details Exploded View: Display memory hierarchies such as CANN and PTA by type.
 4. Memory Details Table: View details in the Memory Block view and Memory Event view.
 
-For field meanings and user operations, refer to the "MemScope Data Memory Details" section in `docs/en/user_guide/memory_tuning.md`.
+For field meanings and user operations, refer to the "MemScope Data Memory Details" section in `docs/en/user_guide/memory_tuning/memscope_memory_tuning.md`.
 
 # 6. DFX Design
 

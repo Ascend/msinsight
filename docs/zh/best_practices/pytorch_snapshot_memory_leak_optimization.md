@@ -432,7 +432,7 @@ history.append(monitor_tensor.mean().item())
 
 ## 参考信息
 
-- [MindStudio Insight 内存调优](../user_guide/memory_tuning.md)
+- [MindStudio Insight 内存调优](../user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md)
 - [MindStudio Insight 导入数据](../user_guide/basic_operations.md#导入数据)
 - [基于 PyTorch Snapshot 数据分析内存问题](./pytorch_snapshot_memory_analysis.md)
 - [Ascend for PyTorch 版本配套说明](https://gitcode.com/Ascend/pytorch/blob/master/docs/zh/release_notes.md)

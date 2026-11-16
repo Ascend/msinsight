@@ -432,7 +432,7 @@ as the main basis for judgment.
 
 ## References
 
-- [MindStudio Insight Memory Tuning](../user_guide/memory_tuning.md)
+- [MindStudio Insight Memory Tuning](../user_guide/memory_tuning/pytorch_snapshot_memory_tuning.md)
 - [MindStudio Insight Importing Data](../user_guide/basic_operations.md#importing-data)
 - [Analyzing Memory Issues Based on PyTorch Snapshot Data](./pytorch_snapshot_memory_analysis.md)
 - [Ascend for PyTorch Version Compatibility](https://gitcode.com/Ascend/pytorch/blob/master/docs/en/release_notes.md)
