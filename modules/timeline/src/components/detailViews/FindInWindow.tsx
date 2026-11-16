@@ -31,6 +31,7 @@ import type { InsightUnit } from '../../entity/insight';
 import { getTimeOffset } from '../../insight/units/utils';
 import { type CardMetaData, getCardSourceDbPaths, ProcessMetaData, type ThreadMetaData } from '../../entity/data';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
+import { getTimeAnalysisRangeMetadataList, isTimeAnalysisRangeRestricted, type RangeMetadata } from '../../utils/rangeMetadata';
 import { ResponseValidator } from '../../utils/response-validator';
 
 const CONTAINER = styled.div`
@@ -248,7 +249,8 @@ const FindDetail = observer((props: FindDetailProps) => {
     useEffect(() => {
         updateData(allCondition.page, allCondition.sorter, props);
     }, [allCondition.sorter, allCondition.selectCard.cardId, allCondition.page.current,
-        allCondition.page.pageSize, allCondition.doContextSearch, allCondition.nameFilter, props.session.doReset]);
+        allCondition.page.pageSize, allCondition.doContextSearch, allCondition.nameFilter, props.session.doReset,
+        props.session.isTimeAnalysisMode, props.session.timeAnalysisRange]);
 
     useEffect(() => () => {
         responseValidatorRef.current.markUpdate();
@@ -321,7 +323,7 @@ const FindDetail = observer((props: FindDetailProps) => {
 });
 
 const searchData = async(pages: any, sorters: {field: string;order: string}, prop: FindDetailProps, nameFilter?: string): Promise<SearchTableData> => {
-    const metadataList = (prop.session.lockUnit as InsightUnit[]).map(selectUnit => {
+    let metadataList: RangeMetadata[] = (prop.session.lockUnit as InsightUnit[]).map(selectUnit => {
         const { threadId, processId, metaType, cardId, dbPath } = selectUnit?.metadata as ThreadMetaData ?? {};
         const timestampOffset = getTimeOffset(prop.session, selectUnit?.metadata as ProcessMetaData);
         const lockStartTime = prop.session.lockRange === undefined ? 0 : Math.floor(prop.session.lockRange[0] + timestampOffset);
@@ -336,6 +338,13 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
             lockEndTime,
         };
     });
+    const isTimeRangeRestricted = isTimeAnalysisRangeRestricted(prop.session);
+    if (isTimeRangeRestricted) {
+        metadataList = getTimeAnalysisRangeMetadataList(prop.session);
+    }
+    if (isTimeRangeRestricted && metadataList.length === 0) {
+        return { searchAllSlicesDetails: [], count: 0 };
+    }
     const cardUnit = prop.session.units.find(unit =>
         (unit.metadata as CardMetaData)?.cardId === prop.card.cardId);
     const sourceDbPaths = cardUnit === undefined ? [] : getCardSourceDbPaths(cardUnit, prop.card.cardId);
@@ -345,6 +354,14 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
     const candidateCount = pages.current * pages.pageSize;
     const responses = [];
     for (const dbPath of queryDbPaths) {
+        const sourceMetadataList = metadataList.filter(item =>
+            (!isTimeRangeRestricted || item.rankId === prop.card.cardId) &&
+            (item.dbPath === undefined || item.dbPath === dbPath));
+        // 时间范围分析下空限制会被后端当作无限制查询，直接跳过该数据源
+        if (isTimeRangeRestricted && sourceMetadataList.length === 0) {
+            responses.push({ searchAllSlicesDetails: [], count: 0 });
+            continue;
+        }
         responses.push(await searchAllSlicesByBatch({
             rankId: prop.card.cardId,
             dbPath,
@@ -353,7 +370,7 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
             searchContent: prop.session.searchData?.content,
             isMatchCase: prop.session.searchData?.isMatchCase,
             isMatchExact: prop.session.searchData?.isMatchExact,
-            metadataList: metadataList.filter(item => item.dbPath === undefined || item.dbPath === dbPath),
+            metadataList: sourceMetadataList,
             nameFilter,
         }, candidateCount));
     }
