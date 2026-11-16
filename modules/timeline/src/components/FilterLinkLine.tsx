@@ -46,6 +46,7 @@ import connector from '../connection/index';
 import { getUnitFlows } from '../api/request';
 import { FlowItem } from '../api/interface';
 import { isNotEmpty } from '@insight/lib';
+import { getTimeAnalysisFlowRanges, getTimeAnalysisRangeMetadataList, isTimeAnalysisRangeRestricted, type RangeMetadata } from '../utils/rangeMetadata';
 
 const FilterContainer = styled.div`
     display: flex;
@@ -197,6 +198,8 @@ interface QueryFlowLinesConfig extends Pick<ProcessMetaData, 'dataSource' | 'car
     domainStart: number;
     domainEnd: number;
     timePerPx: number;
+    rangeMetadata: RangeMetadata[];
+    timeAnalysisRange?: [number, number];
 }
 
 /**
@@ -207,7 +210,10 @@ interface QueryFlowLinesConfig extends Pick<ProcessMetaData, 'dataSource' | 'car
  */
 const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Session,
     config: QueryFlowLinesConfig): Promise<CategoryEvents['flowDetailList']> => {
-    const { host, dataSource, cardId, dbPath, sourceDbPath = dbPath, category, timestampOffset, domainStart, domainEnd, timePerPx } = config;
+    const {
+        host, dataSource, cardId, dbPath, sourceDbPath = dbPath, category, timestampOffset,
+        domainStart, domainEnd, timePerPx, rangeMetadata, timeAnalysisRange,
+    } = config;
     // 如果不在可视范围内就不查询
     if (!viewedCardIdSet.has(cardId)) {
         return [];
@@ -232,8 +238,16 @@ const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Sessi
     };
 
     try {
-        const res = await window.request(dataSource, { command: 'flow/categoryEvents', params });
-        return (res as CategoryEvents).flowDetailList.map(data => ({
+        let res: CategoryEvents;
+        if (timeAnalysisRange !== undefined) {
+            const queryRanges = getTimeAnalysisFlowRanges(rangeMetadata, cardId, sourceDbPath, timeAnalysisRange, domainStart, domainEnd);
+            const responses = await Promise.all(queryRanges.map(queryRange =>
+                window.request(dataSource, { command: 'flow/categoryEvents', params: { ...params, ...queryRange } })));
+            res = { flowDetailList: responses.flatMap(response => (response as CategoryEvents).flowDetailList) };
+        } else {
+            res = await window.request(dataSource, { command: 'flow/categoryEvents', params });
+        }
+        return res.flowDetailList.map(data => ({
             ...normalizeCategoryFlowEvent(data, { rankId: cardId, dbPath: sourceDbPath }, config.isDbGraph),
             cardId,
         }));
@@ -286,7 +300,8 @@ function uniqueLinkLines(arr: CategoryEvents['flowDetailList']): CategoryEvents[
     return [...uniqueLinkLineMap.values()];
 }
 
-const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<string>, ridLineType: string): UseFetchLinkLines => React.useMemo(() => {
+const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<string>, ridLineType: string,
+    timeAnalysisRange: Session['timeAnalysisRange']): UseFetchLinkLines => React.useMemo(() => {
     const allAisplayCategories = [...displayCategories];
     if (ridLineType.length > 0 && !allAisplayCategories.includes(ridLineType)) {
         allAisplayCategories.push(ridLineType);
@@ -297,6 +312,11 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
             customDebounce(async (session: Session): Promise<CategoryEvents['flowDetailList']> => {
                 const { domainStart, domainEnd } = session.domainRange;
                 const { domain: { timePerPx } } = session;
+                const isTimeAnalysis = isTimeAnalysisRangeRestricted(session);
+                const timeAnalysisRange: [number, number] | undefined = isTimeAnalysis && session.timeAnalysisRange !== undefined
+                    ? [session.timeAnalysisRange[0], session.timeAnalysisRange[1]]
+                    : undefined;
+                const rangeMetadata = isTimeAnalysis ? getTimeAnalysisRangeMetadataList(session) : [];
                 let res: CategoryEvents['flowDetailList'] = [];
                 for (const unit of getCardUnits(session.units)) {
                     if (!unit.isExpanded) {
@@ -316,6 +336,8 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
                         domainStart,
                         domainEnd,
                         timePerPx,
+                        rangeMetadata,
+                        timeAnalysisRange,
                     };
                     if (cardId === undefined) { continue; }
                     let cardLinkLines: CategoryEvents['flowDetailList'] = [];
@@ -336,7 +358,7 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
             }),
         ]),
     );
-}, [displayCategories, viewedCardIdSet, ridLineType]);
+}, [displayCategories, viewedCardIdSet, ridLineType, timeAnalysisRange, timeAnalysisRange?.[0], timeAnalysisRange?.[1]]);
 
 const useGetCategories = (session: Session, isSuspend: boolean): {categories: string[]; loading: boolean} => {
     const [categories, setCategories] = React.useState<string[]>([]);
@@ -389,8 +411,16 @@ const useGetCategories = (session: Session, isSuspend: boolean): {categories: st
     return { categories, loading };
 };
 
-const updateSessionLineData = (checkedCategories: string[], fetchLinkLinesMap: Map<string, FetchLinkLines>, session: Session): any => {
+export const updateSessionLineData = (checkedCategories: string[], fetchLinkLinesMap: Map<string, FetchLinkLines>, session: Session,
+    generation: React.MutableRefObject<number>): any => {
     return async () => {
+        const requestGeneration = generation.current;
+        const analysisMode = session.isTimeAnalysisMode;
+        const analysisRange = session.timeAnalysisRange;
+        const [analysisStart, analysisEnd] = analysisRange ?? [];
+        const isCurrent = (): boolean => generation.current === requestGeneration && session.isTimeAnalysisMode === analysisMode &&
+            session.timeAnalysisRange === analysisRange && session.timeAnalysisRange?.[0] === analysisStart &&
+            session.timeAnalysisRange?.[1] === analysisEnd;
         const newLines: LinkLines = {};
         const results = await Promise.all(checkedCategories.map((category) => {
             return fetchLinkLinesMap.get(category)?.(session);
@@ -402,7 +432,9 @@ const updateSessionLineData = (checkedCategories: string[], fetchLinkLinesMap: M
             }
             newLines[checkedCategories[i]] = res;
         }
+        if (!isCurrent()) { return; }
         newLines[session.ridLineType] = await fetchLinkLinesMap.get(session.ridLineType)?.(session);
+        if (!isCurrent()) { return; }
         runInAction(() => {
             session.singleLinkLine = {};
             session.linkLines = newLines;
@@ -513,9 +545,15 @@ export const FilterLinkLine = observer(({ session }: { session: Session}): JSX.E
         isSuspend: false,
     });
     const [checkedCategories, setCheckedCategories] = React.useState<string[]>([]);
-    const fetchLinkLinesMap = useFetchLinkLines(checkedCategories, session.viewedExpandedCardIdSet, session.ridLineType);
-    const updateLinkLines = React.useCallback(updateSessionLineData(checkedCategories, fetchLinkLinesMap, session),
-        [checkedCategories, session.viewedExpandedCardIdSet, session.ridLineType]);
+    const analysisRange = isTimeAnalysisRangeRestricted(session) ? session.timeAnalysisRange : undefined;
+    const fetchLinkLinesMap = useFetchLinkLines(checkedCategories, session.viewedExpandedCardIdSet, session.ridLineType, analysisRange);
+    const timeAnalysisGeneration = useRef(0);
+    useEffect(() => {
+        timeAnalysisGeneration.current++;
+        return () => { timeAnalysisGeneration.current++; };
+    }, [session.isTimeAnalysisMode, session.timeAnalysisRange, session.timeAnalysisRange?.[0], session.timeAnalysisRange?.[1]]);
+    const updateLinkLines = React.useCallback(updateSessionLineData(checkedCategories, fetchLinkLinesMap, session, timeAnalysisGeneration),
+        [checkedCategories, session.viewedExpandedCardIdSet, session.ridLineType, fetchLinkLinesMap]);
     const updateLineData = (): void => {
         updateLinkLines();
     };
@@ -533,6 +571,8 @@ export const FilterLinkLine = observer(({ session }: { session: Session}): JSX.E
         session.drawLineMode,
         session.shouldRefetchLines,
         session.lockRange,
+        session.isTimeAnalysisMode,
+        session.timeAnalysisRange,
     ];
     React.useEffect(() => {
         if (session.drawLineMode !== 'single') {

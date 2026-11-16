@@ -32,6 +32,10 @@ import { LeftOutlined, RightOutlined } from '@ant-design/icons';
 import { getCardSourceDbPaths, type ProcessMetaData, type SliceData, type ThreadMetaData } from '../entity/data';
 import { getTimeOffset } from '../insight/units/utils';
 import jumpToUnitOperator from '../utils/jumpToUnitOperator';
+import {
+    getTimeAnalysisRangeMetadataList,
+    isTimeAnalysisRangeRestricted,
+} from '../utils/rangeMetadata';
 
 const CloseIcon = AntdCloseIcon as SvgType;
 
@@ -90,6 +94,7 @@ interface RemoteCount {
 };
 
 let remoteCntArray: RemoteCount[] = [];
+let timeAnalysisSearchVersion = 0;
 
 interface SearchCriteria {
     content: string;
@@ -143,12 +148,20 @@ const getLockRangeMetaList = (session: Session): LockRangeMetadata[] => {
 
 // 获取搜索的结果数量
 const queryDataCount = async (session: Session, searchContent: string, isMatchCase: boolean, isMatchExact: boolean, selectedRankId?: string): Promise<number> => {
+    const rangeVersion = timeAnalysisSearchVersion;
     if (searchContent === undefined || searchContent === '') {
         return 0;
     }
     let totalCnt = 0;
     remoteCntArray = [];
-    const metadataList = getLockRangeMetaList(session);
+    const metadataList = isTimeAnalysisRangeRestricted(session)
+        ? getTimeAnalysisRangeMetadataList(session)
+        : getLockRangeMetaList(session);
+    const isTimeRangeRestricted = isTimeAnalysisRangeRestricted(session);
+    // 时间范围分析开启但没有可检索的泳道时，范围内没有任何结果
+    if (isTimeRangeRestricted && metadataList.length === 0) {
+        return 0;
+    }
     for (const unit of session.units) {
         if (!unit.isDisplay || unit.isMultiDeviceHidden) {
             continue;
@@ -161,11 +174,18 @@ const queryDataCount = async (session: Session, searchContent: string, isMatchCa
         const sourceDbPaths = getCardSourceDbPaths(unit, metadata.cardId);
         const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [metadata.dbPath];
         for (const dbPath of queryDbPaths) {
-            const sourceMetadataList = metadataList.filter(item => item.dbPath === undefined || item.dbPath === dbPath);
+            const sourceMetadataList = metadataList.filter(item =>
+                (!isTimeRangeRestricted || item.rankId === metadata.cardId) &&
+                (item.dbPath === undefined || item.dbPath === dbPath));
+            // 时间范围分析下空限制会被后端当作无限制查询，直接跳过该数据源
+            if (isTimeRangeRestricted && sourceMetadataList.length === 0) {
+                continue;
+            }
             const res = await window.request(metadata.dataSource, {
                 command: 'search/count',
                 params: { rankId: metadata.cardId, dbPath, searchContent, isMatchCase, isMatchExact, metadataList: sourceMetadataList },
             });
+            if (rangeVersion !== timeAnalysisSearchVersion) { return 0; }
             if (res.totalCount === 0) {
                 continue;
             }
@@ -189,10 +209,11 @@ interface JumpSliceParams {
 const jumpSlice = async ({
     session, searchContent, index, isMatchExact, isMatchCase, selectedRankId, setIsSearching,
 }: JumpSliceParams): Promise<void> => {
+    const rangeVersion = timeAnalysisSearchVersion;
     const criteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
     clearForegroundTarget(session, criteria);
     let finalDataSource;
-    let finalRankId;
+    let finalRankId: string | undefined;
     let finalDbPath: string | undefined;
     let flag = false;
     let currentIndex = index;
@@ -211,16 +232,21 @@ const jumpSlice = async ({
             currentIndex -= rankCount.count;
         }
     }
+    const isTimeRangeRestricted = isTimeAnalysisRangeRestricted(session);
+    const metadataList = (isTimeRangeRestricted
+        ? getTimeAnalysisRangeMetadataList(session)
+        : getLockRangeMetaList(session))
+        .filter(item => (!isTimeRangeRestricted || item.rankId === finalRankId) &&
+            (item.dbPath === undefined || item.dbPath === finalDbPath));
+    if (isTimeRangeRestricted && (!flag || metadataList.length === 0)) { return; }
     setIsSearching(true);
-    const metadataList = getLockRangeMetaList(session)
-        .filter(item => item.dbPath === undefined || item.dbPath === finalDbPath);
     const slice: SliceData = await window.request(finalDataSource as DataSource, {
         command: 'search/slice',
         params: { rankId: finalRankId, dbPath: finalDbPath, searchContent, index: Math.max(1, currentIndex), isMatchCase, isMatchExact, metadataList },
     }).finally(() => {
         setIsSearching(false);
     });
-    if (slice === undefined || !isCurrentSearch(session, criteria)) { return; }
+    if (rangeVersion !== timeAnalysisSearchVersion || slice === undefined || !isCurrentSearch(session, criteria)) { return; }
     const targetThreadId = slice.tid?.toString();
     if (targetThreadId === undefined || targetThreadId === '') { return; }
     const targetSlice = {
@@ -303,6 +329,18 @@ const CategorySearchContent = (session: Session): JSX.Element => {
         const newRankId = rankIdOptions.length > 1 ? rankIdOptions[0] : ALL_RANK_ID;
         setSelectedRankId(newRankId);
     }), [session, session.units]);
+    const analysisRange = isTimeAnalysisRangeRestricted(session) ? session.timeAnalysisRange : undefined;
+    const previousAnalysisRange = React.useRef(analysisRange);
+    useEffect(action(() => {
+        if (previousAnalysisRange.current === analysisRange) { return; }
+        previousAnalysisRange.current = analysisRange;
+        timeAnalysisSearchVersion++;
+        remoteCntArray = [];
+        setSearchIconVisible(true);
+        updatePaginationData({ current: 1, total: 0 });
+        session.searchData = undefined;
+        session.foregroundTarget = undefined;
+    }), [analysisRange]);
     const onPageChange = (current: number): void => {
         if (isSearching) {
             return;
@@ -311,6 +349,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
         jumpSlice({ session, searchContent, index: current, isMatchCase, isMatchExact, selectedRankId, setIsSearching });
     };
     const onInputPressEnter = async (): Promise<void> => {
+        const rangeVersion = timeAnalysisSearchVersion;
         if (searchContent === '') { return; }
         const criteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
         runInAction(() => {
@@ -319,7 +358,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
         });
         setSearchingStatus(true);
         const totalCnt = await queryDataCount(session, searchContent, isMatchCase, isMatchExact, selectedRankId);
-        if (!isCurrentSearch(session, criteria)) {
+        if (rangeVersion !== timeAnalysisSearchVersion || !isCurrentSearch(session, criteria)) {
             setSearchingStatus(false);
             return;
         }
