@@ -32,6 +32,7 @@
 #include "SystemMemoryDatabase.h"
 #include "SystemMemoryDatabaseDef.h"
 #include "ParserStatusManager.h"
+#include "TimelineProtocolEvent.h"
 #include "DataEngine.h"
 #include "RepositoryFactory.h"
 #include "TrackInfoManager.h"
@@ -56,13 +57,21 @@ class BaselineResponseSession : public Timeline::Test::CapturingTimelineSession 
     }
     void SendBaseResponse(std::unique_ptr<Protocol::Response> value) override { OnResponse(std::move(value)); }
     void OnEvent(std::unique_ptr<Protocol::Event> event) override {
+        std::lock_guard<std::mutex> lock(eventsMutex);
         if (event->event == Protocol::EVENT_ALL_SUCCESS) {
             ++allPagesSuccess;
             if (!responseSent) {
                 completionBeforeResponse = true;
             }
         }
+        if (eventHook) {
+            eventHook(*event);
+        }
+        events.emplace_back(std::move(event));
     }
+    mutable std::mutex eventsMutex;
+    std::vector<std::unique_ptr<Protocol::Event>> events;
+    std::function<void(const Protocol::Event &)> eventHook;
     std::atomic<unsigned> allPagesSuccess{0};
     std::atomic<bool> responseSent{false};
     std::atomic<bool> completionBeforeResponse{false};
@@ -211,14 +220,40 @@ INSERT INTO GENERIC_EVENT_DATA VALUES
         fs::remove_all(directory, error);
     }
 
-    bool Import(std::string &error) {
+    bool Import(std::string &error, bool notify = false) {
         auto &service = MsprofFtraceImportService::Instance();
-        const bool result = service.Import(source.u8string(), error, false);
+        const bool result = service.Import(source.u8string(), error, notify);
         const auto resource = service.GetResource(MsprofFtraceImportService::ResourceId(source.u8string()));
         if (resource.has_value() && !resource->cachePath.empty()) {
             publishedCaches.insert(resource->cachePath);
         }
         return result;
+    }
+
+    void ExpectParseEvents(const BaselineResponseSession &session, const std::vector<std::string> &expected) {
+        std::lock_guard<std::mutex> lock(session.eventsMutex);
+        const auto id = MsprofFtraceImportService::ResourceId(source.u8string());
+        std::vector<std::string> actual;
+        bool completed = false;
+        for (const auto &event : session.events) {
+            if (const auto *progress = dynamic_cast<const Protocol::ParseProgressEvent *>(event.get())) {
+                EXPECT_FALSE(completed) << "Progress must precede the completion event";
+                EXPECT_EQ(progress->body.fileId, id);
+                EXPECT_EQ(progress->body.parsedSize, 0);
+                EXPECT_EQ(progress->body.totalSize, 0);
+                EXPECT_LT(progress->body.progress, 100) << "Only parse/success completes the card";
+                actual.emplace_back(std::to_string(progress->body.progress));
+            } else if (const auto *success = dynamic_cast<const Protocol::ParseSuccessEvent *>(event.get())) {
+                EXPECT_EQ(success->body.unit.metadata.cardId, id);
+                actual.emplace_back("success");
+                completed = true;
+            } else if (const auto *failure = dynamic_cast<const Protocol::ParseFailEvent *>(event.get())) {
+                EXPECT_EQ(failure->body.rankId, id);
+                actual.emplace_back("failure");
+                completed = true;
+            }
+        }
+        EXPECT_EQ(actual, expected);
     }
 
     bool Write(const std::string &sql) { return WriteTo(source.u8string(), sql); }
@@ -408,6 +443,61 @@ TEST_F(MsprofFtraceImportServiceTest, ImportsPrivateTextCacheWithoutRegisteringO
     EXPECT_EQ(Scalar(source.u8string(), "SELECT COUNT(*) FROM sqlite_master WHERE name='slice'"), 0);
     EXPECT_EQ(service.GetCapabilities(resource->fileId), (std::vector<std::string>{"scheduling", "softirq"}));
     EXPECT_EQ(Scalar(resource->cachePath, "SELECT COUNT(*) FROM slice WHERE name='sched_switch'"), 2);
+}
+
+TEST_F(MsprofFtraceImportServiceTest, ReportsBuildStagesBeforeSuccessAndSkipsCachedWorkOnReuse) {
+    ScopedBaselineResponseSession capture;
+    std::string error;
+    ASSERT_TRUE(Import(error, true)) << error;
+    ExpectParseEvents(*capture.session, {"1", "5", "25", "60", "70", "85", "95", "success"});
+    const auto id = MsprofFtraceImportService::ResourceId(source.u8string());
+    const auto cachePath = MsprofFtraceImportService::Instance().GetResource(id)->cachePath;
+    {
+        std::lock_guard<std::mutex> lock(capture.session->eventsMutex);
+        capture.session->events.clear();
+    }
+
+    ASSERT_TRUE(Import(error, true)) << error;
+    ExpectParseEvents(*capture.session, {"1", "5", "25", "95", "success"});
+    EXPECT_EQ(MsprofFtraceImportService::Instance().GetResource(id)->cachePath, cachePath);
+}
+
+TEST_F(MsprofFtraceImportServiceTest, DecodeFailureDoesNotReportCompletedBuildStagesOrSuccess) {
+    ASSERT_TRUE(Write("UPDATE GENERIC_EVENT_DATA SET strId=987654321 WHERE genericEventId=1 AND fieldIdx=9"));
+    ScopedBaselineResponseSession capture;
+    std::string error;
+    EXPECT_FALSE(Import(error, true));
+    EXPECT_FALSE(error.empty());
+    ExpectParseEvents(*capture.session, {"1", "5", "25", "failure"});
+}
+
+TEST_F(MsprofFtraceImportServiceTest, ImportWithoutNotificationsDoesNotEmitProgressOrCompletion) {
+    ScopedBaselineResponseSession capture;
+    std::string error;
+    ASSERT_TRUE(Import(error)) << error;
+    std::lock_guard<std::mutex> lock(capture.session->eventsMutex);
+    EXPECT_TRUE(capture.session->events.empty());
+}
+
+TEST_F(MsprofFtraceImportServiceTest, CancellationAfterFirstStageSuppressesFurtherProgressAndCompletion) {
+    auto &service = MsprofFtraceImportService::Instance();
+    const auto resource = service.Discover(source.u8string());
+    ASSERT_TRUE(resource.has_value());
+    const auto entry = service.FindEntry(resource->fileId);
+    ASSERT_NE(entry, nullptr);
+    ScopedBaselineResponseSession capture;
+    {
+        std::lock_guard<std::mutex> lock(capture.session->eventsMutex);
+        capture.session->eventHook = [entry](const Protocol::Event &event) {
+            if (event.event == Protocol::EVENT_PARSE_PROGRESS) {
+                entry->cancelled = true;
+            }
+        };
+    }
+    std::string error;
+    EXPECT_FALSE(Import(error, true));
+    EXPECT_EQ(error, "Ftrace import cancelled");
+    ExpectParseEvents(*capture.session, {"1"});
 }
 
 TEST_F(MsprofFtraceImportServiceTest, HardirqOnlySourcePublishesStatisticsCapabilityAndPreservesItOnCacheHit) {
