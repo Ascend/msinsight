@@ -477,7 +477,7 @@ Vector0（~12 μs）和 Vector1（~21.5 μs）之间的 ~9 μs 差距说明 SetD
 
 ## 参考信息
 
-- [算子调优](../user_guide/operator_tuning.md)
+- [算子调优](../user_guide/operator_tuning/operator_tuning_overview.md)
 - [Ascend C MatmulLeakyRelu 融合算子示例（Basic API）](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_basic_api)
 - [Ascend C MatmulLeakyRelu 融合算子示例（Advanced API）](https://gitcode.com/cann/asc-devkit/tree/master/examples/01_simd_cpp_api/00_introduction/03_fusion_operation/matmul_leakyrelu_advanced_api)
 - [Ascend C 融合算子编程指南（CV 融合）](https://gitcode.com/cann/asc-devkit/tree/master/docs/zh/guide/operator_practice/simd_operator_impl/fusion_operator_programming/cv_fusion)

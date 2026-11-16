@@ -27,7 +27,7 @@ MindStudio Insight supports three data import modes. This section describes how 
 | Tuning Scenario | Common Import Data | Detailed Description |
 | --- | --- | --- |
 | System | `json`, `db`, `csv`, cluster analysis directory | See [System Tuning Data Description](./system_tuning/system_tuning_overview.md#data-description). |
-| Operator | `trace.json`, `visualize_data.bin` | See [Operator Tuning Data Description](./operator_tuning.md#data-description). |
+| Operator | `trace.json`, `visualize_data.bin` | See [Operator Tuning Data Description](./operator_tuning/operator_tuning_overview.md#data-description). |
 | Memory | `memscope_dump_*.db`, `pickle` | See [Memory Tuning Data Description](./memory_tuning/memscope_memory_tuning.md#data-description). |
 | Tuning as a service | `profiler.db`, `chrome_tracing.json`, `ms_service_*.db` | See [Serving Tuning Data Description](./service_optimization.md#data-description). |
 

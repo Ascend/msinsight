@@ -87,4 +87,4 @@ Free代表NPU既不在计算也不在通信的时间，即为空闲时间。理�
 
 ![/ad4f2978-a0c3-4ddb-bea8-2ac5754b4cb8.png](figures/Timeline_Common_Lanes_and_Interface/dispatch-bottleneck-async-npu.png)
 
-下发瓶颈，PyTorch场景通用优化思路参考：[调度优化](https://www.hiascend.com/document/detail/zh/Pytorch/latest/ptmoddevg/trainingmigrguide/FrameworkPTAdapter/26.0.0/zh/pytorch_model_migration_fine_tuning/pipeline_opt.md)，排查思路参考：[下发异常分析](https://gitcode.com/Ascend/docs/blob/master/MindStudio/26.0.0/cases/general_performance_issue_troubleshooting_guide/solution_to_top3.md#%E4%B8%8B%E5%8F%91%E5%BC%82%E5%B8%B8%E5%88%86%E6%9E%90)。
+下发瓶颈，PyTorch场景通用优化思路参考：[调度优化](https://www.hiascend.com/document/detail/zh/Pytorch/latest/ptmoddevg/trainingmigrguide/FrameworkPTAdapter/26.0.0/zh/pytorch_model_migration_fine_tuning/pipeline_opt.md)，排查思路参考：[下发异常分析](https://gitcode.com/Ascend/mstt/blob/master/docs/zh/best_practices/general_performance_issue_troubleshooting_guide/solution_to_top3.md#%E4%B8%8B%E5%8F%91%E5%BC%82%E5%B8%B8%E5%88%86%E6%9E%90)。
