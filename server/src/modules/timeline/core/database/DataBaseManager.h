@@ -69,6 +69,9 @@ class DataBaseManager {
         const std::string &aliasFileId, const std::string &aliasRankId, const std::string &existingFileId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByRankId(const std::string &rankId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByFileId(const std::string &fileId);
+    // A derived TEXT source or baseline is addressed by its registered file ID, not the pool's cache path.
+    std::shared_ptr<VirtualTraceDatabase> GetTraceDatabase(
+        const std::string &rankId, const std::string &dbPath, std::string *derivedFileId = nullptr);
     // A stable, non-owning source identity for caches. Unlike a leased connection,
     // this token expires when the source is released or reimported.
     std::weak_ptr<void> GetTraceDatabasePoolToken(const std::string &fileId);

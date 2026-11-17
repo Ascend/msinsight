@@ -40,9 +40,9 @@ bool SearchSliceHandler::HandleRequest(std::unique_ptr<Protocol::Request> reques
         return false;
     }
     response.body.rankId = request.params.rankId;
-    auto database = request.params.dbPath.empty()
-        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
-        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
+    std::string derivedFileId;
+    auto database =
+        DataBaseManager::Instance().GetTraceDatabase(request.params.rankId, request.params.dbPath, &derivedFileId);
     if (database == nullptr) {
         ServerLog::Error("Search slice can't find rankId.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
@@ -76,7 +76,7 @@ bool SearchSliceHandler::HandleRequest(std::unique_ptr<Protocol::Request> reques
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    response.body.dbPath = database->GetDbPath();
+    response.body.dbPath = derivedFileId.empty() ? database->GetDbPath() : derivedFileId;
     SendResponse(std::move(responsePtr), true);
     return true;
 }

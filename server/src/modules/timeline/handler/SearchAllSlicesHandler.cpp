@@ -144,18 +144,19 @@ bool SearchAllSlicesHandler::HandleRequest(std::unique_ptr<Protocol::Request> re
         return false;
     }
 
-    auto database = request.params.dbPath.empty()
-        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
-        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
+    std::string derivedFileId;
+    auto database = DataBaseManager::Instance().GetTraceDatabase(
+        request.params.rankId, request.params.dbPath, &derivedFileId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get search all slices connection.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    request.params.fileId = request.fileId;
+    const std::string dbPath = derivedFileId.empty() ? database->GetDbPath() : derivedFileId;
+    request.params.fileId = derivedFileId.empty() ? request.fileId : derivedFileId;
 
-    std::vector<TrackQuery> trackQueryVec = BuildTrackQueryVec(request.params, database->GetDbPath(), minTimestamp);
+    std::vector<TrackQuery> trackQueryVec = BuildTrackQueryVec(request.params, dbPath, minTimestamp);
 
     bool success = false;
     if (!trackQueryVec.empty()) {
@@ -168,7 +169,7 @@ bool SearchAllSlicesHandler::HandleRequest(std::unique_ptr<Protocol::Request> re
     }
 
     if (success) {
-        response.body.dbPath = database->GetDbPath();
+        response.body.dbPath = dbPath;
     }
     SendResponse(std::move(responsePtr), success);
     return success;
