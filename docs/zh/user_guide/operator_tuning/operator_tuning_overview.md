@@ -18,7 +18,7 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 
 **环境准备**
 
-1. 安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../../install_guide/mindstudio_insight_install_guide.md)。
+1. 安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../../install_guide/mindstudio_insight_install_overview.md)。
 2. 安装msOpProf算子调优工具，具体安装步骤请参见[msOpProf安装指南](https://gitcode.com/Ascend/msopprof/blob/master/docs/zh/install_guide/msopprof_install_guide.md)。
 
 **数据采集**

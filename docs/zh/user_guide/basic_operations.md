@@ -6,7 +6,7 @@ MindStudio Insight工具为可视化调优工具，首先需完成工具基础�
 
 ## 安装说明
 
-请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)。
+请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_overview.md)。
 
 ## 设置主题与语言
 

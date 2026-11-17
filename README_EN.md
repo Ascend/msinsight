@@ -62,7 +62,7 @@ To quickly experience the core tuning capabilities of MindStudio Insight, see:<b
 
 ## 📦 Installation Guide
 
-For the environment dependencies, software package acquisition, and installation methods of MindStudio Insight, see *[MindStudio Insight Installation Guide](./docs/en/install_guide/mindstudio_insight_install_guide.md)*.
+For the environment dependencies, software package acquisition, and installation methods of MindStudio Insight, see *[MindStudio Insight Installation Guide](./docs/en/install_guide/mindstudio_insight_install_overview.md)*.
 
 ## 📘 User Guide
 

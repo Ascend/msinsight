@@ -14,7 +14,7 @@ MindStudio Insight工具以图形化形式呈现device侧内存详细分配情�
 
 **环境准备**
 
-请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../../install_guide/mindstudio_insight_install_guide.md)。
+请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../../install_guide/mindstudio_insight_install_overview.md)。
 
 安装msMemScope工具，安装前请确保已满足以下条件：
 

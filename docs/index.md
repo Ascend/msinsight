@@ -6,7 +6,7 @@
 :hidden:
 
 简介 <zh/user_guide/overview>
-安装指南 <zh/install_guide/mindstudio_insight_install_guide>
+安装指南 <zh/install_guide/mindstudio_insight_install_overview>
 常见问题 <zh/support/faq>
 安全声明 <zh/legal/security_statement>
 ```

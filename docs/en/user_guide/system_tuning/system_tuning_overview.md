@@ -8,7 +8,7 @@ MindStudio Insight allows you to import profile data files and provides the time
 
 **Environment Setup**
 
-Install MindStudio Insight fi**Analysis Mode Description**rst. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_guide.md).
+Install MindStudio Insight fi**Analysis Mode Description**rst. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_overview.md).
 
 **Data Preparation**
 

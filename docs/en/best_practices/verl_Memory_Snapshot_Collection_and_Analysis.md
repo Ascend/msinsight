@@ -172,7 +172,7 @@ When comparing different ranks, the data of each rank should be compared within 
 
 ### Software Installation
 
-Download and install the MindStudio Insight tool. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+Download and install the MindStudio Insight tool. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 
 ### Importing Data
 

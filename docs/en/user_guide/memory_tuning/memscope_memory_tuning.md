@@ -14,7 +14,7 @@ Based on the visualization of the memory allocation and release lifetime, the to
 
 **Environment Setup**
 
-Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_guide.md).
+Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_overview.md).
 
 Install the msMemScope tool. Before installation, ensure that the following conditions are met:
 

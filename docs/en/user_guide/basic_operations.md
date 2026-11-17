@@ -6,7 +6,7 @@ MindStudio Insight is a visualization tuning tool. You need to complete the basi
 
 ## Installation Description
 
-Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 
 ## Setting the Theme and Language
 

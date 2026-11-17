@@ -10,7 +10,7 @@ MindStudio Insight provides a rich set of tuning analysis methods, visually pres
 
 When using MindStudio Insight for performance analysis, follow the process below:
 
-1. **Install the tool**: Complete the installation by following the [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+1. **Install the tool**: Complete the installation by following the [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 2. **Collect data**: Use msProf, msOpProf, msMemScope, or the serving profiling tool to collect profile data.
 3. **Import data**: Import the corresponding file or directory into MindStudio Insight. For basic operations, see [MindStudio Insight Basic Operations](./basic_operations.md).
 4. **Select a scenario**: Based on the issue type, enter the System Tuning, Operator Tuning, Service-oriented Tuning, or Memory Tuning interface.
@@ -30,7 +30,7 @@ When using MindStudio Insight for performance analysis, follow the process below
 
 | Resource | Description |
 | --- | --- |
-| [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md) | Installation, upgrade, uninstallation, and integrity check. |
+| [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md) | Installation, upgrade, uninstallation, and integrity check. |
 | [Release Notes](https://gitcode.com/Ascend/msinsight/releases) | Version compatibility between MindStudio Insight and components such as CANN. |
 | [FAQ](../support/faq.md) | Common issues regarding import, display, dependencies, network disks, and JupyterLab. |
 | [Quick Start](../quick_start/system_tuning_quick_start.md) | Quickly experience the system tuning analysis path using sample data. |

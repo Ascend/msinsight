@@ -23,7 +23,7 @@ This document is intended for developers who want to quickly experience the syst
 
 | Check Item | Requirement |
 | --- | --- |
-| Tool installation | MindStudio Insight has been installed. For the installation method, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md). |
+| Tool installation | MindStudio Insight has been installed. For the installation method, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md). |
 | Version compatibility | The versions of MindStudio Insight, CANN, and the collection tool must be compatible. For version relationships, see [Release Notes](https://gitcode.com/Ascend/msinsight/releases). |
 | Sample data | The system performance sample data provided in this document has been downloaded and is accessible locally. |
 | Data source | The sample data is collected by [msProf](https://gitcode.com/Ascend/msprof) and contains the information required by **Summary**, **Communication**, and **Timeline**. |
