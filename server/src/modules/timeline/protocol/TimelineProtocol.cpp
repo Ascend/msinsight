@@ -543,6 +543,18 @@ std::unique_ptr<Request> TimelineProtocol::ToExpAnaAICoreFreqRequest(const Dic::
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.statisticsOnly, json["params"], "statisticsOnly");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.laneName, json["params"], "laneName");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.lanePid, json["params"], "lanePid");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.hasTimeRange, json["params"], "hasTimeRange");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.viewStartTime, json["params"], "viewStartTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.viewEndTime, json["params"], "viewEndTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.chartWidth, json["params"], "chartWidth");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.hasCounterRange, json["params"], "hasCounterRange");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.counterStartTime, json["params"], "counterStartTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.counterEndTime, json["params"], "counterEndTime");
     return reqPtr;
 }
 

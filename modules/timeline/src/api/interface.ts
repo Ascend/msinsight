@@ -236,11 +236,27 @@ export interface SetCardAliasParams {
 export interface GetAICoreParams {
     rankId: string;
     dbPath: string;
+    startTime?: number;
+    endTime?: number;
+    statisticsOnly?: boolean;
+    laneName?: string;
+    lanePid?: string;
+    hasTimeRange?: boolean;
+    viewStartTime?: number;
+    viewEndTime?: number;
+    chartWidth?: number;
+    hasCounterRange?: boolean;
+    counterStartTime?: number;
+    counterEndTime?: number;
 }
 
 export interface GetAICoreParamsResult {
     hasProblem: boolean;
     percent: number;
+    avgFreq?: number;
+    sampleCount?: number;
+    minFreq?: number;
+    maxFreq?: number;
 }
 
 export interface QueryOperatorDispatchParams extends PaginationParams {

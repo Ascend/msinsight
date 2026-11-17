@@ -58,6 +58,7 @@ describe('getVisibleStatsSystemViewItems', () => {
             'Kernel Summary',
             'Memcpy Overall',
             KERNEL_MFU_VIEW_NAME,
+            'AI Core Frequency Statistics',
             'Custom Layer',
         ]);
     });

@@ -476,6 +476,18 @@ struct SystemViewRequest : public Request {
 struct SystemViewAICoreFreqParams {
     std::string rankId;
     std::string deviceId;
+    std::string laneName;
+    std::string lanePid;
+    uint64_t startTime = 0;
+    uint64_t endTime = 0;
+    bool statisticsOnly = false;
+    bool hasTimeRange = false;
+    double viewStartTime = 0;
+    double viewEndTime = 0;
+    double chartWidth = 0;
+    bool hasCounterRange = false;
+    uint64_t counterStartTime = 0;
+    uint64_t counterEndTime = 0;
 };
 
 struct ExpAnaAICoreFreqRequest : public Request {

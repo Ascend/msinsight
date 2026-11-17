@@ -19,6 +19,7 @@
 #include "TrackInfoManager.h"
 #include "pch.h"
 #include "TraceTime.h"
+#include "AICoreFreqRange.h"
 #include "TableDefs.h"
 #include "TraceDatabaseHelper.h"
 #include "TraceDatabaseSqlConst.h"
@@ -841,29 +842,89 @@ bool DbTraceDataBase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICore
     Protocol::ExpAnaAICoreFreqBody &responseBody, std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq,
     uint64_t &minFreq) {
     std::unique_ptr<SqliteResultSet> resultSet;
-    std::string sql = "SELECT timestampNs, freq FROM AICORE_FREQ "
-                      "WHERE deviceId = ? ORDER BY timestampNs ASC;";
+    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
+    const bool hasRange = requestParams.hasTimeRange || requestParams.startTime != 0 || requestParams.endTime != 0;
+    std::string scope = "deviceId = ? ";
+    bool bindLaneName = false;
+    bool bindDie = false;
+    int dieId = -1;
+    if (!requestParams.laneName.empty()) {
+        if (!CheckColumnExist("AICORE_FREQ", "dieId")) {
+            scope += "AND 'AI Core Freq' = ? ";
+            bindLaneName = true;
+        } else if (requestParams.laneName == "AI Core Freq") {
+            scope += "AND COALESCE(dieId, -1) = -1 ";
+        } else {
+            const std::string prefix = "AI Core Freq Die ";
+            if (requestParams.laneName.find(prefix) != 0) { return false; }
+            dieId = StringUtil::StringToInt(requestParams.laneName.substr(prefix.size()));
+            if (prefix + std::to_string(dieId) != requestParams.laneName) { return false; }
+            scope += "AND dieId = ? ";
+            bindDie = true;
+        }
+    }
+    const int deviceId = StringUtil::StringToInt(requestParams.deviceId);
+    const bool hasCounterRange = requestParams.statisticsOnly && requestParams.hasCounterRange;
+    if (hasCounterRange) { scope += "AND timestampNs BETWEEN ? AND ? "; }
+    const auto bindScope = [&](auto &statement) {
+        statement->BindParams(deviceId);
+        if (bindLaneName) { statement->BindParams(requestParams.laneName); }
+        if (bindDie) { statement->BindParams(dieId); }
+        if (hasCounterRange) {
+            statement->BindParams(requestParams.counterStartTime + minTimestamp, requestParams.counterEndTime + minTimestamp);
+        }
+    };
+    uint64_t rangeStart = requestParams.startTime + minTimestamp;
+    uint64_t rangeEnd = requestParams.endTime + minTimestamp;
+    uint64_t previous = rangeStart, first = UINT64_MAX, last = 0;
+    if (hasRange && requestParams.statisticsOnly) {
+        auto bounds = CreatPreparedStatement("SELECT COALESCE((SELECT MAX(timestampNs) FROM AICORE_FREQ WHERE " +
+            scope + "AND timestampNs <= ?), ?), (SELECT MAX(timestampNs) FROM AICORE_FREQ WHERE " + scope +
+            "), (SELECT MIN(timestampNs) FROM AICORE_FREQ WHERE " + scope + ")");
+        if (bounds == nullptr) { return false; }
+        bindScope(bounds);
+        bounds->BindParams(rangeStart, rangeStart);
+        bindScope(bounds);
+        bindScope(bounds);
+        auto limits = bounds->ExecuteQuery();
+        if (limits == nullptr || !limits->Next()) { return false; }
+        previous = limits->GetUint64(resultStartIndex);
+        last = limits->GetUint64(resultStartIndex + 1);
+        first = limits->GetUint64(resultStartIndex + 2);
+        if (!Timeline::ResolveAICoreFreqRange(requestParams, minTimestamp, previous, last, rangeStart, rangeEnd, first)) { return true; }
+    }
+    std::string sql = "SELECT timestampNs, freq FROM AICORE_FREQ WHERE " + scope;
+    if (hasRange) { sql += "AND timestampNs BETWEEN ? AND ? "; }
+    sql += "ORDER BY timestampNs ASC";
+    sql += ";";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query system view AI core freq data failed!.");
         return false;
     }
-    int deviceId = StringUtil::StringToInt(requestParams.deviceId);
-    resultSet = stmt->ExecuteQuery(deviceId);
+    bindScope(stmt);
+    if (hasRange) {
+        stmt->BindParams(rangeStart, rangeEnd);
+    }
+    resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set to query AI core freq.", stmt->GetErrorMessage());
         return 0;
     }
+    Timeline::AICoreFreqSamples samples(requestParams, minTimestamp, first, last,
+        hasRange && requestParams.statisticsOnly);
     while (resultSet->Next()) {
         std::pair<uint64_t, uint64_t> detail;
         int col = resultStartIndex;
         detail.first = resultSet->GetUint64(col++);
         detail.second = resultSet->GetUint64(col++);
         responseBody.pid = "AI Core Freq";
-        maxFreq = std::max(maxFreq, detail.second);
-        minFreq = std::min(minFreq, detail.second);
-        freqs.emplace_back(detail);
+        samples.Add(detail.first, detail.second);
+        if (!requestParams.statisticsOnly) {
+            freqs.emplace_back(detail);
+        }
     }
+    samples.Write(responseBody, maxFreq, minFreq, requestParams.statisticsOnly);
     return true;
 }
 

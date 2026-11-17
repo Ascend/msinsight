@@ -242,6 +242,7 @@ export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Memcpy Overall' },
     { name: KERNEL_MFU_VIEW_NAME, tips: 'KernelMfuTips' },
     { name: 'Ftrace Task Summary' },
+    { name: 'AI Core Frequency Statistics' },
 ];
 
 /** Ftrace 数据类型标识，用于 getVisibleStatsSystemViewItems 过滤 */

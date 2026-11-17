@@ -271,11 +271,22 @@ public:
             orderBy + " limit ? offset ?";
     }
 
-    static std::string GetAICoreViewDataSql()
+    static std::string GetAICoreViewDataSql(bool hasRange = false, bool statisticsOnly = false, bool hasLane = false,
+        bool hasCounterRange = false)
     {
+        if (statisticsOnly) {
+            return "SELECT timestamp, args, process.pid, '' FROM counter JOIN process ON counter.pid = process.pid "
+                "WHERE counter.name LIKE '%AI Core Freq%' "
+                + std::string(hasLane ? "" : "AND (process.pid & 0x1f) = ? ")
+                + std::string(hasCounterRange ? "AND timestamp BETWEEN ? AND ? " : "")
+                + std::string(hasRange ? "AND timestamp BETWEEN ? AND ? " : "")
+                + (hasLane ? "AND counter.name = ? AND counter.pid = ? " : "") + "ORDER BY timestamp ASC ";
+        }
         return "SELECT timestamp, args, process.pid as pid, thread.tid as tid "
             "FROM counter JOIN process ON counter.pid = process.pid JOIN thread ON process.pid = thread.pid "
-            "WHERE (process.pid & 0x1f) = ? AND counter.name LIKE '%AI Core Freq%' ORDER BY timestamp ASC ";
+            "WHERE (process.pid & 0x1f) = ? AND counter.name LIKE '%AI Core Freq%' "
+            + std::string(hasRange ? "AND timestamp BETWEEN ? AND ? " : "")
+            + (statisticsOnly ? "" : "ORDER BY timestamp ASC ");
     }
 
     static std::string GetOverlapAnalysisTextSqlByType(const SystemViewOverallReqParam &params)

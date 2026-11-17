@@ -19,7 +19,8 @@ import { useTheme } from '@emotion/react';
 import styled from '@emotion/styled';
 import * as d3 from 'd3';
 import { observer } from 'mobx-react';
-import React, { useMemo, useRef, useState } from 'react';
+import { runInAction } from 'mobx';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChartProps, Scale } from '../../entity/chart';
 import type { Readable } from '../../utils/humanReadable';
 import { Canvas, CanvasContainer, LegendArea, search, zipTimeSeriesData } from './common';
@@ -229,6 +230,11 @@ export const FilledLineChart = observer(({
     margin, session, mapFunc, valueFormat, valueRange, legend, auxiliaryValue, palette, seriesMode = 'stacked', renderTooltip, metadata, height, width, unit,
 }: FilledLineChartProps) => {
     const theme = useTheme();
+    useEffect(() => {
+        if (!/^AI Core Freq(?: Die \d+)?$/.test(String(unit.metadata.threadName ?? ''))) { return; }
+        runInAction(() => { unit.counterRenderWidth = width; });
+        return () => { runInAction(() => { unit.counterRenderWidth = 0; }); };
+    }, [unit, width]);
     const canvasContainer = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
 
