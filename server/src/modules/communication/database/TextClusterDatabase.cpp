@@ -608,6 +608,24 @@ bool TextClusterDatabase::GetGroups(std::vector<GroupInfoDo> &groupList) {
     return ExecuteGetGroups(groupList, sql);
 }
 
+std::unordered_map<std::string, int64_t> TextClusterDatabase::GetAllGroupMap() {
+    std::string sql = "SELECT id, rank_set FROM " + TABLE_GROUP_ID;
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        ServerLog::Error("Failed to Get Groups info. error: ", sqlite3_errmsg(db));
+        return {};
+    }
+    std::unordered_map<std::string, int64_t> result;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        int column = resultStartIndex;
+        int64_t id = sqlite3_column_int64(stmt, column++);
+        std::string rankSet = sqlite3_column_string(stmt, column++);
+        result.insert({rankSet, id});
+    }
+    sqlite3_finalize(stmt);
+    return result;
+}
+
 std::vector<CommGroupParallelInfo> TextClusterDatabase::GetAllGroupInfo() {
     std::string sql = "SELECT id, rank_set, type, group_id_hash, group_id, pg_name FROM " + TABLE_GROUP_ID;
     sqlite3_stmt *stmt = nullptr;

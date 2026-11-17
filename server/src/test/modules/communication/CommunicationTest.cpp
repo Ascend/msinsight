@@ -44,7 +44,7 @@ TEST_F(TestSuit, QueryOperatorNameData) {
     std::vector<Dic::Protocol::OperatorNamesObject> responseBody;
     database->QueryOperatorNames(requestParams, responseBody);
     int expectSize = 2;
-    EXPECT_EQ(responseBody.size(), expectSize);
+    ASSERT_EQ(responseBody.size(), expectSize);
     EXPECT_EQ(responseBody[0].operatorName, "Total Op Info");
     EXPECT_EQ(responseBody[1].operatorName, "hcom_send__822_0");
 }

@@ -80,15 +80,6 @@ class CommunicationRapidSaxHandler
     CommunicationBandWidth bandwidth;
     CommunicationTimeInfo timeInfo;
 
-    std::unordered_map<std::string, CommunicationTimeInfo> timeOpTotalInfoMap;
-    std::unordered_map<std::string, CommunicationBandWidth> bandwidthOpTotalInfoMap;
-
-    std::string GenerateTimeInfoKey(const CommunicationTimeInfo &info) const;
-    void StatTimeTotalOpInfo(const CommunicationTimeInfo &info);
-    std::string GenerateBandwidthInfoKey(const CommunicationBandWidth &info) const;
-    void StatBandwidthTotalOpInfo(const CommunicationBandWidth &info);
-    std::unordered_map<std::string, PackageInfo> TransStrToPackageMap(const std::string &str);
-    std::string TransPackageMapToStr(std::unordered_map<std::string, PackageInfo> &packageMap);
     void DealData();
 };
 } // end of namespace Timeline

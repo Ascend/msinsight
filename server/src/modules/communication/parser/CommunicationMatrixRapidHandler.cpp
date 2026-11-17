@@ -129,36 +129,6 @@ bool CommunicationMatrixRapidHandler::Key(const char *str, rapidjson::SizeType l
     return true;
 }
 
-std::string CommunicationMatrixRapidHandler::GenerateMatrixKey(const CommunicationMatrixInfo &matrixInfo) const {
-    return StringUtil::FormatString("{}_{}_{}_{}_{}", matrixInfo.iterationId, std::to_string(matrixInfo.srcRank),
-        std::to_string(matrixInfo.dstRank), matrixInfo.transportType, matrixInfo.groupName);
-}
-
-void CommunicationMatrixRapidHandler::StatTotalOpInfo(const CommunicationMatrixInfo &matrixInfo) {
-    if (matrixInfo.groupName == "" || matrixInfo.sortOp == "Total Op Info" ||
-        !StringUtil::Contains(matrixInfo.sortOp, "total")) {
-        return;
-    }
-    std::string key = GenerateMatrixKey(matrixInfo);
-    if (matrixTotalOpInfoMap.find(key) != matrixTotalOpInfoMap.end()) {
-        matrixTotalOpInfoMap[key].transitSize = matrixTotalOpInfoMap[key].transitSize < 0 || matrixInfo.transitSize < 0
-            ? -1
-            : matrixTotalOpInfoMap[key].transitSize + matrixInfo.transitSize;
-        matrixTotalOpInfoMap[key].transitTime = matrixTotalOpInfoMap[key].transitTime < 0 || matrixInfo.transitTime < 0
-            ? -1
-            : matrixTotalOpInfoMap[key].transitTime + matrixInfo.transitTime;
-        const auto &total = matrixTotalOpInfoMap[key];
-        matrixTotalOpInfoMap[key].bandwidth = total.transitSize < 0 || total.transitTime < 0
-            ? -1
-            : (total.transitTime == 0 ? 0
-                                      : NumberUtil::DoubleReservedNDigits(total.transitSize / total.transitTime, 4));
-    } else {
-        matrixTotalOpInfoMap[key] = {matrixInfo.groupId, matrixInfo.iterationId, "Total Op Info", "",
-            matrixInfo.groupName, matrixInfo.srcRank, matrixInfo.dstRank, matrixInfo.transportType,
-            matrixInfo.transitSize, matrixInfo.transitTime, matrixInfo.bandwidth};
-    }
-}
-
 bool CommunicationMatrixRapidHandler::EndObject(rapidjson::SizeType memberCount) {
     if (ParserStatusManager::Instance().IsClusterParserFinalState(uniqueKey)) {
         return false;
@@ -173,23 +143,11 @@ bool CommunicationMatrixRapidHandler::EndObject(rapidjson::SizeType memberCount)
     currentDepth--;
     if (currentDepth == ranksDepth) {
         CommunicationMatrixInfo matrix = MapToMatrixInfo(currentObject);
-        if (matrix.groupName != "") {
-            database->InsertCommunicationMatrix(matrix);
-        } else {
-            isOldData = true;
-        }
-        StatTotalOpInfo(matrix);
+        database->InsertCommunicationMatrix(matrix);
         currentObject.RemoveAllMembers();
     }
-    if (currentDepth == 0) {
-        if (isOldData) {
-            for (auto &item : matrixTotalOpInfoMap) {
-                database->InsertCommunicationMatrix(item.second);
-            }
-        }
-        if (!SaveGroupInfoMap()) {
-            ServerLog::Error("Fail to insert duplicate update group info when parse communication matrix data.");
-        }
+    if (currentDepth == 0 && !SaveGroupInfoMap()) {
+        ServerLog::Error("Fail to insert duplicate update group info when parse communication matrix data.");
     }
     return true;
 }

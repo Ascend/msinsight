@@ -28,19 +28,6 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-namespace {
-double SumCommunicationMetrics(double left, double right) {
-    return left < 0 || right < 0 || !std::isfinite(left) || !std::isfinite(right) ? -1 : left + right;
-}
-
-double CommunicationMetricRatio(double time, double transitTime) {
-    if (time < 0 || transitTime < 0 || !std::isfinite(time) || !std::isfinite(transitTime)) {
-        return -1;
-    }
-    return time == 0 ? 0 : NumberUtil::DoubleReservedNDigits(time / (time + transitTime), 4);
-}
-}
-
 CommunicationRapidSaxHandler::CommunicationRapidSaxHandler(
     std::shared_ptr<TextClusterDatabase> database, const std::string &uniqueKey)
     : uniqueKey(uniqueKey) {
@@ -170,107 +157,6 @@ bool CommunicationRapidSaxHandler::Key(const char *str, rapidjson::SizeType leng
     return true;
 }
 
-std::string CommunicationRapidSaxHandler::GenerateTimeInfoKey(const CommunicationTimeInfo &info) const {
-    return StringUtil::FormatString("{}_{}_{}", info.iterationId, info.opSuffix, info.rankId);
-}
-
-void CommunicationRapidSaxHandler::StatTimeTotalOpInfo(const CommunicationTimeInfo &info) {
-    if (info.opSuffix == "" || info.opName == "Total Op Info") {
-        return;
-    }
-    std::string key = GenerateTimeInfoKey(info);
-    if (timeOpTotalInfoMap.find(key) != timeOpTotalInfoMap.end()) {
-        timeOpTotalInfoMap[key].elapseTime =
-            SumCommunicationMetrics(timeOpTotalInfoMap[key].elapseTime, info.elapseTime);
-        timeOpTotalInfoMap[key].synchronizationTime =
-            SumCommunicationMetrics(timeOpTotalInfoMap[key].synchronizationTime, info.synchronizationTime);
-        timeOpTotalInfoMap[key].transitTime =
-            SumCommunicationMetrics(timeOpTotalInfoMap[key].transitTime, info.transitTime);
-        timeOpTotalInfoMap[key].waitTime = SumCommunicationMetrics(timeOpTotalInfoMap[key].waitTime, info.waitTime);
-        timeOpTotalInfoMap[key].idleTime = SumCommunicationMetrics(timeOpTotalInfoMap[key].idleTime, info.idleTime);
-        timeOpTotalInfoMap[key].synchronizationTimeRatio =
-            CommunicationMetricRatio(timeOpTotalInfoMap[key].synchronizationTime, timeOpTotalInfoMap[key].transitTime);
-        timeOpTotalInfoMap[key].waitTimeRatio =
-            CommunicationMetricRatio(timeOpTotalInfoMap[key].waitTime, timeOpTotalInfoMap[key].transitTime);
-    } else {
-        timeOpTotalInfoMap[key] = info;
-        timeOpTotalInfoMap[key].opName = "Total Op Info";
-        timeOpTotalInfoMap[key].startTime = 0;
-    }
-}
-
-std::string CommunicationRapidSaxHandler::GenerateBandwidthInfoKey(const CommunicationBandWidth &info) const {
-    return StringUtil::FormatString("{}_{}_{}_{}", info.iterationId, info.rankId, info.opSuffix, info.transportType);
-}
-
-void CommunicationRapidSaxHandler::StatBandwidthTotalOpInfo(const CommunicationBandWidth &info) {
-    if (info.opSuffix == "" || info.opName == "Total Op Info") {
-        return;
-    }
-    std::string key = GenerateBandwidthInfoKey(info);
-    if (bandwidthOpTotalInfoMap.find(key) != bandwidthOpTotalInfoMap.end()) {
-        bandwidthOpTotalInfoMap[key].transitSize =
-            SumCommunicationMetrics(bandwidthOpTotalInfoMap[key].transitSize, info.transitSize);
-        bandwidthOpTotalInfoMap[key].transitTime =
-            SumCommunicationMetrics(bandwidthOpTotalInfoMap[key].transitTime, info.transitTime);
-        const auto &total = bandwidthOpTotalInfoMap[key];
-        bandwidthOpTotalInfoMap[key].bandwidthSize = total.transitSize < 0 || total.transitTime < 0
-            ? -1
-            : (total.transitTime == 0 ? 0
-                                      : NumberUtil::DoubleReservedNDigits(total.transitSize / total.transitTime, 4));
-        for (const auto &item : info.packageMap) {
-            if (bandwidthOpTotalInfoMap[key].packageMap.find(item.first) !=
-                bandwidthOpTotalInfoMap[key].packageMap.end()) {
-                bandwidthOpTotalInfoMap[key].packageMap[item.first].packageNumber += item.second.packageNumber;
-                bandwidthOpTotalInfoMap[key].packageMap[item.first].packageTime += item.second.packageTime;
-            } else {
-                bandwidthOpTotalInfoMap[key].packageMap[item.first] = item.second;
-            }
-        }
-    } else {
-        bandwidthOpTotalInfoMap[key] = info;
-        bandwidthOpTotalInfoMap[key].opName = "Total Op Info";
-    }
-}
-
-std::unordered_map<std::string, PackageInfo> CommunicationRapidSaxHandler::TransStrToPackageMap(
-    const std::string &str) {
-    std::string error;
-    auto data = JsonUtil::TryParse<kParseNumbersAsStringsFlag>(str, error);
-    if (!data.has_value() || !data->IsObject()) {
-        ServerLog::Error("Failed to transfer size distribution data to package map.");
-        return {};
-    }
-    std::unordered_map<std::string, PackageInfo> res;
-    for (const auto &item : data->GetObj()) {
-        if (!item.name.IsString() || !item.value.IsArray()) {
-            continue;
-        }
-        std::string packageSizeStr = item.name.GetString();
-        std::vector<double> valueList;
-        for (const auto &num : item.value.GetArray()) {
-            double temp = num.IsString() ? NumberUtil::StringToDouble(num.GetString()) : 0;
-            valueList.push_back(temp);
-        }
-        if (valueList.size() != 2) {
-            continue;
-        }
-        res[packageSizeStr] = {valueList[0], valueList[1]};
-    }
-    return res;
-}
-
-std::string CommunicationRapidSaxHandler::TransPackageMapToStr(
-    std::unordered_map<std::string, PackageInfo> &packageMap) {
-    std::vector<std::string> packageStrList;
-    for (const auto &item : packageMap) {
-        std::string itemStr = StringUtil::FormatString("\"{}\":[{},{}]", item.first,
-            std::to_string(item.second.packageNumber), std::to_string(item.second.packageTime));
-        packageStrList.push_back(itemStr);
-    }
-    return "{" + StringUtil::join(packageStrList, ",") + "}";
-}
-
 bool CommunicationRapidSaxHandler::EndObject(rapidjson::SizeType memberCount) {
     if (ParserStatusManager::Instance().IsClusterParserFinalState(uniqueKey)) {
         return false;
@@ -289,29 +175,22 @@ bool CommunicationRapidSaxHandler::EndObject(rapidjson::SizeType memberCount) {
     }
     currentDepth--;
     DealData();
+    if (currentDepth == 0 && !SaveGroupInfoMap()) {
+        ServerLog::Error("Fail to insert duplicate update group info when parse communication data.");
+    }
     return true;
 }
 
 void CommunicationRapidSaxHandler::DealData() {
     if (currentDepth == infoDepth && std::strcmp(tableFlag.c_str(), "Communication Bandwidth Info") == 0) {
         GetBandwidth();
-        if (bandwidth.opSuffix != "") {
-            database->InsertBandwidth(bandwidth);
-        } else {
-            isOldData = true;
-        }
-        StatBandwidthTotalOpInfo(bandwidth);
+        database->InsertBandwidth(bandwidth);
         bandwidth = CommunicationBandWidth{};
     }
 
     if (currentDepth == tableFlagDepth && std::strcmp(tableFlag.c_str(), "Communication Time Info") == 0) {
         GetTimeInfo();
-        if (timeInfo.opSuffix != "") {
-            database->InsertTimeInfo(timeInfo);
-        } else {
-            isOldData = true;
-        }
-        StatTimeTotalOpInfo(timeInfo);
+        database->InsertTimeInfo(timeInfo);
         timeInfo = CommunicationTimeInfo{};
     }
     if (currentDepth == infoDepthSeven) {
@@ -319,21 +198,6 @@ void CommunicationRapidSaxHandler::DealData() {
             bandwidth.sizeDistribution.resize(bandwidth.sizeDistribution.size() - 1);
         }
         bandwidth.sizeDistribution += "}";
-        bandwidth.packageMap = TransStrToPackageMap(bandwidth.sizeDistribution);
-    }
-    if (currentDepth == 0) {
-        if (isOldData) {
-            for (auto &item : timeOpTotalInfoMap) {
-                database->InsertTimeInfo(item.second);
-            }
-            for (auto &item : bandwidthOpTotalInfoMap) {
-                item.second.sizeDistribution = TransPackageMapToStr(item.second.packageMap);
-                database->InsertBandwidth(item.second);
-            }
-        }
-        if (!SaveGroupInfoMap()) {
-            ServerLog::Error("Fail to insert duplicate update group info when parse communication data.");
-        }
     }
 }
 

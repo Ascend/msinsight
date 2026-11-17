@@ -68,10 +68,6 @@ class CommunicationMatrixRapidHandler
     uint32_t ranksDepth = 4;
     uint32_t stepSubLen = 4;
     std::string uniqueKey;
-    std::unordered_map<std::string, CommunicationMatrixInfo> matrixTotalOpInfoMap;
-
-    void StatTotalOpInfo(const CommunicationMatrixInfo &matrixInfo);
-    std::string GenerateMatrixKey(const CommunicationMatrixInfo &matrixInfo) const;
 };
 
 } // end of namespace Timeline

@@ -97,7 +97,7 @@
           }
         }
       },
-      "Total Op Info": {
+      "Total Op Info@13337953553061386822": {
         "0": {
           "Communication Time Info": {
             "Elapse Time(ms)": 0.89648691015625,
@@ -378,6 +378,106 @@
               "Bandwidth(GB/s)": 10.2412,
               "Large Packet Ratio": 0,
               "Size Distribution": {}
+            }
+          }
+        }
+      },
+      "Total Op Info@9350434047717501483": {
+        "0": {
+          "Communication Time Info": {
+            "Start Timestamp(us)": 0,
+            "Elapse Time(ms)": 5.5094875312500005,
+            "Transit Time(ms)": 0.00191950390625,
+            "Wait Time(ms)": 5.400175953125,
+            "Synchronization Time(ms)": 5.400175953125,
+            "Idle Time(ms)": 0.1073920742187503,
+            "Wait Time Ratio": 0.9996,
+            "Synchronization Time Ratio": 0.9996
+          },
+          "Communication Bandwidth Info": {
+            "RDMA": {
+              "Transit Size(MB)": 0,
+              "Transit Time(ms)": 0,
+              "Size Distribution": {},
+              "Bandwidth(GB/s)": 0
+            },
+            "HCCS": {
+              "Transit Size(MB)": 0.114576,
+              "Transit Time(ms)": 0.012336796875000002,
+              "Size Distribution": {
+                "0.015504": [
+                  1,
+                  0.00185951953125
+                ],
+                "0.016512": [
+                  6,
+                  0.010477277343749999
+                ]
+              },
+              "Bandwidth(GB/s)": 9.2873
+            },
+            "PCIE": {
+              "Transit Size(MB)": 0,
+              "Transit Time(ms)": 0,
+              "Size Distribution": {},
+              "Bandwidth(GB/s)": 0
+            },
+            "SDMA": {
+              "Transit Size(MB)": 0.114576,
+              "Transit Time(ms)": 0.012336796875000002,
+              "Size Distribution": {},
+              "Bandwidth(GB/s)": 9.2873
+            }
+          }
+        },
+        "1": {
+          "Communication Time Info": {
+            "Start Timestamp(us)": 0,
+            "Elapse Time(ms)": 9.49776,
+            "Transit Time(ms)": 0.00316,
+            "Wait Time(ms)": 3.99696,
+            "Synchronization Time(ms)": 3.99696,
+            "Idle Time(ms)": 5.497639999999999,
+            "Wait Time Ratio": 0.9992,
+            "Synchronization Time Ratio": 0.9992
+          },
+          "Communication Bandwidth Info": {
+            "RDMA": {
+              "Transit Size(MB)": 0,
+              "Transit Time(ms)": 0,
+              "Size Distribution": {},
+              "Bandwidth(GB/s)": 0
+            },
+            "HCCS": {
+              "Transit Size(MB)": 0.131128,
+              "Transit Time(ms)": 0.014419999999999999,
+              "Size Distribution": {
+                "4e-05": [
+                  1,
+                  0.00162
+                ],
+                "0.016512": [
+                  7,
+                  0.01114
+                ],
+                "0.015504": [
+                  1,
+                  0.00166
+                ]
+              },
+              "Bandwidth(GB/s)": 9.0935
+            },
+            "PCIE": {
+              "Transit Size(MB)": 0,
+              "Transit Time(ms)": 0,
+              "Size Distribution": {},
+              "Bandwidth(GB/s)": 0
+            },
+            "SDMA": {
+              "Transit Size(MB)": 0.131128,
+              "Transit Time(ms)": 0.014419999999999999,
+              "Size Distribution": {},
+              "Bandwidth(GB/s)": 9.0935
             }
           }
         }
