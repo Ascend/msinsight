@@ -183,6 +183,10 @@ export const SystemView = observer((props: any) => {
         return contentList[viewOption][key];
     }, [key, viewOption]);
     const [conditions, setConditions] = useState<SelectedCardInfo>(DEFAULT_CARD_VALUE);
+    // RankFilter reports the new selection after the expert view's first render.
+    const contentCard = viewOption === 1 && isRequestCardTypeMismatch(props.session, conditions, false)
+        ? DEFAULT_CARD_VALUE
+        : conditions;
     const handleChange = (card: SelectedCardInfo): void => {
         setConditions(card);
     };
@@ -202,6 +206,7 @@ export const SystemView = observer((props: any) => {
             <ViewSelect viewOption={viewOption} handleViewChange={handleViewChange}/>
             {viewOption !== 2 && (
                 <RankFilter
+                    key={isFtraceStatsItem ? 'ftrace' : 'profiling'}
                     session={props.session}
                     viewOption={viewOption}
                     handleChange={handleChange}
@@ -216,7 +221,7 @@ export const SystemView = observer((props: any) => {
                 {viewOption === 0 && key >= statsSystemViewItems.length
                     ? <TableDataView key={key - statsSystemViewItems.length} selectKey={key - statsSystemViewItems.length} card={conditions} session={props.session}
                         bottomHeight={props.bottomHeight}></TableDataView>
-                    : SelectContent && (<SelectContent key={key} card={conditions} session={props.session}
+                    : SelectContent && (<SelectContent key={key} card={contentCard} session={props.session}
                         bottomHeight={props.bottomHeight}></SelectContent>)}
             </SelectContentContainer>
         </ChartErrorBoundary>
