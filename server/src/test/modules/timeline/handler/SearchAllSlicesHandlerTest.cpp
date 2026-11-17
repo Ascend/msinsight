@@ -18,6 +18,8 @@
 
 #include "TimelineHandlerTestSupport.h"
 #include "SearchAllSlicesHandler.h"
+#include "SearchCountHandler.h"
+#include "SearchSliceHandler.h"
 
 namespace Dic::Module::Timeline::Test {
 class SearchAllSlicesHandlerTest : public TimelineHandlerDatabaseTest {
@@ -74,7 +76,55 @@ TEST_F(SearchAllSlicesHandlerTest, SortsBeforePaginationAndUsesExplicitDatabaseP
     EXPECT_EQ(response->body.count, 2U);
     ASSERT_EQ(response->body.searchAllSlices.size(), 1U);
     EXPECT_EQ(response->body.searchAllSlices[0].name, "MatMulGrad");
+    EXPECT_EQ(response->body.searchAllSlices[0].fileId, "request-file");
     EXPECT_EQ(response->body.dbPath, path);
+}
+
+TEST_F(SearchAllSlicesHandlerTest, ResolvesSearchHitsOnDerivedFtraceAndItsBaseline) {
+    const auto cachePath = AddDatabase("build");
+    ASSERT_FALSE(cachePath.empty());
+    AddSlices("build");
+    auto &manager = DataBaseManager::Instance();
+    manager.ReleaseDatabaseByFileId(cachePath);
+    const std::string sourceId = "source.db::msprof_ftrace";
+    const std::string baselineId = sourceId + "::baseline:7";
+    ASSERT_TRUE(manager.PublishDerivedTextTraceConnectionPool(sourceId, sourceId, cachePath));
+    ASSERT_TRUE(manager.AliasDerivedTextTraceConnectionPool(baselineId, baselineId, sourceId));
+
+    for (const auto &cardId : {sourceId, baselineId}) {
+        SCOPED_TRACE(cardId);
+        auto count = std::make_unique<Protocol::SearchCountRequest>();
+        count->params.rankId = cardId;
+        count->params.searchContent = "Mat";
+        ASSERT_TRUE(SearchCountHandler().HandleRequest(std::move(count)));
+        const auto *counts = session->Get<Protocol::SearchCountResponse>();
+        ASSERT_NE(counts, nullptr);
+        ASSERT_EQ(counts->body.countList.size(), 1U);
+        EXPECT_EQ(counts->body.totalCount, 2U);
+        const auto resultPath = counts->body.countList.front().dbPath;
+        EXPECT_EQ(resultPath, cardId);
+
+        auto slice = std::make_unique<Protocol::SearchSliceRequest>();
+        slice->params.rankId = cardId;
+        slice->params.dbPath = resultPath;
+        slice->params.searchContent = "Mat";
+        slice->params.index = 1;
+        ASSERT_TRUE(SearchSliceHandler().HandleRequest(std::move(slice)));
+        const auto *hit = session->Get<Protocol::SearchSliceResponse>();
+        ASSERT_NE(hit, nullptr);
+        EXPECT_EQ(hit->body.dbPath, cardId);
+        EXPECT_EQ(hit->body.id, "1");
+
+        auto page = Request();
+        page->params.rankId = cardId;
+        page->params.dbPath = cardId;
+        ASSERT_TRUE(SearchAllSlicesHandler().HandleRequest(std::move(page)));
+        const auto *hits = session->Get<Protocol::SearchAllSlicesResponse>();
+        ASSERT_NE(hits, nullptr);
+        EXPECT_EQ(hits->body.dbPath, cardId);
+        ASSERT_EQ(hits->body.searchAllSlices.size(), 1U);
+        EXPECT_EQ(hits->body.searchAllSlices.front().fileId, cardId);
+    }
 }
 
 TEST_F(SearchAllSlicesHandlerTest, EmptySearchFallsBackToSqlAndReturnsZeroCount) {

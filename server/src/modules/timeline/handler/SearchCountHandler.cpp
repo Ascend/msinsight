@@ -41,31 +41,17 @@ bool SearchCountHandler::HandleRequest(std::unique_ptr<Protocol::Request> reques
         return false;
     }
     std::vector<TrackQuery> trackQueryVec = GetTrackQueryVec(request, minTimestamp);
-    if (!request.params.metadataList.empty()) {
-        SearchResult searchResult;
-        searchResult.rankId = request.params.rankId;
-        auto database = request.params.dbPath.empty()
-            ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
-            : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
-        if (database != nullptr) {
-            searchResult.count = database->SearchSliceNameCount(request.params, trackQueryVec);
-            searchResult.dbPath = database->GetDbPath();
-        }
-        response.body.countList.emplace_back(searchResult);
-        response.body.totalCount = searchResult.count;
-    } else {
-        SearchResult searchResult;
-        searchResult.rankId = request.params.rankId;
-        auto database = request.params.dbPath.empty()
-            ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
-            : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
-        if (database != nullptr) {
-            searchResult.count = database->SearchSliceNameCount(request.params, {});
-            searchResult.dbPath = database->GetDbPath();
-        }
-        response.body.countList.emplace_back(searchResult);
-        response.body.totalCount = searchResult.count;
+    std::string derivedFileId;
+    auto database =
+        DataBaseManager::Instance().GetTraceDatabase(request.params.rankId, request.params.dbPath, &derivedFileId);
+    SearchResult searchResult;
+    searchResult.rankId = request.params.rankId;
+    if (database != nullptr) {
+        searchResult.count = database->SearchSliceNameCount(request.params, trackQueryVec);
+        searchResult.dbPath = derivedFileId.empty() ? database->GetDbPath() : derivedFileId;
     }
+    response.body.countList.emplace_back(searchResult);
+    response.body.totalCount = searchResult.count;
     SendResponse(std::move(responsePtr), true);
     return true;
 }

@@ -78,11 +78,7 @@ bool DataBaseManager::CreateTraceConnectionPool(const std::string &rankId, const
 
 std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByRankId(const std::string &rankId)
 {
-    std::string fileId = GetFileIdByRankId(rankId);
-    if (fileId.empty()) {
-        fileId = rankId;
-    }
-    return GetTraceDatabaseByFileId(fileId);
+    return GetTraceDatabase(rankId, {});
 }
 
 bool DataBaseManager::CreateDerivedTraceConnectionPool(
@@ -167,7 +163,18 @@ bool DataBaseManager::AliasDerivedTextTraceConnectionPool(
 
 std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByFileId(const std::string &fileId)
 {
+    return GetTraceDatabase({}, fileId);
+}
+
+std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabase(
+    const std::string &rankId, const std::string &dbPath, std::string *derivedFileId)
+{
     std::unique_lock<std::recursive_mutex> lock(mutex);
+    if (derivedFileId != nullptr) {
+        derivedFileId->clear();
+    }
+    const std::string sourceId = dbPath.empty() && !rankId.empty() ? GetFileIdByRankId(rankId) : dbPath;
+    const std::string &fileId = sourceId.empty() ? rankId : sourceId;
     auto it = traceDatabaseMap.find(fileId);
     if (it == traceDatabaseMap.end() && dbFilePathMap.count(fileId) != 0) {
         it = traceDatabaseMap.find(dbFilePathMap[fileId]);
@@ -186,8 +193,10 @@ std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByFileId(
         ServerLog::Error("Can't find connection pool. fileId:", fileId);
         return nullptr;
     }
-    auto ptr = it->second->GetConnection();
-    return ptr;
+    if (derivedFileId != nullptr && derivedTextFileIds.count(it->first) != 0) {
+        *derivedFileId = it->first;
+    }
+    return it->second->GetConnection();
 }
 
 std::weak_ptr<void> DataBaseManager::GetTraceDatabasePoolToken(const std::string &fileId)
