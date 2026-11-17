@@ -10,7 +10,7 @@ After importing profile data that contains NUMA metrics, you can view the NUMA h
 
 **Environment Preparation**
 
-Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 
 **Data Preparation**
 

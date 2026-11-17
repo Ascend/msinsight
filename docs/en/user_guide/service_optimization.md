@@ -8,7 +8,7 @@ MindStudio Insight displays the end-to-end request execution in the timeline vie
 
 **Environment Preparation**
 
-Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 
 **Data preparation**
 

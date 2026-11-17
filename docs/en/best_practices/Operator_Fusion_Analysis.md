@@ -44,7 +44,7 @@ Fusion operator performance analysis is recommended to be carried out in the fol
   ```
 
 - Install the msOpProf operator tuning tool. For detailed steps, see the [msOpProf Installation Guide](https://gitcode.com/Ascend/msopprof/blob/master/docs/en/install_guide/msopprof_install_guide.md).
-- Install MindStudio Insight. For detailed steps, see the [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+- Install MindStudio Insight. For detailed steps, see the [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 
 ### Obtaining and Compiling the Example Code
 

@@ -18,7 +18,7 @@ Based on your tuning objectives, you can refer to the following paths to focus y
 
 **Environment Setup**
 
-1. Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_guide.md).
+1. Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_overview.md).
 2. Install the msOpProf operator tuning tool. For detailed installation steps, see [msOpProf Installation Guide](https://gitcode.com/Ascend/msopprof/blob/master/docs/en/install_guide/msopprof_install_guide.md).
 
 **Data Collection**

@@ -10,7 +10,7 @@ NUMA（Non-Uniform Memory Access，非一致内存访问）分析用于展示CPU
 
 **环境准备**
 
-请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)。
+请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_overview.md)。
 
 **数据准备**
 

@@ -26,7 +26,7 @@
 
 **准备软件**
 
-- 下载MindStudio Insight工具并安装，请参见[MindStudio Insight安装指南](../../install_guide/mindstudio_insight_install_guide.md)。
+- 下载MindStudio Insight工具并安装，请参见[MindStudio Insight安装指南](../../install_guide/mindstudio_insight_install_overview.md)。
 - 安装msMemScope工具，安装操作请参见[msMemScope工具安装指南](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/install%5Fguide/install%5Fguide.md)。
 
 **准备数据**

@@ -26,7 +26,7 @@ For excessive memory usage or OOM on the device, the issue analysis process is a
 
 **Preparing Software**
 
-- Download and install MindStudio Insight. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_guide.md).
+- Download and install MindStudio Insight. For details, see [MindStudio Insight Installation Guide](../../install_guide/mindstudio_insight_install_overview.md).
 - Install the msMemScope tool. For details, see [msMemScope Installation Guide](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/install%5Fguide/install%5Fguide.md).
 
 **Preparing Data**

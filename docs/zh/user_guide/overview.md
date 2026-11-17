@@ -10,7 +10,7 @@ MindStudio Insight提供了丰富的调优分析手段，能够可视化呈现�
 
 使用 MindStudio Insight 进行性能分析时，通常按以下流程操作：
 
-1. **安装工具**：按照[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)完成安装。
+1. **安装工具**：按照[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_overview.md)完成安装。
 2. **采集数据**：使用 msProf、msOpProf、msMemScope 或服务化 Profiling 工具采集性能数据。
 3. **导入数据**：在 MindStudio Insight 中导入对应文件或目录，基础操作请参见[MindStudio Insight基础操作](./basic_operations.md)。
 4. **选择场景**：根据问题类型进入系统调优、算子调优、服务化调优或内存调优界面。
@@ -30,7 +30,7 @@ MindStudio Insight提供了丰富的调优分析手段，能够可视化呈现�
 
 | 资源 | 说明 |
 | --- | --- |
-| [MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md) | 安装、升级、卸载和完整性校验。 |
+| [MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_overview.md) | 安装、升级、卸载和完整性校验。 |
 | [版本发布说明](https://gitcode.com/Ascend/msinsight/releases) | MindStudio Insight 与 CANN 等组件的版本配套关系。 |
 | [FAQ](../support/faq.md) | 导入、显示、依赖、网络磁盘、JupyterLab 等常见问题。 |
 | [快速入门](../quick_start/system_tuning_quick_start.md) | 通过样例数据快速体验系统调优分析路径。 |

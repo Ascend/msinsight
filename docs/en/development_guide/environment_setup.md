@@ -2,7 +2,7 @@
 
 This document describes how to prepare the MindStudio Insight development environment, covering Linux, Windows, and macOS platforms. MindStudio Insight is a cross-platform tool, and the [Development Guide](./develop_guide.md) uses Linux as the primary platform by default to illustrate the rapid development workflow. Windows and macOS developers can refer to the corresponding platform sections in this document to complete environment preparation.
 
-> **NOTE** This document is intended for source code development and local debugging, and is not equivalent to the user installation guide. For user-side installation, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
+> **NOTE** This document is intended for source code development and local debugging, and is not equivalent to the user installation guide. For user-side installation, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_overview.md).
 
 ## 1. General Preparation
 

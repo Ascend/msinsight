@@ -8,7 +8,7 @@ MindStudio Insight工具以时间线（Timeline）的呈现方式，将请求端
 
 **环境准备**
 
-请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)。
+请先安装MindStudio Insight工具，具体安装步骤请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_overview.md)。
 
 **数据准备**
 
