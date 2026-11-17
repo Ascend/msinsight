@@ -94,6 +94,7 @@ class TextClusterDatabase : public VirtualClusterDatabase {
     std::map<std::string, std::string> QueryBaseInfoByKeys(const std::vector<std::string> &keys) override;
     bool InsertDuplicateUpdateBaseInfo(const std::map<std::string, std::string> &baseInfoMap) override;
 
+    std::unordered_map<std::string, int64_t> GetAllGroupMap();
     std::vector<CommGroupParallelInfo> GetAllGroupInfo();
     bool QueryAllPerformanceDataByStep(
         const std::string &step, std::unordered_map<std::uint32_t, StepStatistic> &data) override;
