@@ -331,6 +331,15 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
     return flowLocations;
 }
 
+namespace {
+// 基线前缀仅用于展示身份；比较设备归属时忽略它，返回端点仍保留原始身份。
+std::string_view UnitFlowRank(const std::string &rankId) {
+    constexpr std::string_view prefix = "Baseline_";
+    const std::string_view rank = rankId;
+    return rank.substr(0, prefix.size()) == prefix ? rank.substr(prefix.size()) : rank;
+}
+}
+
 bool DbTraceDataBase::QueryUnitHostToDeviceGraphFlows(const Protocol::UnitFlowsParams &requestParams,
     Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp, const std::string &connectionId,
     const std::vector<FlowLocation> &sources) {
@@ -343,7 +352,7 @@ bool DbTraceDataBase::QueryUnitHostToDeviceGraphFlows(const Protocol::UnitFlowsP
     // 与其他单算子类别一样只返回一条模型关系。查询已按开始时间排序；Hardware 选择必须保留所选任务。
     const auto &source = sources.front();
     const auto target = std::find_if(targets.begin(), targets.end(), [&](const auto &item) {
-        return source.rankId == item.rankId &&
+        return UnitFlowRank(source.rankId) == UnitFlowRank(item.rankId) &&
             (requestParams.metaType != "Ascend Hardware" || item.id == requestParams.id);
     });
     if (target == targets.end()) {
@@ -352,6 +361,22 @@ bool DbTraceDataBase::QueryUnitHostToDeviceGraphFlows(const Protocol::UnitFlowsP
     UnitSingleFlow flow{.cat = "HostToDevice(Graph)", .id = connectionId, .from = source, .to = *target};
     responseBody.unitAllFlows.push_back({.cat = flow.cat, .flows = {flow}});
     return true;
+}
+
+namespace {
+// 单算子查询只保留一个设备端点；反向追溯必须保留用户实际点击的任务，不能机械取首条。
+std::vector<FlowLocation> SelectUnitFlowEndpoint(
+    const std::vector<FlowLocation> &locations, const Protocol::UnitFlowsParams &params, const std::string &metaType) {
+    const bool selectedEndpoint = params.metaType == metaType;
+    const auto requestRank = UnitFlowRank(params.rankId);
+    const auto endpoint = std::find_if(locations.begin(), locations.end(), [&](const auto &location) {
+        return UnitFlowRank(location.rankId) == requestRank && (!selectedEndpoint || location.id == params.id);
+    });
+    if (endpoint == locations.end()) {
+        return {};
+    }
+    return {*endpoint};
+}
 }
 
 // 先查找是否有MSTX类型连线，有的话一定是MSTX类型连线
@@ -390,7 +415,10 @@ bool DbTraceDataBase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestPar
     std::vector<FlowLocation> mstxFlowLocationList = ExecuteQueryUnitFlowsForTable(
         requestParams, {"MSTX_EVENTS", MSTX_UNIT_FLOW_SQL}, minTimestamp, connectionId.value(), deviceIdList);
 
-    if (AssembleUnitFlowOfTypeMSTX(mstxFlowLocationList, taskFlowLocationList, connectionId.value(), responseBody)) {
+    const auto singleTaskLocations = SelectUnitFlowEndpoint(taskFlowLocationList, requestParams, "Ascend Hardware");
+    const auto singleCommunicationLocations =
+        SelectUnitFlowEndpoint(communicationOpFlowLocationList, requestParams, "HCCL");
+    if (AssembleUnitFlowOfTypeMSTX(mstxFlowLocationList, singleTaskLocations, connectionId.value(), responseBody)) {
         return true;
     }
     // 图回放只替代 CANN→Hardware 这一条关系，不能提前返回而丢掉并行的 Python/通信连线。
@@ -399,7 +427,7 @@ bool DbTraceDataBase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestPar
         QueryUnitHostToDeviceGraphFlows(
             requestParams, graphBody, minTimestamp, connectionId.value(), cannFlowLocationList);
     const bool hasLegacy = AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommunication(pytorchFlowLocationList,
-                               cannFlowLocationList, taskFlowLocationList, communicationOpFlowLocationList,
+                               cannFlowLocationList, singleTaskLocations, singleCommunicationLocations,
                                connectionId.value(), responseBody, hasGraph) ||
         AssembleUnitFlowOfTypeAsyncTaskQueue(pytorchFlowLocationList, connectionId.value(), responseBody) ||
         AssembleUnitFlowOfTypeFwdBwd(pytorchFlowLocationList, connectionId.value(), responseBody);
@@ -421,7 +449,7 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypeMSTX(const std::vector<FlowLocation>
     // 要求rankId相等是为了解决PyTorch多device场景如下问题：
     // 某个Host侧算子只会和特定deviceId（比如0）的Device侧算子连线
     // 但是对于其它deviceId（比如1），QueryUnitFlows()的SQL也会查询出deviceId=0的该算子，导致界面上deviceId=1也显示连线，但连线末端无算子
-    if (mstxFlowLocationList[0].rankId != taskFlowLocationList[0].rankId) {
+    if (UnitFlowRank(mstxFlowLocationList[0].rankId) != UnitFlowRank(taskFlowLocationList[0].rankId)) {
         return false;
     }
     // MSTX类型连线只允许一对一
@@ -445,12 +473,13 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
     }
     bool hasCANNToHardware = false;
     if (!cannFlowLocationList.empty()) {
-        // HostToDevice类型连线每个泳道只取第一个算子，避免出现aclgraph等场景TASK表同connectionId的算子过多导致返回前端连线过多，界面卡死的问题
+        // 单算子查询的设备候选已收敛为一个：点击设备保留所选任务，点击Host取首个匹配任务，避免连线膨胀。
         // 要求rankId相等是为了解决PyTorch多device场景如下问题：
         // 某个Host侧算子只会和特定deviceId（比如0）的Device侧算子连线
         // 但是对于其它deviceId（比如1），QueryUnitFlows()的SQL也会查询出deviceId=0的该算子，导致界面上deviceId=1也显示连线，但连线末端无算子
         std::vector<UnitSingleFlow> flows;
-        if (!taskFlowLocationList.empty() && cannFlowLocationList[0].rankId == taskFlowLocationList[0].rankId) {
+        if (!taskFlowLocationList.empty() &&
+            UnitFlowRank(cannFlowLocationList[0].rankId) == UnitFlowRank(taskFlowLocationList[0].rankId)) {
             hasCANNToHardware = true;
             // 图回放已提供此边时不重复生成；通信及 Python 下发关系仍照常组装。
             if (!skipCANNToHardware) {
@@ -462,7 +491,7 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
             }
         }
         if (!communicationOpFlowLocationList.empty() &&
-            cannFlowLocationList[0].rankId == communicationOpFlowLocationList[0].rankId) {
+            UnitFlowRank(cannFlowLocationList[0].rankId) == UnitFlowRank(communicationOpFlowLocationList[0].rankId)) {
             UnitSingleFlow singleFlow{.cat = "HostToDevice",
                 .id = connectionId,
                 .from = cannFlowLocationList[0],
@@ -474,12 +503,13 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
         }
     }
     if (!pytorchFlowLocationList.empty()) {
-        // async_npu类型连线每个泳道只取第一个算子，避免出现aclgraph等场景TASK表同connectionId的算子过多导致返回前端连线过多，界面卡死的问题
+        // Python下发关系复用同一个设备候选，保留实际选中的任务且不展开全部任务。
         // 要求rankId相等是为了解决PyTorch多device场景如下问题：
         // 某个Host侧算子只会和特定deviceId（比如0）的Device侧算子连线
         // 但是对于其它deviceId（比如1），QueryUnitFlows()的SQL也会查询出deviceId=0的该算子，导致界面上deviceId=1也显示连线，但连线末端无算子
         std::vector<UnitSingleFlow> flows;
-        if (!taskFlowLocationList.empty() && pytorchFlowLocationList[0].rankId == taskFlowLocationList[0].rankId) {
+        if (!taskFlowLocationList.empty() &&
+            UnitFlowRank(pytorchFlowLocationList[0].rankId) == UnitFlowRank(taskFlowLocationList[0].rankId)) {
             UnitSingleFlow singleFlow{.cat = "async_npu",
                 .id = connectionId,
                 .from = pytorchFlowLocationList[0],
@@ -487,7 +517,8 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
             flows.push_back(singleFlow);
         }
         if (!communicationOpFlowLocationList.empty() &&
-            pytorchFlowLocationList[0].rankId == communicationOpFlowLocationList[0].rankId) {
+            UnitFlowRank(pytorchFlowLocationList[0].rankId) ==
+                UnitFlowRank(communicationOpFlowLocationList[0].rankId)) {
             UnitSingleFlow singleFlow{.cat = "async_npu",
                 .id = connectionId,
                 .from = pytorchFlowLocationList[0],

@@ -1809,6 +1809,37 @@ TEST_F(GraphUnitFlowsTest, ModelExecuteUnitFlowsUseModelTaskAndSignedIdsForBothS
     }
 }
 
+TEST_F(GraphUnitFlowsTest, BaselineGraphPreservesCategorySelectedTaskAndDeviceIsolation) {
+    Load("INSERT INTO STRING_IDS(id,value) VALUES(13,'MODEL_EXECUTE'),(14,'NOTIFY_WAIT'),(15,'replay');"
+         "INSERT INTO CANN_API(startNs,endNs,type,globalTid,connectionId,name,depth) "
+         "VALUES(110,120,20000,4294967298,7,15,2);"
+         "INSERT INTO TASK(startNs,endNs,deviceId,connectionId,globalTaskId,globalPid,taskType,streamId,depth) "
+         "VALUES(125,129,15,7,1,1,14,46,0),(130,150,15,7,2,1,13,46,4),"
+         "(140,160,15,7,3,1,13,47,4),(120,140,16,7,4,1,13,46,4);"
+         "INSERT INTO RANK_DEVICE_MAP(rankId,deviceId) VALUES(15,15),(16,16);");
+    for (const std::string rank : {"15", "Baseline_15"}) {
+        SCOPED_TRACE(rank);
+        params.rankId = rank;
+        // Host选择首个有效模型任务，Device选择保留后续模型任务，不能回退为普通连线。
+        for (const auto &[type, selected, target] : std::vector<std::array<std::string, 3>>{
+                 {"CANN_API", "7", "2"}, {"Ascend Hardware", "3", "3"}}) {
+            SCOPED_TRACE(type);
+            ASSERT_TRUE(Query(type, selected, {{"HostToDevice(Graph)", 1}}));
+            const auto &flow = body.unitAllFlows[0].flows[0];
+            EXPECT_EQ(flow.to.id, target);
+            EXPECT_EQ(flow.to.name, "MODEL_EXECUTE");
+            EXPECT_EQ(flow.from.rankId, rank);
+            EXPECT_EQ(flow.to.rankId, "15");
+        }
+        // 去除展示前缀不能放宽设备匹配，也不能回退到当前卡的其他模型任务。
+        params.metaType = "Ascend Hardware";
+        params.id = "4";
+        body.unitAllFlows.clear();
+        EXPECT_FALSE(database.QueryUnitFlows(params, body, 100, 0));
+        EXPECT_TRUE(body.unitAllFlows.empty());
+    }
+}
+
 TEST_F(GraphUnitFlowsTest, GraphReturnsOneTargetAndPreservesSelectedHardwareTask) {
     Load("INSERT INTO STRING_IDS(id,value) VALUES(13,'MODEL_EXECUTE'),(14,'NOTIFY_WAIT'),(15,'replay');"
          "INSERT INTO CANN_API(startNs,endNs,type,globalTid,connectionId,name,depth) "
@@ -1839,10 +1870,20 @@ TEST_F(GraphUnitFlowsTest, GraphReturnsOneTargetAndPreservesSelectedHardwareTask
             EXPECT_EQ(flow.to.name, "MODEL_EXECUTE");
             EXPECT_EQ(flow.to.rankId, "15");
         }
-        // 等待任务、错误进程和不匹配卡片都不能借用别的模型终点冒充 Graph。
-        for (const auto *invalid : {"1", "6", "7"}) {
+        // 同卡的等待任务和不满足Graph条件的任务仍保留legacy关系，终点必须是所选任务。
+        for (const auto *invalid : {"1", "6"}) {
+            SCOPED_TRACE(invalid);
             ASSERT_TRUE(Query("Ascend Hardware", invalid, {{"HostToDevice", 1}}));
+            const auto &flow = body.unitAllFlows[0].flows[0];
+            EXPECT_EQ(flow.to.id, invalid);
+            EXPECT_EQ(flow.to.rankId, "15");
         }
+        // 卡15请求不能借用卡16的任务，也不能回退到卡15的其他任务冒充所选端点。
+        params.metaType = "Ascend Hardware";
+        params.id = "7";
+        body.unitAllFlows.clear();
+        EXPECT_FALSE(database.QueryUnitFlows(params, body, 100, 0));
+        EXPECT_TRUE(body.unitAllFlows.empty());
     }
 }
 
@@ -2351,6 +2392,51 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromPyTorchToAscendHardware) {
     EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].from.timestamp, 20); // 20
     EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].to.timestamp, 80); // 80
     RestoreRepoFunc();
+
+    // 点击后续设备任务时，仍只返回一条线，但端点必须是实际选中的任务。
+    requestParams.id = "2";
+    Dic::Protocol::UnitFlowsBody selectedBody;
+    MockNpuInfoRepoFunc();
+    const bool selectedResult = database.QueryUnitFlows(requestParams, selectedBody, 0, 0);
+    RestoreRepoFunc();
+    ASSERT_TRUE(selectedResult);
+    ASSERT_EQ(selectedBody.unitAllFlows.size(), 1);
+    ASSERT_EQ(selectedBody.unitAllFlows[0].flows.size(), 1);
+    EXPECT_EQ(selectedBody.unitAllFlows[0].flows[0].from.timestamp, 20);
+    EXPECT_EQ(selectedBody.unitAllFlows[0].flows[0].to.id, "2");
+    EXPECT_EQ(selectedBody.unitAllFlows[0].flows[0].to.timestamp, 90);
+
+    // 点击Host侧仍使用首个符合条件的任务，不展开同connectionId的全部任务。
+    requestParams.id = "1";
+    requestParams.metaType = "PYTORCH_API";
+    Dic::Protocol::UnitFlowsBody hostBody;
+    MockNpuInfoRepoFunc();
+    const bool hostResult = database.QueryUnitFlows(requestParams, hostBody, 0, 0);
+    RestoreRepoFunc();
+    ASSERT_TRUE(hostResult);
+    ASSERT_EQ(hostBody.unitAllFlows.size(), 1);
+    ASSERT_EQ(hostBody.unitAllFlows[0].flows.size(), 1);
+    EXPECT_EQ(hostBody.unitAllFlows[0].flows[0].to.id, "1");
+    EXPECT_EQ(hostBody.unitAllFlows[0].flows[0].to.timestamp, 80);
+
+    // 基线卡展示ID带前缀，但数据库设备rank不带；两个方向都必须保留连线。
+    requestParams.rankId = "Baseline_0";
+    for (const auto &metaType : {"PYTORCH_API", "Ascend Hardware"}) {
+        requestParams.metaType = metaType;
+        requestParams.id = requestParams.metaType == "Ascend Hardware" ? "2" : "1";
+        Dic::Protocol::UnitFlowsBody baselineBody;
+        MockNpuInfoRepoFunc();
+        const bool baselineResult = database.QueryUnitFlows(requestParams, baselineBody, 0, 0);
+        RestoreRepoFunc();
+        ASSERT_TRUE(baselineResult);
+        ASSERT_EQ(baselineBody.unitAllFlows.size(), 1);
+        EXPECT_EQ(baselineBody.unitAllFlows[0].cat, "async_npu");
+        ASSERT_EQ(baselineBody.unitAllFlows[0].flows.size(), 1);
+        EXPECT_EQ(baselineBody.unitAllFlows[0].flows[0].to.id, requestParams.id);
+        EXPECT_EQ(baselineBody.unitAllFlows[0].flows[0].to.timestamp,
+            requestParams.metaType == "Ascend Hardware" ? 90 : 80);
+    }
+
 }
 
 // MSTX连线，修改前和修改后都能通过，只允许一对一
