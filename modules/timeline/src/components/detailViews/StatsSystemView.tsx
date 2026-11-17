@@ -45,6 +45,7 @@ import { FtraceTaskSummary } from './FtraceTaskSummary';
 import { isFullDbCard } from '../../utils/cardDataType';
 import { KernelMfuTable } from './KernelMfuTable';
 import { FreeAttribution } from './FreeAttribution';
+import { AICoreFrequencyStatistics } from './AICoreFrequencyStatistics';
 
 const filterColumn = [
     'name', 'type', 'acceleratorCore', 'taskId', 'inputShapes', 'inputDataTypes',
@@ -229,4 +230,5 @@ export const StatsSystemView = [
     MemcpyOverallMetrics,
     KernelMfuTable,
     FtraceTaskSummary,
+    AICoreFrequencyStatistics,
 ];

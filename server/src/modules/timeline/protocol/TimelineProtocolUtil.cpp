@@ -549,6 +549,10 @@ std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>(const ExpAnaA
     JsonUtil::AddMember(body, "tid", response.body.tid, allocator);
     JsonUtil::AddMember(body, "hasProblem", response.body.hasProblem, allocator);
     JsonUtil::AddMember(body, "percent", response.body.percent, allocator);
+    JsonUtil::AddMember(body, "avgFreq", response.body.avgFreq, allocator);
+    JsonUtil::AddMember(body, "sampleCount", response.body.sampleCount, allocator);
+    JsonUtil::AddMember(body, "minFreq", response.body.minFreq, allocator);
+    JsonUtil::AddMember(body, "maxFreq", response.body.maxFreq, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }

@@ -18,6 +18,7 @@
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
 #include "QueryExpAnaAICoreFreqHandler.h"
+#include "TraceTime.h"
 
 namespace Dic {
 namespace Module {
@@ -30,6 +31,15 @@ bool QueryExpAnaAICoreFreqHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     std::unique_ptr<ExpAnaAICoreFreqResponse> responsePtr = std::make_unique<ExpAnaAICoreFreqResponse>();
     ExpAnaAICoreFreqResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
+    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
+    if (request.params.startTime > request.params.endTime || request.params.endTime > UINT64_MAX - minTimestamp ||
+        (request.params.hasCounterRange &&
+            (request.params.counterStartTime > request.params.counterEndTime ||
+                request.params.counterEndTime > UINT64_MAX - minTimestamp))) {
+        SetTimelineError(ErrorCode::QUERY_AI_CORE_FREQ_FAILED);
+        SendResponse(std::move(responsePtr), false);
+        return false;
+    }
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
     if (database == nullptr) {
         ServerLog::Error("Query system view AI core freq failed to get connection.");
@@ -48,7 +58,8 @@ bool QueryExpAnaAICoreFreqHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     uint64_t maxFreq = 0;
     uint64_t minFreq = UINT64_MAX;
     std::vector<std::pair<uint64_t, uint64_t>> freqs;
-    if (!database->QueryExpAnaAICoreFreqData(request.params, response.body, freqs, maxFreq, minFreq) || freqs.empty()) {
+    if (!database->QueryExpAnaAICoreFreqData(request.params, response.body, freqs, maxFreq, minFreq) ||
+        (!request.params.statisticsOnly && freqs.empty())) {
         SetTimelineError(ErrorCode::QUERY_AI_CORE_FREQ_FAILED);
         SetResponseResult(response, false);
         ServerLog::Error("Failed to get system view AI core freq table response data.");
@@ -56,7 +67,7 @@ bool QueryExpAnaAICoreFreqHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     }
     auto dbType = Timeline::DataBaseManager::Instance().GetDataType(request.fileId);
     response.body.rankId = dbType == Timeline::DataType::TEXT ? request.params.rankId : database->GetDbPath();
-    if (maxFreq != 0) {
+    if (!request.params.statisticsOnly && maxFreq != 0) {
         // 计算百分比需要乘以100
         response.body.percent = static_cast<uint64_t>(((float)(maxFreq - minFreq) / (float)maxFreq) * 100);
     }

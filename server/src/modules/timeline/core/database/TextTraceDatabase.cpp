@@ -22,6 +22,7 @@
 #include "TraceDatabaseHelper.h"
 #include "TraceDatabaseSqlConst.h"
 #include "TraceTime.h"
+#include "AICoreFreqRange.h"
 #include "TrackInfoManager.h"
 #include "FullDbEnumUtil.h"
 #include "TextTraceDatabase.h"
@@ -1709,17 +1710,64 @@ bool TextTraceDatabase::QuerySystemViewData(const Protocol::SystemViewParams &re
 bool TextTraceDatabase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICoreFreqParams &requestParams,
     Protocol::ExpAnaAICoreFreqBody &responseBody, std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq,
     uint64_t &minFreq) {
-    std::string sql = TextSqlConstant::GetAICoreViewDataSql();
+    const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
+    const bool hasRange = requestParams.hasTimeRange || requestParams.startTime != 0 || requestParams.endTime != 0;
+    const bool hasLane = requestParams.statisticsOnly && !requestParams.laneName.empty();
+    const bool hasCounterRange = requestParams.statisticsOnly && requestParams.hasCounterRange;
+    const int deviceId = StringUtil::StringToInt(requestParams.deviceId);
+    uint64_t rangeStart = requestParams.startTime + minTimestamp;
+    uint64_t rangeEnd = requestParams.endTime + minTimestamp;
+    uint64_t previous = rangeStart, first = UINT64_MAX, last = 0;
+    if (hasRange && requestParams.statisticsOnly) {
+        const std::string scope = std::string(hasLane ? "name = ? AND pid = ? " :
+            "(pid & 0x1f) = ? AND name LIKE '%AI Core Freq%' ") +
+            std::string(hasCounterRange ? "AND timestamp BETWEEN ? AND ? " : "");
+        auto bounds = CreatPreparedStatement("SELECT COALESCE((SELECT MAX(timestamp) FROM counter WHERE " + scope +
+            "AND timestamp <= ?), ?), (SELECT MAX(timestamp) FROM counter WHERE " + scope +
+            "), (SELECT MIN(timestamp) FROM counter WHERE " + scope + ")");
+        if (bounds == nullptr) { return false; }
+        const auto bindScope = [&]() {
+            if (hasLane) { bounds->BindParams(requestParams.laneName, requestParams.lanePid); }
+            else { bounds->BindParams(deviceId); }
+            if (hasCounterRange) {
+                bounds->BindParams(requestParams.counterStartTime + minTimestamp, requestParams.counterEndTime + minTimestamp);
+            }
+        };
+        bindScope();
+        bounds->BindParams(rangeStart, rangeStart);
+        bindScope();
+        bindScope();
+        auto limits = bounds->ExecuteQuery();
+        if (limits == nullptr || !limits->Next()) { return false; }
+        previous = limits->GetUint64(resultStartIndex);
+        last = limits->GetUint64(resultStartIndex + 1);
+        first = limits->GetUint64(resultStartIndex + 2);
+        if (!ResolveAICoreFreqRange(requestParams, minTimestamp, previous, last, rangeStart, rangeEnd, first)) { return true; }
+    }
+    std::string sql = TextSqlConstant::GetAICoreViewDataSql(hasRange, requestParams.statisticsOnly, hasLane, hasCounterRange);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query system view AI core freq data, fail to prepare sql.");
         return false;
     }
-    auto resultSet = stmt->ExecuteQuery(StringUtil::StringToInt(requestParams.deviceId));
+    if (!hasLane) {
+        stmt->BindParams(deviceId);
+    }
+    if (hasCounterRange) {
+        stmt->BindParams(requestParams.counterStartTime + minTimestamp, requestParams.counterEndTime + minTimestamp);
+    }
+    if (hasRange) {
+        stmt->BindParams(rangeStart, rangeEnd);
+    }
+    if (hasLane) {
+        stmt->BindParams(requestParams.laneName, requestParams.lanePid);
+    }
+    auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Error("Query system view AI core freq data. Failed to get result set.", stmt->GetErrorMessage());
         return false;
     }
+    AICoreFreqSamples samples(requestParams, minTimestamp, first, last, hasRange && requestParams.statisticsOnly);
     while (resultSet->Next()) {
         std::pair<uint64_t, uint64_t> detail;
         int col = resultStartIndex;
@@ -1727,6 +1775,9 @@ bool TextTraceDatabase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICo
         rapidjson::Document jsonArgs;
         if (jsonArgs.Parse(resultSet->GetString(col++).c_str()).HasParseError()) {
             ServerLog::Error("Parse AI core freq data Failed.");
+            if (requestParams.statisticsOnly) {
+                return false;
+            }
             break;
         }
         // 确保 "MHz" 键存在且类型正确
@@ -1735,14 +1786,19 @@ bool TextTraceDatabase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICo
             detail.second = temp < 0 ? 0 : temp;
         } else {
             ServerLog::Error("Invalid AI core freq data structure detected.");
+            if (requestParams.statisticsOnly) {
+                return false;
+            }
             break;
         }
         responseBody.pid = resultSet->GetString(col++);
         responseBody.tid = resultSet->GetString(col++);
-        maxFreq = std::max(maxFreq, detail.second);
-        minFreq = std::min(minFreq, detail.second);
-        freqs.emplace_back(detail);
+        samples.Add(detail.first, detail.second);
+        if (!requestParams.statisticsOnly) {
+            freqs.emplace_back(detail);
+        }
     }
+    samples.Write(responseBody, maxFreq, minFreq, requestParams.statisticsOnly);
     return true;
 }
 

@@ -198,6 +198,10 @@ export class Domain {
         this._realTimeUpdate = realTimeUpdate;
     }
 
+    get chartViewWidth(): number {
+        return this._chartViewWidth;
+    }
+
     set chartViewWidth(width: number) {
         if (width === this._chartViewWidth) { return; }
         if (this._chartViewWidth !== 0) {

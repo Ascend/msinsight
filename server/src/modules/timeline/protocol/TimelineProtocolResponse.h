@@ -386,6 +386,10 @@ struct ExpAnaAICoreFreqBody {
     std::string tid;
     bool hasProblem = false;
     uint64_t percent = 0;
+    double avgFreq = 0;
+    uint64_t sampleCount = 0;
+    uint64_t minFreq = 0;
+    uint64_t maxFreq = 0;
 };
 
 struct ExpAnaAICoreFreqResponse : public Response {

@@ -271,6 +271,7 @@ export interface InsightUnit extends InsightUnitParams<MetaDataBase, Record<stri
     isAutoMergedUnit?: boolean; // 是否由导入时的自动合并配置生成
     isSummaryLoading: boolean; // 泳道缩略图是否加载中
     isTraceLoading: boolean; // 泳道内容是否加载中
+    counterRenderWidth?: number; // 实际填充折线画布宽度，用于统计末点像素边界
     parent?: InsightUnit;
     isParseLoading: boolean;
     isWaitingParseSuccessEvent: boolean; // 后端解析已完成，等待 parse/success 事件返回
@@ -345,6 +346,7 @@ Omit<InsightUnitParams<T, Record<string, unknown>, Record<string, unknown>, Reco
         isAutoMergedUnit = false;
         isSummaryLoading: boolean = false; // 泳道缩略图是否加载中
         isTraceLoading: boolean = false;
+        counterRenderWidth: number = 0;
         type = 'basic' as const;
         pinType = params.pinType ?? 'copied';
         name = params.name;
