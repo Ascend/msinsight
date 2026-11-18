@@ -22,6 +22,16 @@ HTTP 状态码、错误码、`saved` 等业务字段保持不变。前端不拼�
 - 动画直接更新 Canvas，静止后停止请求动画帧；隐藏或卸载时取消延迟任务和动画帧。主题切换只重绘，不重新生成点阵纹理。
 - `src/hooks/useChatState.tsx` 为首次发送分配独立临时会话记录，收到真实 ID 后迁移对应队列、配置和提示；仅在该临时会话仍被选中时更新当前会话 ID。
 
+## 高级会话导出 / Advanced session export
+
+工具栏统一的导出图标打开二级菜单：“导出当前会话”保留单会话快捷操作，“导出历史会话”打开筛选与预览。历史筛选分为三个区域：已接入 ACP Agent 多选（默认全选，清空后不能查询）、更新时间范围、会话标题。时间支持近一天/近一周/近一个月（分别为滚动 1/7/30 × 24 小时），也可自由指定起止时间；自定义控件显示浏览器本地时区，提交为带时区的 ISO 时间。所有时间条件使用 `updatedAt`，包含起止两个端点。标题搜索不区分大小写，支持普通子串和有序非连续字符（`ds` 匹配 `deepseek`），空白分隔的多个词以 AND 组合；不搜索正文或隐藏上下文。预览遍历后端全部分页，可导出全部匹配或跨页勾选部分记录。
+
+导出不会切换或中断当前聊天。正在生成的会话、能力不支持、读取失败、未知日期及容量限制会明确列出，可导出部分成功结果。修改筛选或快照过期后须重新查询。一个批量 JSON 文件包含 Agent 归属、会话 ID、归一化消息、逐会话 Markdown 和诊断；桌面保存至下载目录，浏览器/Jupyter 发起一次下载。原有单会话快捷导出不变。接口和数据格式见 [InsightAgentBridge](../../docs/zh/development_guide/design/InsightAgentBridge.md#462-高级批量导出)。
+
+历史列表中可点击重命名图标编辑标题，Enter/保存提交，Escape/取消放弃。标题为 1–200 个字符，在当前 Host 的 `ACP_ROOT/session-titles.json` 按 `(agentId, sessionId)` 持久化；刷新、重启和 Agent 切换后仍有效，标题筛选及导出沿用新标题。保存失败不更新界面，自动生成的标题不会覆盖人工标题。改名是本应用的展示元数据，不假定第三方 ACP 支持改名，也不修改外部 Agent 原始会话或会话更新时间；不切换/重载对话。
+
+**English:** The export icon opens a menu for the current conversation or historical conversations. History filters combine available ACP owners (all selected by default), an inclusive **updatedAt** range (rolling 1/7/30 days or custom local-zone endpoints serialized to ISO), and title-only, case-insensitive ordered-character matching (`ds` → `deepseek`; whitespace-separated tokens are ANDed). Body text is not searched. Preview scans every backend cursor page; export all snapshot matches or select across display pages without switching chat, Agent or drafts. Unsupported/busy histories and other omissions remain explicit. One uniquely named JSON retains ownership, normalized UI history and Markdown. History rows also offer persistent app-owned titles, scoped by owner/session under `ACP_ROOT/session-titles.json`, used in searches and exports; external ACP history is not rewritten. Requery after filter changes or snapshot expiry. This is not a lossless raw model-context backup.
+
 ## 验证
 
 在 `modules/insight_web_agent` 目录运行：
@@ -29,7 +39,12 @@ HTTP 状态码、错误码、`saved` 等业务字段保持不变。前端不拼�
 ```sh
 CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --runTestsByPath src/test/components/welcomeDotsEffect.test.ts src/test/components/WelcomeDots.test.tsx src/test/components/WelcomePanel.test.tsx src/test/components/ChatPanel.test.tsx
 CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --runTestsByPath src/test/hooks/useChatState.sessions.test.tsx
+node --test server/test/services/sessionBatchExport.test.mjs server/test/services/sessionExportSource.test.mjs server/test/services/sessionRename.test.mjs server/test/native-agent/nativeSessionExport.test.mjs server/test/controllers/sessionBatchExportController.test.mjs
+CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --no-cache --runTestsByPath src/test/components/SessionBatchExportDialog.test.tsx src/test/components/SessionSidebar.test.tsx src/test/components/SessionHistoryPopover.test.tsx src/test/api.sessionExport.test.ts src/test/api.sessionRename.test.ts src/test/sessionExportDownload.test.ts
+node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json --jsx react-jsx
 ```
+
+独立类型检查显式指定与 CRA 一致的 automatic JSX runtime：当前基础 `tsconfig.json` 的 `jsx: react` 与 `jsxImportSource` 组合会触发 TS5089；上述命令不改写源配置。构建或复用共享依赖时，缓存与构建输出应放在当前工作树，不能写入共享 `node_modules`。
 
 手动检查深浅主题下的首次显示、新建对话、抽屉重新打开、鼠标经过与移出，以及窄窗口中的背景对齐和引导按钮点击。开启系统“减少动态效果”后确认波纹与悬停动画停止。
 

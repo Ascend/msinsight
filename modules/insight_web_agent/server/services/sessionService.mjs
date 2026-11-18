@@ -20,12 +20,18 @@ import { supportsSessionDelete, supportsSessionList, supportsSessionLoad, suppor
 import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setConfigOptions } from "./configOptionService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 import { buildSessionExport, writeSessionExport } from "./sessionExport.mjs";
+import { validSessionTitle } from "./sessionTitleStore.mjs";
 
-export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration, permissionService }) => {
+export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration, permissionService, titleStore }) => {
     let mutationQueue = Promise.resolve();
     const configSessionIds = new Set();
 
     const getAgentCwd = () => config.cwd;
+    const sessionTitle = (sessionId, fallback) => {
+        const custom = titleStore?.resolve(state.activeAgentName, sessionId);
+        if (custom !== undefined) state.customTitles.set(sessionId, custom);
+        return custom ?? state.localTitles.get(sessionId) ?? fallback;
+    };
     const manager = sessionManager ?? {
         async startSession() {
             const create = (mcpServers) => acpClient.request("session/new", {
@@ -82,13 +88,17 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         }
 
         console.log(`Listing remote sessions: cwd=${getAgentCwd()}`);
+        const listingOwner = state.activeAgentName;
+        const listingContexts = state.sessionContexts;
         const response = await acpClient.request("session/list", { cwd: getAgentCwd() });
+        // A late list from a previous runtime must not authorize rename under the new owner.
+        if (state.activeAgentName !== listingOwner || state.sessionContexts !== listingContexts) return state.sessions;
         const remoteSessions = (response.sessions ?? []).filter((session) => !configSessionIds.has(session.sessionId));
         const remoteIds = new Set(remoteSessions.map((session) => session.sessionId));
         state.sessions = [
             ...remoteSessions.map((session) => ({
                 ...session,
-                title: state.localTitles.get(session.sessionId) ?? session.title,
+                title: sessionTitle(session.sessionId, session.title),
                 pendingPrompt: state.sessionContexts.get(session.sessionId)?.pendingPrompt ?? false,
             })),
             ...localSessions().filter((session) => !remoteIds.has(session.sessionId)),
@@ -274,7 +284,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         const listed = (state.sessions ?? []).find((session) => session.sessionId === targetSessionId);
         const document = buildSessionExport({
             sessionId: targetSessionId,
-            title: listed?.title ?? existing?.title,
+            title: sessionTitle(targetSessionId, listed?.title ?? existing?.title),
             updatedAt: listed?.updatedAt,
             messages,
             agent: state.agentInfo,
@@ -293,6 +303,34 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         }
         return { ok: true, ...document, savedPath };
     };
+
+    const renameSessionById = (sessionId, title, agentId) => enqueueMutation(async () => {
+        if (typeof sessionId !== "string" || !sessionId.trim() || sessionId.length > 2048) {
+            return errorResult("session_id_required", "A sessionId is required", 400);
+        }
+        if (!validSessionTitle(title)) {
+            return errorResult("invalid_session_title", "A title must contain 1–200 characters without control characters", 400);
+        }
+        // Bind to the owner visible when the editor opened, not whichever Agent is active later.
+        if (typeof agentId !== "string" || !agentId.trim()) return errorResult("agent_id_required", "An Agent identifier is required", 400);
+        if (agentId !== state.activeAgentName) return errorResult("session_owner_changed", "The active Agent changed; reopen the title editor", 409);
+        const listed = state.sessions.find((session) => session.sessionId === sessionId);
+        const context = state.sessionContexts.get(sessionId);
+        if (!listed && context?.agentId !== agentId) return errorResult("session_not_found", "The session is not available", 404);
+        if (!titleStore) return errorResult("session_rename_unavailable", "Session title storage is unavailable", 503);
+        try {
+            const savedTitle = await titleStore.set(agentId, sessionId, title);
+            if (state.activeAgentName === agentId) {
+                state.customTitles.set(sessionId, savedTitle);
+                state.localTitles.set(sessionId, savedTitle);
+                state.sessions = state.sessions.map((session) => session.sessionId === sessionId ? { ...session, title: savedTitle } : session);
+            }
+            // Renaming is metadata-only: no ACP load/new/prompt or conversation switch.
+            return { ok: true, agentId, sessionId, title: savedTitle };
+        } catch {
+            return errorResult("session_rename_failed", "The session title could not be saved", 500);
+        }
+    });
 
     const deleteSessionById = async (sessionId) => {
         return enqueueMutation(async () => {
@@ -493,8 +531,9 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             .filter((context) => context.agentId === state.activeAgentName)
             .map((context) => ({
                 sessionId: context.sessionId,
-                title: state.localTitles.get(context.sessionId) ?? "New session",
+                title: sessionTitle(context.sessionId, "New session"),
                 pendingPrompt: context.pendingPrompt,
+                ...(context.createdAt ? { createdAt: new Date(context.createdAt).toISOString() } : {}),
             }));
     };
 
@@ -539,6 +578,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         createSessionContext,
         deleteSessionById,
         exportSessionById,
+        renameSessionById,
         listSessions,
         loadSessionById,
         loadConfigOptions,

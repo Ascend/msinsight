@@ -19,7 +19,7 @@ import { CAPABILITY_MCP_PATH } from "../capability-center/definitions.mjs";
 import { json, readJson } from "./response.mjs";
 import { errorBody } from "./errors.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController, capabilityController, httpMcpAdapter, artifactService }) => {
+export const createRouter = ({ agentController, chatController, sessionController, sessionBatchExportController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController, capabilityController, httpMcpAdapter, artifactService }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
@@ -103,6 +103,22 @@ export const createRouter = ({ agentController, chatController, sessionControlle
 
         if (req.method === "POST" && url.pathname === "/api/sessions/export") {
             return sessionController.export(req, res, await readJson(req));
+        }
+
+        if (sessionBatchExportController && req.method === "POST" && url.pathname === "/api/sessions/export/query") {
+            return sessionBatchExportController.query(req, res, await readJson(req));
+        }
+
+        if (sessionBatchExportController && req.method === "GET" && url.pathname === "/api/sessions/export/status") {
+            return sessionBatchExportController.status(req, res, url.searchParams.get("jobId"));
+        }
+
+        if (sessionBatchExportController && req.method === "POST" && url.pathname === "/api/sessions/export/batch") {
+            return sessionBatchExportController.export(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/sessions/rename") {
+            return sessionController.rename(req, res, await readJson(req));
         }
 
         if (req.method === "POST" && url.pathname === "/api/sessions/delete") {

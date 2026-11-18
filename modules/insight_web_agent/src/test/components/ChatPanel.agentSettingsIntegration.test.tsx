@@ -33,6 +33,8 @@ jest.mock('antd', () => ({
 }));
 
 jest.mock('@insight/lib/components', () => ({
+    // Sidebar now uses the real menu primitive; keep this integration's form mocks unchanged.
+    Dropdown: jest.requireActual('antd').Dropdown,
     Button: ({ children, size: _size, type: _buttonType, ...props }: any) => <button {...props} type="button">{children}</button>,
     Input: (props: any) => <input {...props} />,
     InputNumber: ({ onChange, value, ...props }: any) => <input {...props} onChange={(event) => onChange(Number(event.target.value))} type="number" value={value} />,

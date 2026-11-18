@@ -28,7 +28,7 @@ import {
 import { message } from 'antd';
 import { t } from 'i18next';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
-import { cancelPrompt, claimFrontendCommand, deleteSession, exportSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelPrompt, claimFrontendCommand, deleteSession, exportSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, renameSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { downloadSessionExport } from '../sessionExportDownload';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { deliverReceipt, prepareReceipt, type ReceiptBody } from '../bridge/frontendCommandReceipt';
@@ -68,6 +68,7 @@ interface ChatStateValue {
     createSession: () => Promise<void>;
     deleteSession: (session: SessionItem) => Promise<void>;
     exportSession: (session: SessionItem) => Promise<void>;
+    renameSession: (session: SessionItem, title: string) => Promise<void>;
     sendMessage: () => Promise<void>;
     cancelMessage: () => Promise<void>;
     selectSession: (session: SessionItem) => Promise<void>;
@@ -175,6 +176,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const [welcomeAnimationRequest, setWelcomeAnimationRequest] = useState(0);
     const stateRef = useRef(state);
     const pendingSessionSequenceRef = useRef(0);
+    const renameRequestsRef = useRef(new Map<string, number>());
     const queuedPromptsInFlightRef = useRef(new Set<string>());
     const pendingCreationsRef = useRef(new Map<string, ReturnType<typeof sendPrompt>>());
     const frontendCommandsRef = useRef(new Set<string>());
@@ -758,6 +760,21 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
+    const handleRenameSession = async (session: SessionItem, title: string): Promise<void> => {
+        const agentId = state.activeAgentName;
+        if (!agentId || session.isPending || !session.sessionId) throw new Error(t('sessionRenameFailed', { ns: 'insightWebAgent' }));
+        const key = JSON.stringify([agentId, session.sessionId]);
+        const request = (renameRequestsRef.current.get(key) ?? 0) + 1;
+        renameRequestsRef.current.set(key, request);
+        const response = await renameSession(session.sessionId, title, agentId);
+        if (!response.ok || response.agentId !== agentId || response.sessionId !== session.sessionId) throw new Error(t('sessionRenameFailed', { ns: 'insightWebAgent' }));
+        // Closing/reopening the editor can overlap saves; an older response must not undo the latest title.
+        setState((current) => current.activeAgentName !== agentId || renameRequestsRef.current.get(key) !== request ? current : {
+            ...current,
+            sessions: current.sessions.map((item) => item.sessionId === session.sessionId ? { ...item, title: response.title } : item),
+        });
+    };
+
     const handleDeleteSession = async (session: SessionItem): Promise<void> => {
         if (session.pendingPrompt || session.isPending) return;
         const previousState = state;
@@ -1145,6 +1162,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         createSession: createDraftSession,
         deleteSession: handleDeleteSession,
         exportSession: handleExportSession,
+        renameSession: handleRenameSession,
         sendMessage,
         cancelMessage,
         selectSession: handleSelectSession,

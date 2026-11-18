@@ -191,8 +191,12 @@ test("concurrent requests in one session are shown in FIFO order", async () => {
     await writeText(target, "content");
 
     const first = fixture.service.ensureReadAllowed({ sessionId: "s1", path: target });
-    const second = fixture.service.ensureReadAllowed({ sessionId: "s1", path: target });
+    // FIFO starts at enqueue, not at completion of asynchronous filesystem evaluation.
     await waitForRequestCount(fixture.events, 1);
+    const second = fixture.service.ensureReadAllowed({ sessionId: "s1", path: target });
+    for (let index = 0; index < 100 && fixture.state.pendingPermissions.size < 2; index += 1) {
+        await delay(5);
+    }
     assert.equal(permissionRequests(fixture.events).length, 1);
     assert.equal(fixture.state.pendingPermissions.size, 2);
 

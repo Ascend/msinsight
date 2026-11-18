@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { downloadSessionExport } from '../sessionExportDownload';
-import type { SessionExportDocument } from '../types';
+import type { SessionBatchExportDocument, SessionExportDocument } from '../types';
 
 afterEach(() => {
     jest.restoreAllMocks();
@@ -81,6 +81,51 @@ test('reveals a server-saved export without downloading a second copy', () => {
         expect(createObjectURL).not.toHaveBeenCalled();
         expect(click).not.toHaveBeenCalled();
         expect(document.querySelector('a[download]')).toBeNull();
+    } finally {
+        if (originalIpc === undefined) delete hostWindow.ipc;
+        else hostWindow.ipc = originalIpc;
+    }
+});
+
+test.each([false, true])('delivers a multi-session envelope as one artifact (desktop: %s)', (desktop) => {
+    jest.useFakeTimers();
+    const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        expect(this.download).toBe('batch.json');
+    });
+    const createObjectURL = jest.fn((_blob: Blob) => 'blob:batch');
+    const revokeObjectURL = jest.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+    const postMessage = jest.fn();
+    const hostWindow = window as Window & { ipc?: { postMessage: (message: string) => void } };
+    const originalIpc = hostWindow.ipc;
+    hostWindow.ipc = { postMessage };
+    const single: SessionExportDocument = {
+        format: 'msinsight.agent-session.v1', filename: 'single.json', exportedAt: '2026-10-28T00:00:00.000Z',
+        markdown: '# Chat', agent: { name: 'analysis-agent' }, session: { sessionId: 'same-id', title: 'Chat' }, messages: [],
+    };
+    const batch: SessionBatchExportDocument = {
+        format: 'msinsight.agent-sessions.v1', filename: 'batch.json', exportedAt: single.exportedAt,
+        filters: { agentIds: [], days: 1, from: '2026-10-27T00:00:00.000Z', to: single.exportedAt, timestamp: 'updatedAt' },
+        issues: [], sessions: [{ ...single, owner: { agentId: 'owner-a' } }, { ...single, owner: { agentId: 'owner-b' } }],
+        ...(desktop ? { savedPath: '/Downloads/batch.json' } : {}),
+    };
+    try {
+        downloadSessionExport(batch);
+        if (desktop) {
+            expect(postMessage).toHaveBeenCalledWith('openProjectInExplorer|/Downloads/batch.json');
+            expect(createObjectURL).not.toHaveBeenCalled();
+            expect(click).not.toHaveBeenCalled();
+        } else {
+            expect(createObjectURL).toHaveBeenCalledTimes(1);
+            const blob = createObjectURL.mock.calls[0][0] as Blob;
+            expect(blob.type).toBe('application/json');
+            expect(blob.size).toBe(JSON.stringify(batch, null, 2).length);
+            expect(click).toHaveBeenCalledTimes(1);
+            expect(postMessage).not.toHaveBeenCalled();
+            jest.advanceTimersByTime(1000);
+            expect(revokeObjectURL).toHaveBeenCalledWith('blob:batch');
+        }
     } finally {
         if (originalIpc === undefined) delete hostWindow.ipc;
         else hostWindow.ipc = originalIpc;

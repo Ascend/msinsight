@@ -42,6 +42,9 @@ import { createPermissionService } from "./services/permissionService.mjs";
 import { createBackgroundRagService } from "./services/rag/backgroundRagService.mjs";
 import { createSessionManager } from "./services/sessionManager.mjs";
 import { createSessionService } from "./services/sessionService.mjs";
+import { createSessionBatchExportService } from "./services/sessionBatchExport.mjs";
+import { createSessionExportSource } from "./services/sessionExportSource.mjs";
+import { createSessionTitleStore } from "./services/sessionTitleStore.mjs";
 import { syncPackagedSkills } from "./services/workspaceSkillSync.mjs";
 import { createEventBus } from "./state/eventBus.mjs";
 import { createRuntimeState, publicState, resetRuntimeForAgent, restoreRuntimeState, snapshotRuntimeState } from "./state/runtimeState.mjs";
@@ -247,7 +250,9 @@ const sessionManager = createSessionManager({
     permissionService,
     capabilitySessionIntegration,
 });
+const sessionTitleStore = await createSessionTitleStore({ filePath: join(config.rootDir, "session-titles.json") });
 const sessionService = createSessionService({
+    titleStore: sessionTitleStore,
     acpClient: acpAdapter,
     config,
     eventBus,
@@ -508,7 +513,32 @@ const agentConfigService = createAgentConfigService({
     reloadRuntime: async (snapshot) => reloadRuntime({ activeAgentName: snapshot.activeAgentName, reloadFromDisk: true }),
 });
 
+// Export sources are deliberately separate from the active chat adapter/state.
+const sessionBatchExportService = createSessionBatchExportService({
+    listAgents: availableAgentServers,
+    resolveTitle: sessionTitleStore.resolve,
+    openSource: async (agentServer, { signal } = {}) => {
+        const source = await createSessionExportSource({
+            signal,
+            agentServer: withHostEnv(agentServer),
+            cwd: sharedWorkspacePath,
+            requestTimeoutMs: config.requestTimeoutMs,
+        });
+        return {
+            ...source,
+            load: (sessionId) => {
+                if (state.activeAgentName === agentServer.name && state.sessionContexts.get(sessionId)?.pendingPrompt) {
+                    throw Object.assign(new Error("Session is generating a reply; retry after it finishes"), { code: "session_export_busy" });
+                }
+                return source.load(sessionId);
+            },
+        };
+    },
+    config,
+});
+
 const server = createApp({
+    sessionBatchExportService,
     agentService,
     eventBus,
     chatService,
@@ -533,6 +563,7 @@ const shutdown = (exitCode = 0) => {
     shuttingDown = true;
     shutdownPromise = (async () => {
         frontendCommandService.dispose();
+        await sessionBatchExportService.dispose();
         await ragService.close();
         await httpMcpAdapter.close();
         eventBus.close();

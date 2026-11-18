@@ -138,7 +138,7 @@ const SYSTEM_CONTEXT_URI_PATTERN = /insight-(?:hidden-context|system-prompt):\/\
 const textHeadEchoesSystemContext = (text) => SYSTEM_CONTEXT_URI_PATTERN.test(String(text ?? "").slice(0, 200));
 
 export const setLocalTitle = (state, sessionId, title) => {
-    if (!sessionId || !title) return;
+    if (!sessionId || !title || state.customTitles?.has(sessionId)) return;
     const trimmed = title.trim().slice(0, 80);
     if (!trimmed) return;
     state.localTitles.set(sessionId, trimmed);

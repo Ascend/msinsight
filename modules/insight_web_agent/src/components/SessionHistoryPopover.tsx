@@ -16,6 +16,8 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { EditOutlined } from '@ant-design/icons';
+import { matchesSessionTitle } from '../sessionTitleMatch';
 import type { TFunction } from 'i18next';
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -33,6 +35,7 @@ interface SessionHistoryPopoverProps {
     onClose: () => void;
     onDelete: (session: SessionItem) => void;
     onExport: (session: SessionItem) => void;
+    onRename?: (session: SessionItem, title: string) => Promise<void>;
     onAttentionChange?: (attentionRequired: boolean) => void;
     onSelect: (session: SessionItem) => void;
     open: boolean;
@@ -263,6 +266,28 @@ const PopoverContainer = styled.div`
         filter: ${(props): string => props.theme.mode === 'dark' ? 'invert(1)' : 'none'};
     }
 
+    .rename-editor { display: grid; gap: 8px; padding: 8px; }
+    .rename-editor input {
+        min-width: 0; width: 100%; padding: 6px 8px;
+        border: 1px solid ${(props): string => props.theme.primaryColor};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        background: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+    .rename-editor .rename-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .rename-editor button {
+        padding: 4px 10px; cursor: pointer;
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        background: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+    .rename-editor button[type='submit'] { background: ${(props): string => props.theme.primaryColor}; color: #fff; }
+    .rename-editor button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .rename-error { font-size: 12px; color: ${(props): string => props.theme.dangerColor}; }
+    .session-action { color: ${(props): string => props.theme.textColorPrimary}; }
+    .history-row:focus-within .session-meta { visibility: hidden; }
+
     .history-empty {
         padding: 48px 12px;
         color: ${(props): string => props.theme.mode === 'dark'
@@ -279,6 +304,7 @@ export const SessionHistoryPopover = ({
     onClose,
     onDelete,
     onExport,
+    onRename,
     onAttentionChange,
     onSelect,
     open,
@@ -289,12 +315,33 @@ export const SessionHistoryPopover = ({
     const searchRef = useRef<HTMLInputElement>(null);
     const previousStatusesRef = useRef<Map<string, string>>(new Map());
     const [query, setQuery] = useState('');
+    const [editor, setEditor] = useState<{ session: SessionItem; title: string }>();
+    const [renaming, setRenaming] = useState(false);
+    const [renameError, setRenameError] = useState('');
+    const renameGeneration = useRef(0);
+    const validTitle = Boolean(editor?.title.trim()) && [...(editor?.title.trim() ?? '')].length <= 200 && !/[\u0000-\u001f\u007f]/u.test(editor?.title ?? '');
+    useEffect(() => {
+        if (!open) { setEditor(undefined); setRenameError(''); setRenaming(false); }
+        return () => { renameGeneration.current += 1; };
+    }, [open]);
+    const saveTitle = async (): Promise<void> => {
+        if (!editor || !onRename || !validTitle || renaming) return;
+        const generation = renameGeneration.current;
+        setRenaming(true);
+        setRenameError('');
+        try {
+            await onRename(editor.session, editor.title.trim());
+            if (generation === renameGeneration.current) setEditor(undefined);
+        } catch (error) {
+            if (generation === renameGeneration.current) setRenameError(error instanceof Error ? error.message : t('sessionRenameFailed'));
+        } finally {
+            if (generation === renameGeneration.current) setRenaming(false);
+        }
+    };
     const [position, setPosition] = useState<PopoverPosition | null>(null);
     const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(new Set());
     const filteredSessions = useMemo(() => {
-        const normalizedQuery = query.trim().toLocaleLowerCase();
-        if (!normalizedQuery) return sessions;
-        return sessions.filter((session) => getSessionTitle(session).toLocaleLowerCase().includes(normalizedQuery));
+        return sessions.filter((session) => matchesSessionTitle(getSessionTitle(session), query));
     }, [query, sessions]);
 
     useEffect(() => {
@@ -410,6 +457,14 @@ export const SessionHistoryPopover = ({
                     <span className="session-meta">{getSessionMeta(session, t, unread)}</span>
                 </button>
                 <div className="session-actions">
+                    {onRename && <button
+                        aria-label={t('renameSession', { title: sessionTitle })}
+                        className="session-action"
+                        disabled={session.isPending || renaming}
+                        onClick={() => { setEditor({ session, title: sessionTitle }); setRenameError(''); }}
+                        title={t('renameSession', { title: sessionTitle })}
+                        type="button"
+                    ><EditOutlined aria-hidden="true" /></button>}
                     <button
                         aria-label={t('exportSession', { title: sessionTitle })}
                         className="session-action"
@@ -429,6 +484,33 @@ export const SessionHistoryPopover = ({
                         <img alt="" src={deleteIcon} />
                     </button>
                 </div>
+                {editor?.session.sessionId === session.sessionId && <form
+                    className="rename-editor"
+                    onSubmit={(event) => { event.preventDefault(); void saveTitle(); }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                            event.stopPropagation(); event.preventDefault();
+                            if (!renaming) { setEditor(undefined); setRenameError(''); }
+                        }
+                        if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault();
+                    }}
+                >
+                    <input
+                        aria-label={t('sessionTitle')}
+                        aria-invalid={!validTitle}
+                        autoFocus
+                        disabled={renaming}
+                        maxLength={400}
+                        onChange={(event) => { setEditor({ ...editor, title: event.target.value }); setRenameError(''); }}
+                        value={editor.title}
+                    />
+                    {!validTitle && <span className="rename-error" role="alert">{t('sessionTitleInvalid')}</span>}
+                    {renameError && <span className="rename-error" role="alert">{renameError}</span>}
+                    <div className="rename-actions">
+                        <button type="button" disabled={renaming} onClick={() => { setEditor(undefined); setRenameError(''); }}>{t('cancelRename')}</button>
+                        <button type="submit" disabled={!validTitle || renaming}>{t('saveSessionTitle')}</button>
+                    </div>
+                </form>}
             </div>
         );
     });

@@ -115,10 +115,84 @@ export interface SessionExportDocument {
     session: {
         sessionId: string;
         title: string;
+        createdAt?: string | null;
         updatedAt?: string | null;
+        primaryAgentId?: string;
+        primaryAgentName?: string;
     };
     messages: ChatMessage[];
     savedPath?: string;
+}
+
+export interface SessionExportFilters {
+    /** Agent descriptor names identify history owners, not primary analysis agents. Empty means all owners. */
+    agentIds?: string[];
+    /** UTC rolling days (1..36500), mutually exclusive with from/to. */
+    days?: number;
+    /** Custom closed updatedAt range: both endpoints need explicit timezones and at most 3 fractional digits. */
+    from?: string;
+    to?: string;
+    /** Explicit updated time filters (aliases). */
+    updatedDays?: number;
+    updatedFrom?: string;
+    updatedTo?: string;
+    /** Creation time filter: rolling days or custom from/to. */
+    createdDays?: number;
+    createdFrom?: string;
+    createdTo?: string;
+    /** Query without time restriction if no range is specified. */
+    allTime?: boolean;
+    /** Title-only; whitespace tokens are ANDed, each matched as an ordered literal subsequence ignoring case. */
+    keyword?: string;
+}
+
+export interface SessionExportSnapshotFilters extends SessionExportFilters {
+    agentIds: string[];
+    from?: string;
+    to?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    timestamp?: 'updatedAt';
+}
+
+export interface SessionExportIssue {
+    agentId: string;
+    sessionId?: string;
+    code: string;
+    message: string;
+}
+
+export interface SessionExportMatch {
+    key: string;
+    agentId: string;
+    sessionId: string;
+    title: string;
+    createdAt?: string;
+    updatedAt: string;
+    primaryAgentId?: string;
+    primaryAgentName?: string;
+}
+
+export interface SessionBatchExportDocument {
+    format: 'msinsight.agent-sessions.v1';
+    filename: string;
+    exportedAt: string;
+    filters: SessionExportSnapshotFilters;
+    issues: SessionExportIssue[];
+    sessions: Array<SessionExportDocument & { owner: { agentId: string } }>;
+    savedPath?: string;
+}
+
+export interface SessionExportStatus {
+    jobId: string;
+    phase: 'scanning' | 'ready' | 'exporting' | 'completed' | 'failed';
+    processed: number;
+    total: number | null;
+    items: SessionExportMatch[];
+    issues: SessionExportIssue[];
+    filters: SessionExportSnapshotFilters;
+    document?: SessionBatchExportDocument;
+    error?: string;
 }
 
 export interface ConfigOptionValue {
