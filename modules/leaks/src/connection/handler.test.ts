@@ -18,8 +18,11 @@ import {
     updateSessionHandler,
     hasMultipleMemSnapshotSlices,
     getLeaksParseStatusHandler,
+    parseFailHandler,
+    frameLoadedHandler,
 } from './handler';
 import connector from '@/connection';
+import { errorCenter } from '@insight/lib';
 
 jest.mock('@insight/lib/i18n', () => ({
     __esModule: true,
@@ -67,6 +70,397 @@ describe('memsnapshot parse progress handlers', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         store.sessionStore.activeSession = new Session();
+    });
+
+    it.each(['import', 'frame', 'progress'])('preserves failure before a delayed %s event', (event) => {
+        const fileId = '/data/snapshot.pkl';
+        const session = store.sessionStore.activeSession as Session;
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: [fileId], memSnapshotParseFailure: null });
+        parseFailHandler({ rankId: fileId, error: 'Python spawn failed' });
+        if (event === 'import') importRemoteHandler({ selectedFilePath: fileId });
+        if (event === 'frame') frameLoadedHandler({ selectedFilePath: fileId });
+        if (event === 'progress') parseProgressHandler({ fileId, progress: 10 });
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseFailure?.error).toBe('Python spawn failed');
+    });
+
+    it.each(['frame', 'nested-frame', 'import', 'update'])('preserves failure after delayed complete %s metadata containing null', event => {
+        const session = store.sessionStore.activeSession as Session;
+        const fileId = '/data/snapshot.pkl';
+        const imported = {
+            dataSource: { selectedFilePath: fileId, projectPath: [fileId] },
+            importResult: { children: [{ filePath: fileId }] },
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: [fileId],
+            memSnapshotImportPending: false, memSnapshotParseFailure: null,
+        };
+        importRemoteHandler(imported);
+        parseFailHandler({ rankId: fileId, error: 'Python spawn failed' });
+        if (event === 'frame') frameLoadedHandler({
+            memSnapshotParseAttempt: 1, memSnapshotParseFailure: null,
+            selectedFileType: 'RANK', selectedFilePath: fileId, selectedProjectName: 'snapshot',
+            pageInfo: { cluster: {}, timeline: {} },
+        });
+        // Kept as a defensive compatibility shape; the current TabPane producer uses top-level metadata.
+        if (event === 'nested-frame') frameLoadedHandler({ remoteImportData: imported });
+        if (event === 'import') importRemoteHandler(imported);
+        if (event === 'update') updateSessionHandler({
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: [fileId], memSnapshotImportPending: false,
+            memSnapshotParseFailure: null, memSnapshotParseLoading: true,
+        });
+        expect(session.memSnapshotParseAttempt).toBe(1);
+        expect(session.memSnapshotParseFailure).toEqual({ fileId, error: 'Python spawn failed' });
+        expect(session.memSnapshotParseFileId).toBe(fileId);
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.dbPath).toBe('');
+        expect(session.fileHash).toBe('');
+        expect(session.snapshotSlices).toEqual({});
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+    });
+
+    it('restores failure received while the iframe was absent', () => {
+        const session = store.sessionStore.activeSession as Session;
+        frameLoadedHandler({
+            selectedFilePath: '/data/snapshot.pkl',
+            memSnapshotParseAttempt: 1,
+            memSnapshotParseFailure: { fileId: '/data/snapshot.pkl', error: 'Python spawn failed' },
+        });
+        updateSessionHandler({ memSnapshotParseLoading: true });
+        updateSessionHandler({ memSnapshotParseFileId: '', dbPath: '/old/data.json', fileHash: 'old-hash' });
+        expect(session.dbPath).toBe('');
+        expect(session.fileHash).toBe('');
+        expect(session.memSnapshotParseFileId).toBe('/data/snapshot.pkl');
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseFailure?.fileId).toBe('/data/snapshot.pkl');
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows an explicit new import of the same failed file and ignores old initialization', () => {
+        const fileId = '/data/snapshot.pkl';
+        const session = store.sessionStore.activeSession as Session;
+        importRemoteHandler({ selectedFilePath: fileId, memSnapshotParseAttempt: 1 });
+        parseFailHandler({ rankId: fileId, error: 'Python spawn failed' });
+        importRemoteHandler({ selectedFilePath: fileId, memSnapshotParseAttempt: 2 });
+        frameLoadedHandler({
+            selectedFilePath: fileId,
+            memSnapshotParseAttempt: 1,
+            memSnapshotParseFailure: { fileId, error: 'old failure' },
+        });
+        expect(session.memSnapshotParseAttempt).toBe(2);
+        expect(session.memSnapshotParseLoading).toBe(true);
+        expect(session.memSnapshotParseFailure).toBeNull();
+    });
+
+    it.each(['empty', 'ordinary'])('ignores an unrelated late snapshot failure with an %s current file', current => {
+        const session = store.sessionStore.activeSession as Session;
+        session.dbPath = current === 'ordinary' ? '/data/trace.json' : '';
+        session.fileHash = 'current-hash';
+        session.deviceIds = { 0: ['BLOCK'] };
+        session.threadIds = [7];
+        parseFailHandler({ rankId: '/old/snapshot.pkl', error: 'late failure' });
+        expect(session.dbPath).toBe(current === 'ordinary' ? '/data/trace.json' : '');
+        expect(session.fileHash).toBe('current-hash');
+        expect(session.deviceIds).toEqual({ 0: ['BLOCK'] });
+        expect(session.threadIds).toEqual([7]);
+        expect(session.memSnapshotParseFailure).toBeNull();
+        expect(jest.requireMock('@/leaksWorker/blockWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        expect(jest.requireMock('@/leaksWorker/stateWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        expect(errorCenter.handleError).not.toHaveBeenCalled();
+    });
+
+    it('accepts a pending directory failure but not the previous source failure', () => {
+        const session = store.sessionStore.activeSession as Session;
+        session.dbPath = '/old/trace.json';
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/new'], memSnapshotParseFailure: null });
+        parseFailHandler({ rankId: '/old/snapshot.pkl', error: 'old failure' });
+        expect(session.memSnapshotParseFailure).toBeNull();
+        parseFailHandler({ rankId: '/new/snapshot.pkl', error: 'new failure' });
+        importRemoteHandler({
+            dataSource: { projectPath: ['/new'] },
+            importResult: { children: [{ filePath: '/new/snapshot.pkl' }] },
+            memSnapshotParseAttempt: 1,
+            memSnapshotSourcePaths: ['/new'],
+        });
+        expect(session.dbPath).toBe('');
+        expect(session.memSnapshotParseFileId).toBe('/new/snapshot.pkl');
+        expect(session.memSnapshotParseFailure?.error).toBe('new failure');
+        expect(session.memSnapshotParseLoading).toBe(false);
+    });
+
+    it.each([undefined, '', '   '])('uses a nonempty error for %p', error => {
+        const session = store.sessionStore.activeSession as Session;
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data/snapshot.pkl'] });
+        parseFailHandler({ rankId: '/data/snapshot.pkl', error });
+        expect(session.memSnapshotParseFailure?.error).toBe('Failed to parse snapshot data.');
+    });
+
+    it('restores failed A after successful B without starting a new attempt', () => {
+        const session = store.sessionStore.activeSession as Session;
+        importRemoteHandler({ selectedFilePath: '/data/a.pkl', memSnapshotParseAttempt: 1 });
+        parseFailHandler({ rankId: '/data/a.pkl', error: 'A failed' });
+        switchDirectoryHandler({ selectedFilePath: '/data/b.pkl' });
+        parseCompletedHandler({
+            module: 'memsnapshot', dbPath: '/data/b.pkl', fileHash: 'b-hash',
+            deviceIds: { 0: ['BLOCK'] }, threadIds: [7], snapshotParsingComplete: true, snapshotSlices: completeSlices,
+        });
+        expect(session.dbPath).toBe('/data/b.pkl');
+        expect(session.selectedSliceIndex).toBe(2);
+        jest.clearAllMocks();
+        switchDirectoryHandler({ selectedFilePath: '/data/a.pkl' });
+        expect(session.memSnapshotParseAttempt).toBe(1);
+        expect(session.memSnapshotParseFileId).toBe('/data/a.pkl');
+        expect(session.memSnapshotParseFailure?.error).toBe('A failed');
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseProgress).toBe(0);
+        expect(session.dbPath).toBe('');
+        expect(session.fileHash).toBe('');
+        expect(session.deviceIds).toEqual({});
+        expect(session.threadIds).toEqual([]);
+        expect(session.snapshotSlices).toEqual({});
+        expect(session.selectedSliceIndex).toBe(-1);
+        expect(jest.requireMock('@/leaksWorker/blockWorker/worker').workerDestroy).toHaveBeenCalledTimes(1);
+        expect(jest.requireMock('@/leaksWorker/stateWorker/worker').workerDestroy).toHaveBeenCalledTimes(1);
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+        parseFailHandler({ rankId: '/data/a.pkl', error: 'A failed' });
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects stale nested initialization and state hydration after retry', () => {
+        const session = store.sessionStore.activeSession as Session;
+        importRemoteHandler({ selectedFilePath: '/data/a.pkl', memSnapshotParseAttempt: 2 });
+        frameLoadedHandler({ remoteImportData: {
+            selectedFilePath: '/data/a.pkl', memSnapshotParseAttempt: 1,
+            memSnapshotParseFailure: { fileId: '/data/a.pkl', error: 'old failure' },
+        } });
+        updateSessionHandler({ memSnapshotParseAttempt: 1, dbPath: '/data/a.pkl', fileHash: 'old-hash' });
+        expect(session.memSnapshotParseAttempt).toBe(2);
+        expect(session.memSnapshotParseLoading).toBe(true);
+        expect(session.memSnapshotParseFailure).toBeNull();
+        expect(session.fileHash).toBe('');
+    });
+
+    it('does not let old directory hydration replace pending import ownership', () => {
+        const session = store.sessionStore.activeSession as Session;
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/new'] });
+        parseFailHandler({ rankId: '/new/snapshot.pkl', error: 'new failure' });
+        switchDirectoryHandler({ selectedFilePath: '/old/trace.json', memSnapshotSourcePaths: ['/new'] });
+        expect(session.memSnapshotParseFileId).toBe('/new/snapshot.pkl');
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseFailure?.error).toBe('new failure');
+    });
+
+    it('does not apply an older ordinary response or directory while a snapshot folder import is pending', () => {
+        const session = store.sessionStore.activeSession as Session;
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data'], memSnapshotImportPending: true });
+        frameLoadedHandler({ selectedFilePath: '/data/previous.pkl' });
+        importRemoteHandler({ dataSource: { projectPath: ['/data/trace.json'] }, memSnapshotImportPending: true });
+        switchDirectoryHandler({
+            selectedFilePath: '/data/previous.pkl', memSnapshotSourcePaths: ['/data'], memSnapshotImportPending: true,
+        });
+        expect(session.memSnapshotSourcePaths).toEqual(['/data']);
+        expect(session.memSnapshotParseFileId).toBe('');
+        parseFailHandler({ rankId: '/data/new.pkl', error: 'new failure' });
+        expect(session.memSnapshotParseFailure?.fileId).toBe('/data/new.pkl');
+        expect(session.memSnapshotParseLoading).toBe(false);
+    });
+
+    it('does not replay a failed snapshot after an ordinary import succeeds', () => {
+        const session = store.sessionStore.activeSession as Session;
+        importRemoteHandler({ selectedFilePath: '/failed.pkl', memSnapshotParseAttempt: 1 });
+        parseFailHandler({ rankId: '/failed.pkl', error: 'old failure' });
+        importRemoteHandler({ dataSource: { projectPath: ['/trace.json'] }, memSnapshotImportPending: false });
+        frameLoadedHandler({
+            selectedFilePath: '/trace.json', memSnapshotParseAttempt: 1,
+            memSnapshotSourcePaths: ['/trace.json'], memSnapshotParseFailure: null,
+        });
+        expect(session.memSnapshotParseFailure).toBeNull();
+        expect(session.memSnapshotParseFileId).toBe('');
+        expect(session.memSnapshotParseLoading).toBe(false);
+    });
+
+    it('does not clear a resolved directory snapshot when its sibling fails late', () => {
+        const session = store.sessionStore.activeSession as Session;
+        importRemoteHandler({
+            dataSource: { projectPath: ['/data'] }, importResult: { children: [{ filePath: '/data/b.pkl' }] },
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data'], memSnapshotImportPending: false,
+        });
+        parseCompletedHandler({
+            module: 'memsnapshot', dbPath: '/data/b.pkl', fileHash: 'b-hash',
+            deviceIds: { 0: ['BLOCK'] }, threadIds: [7], snapshotParsingComplete: true, snapshotSlices: completeSlices,
+        });
+        jest.clearAllMocks();
+        parseFailHandler({ rankId: '/data/a.pkl', error: 'late sibling failure' });
+        expect(session.memSnapshotSourcePaths).toEqual(['/data/b.pkl']);
+        expect(session.dbPath).toBe('/data/b.pkl');
+        expect(session.fileHash).toBe('b-hash');
+        expect(session.deviceIds).toEqual({ 0: ['BLOCK'] });
+        expect(session.snapshotSlices).toEqual(completeSlices);
+        expect(session.memSnapshotParseFailure).toBeNull();
+        expect(jest.requireMock('@/leaksWorker/blockWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        expect(jest.requireMock('@/leaksWorker/stateWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        expect(errorCenter.handleError).not.toHaveBeenCalled();
+    });
+
+    it('keeps selected B through getInitStatus hydration when failed A is only a cached sibling', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const failure = { fileId: '/data/a.pkl', error: 'A failed' };
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data'], memSnapshotImportPending: true });
+        parseFailHandler({ rankId: failure.fileId, error: failure.error });
+        importRemoteHandler({
+            dataSource: { projectPath: ['/data'] }, importResult: { children: [{ filePath: '/data/b.pkl' }] },
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data/b.pkl'],
+            memSnapshotImportPending: false, memSnapshotParseFailure: failure,
+        });
+        parseCompletedHandler({
+            module: 'memsnapshot', dbPath: '/data/b.pkl', fileHash: 'b-hash',
+            deviceIds: { 0: ['BLOCK'] }, threadIds: [], snapshotParsingComplete: true, snapshotSlices: completeSlices,
+        });
+        jest.clearAllMocks();
+        const initialization = {
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data/b.pkl'],
+            memSnapshotImportPending: false, memSnapshotParseFailure: failure,
+        };
+        const state: Record<string, unknown> = {
+            memSnapshotParseFileId: '/data/b.pkl', memSnapshotParseLoading: false, memSnapshotParseProgress: 100,
+            fileHash: 'b-hash', module: 'memsnapshot', deviceIds: { 0: ['BLOCK'] }, threadIds: [],
+            snapshotParsingComplete: true, snapshotSlices: completeSlices, dbPath: '/data/b.pkl',
+        };
+        // The same order requested by getInitStatus; the three metadata keys are atomic groups.
+        [
+            'memSnapshotParseAttempt', 'memSnapshotSourcePaths', 'memSnapshotParseFileId',
+            'memSnapshotParseLoading', 'memSnapshotParseProgress', 'memSnapshotParseFailure',
+            'fileHash', 'module', 'deviceIds', 'threadIds', 'snapshotParsingComplete', 'snapshotSlices', 'dbPath',
+        ].forEach(key => updateSessionHandler(key in initialization ? initialization : {
+            memSnapshotParseAttempt: 1, [key]: state[key],
+        }));
+        expect(session.memSnapshotParseFileId).toBe('/data/b.pkl');
+        expect(session.dbPath).toBe('/data/b.pkl');
+        expect(session.fileHash).toBe('b-hash');
+        expect(session.snapshotSlices).toEqual(completeSlices);
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        expect(errorCenter.handleError).not.toHaveBeenCalled();
+        expect(jest.requireMock('@/leaksWorker/blockWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        expect(jest.requireMock('@/leaksWorker/stateWorker/worker').workerDestroy).not.toHaveBeenCalled();
+    });
+
+    it('retains failed A during cold hydration of successful B and restores A only when selected', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const failure = { fileId: '/data/a.pkl', error: 'A failed' };
+        const initialization = {
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data/b.pkl'],
+            memSnapshotImportPending: false, memSnapshotParseFailure: failure,
+        };
+        const state: Record<string, unknown> = {
+            memSnapshotParseFileId: '/data/b.pkl', memSnapshotParseLoading: false, memSnapshotParseProgress: 100,
+            fileHash: 'b-hash', module: 'memsnapshot', deviceIds: { 0: ['BLOCK'] }, threadIds: [],
+            snapshotParsingComplete: true, snapshotSlices: completeSlices, dbPath: '/data/b.pkl',
+        };
+        [
+            'memSnapshotParseAttempt', 'memSnapshotSourcePaths', 'memSnapshotParseFileId',
+            'memSnapshotParseLoading', 'memSnapshotParseProgress', 'memSnapshotParseFailure',
+            'fileHash', 'module', 'deviceIds', 'threadIds', 'snapshotParsingComplete', 'snapshotSlices', 'dbPath',
+        ].forEach(key => updateSessionHandler(key in initialization ? initialization : {
+            memSnapshotParseAttempt: 1, [key]: state[key],
+        }));
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        expect(session.memSnapshotParseFileId).toBe('/data/b.pkl');
+        expect(session.dbPath).toBe('/data/b.pkl');
+        expect(session.fileHash).toBe('b-hash');
+        expect(session.snapshotSlices).toEqual(completeSlices);
+        expect(errorCenter.handleError).not.toHaveBeenCalled();
+        expect(jest.requireMock('@/leaksWorker/blockWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        expect(jest.requireMock('@/leaksWorker/stateWorker/worker').workerDestroy).not.toHaveBeenCalled();
+        // An older generation must not replace the inactive cache either.
+        updateSessionHandler({ ...initialization, memSnapshotParseAttempt: 0, memSnapshotParseFailure: { fileId: '/old.pkl', error: 'old' } });
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        switchDirectoryHandler({ selectedFilePath: '/data/a.pkl' });
+        expect(session.memSnapshotParseFileId).toBe('/data/a.pkl');
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.dbPath).toBe('');
+        expect(session.fileHash).toBe('');
+        expect(session.snapshotSlices).toEqual({});
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+        expect(jest.requireMock('@/leaksWorker/blockWorker/worker').workerDestroy).toHaveBeenCalledTimes(1);
+        expect(jest.requireMock('@/leaksWorker/stateWorker/worker').workerDestroy).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves cached failure on same-generation null and clears it only on a newer generation', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const failure = { fileId: '/data/a.pkl', error: 'A failed' };
+        updateSessionHandler({ memSnapshotParseAttempt: 2, memSnapshotSourcePaths: ['/data/b.pkl'], memSnapshotParseFailure: failure });
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotParseFailure: null });
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        updateSessionHandler({ memSnapshotParseAttempt: 2, memSnapshotParseFailure: null });
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        updateSessionHandler({ memSnapshotParseAttempt: 3, memSnapshotParseFailure: null });
+        expect(session.memSnapshotParseFailure).toBeNull();
+        expect(errorCenter.handleError).not.toHaveBeenCalled();
+    });
+
+    it('does not let a late inactive A cache replace current B failure or restart B', () => {
+        const session = store.sessionStore.activeSession as Session;
+        const fileId = '/data/b.pkl';
+        const imported = {
+            dataSource: { selectedFilePath: fileId, projectPath: [fileId] },
+            memSnapshotParseAttempt: 1, memSnapshotSourcePaths: [fileId],
+            memSnapshotImportPending: false, memSnapshotParseFailure: null,
+        };
+        importRemoteHandler(imported);
+        parseFailHandler({ rankId: fileId, error: 'B failed' });
+        const staleFailure = { fileId: '/data/a.pkl', error: 'old A failure' };
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: [fileId], memSnapshotParseFailure: staleFailure });
+        expect(session.memSnapshotParseFailure).toEqual({ fileId, error: 'B failed' });
+        parseProgressHandler({ fileId, progress: 50 });
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseFailure).toEqual({ fileId, error: 'B failed' });
+        parseCompletedHandler({
+            module: 'memsnapshot', dbPath: fileId, fileHash: 'late-b-hash',
+            deviceIds: { 0: ['BLOCK'] }, threadIds: [], snapshotParsingComplete: true, snapshotSlices: completeSlices,
+        });
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.fileHash).toBe('');
+        expect(session.snapshotSlices).toEqual({});
+        frameLoadedHandler({
+            selectedFilePath: fileId, memSnapshotParseAttempt: 1,
+            memSnapshotSourcePaths: [fileId], memSnapshotParseFailure: staleFailure,
+        });
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseFailure).toEqual({ fileId, error: 'B failed' });
+        importRemoteHandler({ ...imported, memSnapshotParseFailure: staleFailure });
+        expect(session.memSnapshotParseAttempt).toBe(1);
+        expect(session.memSnapshotParseFailure).toEqual({ fileId, error: 'B failed' });
+        expect(session.memSnapshotParseFileId).toBe(fileId);
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(session.memSnapshotParseProgress).toBe(0);
+        expect(session.dbPath).toBe('');
+        expect(session.fileHash).toBe('');
+        expect(session.snapshotSlices).toEqual({});
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows a fresh inactive failure cache after a newer attempt clears the active failure', () => {
+        const session = store.sessionStore.activeSession as Session;
+        importRemoteHandler({ selectedFilePath: '/data/b.pkl', memSnapshotParseAttempt: 1 });
+        parseFailHandler({ rankId: '/data/b.pkl', error: 'B failed' });
+        const failure = { fileId: '/data/a.pkl', error: 'new A cache' };
+        updateSessionHandler({
+            memSnapshotParseAttempt: 2, memSnapshotSourcePaths: ['/data/b.pkl'], memSnapshotParseFailure: failure,
+        });
+        expect(session.memSnapshotParseAttempt).toBe(2);
+        expect(session.memSnapshotParseFailure).toEqual(failure);
+        expect(session.memSnapshotParseFileId).toBe('');
+        expect(session.memSnapshotParseLoading).toBe(false);
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports the first hydrated failure of the already-selected file exactly once', () => {
+        const failure = { fileId: '/data/a.pkl', error: 'A failed' };
+        updateSessionHandler({ memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data/a.pkl'], memSnapshotParseFileId: '/data/a.pkl' });
+        const metadata = { memSnapshotParseAttempt: 1, memSnapshotSourcePaths: ['/data/a.pkl'], memSnapshotParseFailure: failure };
+        updateSessionHandler(metadata);
+        updateSessionHandler(metadata);
+        expect(store.sessionStore.activeSession!.memSnapshotParseFailure).toEqual(failure);
+        expect(errorCenter.handleError).toHaveBeenCalledTimes(1);
     });
 
     it('keeps showing progress after the first slice becomes available', () => {

@@ -22,7 +22,7 @@ import { type DataSource } from '@/centralServer/websocket/defs';
 import { updateSession } from '@/connection/notificationHandler';
 import { store } from '@/store';
 import type { CardRankInfo, RankInfo } from '@/entity/session';
-import { isActiveSnapshotSourceFile } from '../utils/filePath';
+import { isActiveSnapshotSourceFile, normalizeFilePath } from '../utils/filePath';
 
 interface ImportActionBody {
     result: Array<{ rankId: string; dataPathList: string[] }>;
@@ -110,6 +110,29 @@ const areAllMemSnapshotSlicesReady = (
 const isActiveDataSourceFile = (filePath: string): boolean =>
     isActiveSnapshotSourceFile(store.sessionStore.activeSession, filePath);
 
+const hasSnapshotFailure = (filePath: string): boolean => {
+    const failure = store.sessionStore.activeSession?.memSnapshotParseFailure;
+    return Boolean(failure && normalizeFilePath(failure.fileId) === normalizeFilePath(filePath));
+};
+
+export const parseFailHandler: NotificationInterceptor<{ rankId?: string; error?: string }> = (data): void => {
+    const fileId = data.rankId ?? '';
+    if (!/\.(pickle|pkl)$/i.test(fileId) || !isActiveDataSourceFile(fileId)) {
+        return;
+    }
+    updateSession({
+        memSnapshotParseFailure: { fileId, error: data.error?.trim() || 'Failed to parse snapshot data.' },
+        memSnapshotParseFileId: fileId,
+        memSnapshotParseLoading: false,
+        memSnapshotParseProgress: 0,
+        fileHash: '',
+        snapshotParsingComplete: true,
+        snapshotSlices: {},
+        deviceIds: {},
+        threadIds: [],
+    });
+};
+
 export const parseMemorySuccessHandler: NotificationInterceptor<ParseMemoryNotification> = (data): void => {
     const session = store.sessionStore.activeSession;
     if (!session || !Array.isArray(data.memoryResult)) {
@@ -170,6 +193,9 @@ export const parseLeaksSuccessHandler: NotificationInterceptor<ParseLeaksNotific
     if (data.module === 'memsnapshot' && !isActiveDataSourceFile(data.dbPath)) {
         return;
     }
+    if (data.module === 'memsnapshot' && hasSnapshotFailure(data.dbPath)) {
+        return;
+    }
     const snapshotParsingComplete = data.snapshotParsingComplete ?? true;
     const snapshotSlices = data.snapshotSlices ?? {};
     const parseUpdate: Record<string, unknown> = {
@@ -205,7 +231,7 @@ export const parseTritonSuccessHandler: NotificationInterceptor<ParseLeaksNotifi
 export const parseMemSnapshotProgressHandler: NotificationInterceptor<ParseMemSnapshotProgressNotification> = (data): void => {
     const session = store.sessionStore.activeSession;
     const fileId = data.fileId ?? '';
-    if (!session || !isActiveDataSourceFile(fileId)) {
+    if (!session || !isActiveDataSourceFile(fileId) || hasSnapshotFailure(fileId)) {
         return;
     }
     updateSession({

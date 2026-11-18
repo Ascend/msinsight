@@ -45,10 +45,10 @@ use crate::{
     webview,
 };
 
-const SERVER_RELATIVE_LIST: [&str; 4] =
-    ["resources", "profiler", "server", "profiler_server"];
-const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
-    ["resources", "profiler", "server", "insight_web_agent"];
+const SERVER_RELATIVE_LIST: [&str; 3] =
+    ["profiler", "server", "profiler_server"];
+const ACP_SERVER_RELATIVE_LIST: [&str; 3] =
+    ["profiler", "server", "insight_web_agent"];
 const MINIMUM_NODE_VERSION: (u32, u32, u32) = (22, 14, 0);
 static ACP_PROCESS: Mutex<Option<(Child, u16)>> = Mutex::new(None);
 #[cfg(windows)]
@@ -83,15 +83,16 @@ enum NodeResolve {
 }
 
 fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
-    let mut server_path = root_path.to_path_buf();
+    let mut server_path = crate::runtime_paths::resources_root(root_path).ok()?;
 
     #[cfg(target_os = "macos")]
     {
+        let inherited = env::var_os("DYLD_LIBRARY_PATH").unwrap_or_default();
+        let paths = std::iter::once(server_path.join("profiler/server"))
+            .chain(env::split_paths(&inherited));
         env::set_var(
             "DYLD_LIBRARY_PATH",
-            server_path
-                .join("resources/profiler/server/:$DYLD_LIBRARY_PATH")
-                .as_path(),
+            env::join_paths(paths).ok()?,
         );
     }
 
@@ -101,7 +102,7 @@ fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
             env::var_os("LD_LIBRARY_PATH").unwrap_or_default();
         let new_ld_library_path = format!(
             "{}:{}",
-            server_path.join("resources/profiler/server/").display(),
+            server_path.join("profiler/server/").display(),
             ld_library_path.to_string_lossy()
         );
         env::set_var("LD_LIBRARY_PATH", &new_ld_library_path);
@@ -197,6 +198,12 @@ fn run_server(
     };
 
     let mut server_command = Command::new(path);
+
+    #[cfg(target_os = "macos")]
+    server_command.arg(format!(
+        "--resourceRoot={}",
+        crate::runtime_paths::resources_root(root_path).ok()?.display()
+    ));
 
     #[cfg(windows)]
     server_command.creation_flags(NO_WINDOW_FLAG);
@@ -318,7 +325,7 @@ fn spawn_profiler_server(
 }
 
 fn acp_server_path(root_path: &PathBuf) -> Option<PathBuf> {
-    let mut server_path = root_path.to_path_buf();
+    let mut server_path = crate::runtime_paths::resources_root(root_path).ok()?;
     for tmp in ACP_SERVER_RELATIVE_LIST {
         server_path.push(tmp);
     }

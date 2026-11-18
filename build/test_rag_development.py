@@ -579,7 +579,7 @@ def test_mac_signing_does_not_deep_resign_native_runtime(tmp_path: Path, monkeyp
     assert refreshed["files"][0]["sha256"] == hashlib.sha256(native.read_bytes()).hexdigest()
 
 
-def test_package_mac_uses_standard_resources_with_executable_compatibility_link(
+def test_package_mac_uses_standard_resources_without_compatibility_link(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     top = load_top_build_module()
@@ -594,6 +594,7 @@ def test_package_mac_uses_standard_resources_with_executable_compatibility_link(
     python = preview / "resources" / "profiler" / "server" / "python" / "bin" / "python3"
     python.parent.mkdir(parents=True)
     python.write_bytes(b"python")
+    python.chmod(0o550)
     symlinks = []
 
     monkeypatch.setattr(top.platform, "system", lambda: top.Const.MAC_OS)
@@ -607,13 +608,97 @@ def test_package_mac_uses_standard_resources_with_executable_compatibility_link(
     monkeypatch.setattr(top, "resign_mac_app", lambda _: True)
     monkeypatch.setattr(top, "chmod_mac_app", lambda *_: True)
     monkeypatch.setattr(top, "verify_mac_packaged_rag", lambda _: True)
+    monkeypatch.setattr(top, "verify_mac_bundled_python_runtime", lambda _: True)
+    monkeypatch.setattr(top, "exec_command", lambda *_: 0)
     monkeypatch.setattr(top, "build_dmg_for_mac_app", lambda path: Path(path).write_bytes(b"dmg") > 0)
 
     assert top.package_mac(str(tmp_path / "out.dmg"), "package_macos_aarch64.dmg", str(preview), str(target)) is True
     packaged = preview / top.Const.MAC_OS_APPNAME
     assert (packaged / "Contents" / "Resources" / "python" / "bin" / "python3").is_file()
     assert not (packaged / "Contents" / "Resources" / "profiler" / "server" / "python").exists()
-    assert symlinks == [("../Resources", str(macos / "resources"), True)]
+    assert not symlinks
+    assert not (packaged / "Contents" / "MacOS" / "resources").exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="executes a POSIX shell-script fixture")
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_mac_python_runtime_guard_executes_server_outside_signed_bundle(tmp_path: Path, exit_code: int) -> None:
+    top = load_top_build_module()
+    app = tmp_path / "目录 with spaces.app"
+    server = app / "Contents" / "Resources" / "profiler" / "server" / "profiler_server"
+    server.parent.mkdir(parents=True)
+    server.write_text(
+        f'#!/bin/sh\n[ "$2" = "--checkPython" ] || exit 9\ntouch profiler_server.log\nexit {exit_code}\n',
+        encoding="utf-8",
+    )
+    server.chmod(0o550)
+
+    assert top.verify_mac_bundled_python_runtime(str(app)) is (exit_code == 0)
+    assert not list(app.rglob("profiler_server.log"))
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+@pytest.mark.parametrize("inherited_library_path", [None, "existing-library-path"])
+def test_mac_python_runtime_guard_preserves_probe_call_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    exit_code: int,
+    inherited_library_path: str | None,
+) -> None:
+    top = load_top_build_module()
+    app = tmp_path / "目录 with spaces.app"
+    resources = app / "Contents" / "Resources"
+    server_dir = resources / "profiler" / "server"
+    if inherited_library_path is None:
+        monkeypatch.delenv("DYLD_LIBRARY_PATH", raising=False)
+    else:
+        monkeypatch.setenv("DYLD_LIBRARY_PATH", inherited_library_path)
+    calls = []
+
+    def run(command, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((command, kwargs))
+        assert Path(kwargs["cwd"]).is_dir()
+        assert not Path(kwargs["cwd"]).resolve().is_relative_to(app.resolve())
+        return SimpleNamespace(returncode=exit_code, stdout="probe stdout", stderr="probe diagnostic")
+
+    monkeypatch.setattr(top.subprocess, "run", run)
+
+    assert top.verify_mac_bundled_python_runtime(str(app)) is (exit_code == 0)
+    assert len(calls) == 1
+    command, options = calls[0]
+    assert command == [str(server_dir / "profiler_server"), f"--resourceRoot={resources}", "--checkPython"]
+    assert options["capture_output"] is True
+    assert options["text"] is True
+    assert options["timeout"] == 30
+    assert options["check"] is False
+    expected_library_path = str(server_dir)
+    if inherited_library_path:
+        expected_library_path += os.pathsep + inherited_library_path
+    assert options["env"]["DYLD_LIBRARY_PATH"] == expected_library_path
+    assert not Path(options["cwd"]).exists()
+    if exit_code:
+        assert "probe stdout" in caplog.text
+        assert "probe diagnostic" in caplog.text
+
+
+@pytest.mark.parametrize("failure", [OSError("cannot launch probe"), subprocess.TimeoutExpired("probe", 30)])
+def test_mac_python_runtime_guard_reports_launch_errors_and_timeouts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, failure: Exception
+) -> None:
+    top = load_top_build_module()
+
+    def run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise failure
+
+    monkeypatch.setattr(top.subprocess, "run", run)
+
+    assert top.verify_mac_bundled_python_runtime(str(tmp_path / "probe.app")) is False
+    assert str(failure) in caplog.text
+
+
+def test_mac_python_runtime_guard_rejects_missing_server(tmp_path: Path) -> None:
+    assert load_top_build_module().verify_mac_bundled_python_runtime(str(tmp_path / "missing.app")) is False
 
 
 def test_mac_signing_refreshes_native_runtime_manifest_after_nested_signatures(tmp_path: Path) -> None:

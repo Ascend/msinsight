@@ -30,6 +30,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
@@ -621,6 +622,47 @@ def restore_mac_bundled_python_permissions(resources_dir: str) -> None:
         traverse_folder_and_chmod(bundled_python_bin_dir, 0o750, 0o550)
 
 
+def verify_mac_bundled_python_runtime(app_path: str) -> bool:
+    """Exercise the packaged server's production Python resolver after signing and chmod.
+
+    The desktop launcher exports DYLD_LIBRARY_PATH pointing at the bundled server directory before spawning
+    profiler_server, so the probe must provide the same dynamic library search path.
+    """
+    resources = os.path.abspath(os.path.join(app_path, 'Contents', 'Resources'))
+    server_dir = os.path.join(resources, 'profiler', 'server')
+    server = os.path.join(server_dir, 'profiler_server')
+    environment = os.environ.copy()
+    inherited_library_path = environment.get('DYLD_LIBRARY_PATH')
+    environment['DYLD_LIBRARY_PATH'] = (
+        server_dir if not inherited_library_path
+        else os.pathsep.join((server_dir, inherited_library_path))
+    )
+    try:
+        # The server logger must never create files inside the signed bundle.
+        with tempfile.TemporaryDirectory(prefix='insight-python-check-') as probe_dir:
+            result = subprocess.run(
+                [server, f'--resourceRoot={resources}', '--checkPython'],
+                cwd=probe_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=environment,
+            )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        logging.error('[bin_package] Bundled Python runtime check failed: %s', error)
+        return False
+    if result.returncode != 0:
+        logging.error(
+            '[bin_package] Bundled Python runtime check failed (%s): %s %s',
+            result.returncode,
+            result.stdout,
+            result.stderr,
+        )
+        return False
+    return True
+
+
 def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: str) -> bool:
     system = platform.system()
     bin_file = file_names.get((system, 'bin'), 'MindStudioInsight')
@@ -630,14 +672,6 @@ def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: 
     preview_app = os.path.join(preview_dir, Const.MAC_OS_APPNAME)
     os.chmod(os.path.join(app_bin_file_dir, bin_file), 0o550)  # 4、app内二进制文件 ascend_insight 550
     shutil.copytree(os.path.join(preview_dir, 'resources'), app_resources_dir, dirs_exist_ok=True)
-    runtime_resources_link = os.path.join(app_bin_file_dir, 'resources')
-    if os.path.lexists(runtime_resources_link):
-        if os.path.islink(runtime_resources_link) or os.path.isfile(runtime_resources_link):
-            os.unlink(runtime_resources_link)
-        else:
-            shutil.rmtree(runtime_resources_link)
-    # Keep the existing executable-relative resource lookup while storing data in the standard bundle location.
-    os.symlink('../Resources', runtime_resources_link, target_is_directory=True)
     python_src_dir = os.path.join(app_resources_dir, 'profiler', 'server', 'python')
     python_dst_dir = os.path.join(app_resources_dir, 'python')
     if os.path.exists(python_dst_dir):
@@ -651,7 +685,14 @@ def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: 
         return False
     if not verify_mac_bundled_python_executable(preview_app):
         return False
+    if not verify_mac_bundled_python_runtime(preview_app):
+        return False
     if not verify_mac_packaged_rag(preview_app):
+        return False
+    if (
+        'aarch64' in package_name
+        and exec_command(['codesign', '--verify', '--deep', '--strict', preview_app], preview_dir, 'bin_package') != 0
+    ):
         return False
     # 通过dmgbuild打包
     if not build_dmg_for_mac_app(dst_file):

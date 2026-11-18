@@ -105,6 +105,10 @@ export const STATE_WORKER_INFO_DEFAULT = {
 };
 
 export class Session {
+    memSnapshotParseAttempt: number = 0;
+    memSnapshotSourcePaths: string[] = [];
+    memSnapshotImportPending: boolean = false;
+    memSnapshotParseFailure: { fileId: string; error: string } | null = null;
     module: 'memsnapshot' | 'leaks' = 'leaks';
     language: 'zhCN' | 'enUS' = 'enUS';
     deviceIds: any = {};

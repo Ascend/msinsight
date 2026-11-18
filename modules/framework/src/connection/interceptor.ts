@@ -26,6 +26,7 @@ import {
     profilingExpertDataParsedHandler,
     parseMemSnapshotSliceReadyHandler,
     parseMemSnapshotProgressHandler,
+    parseFailHandler,
 } from './interceptorHandler';
 
 const MEMORY_COMPLETED = 'parse/memoryCompleted';
@@ -41,6 +42,7 @@ export type ResponseType = ImportActionResponse;
 export const INTERCEPTOR_HANDLERS: Record<string, ResponseInterceptor<ResponseType>> = {};
 
 export const NOTIFICATION_INTERCEPTOR_HANDLERS: Record<string, NotificationInterceptor<any>> = {
+    'parse/fail': parseFailHandler,
     [MEMORY_COMPLETED]: parseMemorySuccessHandler,
     [LEAKS_COMPLETED]: parseLeaksSuccessHandler,
     [TRITON_COMPLETED]: parseTritonSuccessHandler,

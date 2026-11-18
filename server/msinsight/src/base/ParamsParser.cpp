@@ -18,6 +18,7 @@
 
 #include "../utils/pch.h"
 #include "ParamsParser.h"
+#include "../utils/FileUtil.h"
 
 namespace Dic {
 namespace Server {
@@ -33,6 +34,19 @@ const ParamsOption &ParamsParser::GetOption() const { return option; }
 const std::string &ParamsParser::GetError() const { return error; }
 
 bool ParamsParser::ParseField(const std::string &data) {
+    if (StringUtil::StartWith(data, symbolResourceRoot)) {
+        const auto root = data.substr(symbolResourceRoot.length());
+        if (!FileUtil::IsAbsolutePath(root)) {
+            error = "ERROR: Resource root must be an absolute path.";
+            return false;
+        }
+        option.resourceRoot = root;
+        return true;
+    }
+    if (data == symbolCheckPython) {
+        option.checkPython = true;
+        return true;
+    }
     std::string::size_type pos = data.find(symbolWsPort);
     if (pos != std::string::npos) {
         return ParseWsPort(data.substr(pos + symbolWsPort.length()));

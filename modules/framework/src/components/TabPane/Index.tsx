@@ -49,6 +49,7 @@ import { useSwitchModuleCommand } from './useSwitchModuleCommand';
 import { reportTabKey } from '@insight/lib/AgentReport';
 import { AgentReportFrame } from './AgentReportFrame';
 import { useReportTabs } from './useReportTabs';
+import { store } from '@/store';
 
 const MODULE_FRAME_MIN_WIDTH = 360;
 
@@ -357,6 +358,8 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
             const sendBody = {
                 event: 'frame/loaded',
                 body: {
+                    memSnapshotParseAttempt: session.memSnapshotParseAttempt,
+                    memSnapshotParseFailure: session.memSnapshotParseFailure,
                     selectedFileType: session.activeDataSource.selectedFileType,
                     selectedFilePath: session.activeDataSource.selectedFilePath,
                     selectedProjectName: session.activeDataSource.projectName,
@@ -369,7 +372,23 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
             // 再为新增或替换后的真实 DOM 实例注册 bridge，同一实例不重复注册。
             currentFrames.forEach((frame, moduleId) => {
                 const onLoadHandler = (): void => {
-                    connector.send({ ...sendBody, to: moduleId });
+                    const currentSession = store.sessionStore.activeSession;
+                    connector.send({
+                        ...sendBody,
+                        body: {
+                            ...sendBody.body,
+                            selectedFileType: currentSession.activeDataSource.selectedFileType,
+                            selectedFilePath: currentSession.activeDataSource.selectedFilePath,
+                            selectedProjectName: currentSession.activeDataSource.projectName,
+                            memSnapshotParseAttempt: currentSession.memSnapshotParseAttempt,
+                            memSnapshotParseFailure: currentSession.memSnapshotParseFailure,
+                            pageInfo: {
+                                cluster: currentSession.clusterPageInfo,
+                                timeline: currentSession.timelinePageInfo,
+                            },
+                        },
+                        to: moduleId,
+                    });
                 };
                 if (moduleFramesRef.current.get(moduleId) === frame) {
                     if (!iframeLoadHandlersRef.current.has(frame)) {

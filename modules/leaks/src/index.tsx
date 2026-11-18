@@ -92,7 +92,8 @@ export function getInitStatus(): void {
             from: 'Leaks',
             requests: [
                 'language', 'theme',
-                'memSnapshotParseFileId', 'memSnapshotParseLoading', 'memSnapshotParseProgress',
+                'memSnapshotParseAttempt', 'memSnapshotSourcePaths', 'memSnapshotParseFileId', 'memSnapshotParseLoading', 'memSnapshotParseProgress',
+                'memSnapshotParseFailure',
                 'fileHash', 'module', 'deviceIds', 'threadIds',
                 'snapshotParsingComplete', 'snapshotSlices', 'dbPath', 'directory',
             ],

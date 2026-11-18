@@ -23,6 +23,9 @@
 #include "ParamsParser.h"
 #include "WsServer.h"
 #include "SocketUtil.h"
+#include "PythonUtil.h"
+#include <algorithm>
+#include <iostream>
 
 using namespace std;
 using namespace Dic;
@@ -96,13 +99,33 @@ int main(int argc, const char *argv[]) {
     }
     const ParamsOption &option = ParamsParser::Instance().GetOption();
     if (!ParamsParser::Instance().Parse(args)) {
-        ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, "");
-        ServerLog::Error(ParamsParser::Instance().GetError());
+        // Parsing can fail before --checkPython is reached. Probe errors must not create a log file.
+        if (std::find(args.cbegin(), args.cend(), "--checkPython") != args.cend()) {
+            std::cerr << ParamsParser::Instance().GetError() << std::endl;
+        } else {
+            ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, "");
+            ServerLog::Error(ParamsParser::Instance().GetError());
+        }
         return -1;
     }
     if (option.scanPort > 0) {
         PrintAvailablePort(option.scanPort);
         return 0;
+    }
+    if (option.checkPython) {
+        const auto python = PythonUtil::GetPythonCommand();
+        if (python.empty()) {
+            std::cerr << "Python runtime check failed: no interpreter was resolved." << std::endl;
+            return 1;
+        }
+        const int result = PythonUtil::ExecuteCommand(
+            python, {"-I", "-B", "-c", "import ctypes, pickle, sqlite3, ssl; print('Bundled Python runtime OK')"},
+            std::nullopt);
+        if (result != 0) {
+            std::cerr << "Python runtime check failed for interpreter " << python << " (status: " << result << ")."
+                      << std::endl;
+        }
+        return result;
     }
 
     ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, to_string(option.wsPort));

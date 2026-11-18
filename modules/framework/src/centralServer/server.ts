@@ -39,9 +39,13 @@ import { closeLoading } from '@/utils/useLoading';
 import { updateDataScene } from '@/components/TabPane/Index';
 import { Session } from '@/entity/session';
 import { errorCenter, RequestOptions, WsError } from '@insight/lib';
+import { collectDataSourcePaths, isFileInDataSource } from '../utils/filePath';
 import { getConnectHost, isVscodeEnv, setConnectRemoteFn } from '@/vscode-adapter';
 
 export const CONNECTION_MAP: Map<string, Connection> = new Map();
+
+// Only the most recently started request may reset the current page on a missing response body.
+const latestImportRequestBySession = new WeakMap<Session, object>();
 
 const getConnectionMapKey = (host: ConnectHost): string => {
     return `${host?.remote}:${host?.port}`;
@@ -85,6 +89,8 @@ export const addDataPath = async function(project: Project, action: ProjectActio
     }
     const connection = CONNECTION_MAP.get(getConnectionMapKey(host));
     if (connection) {
+        const importRequest = {};
+        latestImportRequestBySession.set(session, importRequest);
         connector.send({
             event: 'remote/savePageSetting',
             body: {},
@@ -99,7 +105,47 @@ export const addDataPath = async function(project: Project, action: ProjectActio
             projectAction: action,
             isConflict,
         };
-        const { body: result, error } = await importProject(params) as Response<ImportResultBody>;
+        // Directory contents are unknown until import/action returns. Register possible snapshot
+        // ownership before awaiting it, but do not reset snapshot state for ordinary data files.
+        // This frontend generation is not a backend task ID for retries of the same file.
+        const sourcePaths = collectDataSourcePaths(project);
+        const mayImportSnapshot = sourcePaths.some(path => !/\.(json|db|bin|csv|ipynb)$/i.test(path)) ||
+            project.children?.some(child => isMemSnapshotFile(child.path));
+        const parseAttempt = mayImportSnapshot ? ++session.memSnapshotParseAttempt : undefined;
+        if (parseAttempt !== undefined) {
+            session.memSnapshotParseFailure = null;
+            session.memSnapshotSourcePaths = sourcePaths;
+            session.memSnapshotImportPending = true;
+            connector.send({
+                event: 'updateSession',
+                body: {
+                    memSnapshotParseAttempt: parseAttempt, memSnapshotSourcePaths: sourcePaths,
+                    memSnapshotImportPending: true, memSnapshotParseFailure: null,
+                },
+            });
+        }
+        let response: Response<ImportResultBody>;
+        try {
+            response = await importProject(params) as Response<ImportResultBody>;
+        } finally {
+            if (parseAttempt !== undefined && parseAttempt === session.memSnapshotParseAttempt) {
+                session.memSnapshotImportPending = false;
+                connector.send({
+                    event: 'updateSession',
+                    body: { memSnapshotParseAttempt: parseAttempt, memSnapshotImportPending: false },
+                });
+            }
+        }
+        const { body: result, error } = response;
+        // Only snapshot responses use the snapshot initialization guard. Ordinary imports must
+        // still run error handling, remote/import and project updates when their responses overlap.
+        const hasMatchingFailure = parseAttempt === session.memSnapshotParseAttempt &&
+            isFileInDataSource(project, session.memSnapshotParseFailure?.fileId ?? '');
+        const importedSnapshotFile = sourcePaths.find(isMemSnapshotFile) || findMemSnapshotFile(result?.children);
+        const isSnapshotImport = Boolean(importedSnapshotFile) || hasMatchingFailure;
+        if (isSnapshotImport && parseAttempt !== undefined && parseAttempt !== session.memSnapshotParseAttempt) {
+            return false;
+        }
 
         if (error) {
             const { code, message } = error;
@@ -107,14 +153,38 @@ export const addDataPath = async function(project: Project, action: ProjectActio
         }
 
         if (!result) {
-            connector.send({ event: 'remote/reset', body: {}, target: 'plugin' }); // 由于发送时页签应该只有 时间线、内存、算子 存在，所以这个事件只能被这三个页签收到
+            if (latestImportRequestBySession.get(session) === importRequest) {
+                connector.send({ event: 'remote/reset', body: {}, target: 'plugin' });
+            }
             return false;
         }
         const res = result;
+        if (importedSnapshotFile) {
+            // Once the response identifies the selected snapshot, siblings in the imported
+            // directory no longer own its failure state, even before switchDirectory is sent.
+            session.memSnapshotSourcePaths = [importedSnapshotFile];
+            session.memSnapshotParseFileId = importedSnapshotFile;
+        }
+        // An ordinary import only replaces snapshot state once it succeeds, never while a newer
+        // snapshot import is pending. Late iframe hydration must not replay the previous failure.
+        if (!isSnapshotImport && !session.memSnapshotImportPending) {
+            session.memSnapshotParseFailure = null;
+            session.memSnapshotParseFileId = '';
+            session.memSnapshotSourcePaths = [];
+            session.memSnapshotParseLoading = false;
+            session.memSnapshotParseProgress = 0;
+        }
         // 这里添加 session.actionListener.type !== SessionAction.ADD_DATA_UNDER_PROJECT 条件，防止在项目中添加卡的场景下，集群页面被重置
         // 这里添加 res.isCluster 判断导入数据是否是集群，如果是集群数据，也要重置 session 使 clusterCompleted = false, 确保 Summary 和 Communication 模块正常加载
         if (session.actionListener.type !== SessionAction.ADD_DATA_UNDER_PROJECT && (res.reset || res.isCluster)) {
+            const parseFailure = session.memSnapshotParseFailure;
+            const snapshotSourcePaths = session.memSnapshotSourcePaths;
+            const snapshotImportPending = session.memSnapshotImportPending;
             session.reset();
+            session.memSnapshotParseFailure = parseFailure;
+            session.memSnapshotParseFileId = importedSnapshotFile || parseFailure?.fileId || '';
+            session.memSnapshotSourcePaths = snapshotSourcePaths;
+            session.memSnapshotImportPending = snapshotImportPending;
         }
         // 这里立即将 actionListener 恢复为默认值，防止在正常导入或切换项目的场景下，不执行上方的 session.reset
         session.resetActionListener();
@@ -128,12 +198,32 @@ export const addDataPath = async function(project: Project, action: ProjectActio
         // 添加参数告诉是否为点击的添加
         connector.send({
             event: 'remote/import',
-            body: { dataSource: transformTimelineDataSource(project), importResult: res, switchProject },
+            body: {
+                dataSource: transformTimelineDataSource(project), importResult: res, switchProject,
+                memSnapshotImportPending: session.memSnapshotImportPending,
+                ...(!isSnapshotImport || parseAttempt === undefined ? {} : {
+                    memSnapshotParseAttempt: parseAttempt,
+                    memSnapshotSourcePaths: session.memSnapshotSourcePaths,
+                    memSnapshotParseFailure: session.memSnapshotParseFailure,
+                }),
+            },
             target: 'plugin',
         }); // 由于发送时页签应该只有 时间线、内存、算子 存在，所以这个事件只能被这三个页签收到
         afterImportProject(params, res);
     }
     return true;
+};
+
+const isMemSnapshotFile = (path: string): boolean => /\.(pkl|pickle)$/i.test(path);
+
+const findMemSnapshotFile = (children: ImportTreeInfo[] = []): string => {
+    for (const child of children) {
+        const filePath = isMemSnapshotFile(child.filePath) ? child.filePath : findMemSnapshotFile(child.children);
+        if (filePath) {
+            return filePath;
+        }
+    }
+    return '';
 };
 
 const transformTimelineDataSource = (project: Project): DataSource => {
