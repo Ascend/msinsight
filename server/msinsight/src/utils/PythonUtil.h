@@ -31,6 +31,7 @@ class PythonUtil {
     static int ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments,
         const std::optional<std::string> &logPath = std::nullopt);
     static std::string GetPythonCommand();
+    static std::string ResolveMacPythonCommand(const std::string &serverDirectory, const std::string &resourceRoot);
     static int ExecuteCommand(const std::string &executablePath, const std::vector<std::string> &arguments,
         const std::optional<std::string> &logPath);
 };

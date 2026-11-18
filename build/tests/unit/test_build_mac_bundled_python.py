@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 BUILD_DIR = Path(__file__).parents[2]
@@ -69,6 +70,18 @@ class MacBundledPythonPermissionTest(unittest.TestCase):
         shutil.rmtree(self.resources_dir / 'python')
         self.module.restore_mac_bundled_python_permissions(str(self.resources_dir))
         self.assertFalse((self.resources_dir / 'python').exists())
+
+    def test_runtime_probe_exports_bundled_server_library_path(self):
+        server_dir = self.resources_dir / 'profiler' / 'server'
+        server_dir.mkdir(parents=True)
+        server = server_dir / 'profiler_server'
+        shutil.copyfile('/bin/echo', server)
+        os.chmod(server, 0o550)
+        completed = mock.Mock(returncode=0, stdout='', stderr='')
+        with mock.patch.object(self.module.subprocess, 'run', return_value=completed) as run:
+            self.assertTrue(self.module.verify_mac_bundled_python_runtime(str(self.app_path)))
+        environment = run.call_args.kwargs['env']
+        self.assertEqual(environment['DYLD_LIBRARY_PATH'].split(os.pathsep)[0], str(server_dir))
 
 
 if __name__ == '__main__':

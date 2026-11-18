@@ -13,6 +13,7 @@ import {
     parseLeaksSuccessHandler,
     parseMemSnapshotProgressHandler,
     parseMemSnapshotSliceReadyHandler,
+    parseFailHandler,
 } from './interceptorHandler';
 
 jest.mock('@insight/lib/utils', () => ({
@@ -27,9 +28,11 @@ jest.mock('@/store', () => {
             projectPath: ['C:\\data\\snapshot.pickle'],
         },
         toBeActivedProject: undefined as { selectedFilePath?: string; projectPath?: string[] } | undefined,
+        memSnapshotSourcePaths: [] as string[],
         memSnapshotParseFileId: '',
         memSnapshotParseLoading: false,
         memSnapshotParseProgress: 0,
+        memSnapshotParseFailure: null as { fileId: string; error: string } | null,
         fileHash: '',
         snapshotSlices: {} as Record<string, any>,
         snapshotParsingComplete: true,
@@ -64,9 +67,11 @@ describe('framework memsnapshot interceptors', () => {
         session.activeDataSource.selectedFilePath = 'C:\\data\\snapshot.pickle';
         session.activeDataSource.projectPath = ['C:\\data\\snapshot.pickle'];
         session.toBeActivedProject = undefined;
+        session.memSnapshotSourcePaths = [];
         session.memSnapshotParseFileId = '';
         session.memSnapshotParseLoading = false;
         session.memSnapshotParseProgress = 0;
+        session.memSnapshotParseFailure = null;
         session.fileHash = '';
         session.snapshotSlices = {};
         session.snapshotParsingComplete = true;
@@ -76,6 +81,44 @@ describe('framework memsnapshot interceptors', () => {
             Object.assign(session, data);
             return data;
         });
+    });
+
+    it('caches snapshot failures and prevents later progress from restarting loading', () => {
+        parseFailHandler({ rankId: 'C:\\data\\snapshot.pickle', error: 'Python spawn failed' });
+        parseMemSnapshotProgressHandler({ fileId: 'C:\\data\\snapshot.pickle', progress: 5 });
+        expect(store.sessionStore.activeSession.memSnapshotParseLoading).toBe(false);
+        expect(store.sessionStore.activeSession.memSnapshotParseFailure).toEqual({
+            fileId: 'C:\\data\\snapshot.pickle', error: 'Python spawn failed',
+        });
+    });
+
+    it('does not cache a snapshot failure belonging to another data source', () => {
+        parseFailHandler({ rankId: 'D:\\other.pickle', error: 'old failure' });
+        expect(mockedUpdateSession).not.toHaveBeenCalled();
+    });
+
+    it('prioritizes a pending ADD_FILE target over the previous snapshot', () => {
+        const session = store.sessionStore.activeSession;
+        session.memSnapshotSourcePaths = ['/new/snapshot.pkl'];
+        session.memSnapshotParseFileId = 'C:\\data\\snapshot.pickle';
+        parseFailHandler({ rankId: 'C:\\data\\snapshot.pickle', error: 'old failure' });
+        expect(mockedUpdateSession).not.toHaveBeenCalled();
+        parseFailHandler({ rankId: '/new/snapshot.pkl', error: 'new failure' });
+        expect(session.memSnapshotParseFailure?.fileId).toBe('/new/snapshot.pkl');
+    });
+
+    it.each([undefined, '', '   '])('uses a nonempty error for %p', error => {
+        parseFailHandler({ rankId: 'C:\\data\\snapshot.pickle', error });
+        expect(store.sessionStore.activeSession.memSnapshotParseFailure?.error).toBe('Failed to parse snapshot data.');
+    });
+
+    it('does not block another file in the same imported folder after a snapshot failure', () => {
+        const session = store.sessionStore.activeSession;
+        session.activeDataSource.projectPath = ['C:\\data'];
+        parseFailHandler({ rankId: 'C:\\data\\snapshot.pickle', error: 'Python spawn failed' });
+        parseMemSnapshotProgressHandler({ fileId: 'C:\\data\\another.pkl', progress: 10 });
+        expect(session.memSnapshotParseLoading).toBe(true);
+        expect(session.memSnapshotParseFileId).toBe('C:\\data\\another.pkl');
     });
 
     it('ignores completion events from another data source', () => {

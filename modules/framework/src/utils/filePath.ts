@@ -65,14 +65,26 @@ export const isActiveSnapshotSourceFile = (
         toBeActivedProject?: { selectedFilePath?: string; projectPath?: string[] | string };
         activeDataSource?: { selectedFilePath?: string; projectPath?: string[] | string };
         memSnapshotParseFileId?: string;
+        memSnapshotSourcePaths?: string[];
     } | undefined,
     filePath: string,
 ): boolean => {
     if (!filePath || session === undefined) {
         return false;
     }
-    if (isFileInDataSource(session.toBeActivedProject, filePath) || isFileInDataSource(session.activeDataSource, filePath)) {
-        return true;
+    // An explicit import/selection owns incoming notifications before activeDataSource catches up.
+    if (session.memSnapshotSourcePaths?.length) {
+        const normalized = normalizeFilePath(filePath);
+        return session.memSnapshotSourcePaths.some(path => {
+            const sourcePath = normalizeFilePath(path);
+            return normalized === sourcePath || normalized.startsWith(`${sourcePath}/`);
+        });
+    }
+    if (collectDataSourcePaths(session.toBeActivedProject).length > 0) {
+        return isFileInDataSource(session.toBeActivedProject, filePath);
+    }
+    if (collectDataSourcePaths(session.activeDataSource).length > 0) {
+        return isFileInDataSource(session.activeDataSource, filePath);
     }
     const parseFileId = session.memSnapshotParseFileId;
     return typeof parseFileId === 'string' && parseFileId !== '' && isRelatedFilePath(parseFileId, filePath);

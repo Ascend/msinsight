@@ -39,6 +39,8 @@ struct ParamsOption {
     string eventDir;
     int scanPort{-1};
     bool strictMode{true};
+    string resourceRoot;
+    bool checkPython{false};
 };
 
 class ParamsParser {
@@ -71,6 +73,8 @@ class ParamsParser {
     const string symbolScanPort = "--scanPort="; // vscode插件使用来获取端口
     // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
     const string symbolNotStrict = "--notStrict";
+    const string symbolResourceRoot = "--resourceRoot=";
+    const string symbolCheckPython = "--checkPython";
     const int minPortNum = 9000;
     const int maxPortNum = 9100;
 

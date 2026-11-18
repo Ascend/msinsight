@@ -35,6 +35,10 @@ interface ImportFileTreeNode {
 }
 
 interface RemoteImportData {
+    memSnapshotParseAttempt?: number;
+    memSnapshotSourcePaths?: string[];
+    memSnapshotImportPending?: boolean;
+    memSnapshotParseFailure?: { fileId: string; error: string } | null;
     selectedFilePath?: string;
     projectPath?: string | string[];
     dataSource?: {
@@ -78,7 +82,7 @@ const isMemSnapshotFile = (filePath: unknown): filePath is string => {
 };
 
 const normalizeFilePath = (filePath: string): string => {
-    const normalized = filePath.replace(/\\/g, '/');
+    const normalized = filePath.replace(/\\/g, '/').replace(/\/+$/, '');
     const driveMatch = normalized.match(/^([a-zA-Z]:)(\/.*)?$/);
     if (driveMatch) {
         return normalized.toLowerCase();
@@ -93,6 +97,27 @@ const normalizeFilePath = (filePath: string): string => {
 const isCurrentMemSnapshotParse = (session: any, fileId: string): boolean =>
     isMemSnapshotFile(fileId) && session.memSnapshotParseFileId !== '' &&
     normalizeFilePath(fileId) === normalizeFilePath(session.memSnapshotParseFileId);
+
+// Kept in sync with framework's snapshot source ownership: an explicit pending import or
+// directory selection takes precedence over the previous current file, including an empty iframe.
+const isFileInSnapshotSources = (paths: string[], filePath: string): boolean => {
+    const normalized = normalizeFilePath(filePath);
+    return paths.some(path => {
+        const sourcePath = normalizeFilePath(path);
+        return normalized === sourcePath || normalized.startsWith(`${sourcePath}/`);
+    });
+};
+
+const isMemSnapshotSourceFile = (session: any, fileId: string): boolean => {
+    if (!isMemSnapshotFile(fileId)) {
+        return false;
+    }
+    const paths = session.memSnapshotSourcePaths as string[] | undefined;
+    return paths?.length ? isFileInSnapshotSources(paths, fileId) : isCurrentMemSnapshotParse(session, fileId);
+};
+
+const getSnapshotError = (error: unknown): string =>
+    typeof error === 'string' && error.trim() ? error.trim() : 'Failed to parse snapshot data.';
 
 const lastMemSnapshotCompletionBySession = new WeakMap<object, any>();
 
@@ -165,6 +190,71 @@ const clearMemSnapshotState = (session: any): void => {
     clearMemSnapshotParseProgress(session);
 };
 
+const hasMemSnapshotFailure = (session: any, fileId: string): boolean =>
+    Boolean(session.memSnapshotParseFailure && normalizeFilePath(session.memSnapshotParseFailure.fileId) === normalizeFilePath(fileId));
+
+const applyMemSnapshotFailure = (session: any, failure: { fileId: string; error: string }, report = true): void => {
+    failure = { ...failure, error: getSnapshotError(failure.error) };
+    const alreadyReported = hasMemSnapshotFailure(session, failure.fileId) &&
+        isCurrentMemSnapshotParse(session, failure.fileId) && session.memSnapshotParseFailure.error === failure.error;
+    const sourcePaths = session.memSnapshotSourcePaths;
+    const importPending = session.memSnapshotImportPending;
+    removeRemoteHandler({});
+    runInAction(() => {
+        session.memSnapshotSourcePaths = sourcePaths;
+        session.memSnapshotImportPending = importPending;
+        session.memSnapshotParseFailure = failure;
+        session.memSnapshotParseFileId = failure.fileId;
+    });
+    if (report && !alreadyReported) {
+        errorCenter.handleError(new WsError(ErrorCode.PARSE_FAIL, failure.error));
+    }
+};
+
+const syncMemSnapshotAttempt = (session: any, data: RemoteImportData): boolean => {
+    const attempt = data.memSnapshotParseAttempt;
+    if (typeof attempt === 'number' && Number.isSafeInteger(attempt)) {
+        if (attempt < session.memSnapshotParseAttempt) {
+            return false;
+        }
+        if (attempt > session.memSnapshotParseAttempt) {
+            runInAction(() => {
+                session.memSnapshotParseAttempt = attempt;
+                session.memSnapshotParseFailure = null;
+                lastMemSnapshotCompletionBySession.delete(session);
+                clearMemSnapshotState(session);
+                session.dbPath = '';
+                session.fileHash = '';
+            });
+        }
+    }
+    if (typeof data.memSnapshotImportPending === 'boolean') {
+        session.memSnapshotImportPending = data.memSnapshotImportPending;
+    }
+    if (Array.isArray(data.memSnapshotSourcePaths)) {
+        session.memSnapshotSourcePaths = data.memSnapshotSourcePaths.filter(path => typeof path === 'string' && path !== '');
+    }
+    const failure = data.memSnapshotParseFailure;
+    const targetFile = getImportedMemSnapshotFile(data);
+    // Failure is monotonic within an attempt: cached import/frame metadata can still contain
+    // null after a live failure. Only a newer attempt or an explicit ordinary import clears it.
+    if (failure && isMemSnapshotFile(failure.fileId)) {
+        const ownsFailure = isMemSnapshotSourceFile(session, failure.fileId) ||
+            (!session.memSnapshotSourcePaths?.length && targetFile && normalizeFilePath(targetFile) === normalizeFilePath(failure.fileId));
+        if (ownsFailure) {
+            applyMemSnapshotFailure(session, failure);
+        } else if (typeof attempt === 'number' && Number.isSafeInteger(attempt) && attempt === session.memSnapshotParseAttempt &&
+            !hasMemSnapshotFailure(session, session.memSnapshotParseFileId)) {
+            // Cold iframe hydration also carries the same generation's inactive failure cache.
+            // Retain it for later selection, but never replace the current file's terminal failure.
+            runInAction(() => {
+                session.memSnapshotParseFailure = { fileId: failure.fileId, error: getSnapshotError(failure.error) };
+            });
+        }
+    }
+    return true;
+};
+
 const areAllMemSnapshotSlicesReady = (
     snapshotSlices: Record<string, MemSnapshotDeviceSliceInfo>,
 ): boolean => {
@@ -220,6 +310,11 @@ const resetMemSnapshotQueryState = (session: any): void => {
 };
 
 const beginMemSnapshotParse = (session: any, fileId: string, forceReset = false): void => {
+    if (hasMemSnapshotFailure(session, fileId)) {
+        // Selecting a failed file after viewing another file must restore its full terminal state.
+        applyMemSnapshotFailure(session, session.memSnapshotParseFailure);
+        return;
+    }
     if (isCurrentMemSnapshotParse(session, fileId) && isMemSnapshotParseReady(session)) {
         finishMemSnapshotParseProgress(session);
         return;
@@ -256,7 +351,7 @@ const clampProgress = (progress: unknown): number => {
 
 const applyMemSnapshotParseProgress = (session: any, data: MemSnapshotProgressData): void => {
     const { fileId = '', progress } = data;
-    if (!isCurrentMemSnapshotParse(session, fileId)) {
+    if (!isCurrentMemSnapshotParse(session, fileId) || hasMemSnapshotFailure(session, fileId)) {
         return;
     }
     session.memSnapshotParseLoading = true;
@@ -278,13 +373,26 @@ export const updateSessionHandler: NotificationHandler = (data): void => {
         if (!session || typeof session !== 'object' || typeof data !== 'object') {
             return;
         }
+        if (!syncMemSnapshotAttempt(session, data as RemoteImportData)) {
+            return;
+        }
+        const terminalFailure = hasMemSnapshotFailure(session, session.memSnapshotParseFileId) &&
+            isMemSnapshotSourceFile(session, session.memSnapshotParseFileId) ? session.memSnapshotParseFailure : null;
         const dataKeys = Object.keys(data);
         const sessionKeys = Object.keys(session);
         dataKeys.forEach((key: string) => {
+            if (key === 'memSnapshotParseFailure') {
+                return;
+            }
             if (sessionKeys.includes(key)) {
                 (session as unknown as Record<string, unknown>)[key] = data[key];
             }
         });
+        if (terminalFailure) {
+            // Individual hydration keys arriving after a failure cannot restore old query data.
+            applyMemSnapshotFailure(session, terminalFailure, false);
+            return;
+        }
         if (Object.prototype.hasOwnProperty.call(data, 'module') && session.module !== 'memsnapshot' &&
             session.memSnapshotParseFileId === '') {
             clearMemSnapshotState(session);
@@ -456,7 +564,8 @@ const applyMemSnapshotParseCompleted = (session: any, data: any): void => {
 
 const replayPendingMemSnapshotCompletion = (session: any): void => {
     const data = takeMatchingMemSnapshotCompletion(session);
-    if (!data || (isMemSnapshotParseReady(session) && !session.memSnapshotParseLoading)) {
+    if (!data || hasMemSnapshotFailure(session, session.memSnapshotParseFileId) ||
+        (isMemSnapshotParseReady(session) && !session.memSnapshotParseLoading)) {
         return;
     }
     const incomingSlices = (data.snapshotSlices ?? {}) as Record<string, MemSnapshotDeviceSliceInfo>;
@@ -469,13 +578,20 @@ const replayPendingMemSnapshotCompletion = (session: any): void => {
 };
 
 export const importRemoteHandler: NotificationHandler = (data): void => {
+    // An ordinary import response must not displace a newer snapshot still awaiting import/action.
+    if (data?.memSnapshotImportPending === true) {
+        return;
+    }
     const session = store.sessionStore.activeSession;
-    if (!session || typeof data !== 'object') {
+    if (!session || typeof data !== 'object' || !syncMemSnapshotAttempt(session, data as RemoteImportData)) {
         return;
     }
     const fileId = getImportedMemSnapshotFile(data as RemoteImportData);
+    // The resolved current file, not its containing import directory, owns later failures.
+    session.memSnapshotSourcePaths = fileId ? [fileId] : [];
     if (!fileId) {
         runInAction(() => {
+            session.memSnapshotParseFailure = null;
             clearMemSnapshotState(session);
         });
         return;
@@ -487,12 +603,21 @@ export const importRemoteHandler: NotificationHandler = (data): void => {
 };
 
 export const switchDirectoryHandler: NotificationHandler = (data): void => {
+    // Even a previous selection inside the same pending folder is not its new selected file yet.
+    if (data?.memSnapshotImportPending === true) {
+        return;
+    }
     const session = store.sessionStore.activeSession;
     if (!session || typeof data !== 'object') {
         return;
     }
     const fileId = getImportedMemSnapshotFile(data as RemoteImportData);
     runInAction(() => {
+        session.memSnapshotSourcePaths = (data as RemoteImportData).memSnapshotSourcePaths ?? (fileId ? [fileId] : []);
+        if (session.memSnapshotSourcePaths.length &&
+            !isFileInSnapshotSources(session.memSnapshotSourcePaths, fileId || (data as RemoteImportData).selectedFilePath || '')) {
+            return;
+        }
         if (!fileId) {
             clearMemSnapshotState(session);
             return;
@@ -504,7 +629,15 @@ export const switchDirectoryHandler: NotificationHandler = (data): void => {
 
 export const frameLoadedHandler: NotificationHandler = (data): void => {
     const session = store.sessionStore.activeSession;
-    if (!session || typeof data !== 'object') {
+    if (!session || !data || typeof data !== 'object') {
+        return;
+    }
+    const { remoteImportData } = data as FrameLoadedData;
+    const initialization = typeof data.memSnapshotParseAttempt === 'number' ? data : (remoteImportData ?? data);
+    if (!syncMemSnapshotAttempt(session, initialization as RemoteImportData)) {
+        return;
+    }
+    if (session.memSnapshotImportPending) {
         return;
     }
     if (session.memSnapshotParseLoading && session.memSnapshotParseFileId) {
@@ -513,9 +646,8 @@ export const frameLoadedHandler: NotificationHandler = (data): void => {
     if (hasDeviceIds(session.deviceIds)) {
         return;
     }
-    const { remoteImportData } = data as FrameLoadedData;
     const fileId = getImportedMemSnapshotFile(remoteImportData ?? (data as RemoteImportData));
-    if (!fileId) {
+    if (!fileId || hasMemSnapshotFailure(session, fileId)) {
         return;
     }
     runInAction(() => {
@@ -537,6 +669,9 @@ export const parseCompletedHandler = (data: any): void => {
     const session = store.sessionStore.activeSession;
     const parseFileId = typeof data.dbPath === 'string' ? data.dbPath : '';
     if (!session) {
+        return;
+    }
+    if (hasMemSnapshotFailure(session, parseFileId)) {
         return;
     }
     if (data.module === 'memsnapshot') {
@@ -596,12 +731,23 @@ export const removeRemoteHandler: NotificationHandler = (data): void => {
             session.loadingState = false;
             lastMemSnapshotCompletionBySession.delete(session);
             clearMemSnapshotParseProgress(session);
+            session.memSnapshotParseFailure = null;
+            session.memSnapshotSourcePaths = [];
+            session.memSnapshotImportPending = false;
             restore(session);
         });
     }
 };
 
 export const parseFailHandler: NotificationHandler = (data): void => {
+    const session = store.sessionStore.activeSession;
+    if (session && isMemSnapshotFile(data.rankId)) {
+        if (!isMemSnapshotSourceFile(session, data.rankId)) {
+            return;
+        }
+        applyMemSnapshotFailure(session, { fileId: data.rankId, error: getSnapshotError(data.error) });
+        return;
+    }
     errorCenter.handleError(new WsError(ErrorCode.PARSE_FAIL, data.error as string));
     removeRemoteHandler(data);
 };

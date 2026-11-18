@@ -150,6 +150,10 @@ export class Session {
     memSnapshotParseLoading: boolean = false;
     memSnapshotParseProgress: number = 0;
     memSnapshotParseFileId: string = '';
+    memSnapshotParseAttempt: number = 0;
+    memSnapshotSourcePaths: string[] = [];
+    memSnapshotImportPending: boolean = false;
+    memSnapshotParseFailure: { fileId: string; error: string } | null = null;
     // triton数据解析完成
     tritonParsed: boolean = false;
     // 模块数据-算子调优
@@ -297,6 +301,9 @@ export class Session {
         this.memSnapshotParseLoading = false;
         this.memSnapshotParseProgress = 0;
         this.memSnapshotParseFileId = '';
+        this.memSnapshotParseFailure = null;
+        this.memSnapshotSourcePaths = [];
+        this.memSnapshotImportPending = false;
     }
 
     // 数据源管理

@@ -122,6 +122,10 @@ export const sendDirectory = (to?: string): void => {
         selectedFileType = session.activeDataSource.selectedFileType;
         selectedFilePath = session.activeDataSource.selectedFilePath;
     }
+    // A directory selection changes ownership, not the explicit-import generation.
+    if (!to && !session.memSnapshotImportPending) {
+        session.memSnapshotSourcePaths = selectedFilePath ? [selectedFilePath] : [];
+    }
     // 通知页签
     // 联合导入时rankId可能为ProjectType.IE类型的cardId，也可能为非ProjectType.IE类型的cardId。
     // rankId在Statistic模块用来当做初始值，所以在Statistic模块需要校验iERankIds中是否有rankId，没有需默认取iERankIds[0]
@@ -131,6 +135,8 @@ export const sendDirectory = (to?: string): void => {
             rankId,
             selectedFileType,
             selectedFilePath,
+            memSnapshotSourcePaths: session.memSnapshotSourcePaths,
+            memSnapshotImportPending: session.memSnapshotImportPending,
             // 比对数据存在时，比对数据所属的项目就是 session.activeDataSource
             selectedProjectName: session.activeDataSource.projectName,
             // 比对数据存在时，比对数据所属的项目就是 session.activeDataSource，比对数据的 clusterPageInfo 就是 session.clusterPageInfo
@@ -144,15 +150,38 @@ export const sendDirectory = (to?: string): void => {
     });
 };
 
+const snapshotSessionKeys = [
+    'memSnapshotParseFileId', 'memSnapshotParseLoading', 'memSnapshotParseProgress',
+    'fileHash', 'module', 'deviceIds', 'threadIds', 'snapshotParsingComplete', 'snapshotSlices', 'dbPath',
+];
+
 export const sendSessionKey = (key: string, to?: string): void => {
     const session = store.sessionStore.activeSession;
+    // Replay the generation, ownership and terminal state atomically even when the iframe
+    // requests individual keys. Never pair an old failure with a newly arrived generation.
+    if (['memSnapshotParseAttempt', 'memSnapshotSourcePaths', 'memSnapshotParseFailure'].includes(key)) {
+        connector.send({
+            event: 'updateSession',
+            body: {
+                memSnapshotParseAttempt: session.memSnapshotParseAttempt,
+                memSnapshotSourcePaths: session.memSnapshotSourcePaths,
+                memSnapshotImportPending: session.memSnapshotImportPending,
+                memSnapshotParseFailure: session.memSnapshotParseFailure,
+            },
+            to,
+        });
+        return;
+    }
     const value = (session as any)[key];
     if (value === undefined) {
         return;
     }
     connector.send({
         event: 'updateSession',
-        body: { [key]: value },
+        body: {
+            ...(snapshotSessionKeys.includes(key) ? { memSnapshotParseAttempt: session.memSnapshotParseAttempt } : {}),
+            [key]: value,
+        },
         to,
     });
 };
@@ -173,6 +202,9 @@ export const sendMap: Record<string, (to?: string) => void> = {
     memSnapshotParseLoading: (to) => sendSessionKey('memSnapshotParseLoading', to),
     memSnapshotParseProgress: (to) => sendSessionKey('memSnapshotParseProgress', to),
     memSnapshotParseFileId: (to) => sendSessionKey('memSnapshotParseFileId', to),
+    memSnapshotSourcePaths: (to) => sendSessionKey('memSnapshotSourcePaths', to),
+    memSnapshotParseAttempt: (to) => sendSessionKey('memSnapshotParseAttempt', to),
+    memSnapshotParseFailure: (to) => sendSessionKey('memSnapshotParseFailure', to),
     dbPath: (to) => sendSessionKey('dbPath', to),
     module: (to) => sendSessionKey('module', to),
     memoryCardInfos: (to) => sendSessionKey('memoryCardInfos', to),

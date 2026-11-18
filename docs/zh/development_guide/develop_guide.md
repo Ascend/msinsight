@@ -84,6 +84,8 @@
 
 MindStudio Insight 是跨平台工具，本文默认以 **Linux 开发环境** 为主线说明本地开发、调试和提交流程。Windows、macOS、CLion 工具链配置以及各平台出包环境准备请参见[开发环境搭建](./environment_setup.md)。
 
+macOS 包内资源定位、内置 Python 构建门禁与快照解析失败状态约定，见[macOS 资源布局与解析运行时校验](./macos_runtime_layout.md)。
+
 ### 2.1 准备基础依赖
 
 Linux 本地开发建议准备如下工具：

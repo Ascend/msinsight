@@ -19,6 +19,8 @@
 #![windows_subsystem = "windows"]
 #![allow(non_snake_case)]
 
+mod runtime_paths;
+
 #[cfg(any(all(not(debug_assertions), feature = "default"), test))]
 mod acp_origin;
 #[cfg(any(all(not(debug_assertions), feature = "default"), test))]

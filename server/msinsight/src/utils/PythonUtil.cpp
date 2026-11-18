@@ -40,6 +40,9 @@ extern char ***_NSGetEnviron();
 #include "FileUtil.h"
 #include "ServerLog.h"
 #include "PythonUtil.h"
+#include "../base/ParamsParser.h"
+#include <filesystem>
+#include <iostream>
 
 namespace Dic {
 int PythonUtil::ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments,
@@ -80,13 +83,76 @@ std::string PythonUtil::GetPythonCommand() {
     return FileUtil::SplicePath(curPath, "python", "python.exe");
 #endif
 #if defined(__APPLE__)
-    return FileUtil::SplicePath(curPath, "..", "..", "..", "..", "Resources", "python", "bin", "python3");
+    return ResolveMacPythonCommand(curPath, Server::ParamsParser::Instance().GetOption().resourceRoot);
 #endif
 #endif
 }
 
+std::string PythonUtil::ResolveMacPythonCommand(const std::string &serverDirectory, const std::string &resourceRoot) {
+    namespace fs = std::filesystem;
+    const auto fail = [&serverDirectory, &resourceRoot](const std::string &reason) {
+        // This resolver also runs before logging is configured, including inside a signed App.
+        std::cerr << "Failed to locate bundled Python: " << reason << ". Resource root: "
+                  << (resourceRoot.empty() ? "<auto>" : resourceRoot) << "; server directory: " << serverDirectory
+                  << std::endl;
+        return std::string{};
+    };
+    std::error_code error;
+    fs::path root;
+    if (!resourceRoot.empty()) {
+        if (!fs::path(resourceRoot).is_absolute()) {
+            return fail("resource root must be an absolute path");
+        }
+        root = fs::canonical(resourceRoot, error);
+        if (error) {
+            return fail("cannot resolve resource root: " + error.message());
+        }
+    } else {
+        // Direct server launches use the same standard bundle contract as the desktop launcher.
+        const auto server = fs::canonical(serverDirectory, error);
+        if (error) {
+            return fail("cannot resolve server directory: " + error.message());
+        }
+        if (!fs::is_directory(server, error)) {
+            return fail("server path is not an accessible directory: " + server.string() +
+                        (error ? " (" + error.message() + ")" : ""));
+        }
+        if (server.filename() != "server" || server.parent_path().filename() != "profiler") {
+            return fail("expected server directory in Contents/Resources/profiler/server: " + server.string());
+        }
+        root = server.parent_path().parent_path();
+        if (root.filename() != "Resources" || root.parent_path().filename() != "Contents") {
+            return fail("expected resource root at Contents/Resources: " + root.string());
+        }
+    }
+    if (!fs::is_directory(root, error)) {
+        return fail("resource root is not an accessible directory: " + root.string() +
+                    (error ? " (" + error.message() + ")" : ""));
+    }
+    const auto python = root / "python" / "bin" / "python3";
+    if (!fs::is_regular_file(python, error)) {
+        if (!Server::ParamsParser::Instance().GetOption().checkPython) {
+            Server::ServerLog::Error(
+                "Bundled Python is missing. Resource root: %, interpreter: %", root.string(), python.string());
+        }
+        return fail("bundled interpreter is missing or not an accessible regular file: " + python.string() +
+                    (error ? " (" + error.message() + ")" : ""));
+    }
+    return python.string();
+}
+
 int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vector<std::string> &arguments,
     const std::optional<std::string> &logPath) {
+    const bool checkPython = Server::ParamsParser::Instance().GetOption().checkPython;
+    const auto logError = [checkPython](const auto &...args) {
+        if (checkPython) {
+            // ServerLog lazily creates a file; runtime probes must only write captured stderr.
+            (std::cerr << ... << args);
+            std::cerr << std::endl;
+        } else {
+            Server::ServerLog::Error(args...);
+        }
+    };
 #if defined(_WIN32)
     DWORD flags = CREATE_NO_WINDOW;
 
@@ -106,7 +172,7 @@ int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vec
         handleOfLogFile = CreateFileW(wlogPath.c_str(), FILE_APPEND_DATA, FILE_SHARE_WRITE | FILE_SHARE_READ,
             &securityAttributes, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (handleOfLogFile == INVALID_HANDLE_VALUE) {
-            Server::ServerLog::Error("Failed to open log file in Windows. Error code: ", GetLastError());
+            logError("Failed to open log file in Windows. Error code: ", GetLastError());
             return -1;
         }
         startupInfo.dwFlags |= STARTF_USESTDHANDLES;
@@ -132,13 +198,15 @@ int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vec
 
     // CreateProcessW返回值为非零值时表示成功，零值表示失败，与posix_spawnp()正好相反
     if (result == 0) {
-        Server::ServerLog::Error("Failed to create a process in Windows. Error code: ", GetLastError());
+        logError("Failed to create a process in Windows. Error code: ", GetLastError());
         if (handleOfLogFile != INVALID_HANDLE_VALUE) {
             CloseHandle(handleOfLogFile);
         }
         return -1;
     }
-    Server::ServerLog::Info("Successfully created a process in Windows.");
+    if (!checkPython) {
+        Server::ServerLog::Info("Successfully created a process in Windows.");
+    }
     WaitForSingleObject(processInfo.hProcess, INFINITE);
     if (handleOfLogFile != INVALID_HANDLE_VALUE) {
         CloseHandle(handleOfLogFile);
@@ -157,7 +225,7 @@ int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vec
     if (logPath.has_value()) {
         int actionResult = posix_spawn_file_actions_init(&action);
         if (actionResult != 0) {
-            Server::ServerLog::Error("Failed to init posix spawn file actions. strerror: ", strerror(actionResult));
+            logError("Failed to init posix spawn file actions. strerror: ", strerror(actionResult));
             return -1;
         }
         actionPtr = &action;
@@ -165,13 +233,13 @@ int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vec
             posix_spawn_file_actions_addopen(actionPtr, STDOUT_FILENO, logPath.value().c_str(), O_WRONLY | O_APPEND, 0);
         if (actionResult != 0) {
             posix_spawn_file_actions_destroy(actionPtr);
-            Server::ServerLog::Error("Failed to add stdout redirect action. strerror: ", strerror(actionResult));
+            logError("Failed to add stdout redirect action. strerror: ", strerror(actionResult));
             return -1;
         }
         actionResult = posix_spawn_file_actions_adddup2(actionPtr, STDOUT_FILENO, STDERR_FILENO);
         if (actionResult != 0) {
             posix_spawn_file_actions_destroy(actionPtr);
-            Server::ServerLog::Error("Failed to add stderr redirect action. strerror: ", strerror(actionResult));
+            logError("Failed to add stderr redirect action. strerror: ", strerror(actionResult));
             return -1;
         }
     }
@@ -195,10 +263,18 @@ int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vec
         posix_spawn_file_actions_destroy(actionPtr);
     }
     if (result != 0) {
-        Server::ServerLog::Error("Failed to spawn a process in Linux or macOS. strerror: ", strerror(result));
+        if (checkPython) {
+            logError("Failed to spawn executable ", executablePath, ". Error code: ", result,
+                ", strerror: ", strerror(result));
+        } else {
+            Server::ServerLog::Error(
+                "Failed to spawn executable %. errno: %, strerror: %", executablePath, result, strerror(result));
+        }
         return -1;
     }
-    Server::ServerLog::Info("Successfully spawned a process in Linux or macOS.");
+    if (!checkPython) {
+        Server::ServerLog::Info("Successfully spawned a process in Linux or macOS.");
+    }
     int status;
     waitpid(pid, &status, 0);
     return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
