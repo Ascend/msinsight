@@ -34,6 +34,7 @@ const handleRequest = async (context, method, params) => {
     if (method === "session/new") return createSession(context);
     if (method === "session/list") return listSessions(context);
     if (method === "session/load" || method === "session/resume") return loadSession(context, params.sessionId);
+    if (method === "_msinsight/session/export") return exportSession(context, params.sessionId);
     if (method === "session/delete") return deleteSession(context, params.sessionId);
     if (method === "session/prompt") return runPrompt(context, params);
     if (method === "session/cancel") return cancelPrompt(context, params.sessionId, params._meta?.msinsightCancelSource);
@@ -55,6 +56,7 @@ const createInitializeResult = ({ agentRegistry, skillRegistry }) => ({
         "msinsight.dev/skills": skillRegistry.list(),
         "msinsight.dev/diagnostics": [...agentRegistry.diagnostics(), ...skillRegistry.diagnostics()],
         "msinsight.dev/setConfigOption": true,
+        "msinsight.dev/sessionExport": true,
     },
 });
 
@@ -112,6 +114,19 @@ const loadSession = async (context, sessionId) => {
     await context.sessionStore.save();
     replaySessionHistory(context, session);
     return { sessionId: session.sessionId, configOptions: createConfigOptions(context.agentRegistry, session, context.modelCatalog) };
+};
+
+/** Read-only history for a detached export connection: no model resolution, save or replay. */
+const exportSession = async (context, sessionId) => {
+    const session = ensureSession(context, sessionId);
+    if (context.running.has(session.sessionId) || session.runtimeSession?.activeController) {
+        throw Object.assign(new Error("Session has a running prompt and cannot be exported"), { code: "session_export_busy" });
+    }
+    // Runtime restoration may attach an in-memory state or replace messages; neither
+    // operation may rewrite the original session's metadata or notify chat clients.
+    const snapshot = { ...session, messages: structuredClone(session.messages ?? []) };
+    await context.aiRuntime.restoreSession(snapshot);
+    return { messages: structuredClone(snapshot.messages) };
 };
 
 /** 功能：删除指定 ACP 会话及其关联的 AI runtime 持久化上下文。 */

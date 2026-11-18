@@ -129,6 +129,59 @@ test('marks a newly completed background session as unread', async () => {
     expect(screen.getByText('Completed')).toBeVisible();
 });
 
+test('title search supports case-insensitive separated characters and literal punctuation', async () => {
+    renderPopover({ sessions: [
+        { sessionId: 'deepseek', title: 'DeepSeek Memory' },
+        { sessionId: 'reverse', title: 'sd' },
+        { sessionId: 'literal', title: 'Result [A+B]' },
+    ] });
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'DS' } });
+    expect(screen.getByRole('button', { name: 'DeepSeek Memory' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'sd' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '[A+B]' } });
+    expect(screen.getByRole('button', { name: 'Result [A+B]' })).toBeInTheDocument();
+});
+
+test('renames without selecting or closing the conversation and trims the saved title', async () => {
+    const onRename = jest.fn().mockResolvedValue(undefined);
+    const { onSelect, onClose } = renderPopover({ onRename });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Analyze operator jitter' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Session title' }), { target: { value: ' DeepSeek investigation ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith(sessions[0], 'DeepSeek investigation'));
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Session title' })).not.toBeInTheDocument());
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+});
+
+test('rejects blank/long titles, cancels with Escape and does not submit IME Enter', async () => {
+    const onRename = jest.fn().mockResolvedValue(undefined);
+    const { onClose } = renderPopover({ onRename });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Analyze operator jitter' }));
+    const input = screen.getByRole('textbox', { name: 'Session title' });
+    for (const title of ['  ', 'x'.repeat(201)]) {
+        fireEvent.change(input, { target: { value: title } });
+        expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    }
+    fireEvent.change(input, { target: { value: 'Valid title' } });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(onRename).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('textbox', { name: 'Session title' })).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+});
+
+test('preserves the edit and shows save failure instead of pretending the rename succeeded', async () => {
+    const onRename = jest.fn().mockRejectedValue(new Error('Could not save title'));
+    renderPopover({ onRename });
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Analyze operator jitter' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Session title' }), { target: { value: 'Retry this title' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save title');
+    expect(screen.getByRole('textbox', { name: 'Session title' })).toHaveValue('Retry this title');
+    expect(screen.getByRole('button', { name: 'Analyze operator jitter' })).toBeInTheDocument();
+});
+
 test('shows time and no unread dot for the selected completed session', async () => {
     renderPopover({
         sessions: [{ ...sessions[0], status: 'completed' }],

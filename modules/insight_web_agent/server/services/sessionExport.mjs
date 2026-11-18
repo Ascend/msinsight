@@ -50,6 +50,7 @@ export const writeSessionExport = async (document, directory, runtime) => {
 export const buildSessionExport = ({
     sessionId,
     title,
+    createdAt,
     updatedAt,
     messages,
     agent,
@@ -65,6 +66,7 @@ export const buildSessionExport = ({
         session: {
             sessionId,
             title: String(title ?? "").trim() || sessionId,
+            ...(createdAt !== undefined ? { createdAt } : {}),
             updatedAt: updatedAt ?? null,
         },
         messages: Array.isArray(messages) ? messages : [],

@@ -32,6 +32,7 @@ jest.mock('../../api', () => ({
     refreshAgents: jest.fn(),
     switchAgent: jest.fn(),
     loadSession: jest.fn(),
+    renameSession: jest.fn(),
     sendPrompt: jest.fn(),
     cancelPrompt: jest.fn(),
     setSessionMode: jest.fn(),
@@ -874,6 +875,60 @@ test('cancelling an initial request waits for its real ID and does not cancel th
     expect(chat.isDraftSession).toBe(true);
     expect(chat.pendingPrompt).toBe(false);
     expect(mockSendPrompt).toHaveBeenCalledTimes(1);
+});
+
+test('rename updates only the saved title without changing active messages or generation', async () => {
+    await send('first');
+    const session = chat.sessions[0];
+    const messages = chat.messages;
+    const pendingPrompt = chat.pendingPrompt;
+    (api.renameSession as jest.Mock).mockResolvedValue({ ok: true, agentId: 'agent-a', sessionId: session.sessionId, title: 'New title' });
+    await act(async () => { await chat.renameSession(session, 'New title'); });
+    expect(api.renameSession).toHaveBeenCalledWith(session.sessionId, 'New title', 'agent-a');
+    expect(chat.sessions[0].title).toBe('New title');
+    expect(chat.currentSessionId).toBe(session.sessionId);
+    expect(chat.messages).toBe(messages);
+    expect(chat.pendingPrompt).toBe(pendingPrompt);
+    expect(api.loadSession).not.toHaveBeenCalled();
+});
+
+test('rename failure remains visible to the editor and leaves the old title intact', async () => {
+    await send('first');
+    const session = chat.sessions[0];
+    (api.renameSession as jest.Mock).mockRejectedValue(new Error('Save failed'));
+    await act(async () => { await expect(chat.renameSession(session, 'New title')).rejects.toThrow('Save failed'); });
+    expect(chat.sessions[0].title).toBe(session.title);
+});
+
+test('a delayed first rename acknowledgement cannot overwrite a newer saved title', async () => {
+    await send('first');
+    const session = chat.sessions[0];
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    (api.renameSession as jest.Mock)
+        .mockReturnValueOnce(new Promise((done) => { resolveFirst = done; }))
+        .mockReturnValueOnce(new Promise((done) => { resolveSecond = done; }));
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => { first = chat.renameSession(session, 'First title'); second = chat.renameSession(session, 'Latest title'); });
+    const reply = (title: string) => ({ ok: true, agentId: 'agent-a', sessionId: session.sessionId, title });
+    await act(async () => { resolveSecond(reply('Latest title')); await second; });
+    expect(chat.sessions[0].title).toBe('Latest title');
+    await act(async () => { resolveFirst(reply('First title')); await first; });
+    expect(chat.sessions[0].title).toBe('Latest title');
+});
+
+test('late rename acknowledgement cannot affect another Agent with the same session ID', async () => {
+    await send('first');
+    const session = chat.sessions[0];
+    let resolve!: (value: unknown) => void;
+    (api.renameSession as jest.Mock).mockReturnValue(new Promise((done) => { resolve = done; }));
+    let pending!: Promise<void>;
+    act(() => { pending = chat.renameSession(session, 'Old owner title'); });
+    emit({ type: 'state', state: { activeAgentName: 'agent-b' } });
+    await act(async () => { resolve({ ok: true, agentId: 'agent-a', sessionId: session.sessionId, title: 'Old owner title' }); await pending; });
+    expect(chat.sessions).toEqual([]);
+    expect(chat.activeAgentName).toBe('agent-b');
 });
 
 test('a stale creation acknowledgement cannot restore sessions after switching agents', async () => {

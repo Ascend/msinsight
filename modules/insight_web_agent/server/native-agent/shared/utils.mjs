@@ -72,6 +72,7 @@ export const limitedToolValue = (value) => {
 export const toSessionListItem = (session) => ({
     sessionId: session.sessionId,
     title: session.title,
+    ...(session.createdAt ? { createdAt: new Date(session.createdAt).toISOString() } : {}),
     updatedAt: new Date(session.updatedAt).toISOString(),
     primaryAgentId: session.primaryAgentId ?? "general",
 });

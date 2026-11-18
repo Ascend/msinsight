@@ -22,6 +22,7 @@ import { createChatController } from "./controllers/chatController.mjs";
 import { createContextController } from "./controllers/contextController.mjs";
 import { createEventController } from "./controllers/eventController.mjs";
 import { createSessionController } from "./controllers/sessionController.mjs";
+import { createSessionBatchExportController } from "./controllers/sessionBatchExportController.mjs";
 import { createPermissionController } from "./controllers/permissionController.mjs";
 import { createPageController } from "./controllers/pageController.mjs";
 import { createFrontendCommandController } from "./controllers/frontendCommandController.mjs";
@@ -31,7 +32,7 @@ import { applyCors, json } from "./http/response.mjs";
 import { hasValidCapability, normalizeRequestOrigin } from "./http/security.mjs";
 import { errorBody, normalizeHttpError } from "./http/errors.mjs";
 
-export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService, frontendCommandService, capabilityCenter, httpMcpAdapter, capabilityToken, nativeCapabilityToken, artifactService, allowedOrigins = [] }) => {
+export const createApp = ({ agentService, eventBus, chatService, sessionService, sessionBatchExportService, state, permissionService, agentConfigService, pageContextService, frontendCommandService, capabilityCenter, httpMcpAdapter, capabilityToken, nativeCapabilityToken, artifactService, allowedOrigins = [] }) => {
     const router = createRouter({
         agentController: createAgentController({ agentService, state }),
         agentConfigController: createAgentConfigController({ agentConfigService }),
@@ -39,6 +40,8 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
         contextController: createContextController({ state }),
         eventController: createEventController({ eventBus }),
         sessionController: createSessionController({ sessionService }),
+        sessionBatchExportController: sessionBatchExportService
+            ? createSessionBatchExportController({ sessionBatchExportService }) : undefined,
         permissionController: createPermissionController({ permissionService }),
         pageController: createPageController({ pageContextService }),
         frontendCommandController: createFrontendCommandController({ frontendCommandService }),

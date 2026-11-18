@@ -15,7 +15,11 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { SessionExportDocument } from './types';
+// Both single-session and batch envelopes are delivered as one JSON artifact.
+export interface SessionExportArtifact {
+    filename: string;
+    savedPath?: string;
+}
 
 interface HostIpc {
     postMessage?: (message: string) => void;
@@ -32,7 +36,7 @@ export const revealExportedFile = (savedPath: string): void => {
     hostIpc()?.postMessage?.(`openProjectInExplorer|${savedPath}`);
 };
 
-export const downloadSessionExport = (document: SessionExportDocument): void => {
+export const downloadSessionExport = <T extends SessionExportArtifact>(document: T): void => {
     if (document.savedPath) {
         revealExportedFile(document.savedPath);
         return;

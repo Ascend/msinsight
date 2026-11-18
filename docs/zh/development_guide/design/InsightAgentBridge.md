@@ -405,6 +405,36 @@ runtime 启动时按以下顺序加载：
 **响应 400：** 缺 `sessionId`。
 **响应 404/409/5xx：** 与 `POST /api/sessions/load` 相同，仅在需要从 Agent 拉历史时出现。
 
+### 4.6.2 高级批量导出
+
+工具栏导出图标的二级菜单提供“导出当前会话”和“导出历史会话”，后者打开 Agent 多选、创建时间、更新时间、标题四个筛选区域；不要求当前 Agent 已有会话。批量操作使用独立 ACP 连接，不切换当前 Agent、会话、草稿或聊天配置，不调用 prompt，也不授予文件、终端和权限请求能力。Native 使用只读扩展 `_msinsight/session/export` 获取 UI 历史，不运行常规 load 的模型解析、历史通知回放或元数据保存，避免第二个进程覆盖正在使用的会话存储。当前正在生成回复的会话会明确报为忙，请待回复完成后重新查询。
+
+**筛选语义：**
+
+- `agentIds` 是后端已配置/发现的 ACP Agent 名称，空数组或省略表示全部；不是 Native 会话内部的 `primaryAgentId`。一个或多个 Agent 与时间、关键词条件以 AND 组合。
+- 更新时间匹配 `updatedAt`，可传 `days` 或 `from`/`to`；创建时间独立匹配 `createdAt`，可传 `createdDays` 或 `createdFrom`/`createdTo`。每个维度只能选择一种写法，均包含两端点。某一维度选择“全部”时不传该维度的条件；两个维度均为“全部”时传 `allTime: true`。天数为 1–36500 的整数（UI 快捷选项为 1/7/30），相对于查询开始时刻按 24 小时滚动计算。自定义控件显示浏览器本地时区并转为 ISO；接口要求合法公历日期、明确的 `Z`/数值时区、最多 3 位小数秒，且起点不得晚于终点。不符合要求时返回 400。
+- 启用某一时间筛选时，缺失或无效的对应时间会被排除并明确诊断。缺失或无效的创建时间不会用更新时间替代；未按创建时间筛选时，可以导出该会话，但预览及归档省略 `createdAt`。
+- `keyword` 仅搜索会话标题，不搜索任何消息正文。按 Unicode 小写转换后进行字面、有序字符匹配（可连续也可非连续，`ds` 匹配 `deepseek`），空白分隔多个词时各词以 AND 组合，标点不作为正则表达式。已人工修改的标题优先用于匹配和归档。
+- 服务端完整遍历每个 Agent 的 `session/list` 游标分页，先筛选时间及标题，再读取匹配项的历史。归属和选择键同时绑定 Agent 与会话 ID，同 ID、同标题不会覆盖。列表分页仅影响展示，“导出全部匹配”使用服务端快照的所有匹配项。UI 默认全选可用 Agent，显式清空后禁用查询，避免将空选误发为全部。
+
+**接口：**
+
+1. `POST /api/sessions/export/query`，例如 `{ "agentIds": ["msinsight-native"], "days": 7, "keyword": "ds" }`，或 `{ "agentIds": ["msinsight-native"], "from": "2026-10-01T00:00:00+08:00", "to": "2026-10-28T18:00:00+08:00", "keyword": "ds memory" }`，返回 **202** `{ "jobId": "..." }`。
+2. `GET /api/sessions/export/status?jobId=...` 返回 `jobId`、`phase`、`processed`、`total`、`filters`、`items`、`issues`，完成导出时附 `document`。发现/读取期间为 `scanning`（尚不知总数时 `total: null`）；预览可用为 `ready`；构建/保存为 `exporting`；完成为 `completed`；不可恢复或保存失败为 `failed`。进度是实际处理记录数，不是下载落盘进度。
+3. `POST /api/sessions/export/batch`，`{ "jobId": "...", "persist": false }` 导出所有快照匹配项；添加 `keys: ["预览返回的 key"]` 仅导出勾选项，返回 **202**。空选择、未知键、失效作业或忙碌作业明确拒绝（400/404/409），不重新从当前页推断范围。更改筛选条件须重新查询。
+
+`items` 含 `key`、`agentId`、`sessionId`、`title`、`updatedAt` 及可用的 `createdAt` 和 Primary Agent 信息。`issues` 含 `agentId`、可选 `sessionId`、机器码 `code` 和说明 `message`。不支持列出/加载、分页失败/重复游标、历史读取失败、未知时间及容量限制均明确列出；部分成功可继续导出，但不会将遗漏标为完整成功。历史读取超时后关闭该 Agent 的临时连接；若该 Agent 有剩余会话，`agent_load_aborted` 会报告跳过数量，其他 Agent 继续处理。作业快照有过期与容量限制，触发后应缩小范围或重新查询，不静默截断。
+
+导出是一个 `msinsight.agent-sessions.v1` JSON 文件，包含 `exportedAt`、`filters`、`issues`、`sessions`。每个 `sessions` 项沿用 `msinsight.agent-session.v1` 的归一化消息与 Markdown，并增加 `owner.agentId` 和可用的会话 Primary Agent 元数据。它是可阅读的 UI 历史归档，而非模型隐藏上下文或原始 ACP 流的无损备份。批量文件使用唯一名称、排他写入，避免重名覆盖。桌面请求 `persist: true`，成功返回 `document.savedPath` 后由宿主展示路径；浏览器/Jupyter 请求 `false`，只触发一次 JSON 下载。保存失败会报告失败，不静默声称桌面下载成功。
+
+### 4.6.3 `POST /api/sessions/rename`
+
+历史列表的重命名图标提供内联标题编辑，保存/Enter 提交，取消/Escape 放弃。请求 `{ "agentId": "msinsight-native", "sessionId": "0a91...", "title": "DeepSeek 性能分析" }`；成功返回 `{ "ok": true, "agentId": "msinsight-native", "sessionId": "0a91...", "title": "DeepSeek 性能分析" }`。
+
+标题去首尾空白后为 1–200 个 Unicode 字符，不允许控制字符。缺字段/非法标题返回 400、未知会话 404、请求归属与当前 Agent 不同 409、保存失败 500；仍需 Host capability 认证。落盘成功后才更新 UI，失败保留原标题与编辑内容。旧 runtime 延迟返回的 session/list 不得成为新 Agent 的会话归属证据。
+
+这是 Host 持久化的应用内标题：按 `(agentId, sessionId)` 保存到 `ACP_ROOT/session-titles.json`，原子替换并串行保存；文件损坏时保留原文件并拒绝覆盖，不影响聊天。刷新、重启、切换 Agent 后继续覆盖原始显示标题，人工标题不会被自动标题覆盖，单条/批量导出和标题搜索均沿用它。不调用 ACP 的 load/new/prompt，不改变会话更新时间，也不假定第三方 ACP 提供修改远端原始标题的能力。当前存储最多 10000 个自定义标题。
+
 ### 4.7 `POST /api/sessions/delete`
 
 删除指定 session。

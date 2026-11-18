@@ -18,7 +18,7 @@
 import styled from '@emotion/styled';
 import { ToolOutlined } from '@ant-design/icons';
 import React, { useRef, useState } from 'react';
-import { Tooltip } from '@insight/lib/components';
+import { Dropdown, Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import { resolveAgentKind } from '../agentBrand';
 import { AgentKindIcon } from './AgentKindIcon';
@@ -35,6 +35,7 @@ import type { AvailableCapability } from '../types';
 import { AgentSelect } from './AgentSelect';
 import { AgentSettingsDialog } from './AgentSettingsDialog';
 import { SessionHistoryPopover } from './SessionHistoryPopover';
+import { SessionBatchExportDialog } from './SessionBatchExportDialog';
 
 const Container = styled.div`
     position: relative;
@@ -234,6 +235,7 @@ export const SessionSidebar = (): JSX.Element => {
         currentSessionId,
         deleteSession,
         exportSession,
+        renameSession,
         sessions,
         selectSession,
         setAgent,
@@ -242,6 +244,8 @@ export const SessionSidebar = (): JSX.Element => {
     } = useChatState();
     const [open, setOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [batchExportOpen, setBatchExportOpen] = useState(false);
+    const [exportMenuOpen, setExportMenuOpen] = useState(false);
     const [createAgentOnOpen, setCreateAgentOnOpen] = useState(false);
     const [historyAttention, setHistoryAttention] = useState(false);
     const historyButtonRef = useRef<HTMLButtonElement>(null);
@@ -299,19 +303,44 @@ export const SessionSidebar = (): JSX.Element => {
                 <button className="icon-button" onClick={() => createSession()} title={t('newChat')} type="button">
                     <img src={newSessionIcon} alt="" />
                 </button>
-                <button
-                    aria-label={t('exportCurrentSession')}
-                    className="icon-button"
-                    disabled={!currentSessionId}
-                    onClick={() => {
-                        const current = sessions.find((session) => session.sessionId === currentSessionId);
-                        if (current) exportSession(current);
+                <Dropdown
+                    menu={{
+                        items: [
+                            { key: 'current', label: t('exportCurrentChoice'), disabled: !sessions.some((session) => session.sessionId === currentSessionId) },
+                            { key: 'history', label: t('exportHistoryChoice') },
+                        ],
+                        onClick: ({ key }) => {
+                            setExportMenuOpen(false);
+                            if (key === 'history') {
+                                setBatchExportOpen(true);
+                            } else if (key === 'current') {
+                                const current = sessions.find((session) => session.sessionId === currentSessionId);
+                                if (current) exportSession(current);
+                            }
+                        },
                     }}
-                    title={t('exportCurrentSession')}
-                    type="button"
+                    open={exportMenuOpen}
+                    onOpenChange={setExportMenuOpen}
+                    placement="bottomRight"
+                    trigger={['click']}
                 >
-                    <img src={exportIcon} alt="" />
-                </button>
+                    <button
+                        aria-label={t('exportSessions')}
+                        aria-haspopup="menu"
+                        aria-expanded={exportMenuOpen}
+                        className="icon-button"
+                        onKeyDown={(event) => {
+                            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                                event.preventDefault();
+                                setExportMenuOpen(true);
+                            }
+                        }}
+                        title={t('exportSessions')}
+                        type="button"
+                    >
+                        <img src={exportIcon} alt="" />
+                    </button>
+                </Dropdown>
                 <button
                     aria-expanded={open}
                     aria-haspopup="dialog"
@@ -332,17 +361,20 @@ export const SessionSidebar = (): JSX.Element => {
                     <img src={closeIcon} alt="" />
                 </button>
             </div>
+            <SessionBatchExportDialog agents={agentServers} open={batchExportOpen} onOpenChange={setBatchExportOpen} />
             <AgentSettingsDialog
                 createOnOpen={createAgentOnOpen}
                 onOpenChange={setSettingsOpen}
                 open={settingsOpen}
             />
             <SessionHistoryPopover
+                key={activeAgentName ?? ''}
                 anchorRef={historyButtonRef}
                 currentSessionId={currentSessionId}
                 onClose={() => setOpen(false)}
                 onDelete={deleteSession}
                 onExport={exportSession}
+                onRename={renameSession}
                 onAttentionChange={setHistoryAttention}
                 onSelect={selectSession}
                 open={open}

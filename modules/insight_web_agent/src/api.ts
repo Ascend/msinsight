@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, PromptPreset, SessionConfigUpdateResult, SessionExportDocument, SessionItem } from './types';
+import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, PromptPreset, SessionConfigUpdateResult, SessionExportDocument, SessionExportFilters, SessionExportStatus, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
 import i18n from '@insight/lib/i18n';
 import { apiErrorMessage } from './apiErrorMessage';
@@ -275,10 +275,37 @@ export const deleteSession = (sessionId: string): Promise<OkResponse> => {
     });
 };
 
+export const renameSession = (sessionId: string, title: string, agentId: string): Promise<{ ok: boolean; agentId: string; sessionId: string; title: string }> => {
+    return requestJson('/api/sessions/rename', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, title, agentId }),
+    });
+};
+
 export const exportSession = (sessionId: string, persist = false): Promise<SessionExportDocument> => {
     return requestJson<SessionExportDocument>('/api/sessions/export', {
         method: 'POST',
         body: JSON.stringify({ sessionId, persist }),
+    });
+};
+
+export const querySessionExports = (filters: SessionExportFilters, signal?: AbortSignal): Promise<{ jobId: string }> => {
+    return requestJson('/api/sessions/export/query', {
+        method: 'POST',
+        body: JSON.stringify(filters),
+        signal,
+    });
+};
+
+export const fetchSessionExportStatus = (jobId: string, signal?: AbortSignal): Promise<SessionExportStatus> => {
+    return requestJson(`/api/sessions/export/status?${new URLSearchParams({ jobId })}`, { signal });
+};
+
+export const exportSessionBatch = (body: { jobId: string; keys?: string[]; persist: boolean }, signal?: AbortSignal): Promise<{ jobId: string }> => {
+    return requestJson('/api/sessions/export/batch', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        signal,
     });
 };
 

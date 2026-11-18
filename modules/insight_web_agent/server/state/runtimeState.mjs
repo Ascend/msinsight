@@ -24,6 +24,7 @@ export const createRuntimeState = () => ({
     sessions: [],
     sessionContexts: new Map(),
     localTitles: new Map(),
+    customTitles: new Map(),
     configOptions: [],
     preferredModel: undefined,
     clients: new Set(),
@@ -91,6 +92,7 @@ export const snapshotRuntimeState = (state) => ({
     sessions: [...state.sessions],
     sessionContexts: cloneSessionContexts(state.sessionContexts),
     localTitles: new Map(state.localTitles),
+    customTitles: new Map(state.customTitles),
     configOptions: [...state.configOptions],
     preferredModel: state.preferredModel,
     agentServers: [...state.agentServers],
@@ -114,6 +116,7 @@ export const restoreRuntimeState = (state, snapshot) => {
     state.sessions = snapshot.sessions;
     state.sessionContexts = snapshot.sessionContexts;
     state.localTitles = snapshot.localTitles;
+    state.customTitles = snapshot.customTitles;
     state.configOptions = snapshot.configOptions;
     state.preferredModel = snapshot.preferredModel;
     state.agentServers = snapshot.agentServers;
@@ -135,6 +138,7 @@ export const resetRuntimeForAgent = (state, { agentServers, activeAgentName }) =
     state.sessions = [];
     state.sessionContexts = new Map();
     state.localTitles = new Map();
+    state.customTitles = new Map();
     state.configOptions = [];
     state.preferredModel = undefined;
     state.agentServers = agentServers;

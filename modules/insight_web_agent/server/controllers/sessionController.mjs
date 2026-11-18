@@ -58,6 +58,11 @@ export const createSessionController = ({ sessionService }) => ({
         return json(res, normalizeBody(result), result.status ?? 200);
     },
 
+    async rename(_req, res, body) {
+        const result = await sessionService.renameSessionById(body?.sessionId, body?.title, body?.agentId);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+
     async delete(_req, res, body) {
         console.log(`Delete session requested: sessionId=${String(body?.sessionId ?? "")}`);
         const result = await sessionService.deleteSessionById(body?.sessionId);

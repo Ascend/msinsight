@@ -19,6 +19,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { useChatState } from '../../hooks/useChatState';
 import { SessionSidebar } from '../../components/SessionSidebar';
+import { SessionHistoryPopover } from '../../components/SessionHistoryPopover';
 
 jest.mock('../../hooks/useChatState', () => ({
     useChatState: jest.fn(),
@@ -33,7 +34,7 @@ jest.mock('../../components/AgentSettingsDialog', () => ({
 }));
 
 jest.mock('../../components/SessionHistoryPopover', () => ({
-    SessionHistoryPopover: () => null,
+    SessionHistoryPopover: jest.fn(() => null),
 }));
 
 const mockUseChatState = useChatState as jest.Mock;
@@ -48,6 +49,7 @@ const renderSidebar = (overrides: Record<string, unknown> = {}) => {
         currentSessionId: 'session-1',
         deleteSession: jest.fn(),
         exportSession: jest.fn(),
+        renameSession: jest.fn(),
         sessions: [{ sessionId: 'session-1', title: 'Chat' }],
         selectSession: jest.fn(),
         setAgent: jest.fn(),
@@ -74,11 +76,70 @@ test('refreshes agents from the top-left agent picker footer', async () => {
     expect(state.refreshAgents).toHaveBeenCalledTimes(1);
 });
 
-test('exports the current conversation from the toolbar', () => {
+test('routes current-session export through one accessible toolbar submenu', async () => {
     const state = renderSidebar();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Export current conversation' }));
+    const trigger = screen.getByRole('button', { name: 'Export sessions' });
+    expect(screen.getAllByRole('button', { name: /Export sessions/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Export current conversation' })).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(trigger);
+    expect(await screen.findByRole('menuitem', { name: 'Historical sessions' })).toBeInTheDocument();
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Current session' }));
+    expect(state.exportSession).toHaveBeenCalledTimes(1);
     expect(state.exportSession).toHaveBeenCalledWith(state.sessions[0]);
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('opens historical export with zero active sessions without changing chat state', async () => {
+    const loadSession = jest.fn();
+    const state = renderSidebar({ currentSessionId: undefined, sessions: [], loadSession });
+    const entry = screen.getByRole('button', { name: 'Export sessions' });
+    expect(entry).toBeEnabled();
+    fireEvent.click(entry);
+    const current = await screen.findByRole('menuitem', { name: 'Current session' });
+    expect(current).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(current);
+    expect(state.exportSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Historical sessions' }));
+    expect(await screen.findByRole('dialog', { name: 'Export historical sessions' })).toBeVisible();
+    expect(screen.getByRole('group', { name: 'Agents' })).toBeInTheDocument();
+    expect(screen.getByText('2 of 2 selected')).toBeInTheDocument();
+    expect(entry).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(loadSession).not.toHaveBeenCalled();
+    expect(state.selectSession).not.toHaveBeenCalled();
+    expect(state.setAgent).not.toHaveBeenCalled();
+    expect(state.createSession).not.toHaveBeenCalled();
+    expect(state.exportSession).not.toHaveBeenCalled();
+});
+
+test('opens the export menu from the keyboard and offers history when current ID is stale', async () => {
+    renderSidebar({ currentSessionId: 'missing' });
+    const entry = screen.getByRole('button', { name: 'Export sessions' });
+    fireEvent.keyDown(entry, { key: 'ArrowDown' });
+    expect(await screen.findByRole('menuitem', { name: 'Current session' })).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Historical sessions' }));
+    expect(await screen.findByRole('dialog', { name: 'Export historical sessions' })).toBeVisible();
+});
+
+test('dismisses the export menu with Escape and returns focus to its trigger', async () => {
+    renderSidebar();
+    const entry = screen.getByRole('button', { name: 'Export sessions' });
+    entry.focus();
+    fireEvent.keyDown(entry, { key: 'ArrowDown' });
+    expect(await screen.findByRole('menuitem', { name: 'Historical sessions' })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape', keyCode: 27 });
+    await waitFor(() => expect(entry).toHaveAttribute('aria-expanded', 'false'));
+    expect(entry).toHaveFocus();
+});
+
+test('passes the rename hook action through to the history popover', () => {
+    const state = renderSidebar();
+    expect(SessionHistoryPopover).toHaveBeenLastCalledWith(expect.objectContaining({ onRename: state.renameSession }), expect.anything());
 });
 
 test('disables agent refresh while discovery is running', async () => {
