@@ -13,6 +13,7 @@ import {
     ColumnWidthOutlined,
     ExpandAltOutlined,
     FlagOutlined,
+    FieldTimeOutlined,
     GroupOutlined,
     OneToOneOutlined,
     QuestionCircleOutlined,
@@ -96,6 +97,9 @@ interface LifecycleGraphToolbarProps {
     markerManagerOpen?: boolean;
     onMarkerManagementOpen?: () => void;
     onMarkerManagementClose?: () => void;
+    timeMarkerManagerOpen?: boolean;
+    onTimeMarkerManagementOpen?: () => void;
+    onTimeMarkerManagementClose?: () => void;
 }
 
 const Container = styled.div`
@@ -171,6 +175,9 @@ export const LifecycleGraphToolbar = ({
     markerManagerOpen = false,
     onMarkerManagementOpen = (): void => undefined,
     onMarkerManagementClose = (): void => undefined,
+    timeMarkerManagerOpen = false,
+    onTimeMarkerManagementOpen,
+    onTimeMarkerManagementClose = (): void => undefined,
 }: LifecycleGraphToolbarProps): JSX.Element => {
     const { t } = useTranslation('leaks');
     const containerRef = useRef<HTMLDivElement>(null);
@@ -250,6 +257,7 @@ export const LifecycleGraphToolbar = ({
                     onClick={(): void => {
                         setActivePanel(activePanel === 'layers' ? null : 'layers');
                         onMarkerManagementClose();
+                        onTimeMarkerManagementClose();
                     }}
                 ><GroupOutlined /></ToolButton>
             </Tooltip>
@@ -265,6 +273,17 @@ export const LifecycleGraphToolbar = ({
                     }}
                 ><FlagOutlined /></ToolButton>
             </Tooltip>
+            {onTimeMarkerManagementOpen
+                ? <Tooltip title={t('frameTree.manageMarkers')} placement="left">
+                    <ToolButton type="button" aria-label={t('frameTree.manageMarkers')} aria-expanded={timeMarkerManagerOpen}
+                        onClick={(): void => {
+                            setActivePanel(null);
+                            onMarkerManagementClose();
+                            if (timeMarkerManagerOpen) onTimeMarkerManagementClose();
+                            else onTimeMarkerManagementOpen();
+                        }}><FieldTimeOutlined /></ToolButton>
+                </Tooltip>
+                : null}
             <Divider />
             <Tooltip title={t('lifecycleGraphGuideTitle')} placement="left">
                 <ToolButton
@@ -274,6 +293,7 @@ export const LifecycleGraphToolbar = ({
                     onClick={(): void => {
                         setActivePanel(activePanel === 'guide' ? null : 'guide');
                         onMarkerManagementClose();
+                        onTimeMarkerManagementClose();
                     }}
                 ><QuestionCircleOutlined /></ToolButton>
             </Tooltip>

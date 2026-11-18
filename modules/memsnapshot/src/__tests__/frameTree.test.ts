@@ -18,6 +18,7 @@
 import { createMockFrameTreePage, frameTreeLeaf } from './fixtures/frameTreeMock';
 import { validateFrameTree, pathToNode, searchFrameTree, exactRatio, layoutTreemap } from '../frameTree/model';
 import { loadFrameTree } from '../frameTree/loader';
+import { loadFrameTreeSerial } from '../frameTree/api';
 import type { FrameTreeNodeDTO, FrameTreeQuery } from '../frameTree/types';
 
 const query: FrameTreeQuery = { deviceId: '0', eventId: 204412, includeStatic: true, pageSize: 1000 };
@@ -114,6 +115,23 @@ describe('complete memory frame tree', () => {
 });
 
 describe('frame tree full-page assembly', () => {
+    it('loads all pages of one panel before starting another and skips cancelled queued panels', async () => {
+        const events: number[] = [];
+        const request = async (params: FrameTreeQuery & { currentPage: number }): Promise<{ total: number; nodes: FrameTreeNodeDTO[] }> => {
+            events.push(params.eventId);
+            await Promise.resolve();
+            return { total: 3, nodes: fixture().slice((params.currentPage - 1) * 2, params.currentPage * 2) };
+        };
+        const cancelled = new AbortController();
+        const first = loadFrameTreeSerial({ ...query, eventId: 1, pageSize: 2 }, request, new AbortController().signal);
+        const skipped = loadFrameTreeSerial({ ...query, eventId: 2, pageSize: 2 }, request, cancelled.signal);
+        const last = loadFrameTreeSerial({ ...query, eventId: 3, pageSize: 2 }, request, new AbortController().signal);
+        cancelled.abort();
+        const results = await Promise.allSettled([first, skipped, last]);
+        expect(events).toEqual([1, 1, 3, 3]);
+        expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected', 'fulfilled']);
+    });
+
     it('rejects page sizes above 1000 in both the loader and test fixture', async () => {
         await expect(loadFrameTree({ ...query, pageSize: 1001 }, createMockFrameTreePage,
             new AbortController().signal)).rejects.toThrow('Invalid frame tree query');

@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { ICICLE_STYLE, fitIcicleLabel, icicleColors, layoutReferenceIcicle, icicleTicks } from '../frameTree/referenceIcicle';
+import { ICICLE_STYLE, fitIcicleLabel, frameTreeColors, icicleTextColor, layoutReferenceIcicle, icicleTicks } from '../frameTree/referenceIcicle';
 import { layoutTreemap, searchFrameTree, validateFrameTree } from '../frameTree/model';
 import { mergeSingleChildChains } from '../frameTree/mergeChains';
 import type { FrameTreeNodeDTO } from '../frameTree/types';
@@ -35,6 +35,15 @@ const fixture = (): FrameTreeNodeDTO[] => [{
     selfBlockCount: '0',
     blockCount: '2',
 }, leaf('a', 'r', '70'), leaf('b', 'r', '30')];
+
+it.each([
+    ['#777777', '#000000'],
+    ['#A9C6E8', '#000000'],
+    ['#3F638E', '#ffffff'],
+    ['#35404E', '#ffffff'],
+])('chooses maximum-contrast text for fill %s', (fill, text) => {
+    expect(icicleTextColor(fill)).toBe(text);
+});
 
 it.each([
     ['70', '20', '10'],
@@ -62,7 +71,7 @@ it.each([
     expect(nodes[1].nodeId).toBe('static');
 });
 
-it('retains full-stack geometry while taking its palette from the host', () => {
+it('retains full-stack geometry while applying the light chart palette', () => {
     const tree = validateFrameTree(fixture(), 3);
     const layout = layoutReferenceIcicle(tree, 'r', 1000);
     expect(ICICLE_STYLE).toMatchObject({
@@ -76,10 +85,10 @@ it('retains full-stack geometry while taking its palette from the host', () => {
     expect(layout.cells[1]).toMatchObject({ nodeId: 'a', x: 42, y: 47, height: 19 });
     expect(layout.cells[1].width).toBeCloseTo(670.6);
     expect(layout.cells[2].x).toBeCloseTo(712.6);
-    const colors = icicleColors(tree, { root: '#2a2f37', branches: ['#317af7', '#5aada0'], synthetic: '#343a43' });
-    expect(colors.get('r')).toBe('#2a2f37');
-    expect(colors.get('a')).toBe('#317af7');
-    expect(colors.get('b')).toBe('#5aada0');
+    const colors = frameTreeColors(tree, false);
+    expect(colors.get('r')).toBe('#E5EAF1');
+    expect(colors.get('a')).toBe('#A9C6E8');
+    expect(colors.get('b')).toBe('#9DCDC8');
 });
 
 it('keeps every actual depth and lays out a 1200-frame chain iteratively', () => {

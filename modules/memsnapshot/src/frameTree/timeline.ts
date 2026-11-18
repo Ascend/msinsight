@@ -17,6 +17,17 @@
  */
 import { getSnapshotEvent } from '../api/requests';
 
+export interface SnapshotEventMarker {
+    id: number;
+    coordinate: number;
+    label: string;
+    color?: string;
+    hidden?: boolean;
+    eventId?: number;
+    resolving?: boolean;
+    error?: string;
+}
+
 export interface EventProjection {
     minEventId: number;
     maxEventId: number;

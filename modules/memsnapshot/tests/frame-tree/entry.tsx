@@ -28,6 +28,9 @@ import i18n from 'i18next';
 import { FrameTreePanel } from '../../src/components/FrameTreePanel';
 import type { FrameTreeNodeDTO, FrameTreePageRequest } from '../../src/frameTree/types';
 import { SnapshotEventFlag } from '../../src/frameTree/SnapshotEventFlag';
+import type { SnapshotEventMarker } from '../../src/frameTree/timeline';
+import { SnapshotEventMarkerManager } from '../../src/frameTree/SnapshotEventMarkerManager';
+import { FrameTreeTabs } from '../../src/frameTree/FrameTreeTabs';
 import type { MemoryContext } from '../../src/common/shared/state/MemoryContext';
 import { createMockFrameTreePage } from '../../src/__tests__/fixtures/frameTreeMock';
 
@@ -97,6 +100,8 @@ const EventAxisPreview = observer((): JSX.Element => {
         },
     }) as unknown as MemoryContext);
     const [eventId, setEventId] = useState<number>();
+    const [markers, setMarkers] = useState<SnapshotEventMarker[]>([]);
+    const [manager, setManager] = useState(false);
     const [commits, setCommits] = useState(0);
     const colors = themeInstance.getThemeType();
     return <div style={{ marginTop: 12 }}>
@@ -113,13 +118,22 @@ const EventAxisPreview = observer((): JSX.Element => {
             })}>Reset</button>
             <span>Fixture event: <output data-testid="snapshot-axis-event">{eventId ?? '-'}</output></span>
             <span>Commits: <output data-testid="snapshot-axis-commits">{commits}</output></span>
+            <button data-testid="snapshot-axis-manager" onClick={(): void => setManager(true)}>{i18n.t('leaks:frameTree.manageMarkers')}</button>
         </div>
         <div data-testid="snapshot-axis-plot" data-width={width}
             style={{ position: 'relative', width, height: 240, marginTop: 48, background: colors.bgColorLight, boxShadow: `inset 0 0 0 1px ${colors.borderColor}` }}>
-            <SnapshotEventFlag session={session} eventId={eventId} onSelect={(coordinate): void => {
+            <SnapshotEventFlag session={session} markers={markers}
+                onRemove={(id): void => setMarkers(current => current.filter(marker => marker.id !== id))}
+                onSelect={(coordinate): void => {
                 setEventId(Math.floor(coordinate));
+                setMarkers(current => [...current, { id: current.length + 1, coordinate, eventId: Math.floor(coordinate),
+                    label: i18n.t('leaks:frameTree.marker', { event: Math.floor(coordinate) }) }]);
                 setCommits(count => count + 1);
             }} />
+            {manager ? <SnapshotEventMarkerManager markers={markers} onClose={(): void => setManager(false)}
+                onUpdate={(id, updates): void => setMarkers(current => current.map(marker => marker.id === id ? { ...marker, ...updates } : marker))}
+                onRemove={(id): void => setMarkers(current => current.filter(marker => marker.id !== id))}
+                onClear={(): void => setMarkers([])} /> : null}
         </div>
     </div>;
 });
@@ -130,7 +144,12 @@ const Preview = observer((): JSX.Element =>
         <GlobalStyles />
         <SharedConfigProvider locale={language as 'enUS' | 'zhCN'}>
             <div style={{ padding: 12, minWidth: 0 }}>
-                {parameters.has('event-axis')
+                {parameters.has('tabs')
+                    ? <FrameTreeTabs type="editable-card" hideAdd items={[
+                        { key: '1', label: '事件 1982', children: <p>First breakdown</p> },
+                        { key: '2', label: '事件 2452', children: <p>Second breakdown</p> },
+                    ]} />
+                    : parameters.has('event-axis')
                     ? <EventAxisPreview />
                     : <FrameTreePanel context={{ datasetKey: 'test-fixture', deviceId: '0', eventId: 204412 }}
                         request={parameters.has('deep') ? deepRequest : parameters.has('presentation') ? presentationRequest : createMockFrameTreePage} />}

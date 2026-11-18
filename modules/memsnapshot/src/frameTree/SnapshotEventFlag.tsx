@@ -21,7 +21,10 @@ import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
 import type { MemoryContext } from '../common/shared/state/MemoryContext';
 import { TimelineFlagIcon } from '../common/components/leaks/TimelineFlagIcon';
+import { MarkerDeleteBadge } from '../common/components/leaks/LifecycleMemoryMarkerOverlay';
+import { DeleteOutlined } from '@ant-design/icons';
 import { eventCoordinateToX, screenXToEventCoordinate } from './timeline';
+import type { SnapshotEventMarker } from './timeline';
 
 export const SNAPSHOT_EVENT_AXIS_OFFSET = 38;
 const AXIS_HEIGHT = 30;
@@ -60,7 +63,7 @@ const AxisRail = styled.div`
     opacity: .68;
     pointer-events: none;
 `;
-const AxisFlag = styled.span<{ $preview: boolean }>`
+const AxisFlag = styled.button<{ $preview: boolean }>`
     position: absolute;
     top: 4px;
     display: inline-flex;
@@ -69,14 +72,23 @@ const AxisFlag = styled.span<{ $preview: boolean }>`
     width: 22px;
     height: 22px;
     box-sizing: border-box;
+    padding: 0;
+    cursor: pointer;
     color: ${(p): string => p.theme.primaryColor};
     background: ${(p): string => p.theme.bgColorCommon};
     border: 1px ${(p): string => p.$preview ? 'dashed' : 'solid'} currentColor;
     border-radius: 3px;
     opacity: ${(p): number => p.$preview ? 0.65 : 1};
     transform: translateX(-50%);
-    pointer-events: none;
+    pointer-events: ${(p): string => p.$preview ? 'none' : 'auto'};
+    &:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
     svg { width: 19px; height: auto; }
+`;
+const AxisMarker = styled.div`
+    position: absolute; top: 4px; width: 22px; height: 22px; transform: translateX(-50%);
+    &:hover, &:focus-within { z-index: 2; }
+    > [data-marker-delete] { top: -4px; }
+    &:hover > [data-marker-delete], &:focus-within > [data-marker-delete] { opacity: 1; visibility: visible; }
 `;
 
 const Flag = styled.div`
@@ -89,10 +101,12 @@ const Flag = styled.div`
     pointer-events: none;
     span { position: absolute; top: 0; left: -4px; pointer-events: auto; background: ${(p): string => p.theme.bgColorCommon}; border-radius: 2px; }
 `;
-export const SnapshotEventFlag = observer(({ session, eventId, onSelect }: {
+export const SnapshotEventFlag = observer(({ session, markers = [], onSelect, onActivate, onRemove }: {
     session: MemoryContext;
-    eventId?: number;
+    markers?: readonly SnapshotEventMarker[];
     onSelect?: (coordinate: number) => void;
+    onActivate?: (id: number) => void;
+    onRemove?: (id: number) => void;
 }): JSX.Element | null => {
     const { t } = useTranslation('leaks');
     const [preview, setPreview] = useState<{ key: string; x: number } | null>(null);
@@ -106,10 +120,18 @@ export const SnapshotEventFlag = observer(({ session, eventId, onSelect }: {
         zoomX: zoom.x,
     };
     const projectionKey = JSON.stringify([session.deviceId, ...Object.values(projection)]);
-    const x = eventId === undefined ? null : eventCoordinateToX(eventId, projection);
-    const effectivePreview = onSelect !== undefined && preview?.key === projectionKey && (x === null || Math.abs(preview.x - x) > 0.5) ? preview : null;
+    const visible = markers.flatMap(marker => {
+        if (marker.hidden) return [];
+        const x = eventCoordinateToX(marker.eventId ?? Math.floor(marker.coordinate), projection);
+        return x === null ? [] : [{ marker, x }];
+    });
+    const effectivePreview = onSelect !== undefined && preview?.key === projectionKey &&
+        visible.every(({ x }) => Math.abs(preview.x - x) > 0.5)
+        ? preview
+        : null;
     const hint = t('frameTree.selectEventFromAxis');
-    const label = eventId === undefined ? hint : `${t('frameTree.device')} ${session.deviceId} \u00b7 ${t('frameTree.event')} ${eventId}`;
+    const label = (marker: SnapshotEventMarker): string =>
+        `${marker.label} \u00b7 ${t('frameTree.event')} ${marker.eventId ?? Math.floor(marker.coordinate)}`;
     const projectPointer = (surface: HTMLButtonElement, clientX: number): { coordinate: number; x: number } | null => {
         const rect = surface.getBoundingClientRect();
         if (rect.width <= 0) return null;
@@ -117,12 +139,12 @@ export const SnapshotEventFlag = observer(({ session, eventId, onSelect }: {
         const coordinate = screenXToEventCoordinate(screenX, projection);
         return coordinate === null ? null : { coordinate, x: screenX };
     };
-    if (onSelect === undefined && x === null) return null;
+    if (onSelect === undefined && visible.length === 0) return null;
     return <>
         {onSelect === undefined
             ? null
             : <MarkerAxis data-testid="snapshot-event-marker-axis">
-                <CreateSurface type="button" aria-label={hint} title={eventId === undefined ? hint : `${label}\n${hint}`}
+                <CreateSurface type="button" aria-label={hint} title={hint}
                     onMouseMove={(event): void => {
                         const candidate = projectPointer(event.currentTarget, event.clientX);
                         setPreview(candidate === null ? null : { key: projectionKey, x: candidate.x });
@@ -136,14 +158,26 @@ export const SnapshotEventFlag = observer(({ session, eventId, onSelect }: {
                         if (candidate !== null) onSelect(candidate.coordinate);
                     }} />
                 <AxisRail />
-                {x === null ? null : <AxisFlag $preview={false} style={{ left: x }} title={label} aria-hidden="true"><TimelineFlagIcon /></AxisFlag>}
-                {effectivePreview === null || x !== null ? null : <AxisFlag $preview style={{ left: effectivePreview.x }} aria-hidden="true"><TimelineFlagIcon /></AxisFlag>}
+                {visible.map(({ marker, x }) => <AxisMarker key={marker.id} style={{ left: x }} data-time-marker={marker.id}>
+                    <AxisFlag type="button" $preview={false} data-time-marker-select
+                        style={{ left: '50%', top: 0, color: marker.color }} title={label(marker)} aria-label={label(marker)}
+                        onClick={(event): void => { event.stopPropagation(); onActivate?.(marker.id); }}><TimelineFlagIcon /></AxisFlag>
+                    {onRemove
+                        ? <MarkerDeleteBadge type="button" data-marker-delete
+                            aria-label={t('frameTree.removeMarker', { name: marker.label })}
+                            title={t('frameTree.removeMarker', { name: marker.label })}
+                            onMouseDown={(event): void => event.stopPropagation()}
+                            onClick={(event): void => { event.stopPropagation(); onRemove(marker.id); }}><DeleteOutlined /></MarkerDeleteBadge>
+                        : null}
+                </AxisMarker>)}
+                {effectivePreview === null || visible.length > 0
+                    ? null
+                    : <AxisFlag type="button" $preview style={{ left: effectivePreview.x }} tabIndex={-1} aria-hidden="true"><TimelineFlagIcon /></AxisFlag>}
             </MarkerAxis>}
-        {x === null
-            ? null
-            : <Flag data-testid="snapshot-event-flag" style={{ left: x, height: viewport.height }} aria-label={label}>
-                {onSelect === undefined ? <span title={label}><TimelineFlagIcon /></span> : null}
-            </Flag>}
+        {visible.map(({ marker, x }) => <Flag key={marker.id} data-testid="snapshot-event-flag"
+            data-marker-id={marker.id} style={{ left: x, height: viewport.height, color: marker.color }} aria-label={label(marker)}>
+            {onSelect === undefined ? <span title={label(marker)}><TimelineFlagIcon /></span> : null}
+        </Flag>)}
         {effectivePreview === null ? null : <Flag data-testid="snapshot-event-preview" style={{ left: effectivePreview.x, height: viewport.height, opacity: 0.45 }} aria-hidden="true" />}
     </>;
 });

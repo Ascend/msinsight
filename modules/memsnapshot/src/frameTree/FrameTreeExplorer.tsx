@@ -52,12 +52,15 @@ const Explorer = styled.div`
     .frame-tree-details dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; user-select: text; }
     .frame-tree-ancestor-section { display: flex; flex-direction: column; flex: 1; min-height: ${ANCESTOR_ROW_HEIGHT * MIN_ANCESTOR_ROWS + 24}px; }
     .frame-tree-inspector-section-label { display: flex; justify-content: space-between; padding-bottom: 6px; }
-    .frame-tree-ancestors { flex: 1; min-height: ${ANCESTOR_ROW_HEIGHT * MIN_ANCESTOR_ROWS}px; overflow: auto; overscroll-behavior: contain; margin: 0; padding: 0; list-style: none; }
-    .frame-tree-ancestors button { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 6px; width: max-content; min-width: 100%; height: ${ANCESTOR_ROW_HEIGHT}px; padding: 3px 4px; border: 0; border-left: 2px solid ${(p): string => p.theme.borderColorLight}; background: none; color: inherit; text-align: left; font: inherit; line-height: 18px; cursor: pointer; }
+    .frame-tree-ancestors { flex: 1; min-height: ${ANCESTOR_ROW_HEIGHT * MIN_ANCESTOR_ROWS}px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; margin: 0; padding: 0; list-style: none; }
+    .frame-tree-path-columns, .frame-tree-ancestors button { display: grid; grid-template-columns: 36px minmax(0, 1fr) 96px; gap: 6px; }
+    .frame-tree-path-columns { padding: 0 4px 6px 6px; color: ${(p): string => p.theme.textColorSecondary}; font-size: 11px; }
+    .frame-tree-path-columns > :last-child, .frame-tree-ancestor-bytes { text-align: right; }
+    .frame-tree-ancestors button { box-sizing: border-box; width: 100%; min-width: 0; height: ${ANCESTOR_ROW_HEIGHT}px; padding: 3px 4px; border: 0; border-left: 2px solid ${(p): string => p.theme.borderColorLight}; background: none; color: inherit; text-align: left; font: inherit; line-height: 18px; cursor: pointer; }
     .frame-tree-ancestors button > .frame-tree-muted { white-space: nowrap; }
     .frame-tree-ancestors button[data-merged="true"] { border-left-color: ${(p): string => p.theme.primaryColor}; }
     .frame-tree-ancestors button:hover, .frame-tree-ancestors button[aria-current="true"] { border-left-color: ${(p): string => p.theme.primaryColor}; background: ${(p): string => p.theme.bgColorLight}; }
-    .frame-tree-ancestor-name { white-space: nowrap; user-select: text; }
+    .frame-tree-ancestor-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; }
     .frame-tree-inspector-footer { display: flex; flex-direction: column; gap: 8px; }
     .frame-tree-treemap-navigation { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; }
     .frame-tree-treemap-navigation .frame-tree-path { flex: 1; min-width: 0; margin: 0; }

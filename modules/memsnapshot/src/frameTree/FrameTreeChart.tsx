@@ -16,13 +16,13 @@
  * -------------------------------------------------------------------------
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from '@emotion/react';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
 import { formatExactBytes, layoutTreemap, nodeAt } from './model';
 import type { FrameTree, FrameTreeNode } from './types';
-import { fitIcicleLabel, icicleTextColor, shadeIcicleColor } from './referenceIcicle';
+import { fitIcicleLabel, frameTreeColors, frameTreePalette, icicleTextColor } from './referenceIcicle';
 
-const COLORS = ['#4C7DFF', '#2FA87C', '#D6A319', '#E45C91', '#2F9EAA', '#FF7A45', '#7A86D8'];
 const Chart = styled.div`
     position: relative;
     height: 360px;
@@ -35,8 +35,8 @@ const Chart = styled.div`
     background: ${(p): string => p.theme.bgColorLight};
     > svg { display: block; }
     [role="button"] { cursor: pointer; outline: none; }
-    [role="button"]:focus-visible rect { stroke: ${(p): string => p.theme.textColorPrimary}; stroke-width: 3px; }
-    [data-hovered="true"] > rect { stroke: ${(p): string => p.theme.textColorPrimary}; stroke-width: 2px; }
+    [role="button"]:focus-visible rect { stroke: var(--frame-tree-emphasis); stroke-width: 3px; }
+    [data-hovered="true"] > rect { stroke: var(--frame-tree-emphasis); stroke-width: 2px; }
 `;
 export function frameTreeNodeName(node: FrameTreeNode, translate: (key: string) => string): string {
     if (node.merged) return `${node.merged.name || translate('frameTree.unknownFunction')} \u00d7${node.merged.ids.length}`;
@@ -55,6 +55,9 @@ export function FrameTreeChart({ tree, focus, selected, locked = false, onSelect
     onPreview?: (id: string) => void;
 }): JSX.Element {
     const { t } = useTranslation('leaks');
+    const theme = useTheme();
+    const dark = theme.mode === 'dark';
+    const palette = frameTreePalette(dark);
     const ref = useRef<HTMLDivElement>(null);
     const hovered = useRef<SVGGElement>();
     const [size, setSize] = useState({ width: 1000, height: 360 });
@@ -79,21 +82,10 @@ export function FrameTreeChart({ tree, focus, selected, locked = false, onSelect
         hovered.current = undefined;
     }, []);
     useEffect(() => { clearHover(); return clearHover; }, [focus, cells, locked, selected, clearHover]);
-    const colors = useMemo(() => {
-        const result = new Map<string, string>();
-        const pending = [...(tree.children.get(tree.rootId) ?? [])].map((id, index) => ({ id, color: COLORS[index % COLORS.length] }));
-        while (pending.length) {
-            const next = pending.pop();
-            if (!next) break;
-            const { id, color } = next;
-            result.set(id, color);
-            for (const child of tree.children.get(id) ?? []) pending.push({ id: child, color });
-        }
-        result.set(tree.rootId, COLORS[0]);
-        return result;
-    }, [tree]);
+    const colors = useMemo(() => frameTreeColors(tree, dark), [tree, dark]);
     const total = nodeAt(tree, focus).metrics.sizeBytes;
-    return <Chart ref={ref} data-testid="frame-tree-chart" data-focus={focus} data-locked={locked} data-view="treemap" data-layout-width={size.width} onMouseLeave={clearHover}>
+    return <Chart ref={ref} data-testid="frame-tree-chart" data-focus={focus} data-locked={locked} data-view="treemap" data-layout-width={size.width} onMouseLeave={clearHover}
+        style={{ '--frame-tree-emphasis': palette.emphasis } as React.CSSProperties}>
         {total === 0n
             ? <p role="status">{t('frameTree.noArea')}</p>
             : <svg viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height} preserveAspectRatio="none"
@@ -108,8 +100,7 @@ export function FrameTreeChart({ tree, focus, selected, locked = false, onSelect
                         node.dto.childCount === 1 && node.metrics.selfBytes === 0n)) return null;
                     const isBoundary = cell.self || cell.truncated || node.dto.childCount === 0;
                     const value = cell.self ? node.metrics.selfBytes : node.metrics.sizeBytes;
-                    const baseColor = colors.get(cell.nodeId) ?? COLORS[0];
-                    const color = cell.self ? shadeIcicleColor(baseColor, 0.2) : baseColor;
+                    const color = colors.get(cell.nodeId) ?? palette.root;
                     const textColor = icicleTextColor(color);
                     const labelHeight = isBoundary ? height : Math.min(18, height * 0.12);
                     return <g key={`${cell.nodeId}-${cell.self ? 'self' : 'node'}`} role="button" tabIndex={0} aria-label={`${name}: ${formatExactBytes(value)}`}
@@ -128,7 +119,7 @@ export function FrameTreeChart({ tree, focus, selected, locked = false, onSelect
                         }}>
                         <rect x={cell.x * layout.width} y={cell.y * layout.height} width={width} height={height}
                             fill={color}
-                            stroke={selected === cell.nodeId ? '#ffffff' : 'rgba(255,255,255,.4)'}
+                            stroke={selected === cell.nodeId ? palette.emphasis : palette.stroke}
                             strokeWidth={selected === cell.nodeId ? 3 : 0.6} vectorEffect="non-scaling-stroke" />
                         {width > 80 && labelHeight > 14
                             ? <svg x={cell.x * layout.width + 5} y={cell.y * layout.height + 2} width={Math.max(0, width - 10)} height={Math.max(0, labelHeight - 2)} overflow="hidden" pointerEvents="none">
@@ -145,7 +136,7 @@ export function FrameTreeChart({ tree, focus, selected, locked = false, onSelect
                 })}
                 {cells.filter(cell => cell.nodeId === selected && !cell.self).map(cell =>
                     <rect key={`selected-${cell.nodeId}`} x={cell.x * layout.width} y={cell.y * layout.height} width={cell.width * layout.width}
-                        height={cell.height * layout.height} fill="none" stroke="#ffffff" strokeWidth={3}
+                        height={cell.height * layout.height} fill="none" stroke={palette.emphasis} strokeWidth={3}
                         vectorEffect="non-scaling-stroke" pointerEvents="none" />)}
             </svg>}
     </Chart>;

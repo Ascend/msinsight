@@ -37,7 +37,9 @@ import { MemoryStateDiagram } from './MemoryStateDiagram';
 import PotentialLeakStats from './PotentialLeakStats';
 import MemSnapshotSliceOverview from './MemSnapshotSliceOverview';
 import { FrameTreePanel } from './FrameTreePanel';
+import { FrameTreeTabs } from '../frameTree/FrameTreeTabs';
 import { resolveFrameTreeEvent } from '../frameTree/timeline';
+import type { SnapshotEventMarker } from '../frameTree/timeline';
 const isValidRange = (range: [number, number]): boolean => Number.isFinite(range[0]) && Number.isFinite(range[1]) && range[0] < range[1];
 const MemoryStack = observer(({ session }: {
     session: MemSnapshotContext;
@@ -53,38 +55,74 @@ const MemoryStack = observer(({ session }: {
     const frameTreeDataKeyRef = useRef(frameTreeDataKey);
     frameTreeDataKeyRef.current = frameTreeDataKey;
     const frameTreeSequence = useRef(0);
-    const frameTreeTimer = useRef<ReturnType<typeof setTimeout>>();
-    const [frameTreeSelection, setFrameTreeSelection] = useState<{
-        key: string; eventId?: number; resolving?: boolean; error?: string;
-    }>();
-    const currentFrameTreeSelection = frameTreeSelection?.key === frameTreeDataKey ? frameTreeSelection : undefined;
+    const frameTreeEpoch = useRef(0);
+    const [frameTreeSelection, setFrameTreeSelection] = useState<{ key: string; markers: SnapshotEventMarker[]; activeId?: number }>({
+        key: frameTreeDataKey, markers: [],
+    });
+    // Only custom names are stored; default names follow the current language and resolved event.
+    const timeMarkers = frameTreeSelection.key === frameTreeDataKey
+        ? frameTreeSelection.markers.map(marker => ({
+            ...marker, label: marker.label || t('frameTree.marker', { event: marker.eventId ?? Math.floor(marker.coordinate) }),
+        }))
+        : [];
+    const activeTimeMarker = frameTreeSelection.activeId;
     useEffect(() => {
-        frameTreeSequence.current++;
-        return () => {
-            frameTreeSequence.current++;
-            clearTimeout(frameTreeTimer.current);
-        };
+        frameTreeEpoch.current++;
+        setFrameTreeSelection({ key: frameTreeDataKey, markers: [] });
+        return () => { frameTreeEpoch.current++; };
     }, [frameTreeDataKey]);
+    const removeTimeMarker = (id: number): void => {
+        setFrameTreeSelection(current => {
+            const index = current.markers.findIndex(marker => marker.id === id);
+            const markers = current.markers.filter(marker => marker.id !== id);
+            return {
+                ...current,
+                markers,
+                activeId: current.activeId === id
+                    ? markers[Math.max(0, index - 1)]?.id
+                    : current.activeId,
+            };
+        });
+    };
+    const locateTimeMarker = (id: number): void => {
+        setFrameTreeSelection(current => current.markers.some(marker => marker.id === id) ? { ...current, activeId: id } : current);
+    };
     const selectFrameTreeEvent = (coordinate: number): void => {
         const key = frameTreeDataKey;
         const deviceId = session.deviceId;
         const sliceIndex = session.selectedSliceIndex;
-        const sequence = ++frameTreeSequence.current;
-        clearTimeout(frameTreeTimer.current);
-        setFrameTreeSelection({ key, resolving: true });
+        const epoch = frameTreeEpoch.current;
+        const id = ++frameTreeSequence.current;
+        const marker: SnapshotEventMarker = { id, coordinate, label: '', resolving: true };
+        setFrameTreeSelection(current => ({ key, activeId: id, markers: [...(current.key === key ? current.markers : []), marker] }));
+        const finish = (result: Partial<SnapshotEventMarker>): void => {
+            if (frameTreeEpoch.current !== epoch || frameTreeDataKeyRef.current !== key) return;
+            setFrameTreeSelection(current => {
+                const duplicate = result.eventId === undefined
+                    ? undefined
+                    : current.markers.find(other => other.id !== id && other.eventId === result.eventId);
+                return {
+                    ...current,
+                    activeId: duplicate && current.activeId === id ? duplicate.id : current.activeId,
+                    markers: current.markers.flatMap(item => item.id !== id
+                        ? [item]
+                        : duplicate
+                            ? []
+                            : [{
+                                ...item,
+                                resolving: false,
+                                ...result,
+                            }]),
+                };
+            });
+        };
         if (session.memSnapshotParseLoading || session.memSnapshotCacheRefreshPending || !session.snapshotParsingComplete) {
-            setFrameTreeSelection({ key, error: t('frameTree.parsing') });
+            finish({ error: t('frameTree.parsing') });
             return;
         }
-        frameTreeTimer.current = setTimeout(() => {
-            void resolveFrameTreeEvent(coordinate, deviceId, sliceIndex).then(eventId => {
-                if (sequence !== frameTreeSequence.current || frameTreeDataKeyRef.current !== key) return;
-                setFrameTreeSelection(eventId === null ? { key, error: t('frameTree.noEvent') } : { key, eventId });
-            }).catch(error => {
-                if (sequence !== frameTreeSequence.current || frameTreeDataKeyRef.current !== key) return;
-                setFrameTreeSelection({ key, error: error instanceof Error ? error.message : String(error) });
-            });
-        }, 150);
+        void resolveFrameTreeEvent(coordinate, deviceId, sliceIndex)
+            .then(eventId => finish(eventId === null ? { error: t('frameTree.noEvent') } : { eventId }))
+            .catch(error => finish({ error: error instanceof Error ? error.message : String(error) }));
     };
     const [zoomData, setZoomData] = useState<Array<[number, number]>>([]);
     const [zoomMinTime, setZoomMinTime] = useState<number>(Number.MAX_SAFE_INTEGER);
@@ -265,7 +303,12 @@ const MemoryStack = observer(({ session }: {
                 {<PotentialLeakStats session={session}/>}
                 <div id="barContent" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
                     <MemoryBlockDiagram session={session} enhancedControls windowKey={session.selectedSliceIndex}
-                        selectedEventId={currentFrameTreeSelection?.eventId} onSelectTimestamp={selectFrameTreeEvent}
+                        timeMarkers={timeMarkers} onSelectTimestamp={selectFrameTreeEvent}
+                        onRemoveTimeMarker={removeTimeMarker} onLocateTimeMarker={locateTimeMarker}
+                        onUpdateTimeMarker={(id, updates): void => setFrameTreeSelection(current => ({
+                            ...current, markers: current.markers.map(marker => marker.id === id ? { ...marker, ...updates } : marker),
+                        }))}
+                        onClearTimeMarkers={(): void => setFrameTreeSelection({ key: frameTreeDataKey, markers: [] })}
                         onSelectBlock={(selectionVersion): void => {
                             workerSelectStateItem({ item: null, selectionVersion });
                             runInAction(() => { session.stateWorkerInfo.clickItem = null; session.clickEventItem = null; });
@@ -295,11 +338,24 @@ const MemoryStack = observer(({ session }: {
                 </div>
             </CollapsiblePanel>
         </div>
-        <FrameTreePanel context={currentFrameTreeSelection?.eventId === undefined
-            ? null
-            : {
-                datasetKey: frameTreeDataKey, deviceId: session.deviceId, eventId: currentFrameTreeSelection.eventId,
-            }} resolving={currentFrameTreeSelection?.resolving} selectionError={currentFrameTreeSelection?.error} />
+        <CollapsiblePanel title={t('frameTree.title')} testId="frameTreePanel" collapsible destroy={false}>
+            {timeMarkers.length === 0
+                ? <FrameTreePanel context={null} embedded />
+                : <FrameTreeTabs type="editable-card" hideAdd size="small" activeKey={String(activeTimeMarker)}
+                    onChange={(id): void => locateTimeMarker(Number(id))}
+                    onEdit={(id, action): void => { if (action === 'remove') removeTimeMarker(Number(id)); }}
+                    items={timeMarkers.map(marker => ({
+                        key: String(marker.id),
+                        label: <span title={`${marker.label} \u00b7 ${t('frameTree.event')} ${marker.eventId ?? Math.floor(marker.coordinate)}`}>{marker.label}</span>,
+                        children: <div data-testid="snapshot-breakdown" data-marker-id={marker.id}>
+                            <FrameTreePanel embedded context={marker.eventId === undefined
+                                ? null
+                                : {
+                                    datasetKey: frameTreeDataKey, deviceId: session.deviceId, eventId: marker.eventId,
+                                }} resolving={marker.resolving} selectionError={marker.error} />
+                        </div>,
+                    }))} />}
+        </CollapsiblePanel>
         {<CollapsiblePanel title={t('stateDiagram')} testId="stateDiagramPanel" style={{ minWidth: 1000 }}>
             <MemoryStateDiagram session={session}/>
         </CollapsiblePanel>}

@@ -17,6 +17,15 @@
  */
 import { FRAME_TREE_COMMAND } from './types';
 import type { FrameTreePageRequest } from './types';
+import { loadFrameTree } from './loader';
 
 export const requestFrameTreePage: FrameTreePageRequest = params =>
     window.request({ command: FRAME_TREE_COMMAND, params: { ...params } });
+
+// The server caches one tree and cancels older queries; keep every tree's pages together.
+let pendingLoad: Promise<unknown> = Promise.resolve();
+export const loadFrameTreeSerial: typeof loadFrameTree = (...args) => {
+    const result = pendingLoad.then(() => loadFrameTree(...args));
+    pendingLoad = result.catch(() => undefined);
+    return result;
+};

@@ -153,10 +153,11 @@ describe('memory frame tree panel', () => {
         let resolveOld!: (page: FrameTreePage) => void;
         let rejectOld!: (error: Error) => void;
         const old = new Promise<FrameTreePage>((resolve, reject) => { resolveOld = resolve; rejectOld = reject; });
-        const request: FrameTreePageRequest = params => params.eventId === context.eventId
+        const request: FrameTreePageRequest = jest.fn(params => params.eventId === context.eventId
             ? old
-            : createMockFrameTreePage(params);
+            : createMockFrameTreePage(params));
         const view = render(show(request));
+        await testingLibrary.waitFor(() => expect(request).toHaveBeenCalled());
         view.rerender(show(request, { ...context, eventId: 204413 }));
         await readyUnmerged(view);
         await act(async () => {

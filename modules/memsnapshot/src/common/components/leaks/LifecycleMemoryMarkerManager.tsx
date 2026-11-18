@@ -106,6 +106,10 @@ const ClearButton = styled.button`
         border-color: #d4380d;
     }
 `;
+export {
+    Panel as MarkerManagerPanel, Header as MarkerManagerHeader, Body as MarkerManagerBody,
+    Footer as MarkerManagerFooter, IconButton as MarkerManagerButton, ClearButton as MarkerManagerClearButton,
+};
 const Timeline = styled.div`
     position: relative;
 `;
@@ -240,6 +244,7 @@ const ColorInput = styled.input`
     border-radius: 3px;
     cursor: pointer;
 `;
+export { ColorInput as MarkerManagerColorInput };
 const Spacer = styled.div`
     height: ${MARKER_LAYOUT.stride - MARKER_LAYOUT.rowHeight}px;
 `;

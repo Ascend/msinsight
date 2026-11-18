@@ -20,9 +20,8 @@ import styled from '@emotion/styled';
 import { Button, Checkbox, CollapsiblePanel } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import { FrameTreeExplorer } from '../frameTree/FrameTreeExplorer';
-import { requestFrameTreePage } from '../frameTree/api';
+import { requestFrameTreePage, loadFrameTreeSerial } from '../frameTree/api';
 import { formatExactBytes, groupUnknownFrames } from '../frameTree/model';
-import { loadFrameTree } from '../frameTree/loader';
 import type { FrameTree, FrameTreePageRequest } from '../frameTree/types';
 
 export interface FrameTreeContext {
@@ -45,11 +44,12 @@ interface LoadState {
     received: number;
     total: number;
 }
-export function FrameTreePanel({ context, resolving = false, selectionError, request = requestFrameTreePage }: {
+export function FrameTreePanel({ context, resolving = false, selectionError, request = requestFrameTreePage, embedded = false }: {
     context: FrameTreeContext | null;
     resolving?: boolean;
     selectionError?: string;
     request?: FrameTreePageRequest;
+    embedded?: boolean;
 }): JSX.Element {
     const { t } = useTranslation('leaks');
     const [includeUnknown, setIncludeUnknown] = useState(true);
@@ -60,7 +60,7 @@ export function FrameTreePanel({ context, resolving = false, selectionError, req
         if (!context || resolving) return;
         const controller = new AbortController();
         setState({ key, received: 0, total: 0 });
-        void loadFrameTree({
+        void loadFrameTreeSerial({
             deviceId: context.deviceId, eventId: context.eventId, includeStatic: includeUnknown, pageSize: 1000,
         }, request, controller.signal, (received, total) => {
             if (!controller.signal.aborted) setState({ key, received, total });
@@ -77,7 +77,7 @@ export function FrameTreePanel({ context, resolving = false, selectionError, req
     const root = tree?.nodes.get(tree.rootId);
     const empty = root && tree?.nodes.size === 1 && root.metrics.sizeBytes === 0n && root.metrics.blockCount === 0n;
     const missing = includeUnknown && sourceTree && [...sourceTree.nodes.values()].some(node => node.dto.kind === 'missingFrame');
-    return <CollapsiblePanel title={t('frameTree.title')} testId="frameTreePanel" collapsible destroy={false}>
+    const content = (
         <Panel>
             <div className="frame-tree-context" data-testid="frame-tree-context">
                 {context ? <span>{t('frameTree.device')} {context.deviceId} · {t('frameTree.event')} {context.eventId}</span> : null}
@@ -108,5 +108,8 @@ export function FrameTreePanel({ context, resolving = false, selectionError, req
                                     {empty ? <p role="status">{t('frameTree.empty')}</p> : <FrameTreeExplorer key={key} tree={tree} />}
                                 </>}
         </Panel>
-    </CollapsiblePanel>;
+    );
+    return embedded
+        ? content
+        : <CollapsiblePanel title={t('frameTree.title')} testId="frameTreePanel" collapsible destroy={false}>{content}</CollapsiblePanel>;
 }
