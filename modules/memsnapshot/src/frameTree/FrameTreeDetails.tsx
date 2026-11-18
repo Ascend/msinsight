@@ -101,6 +101,9 @@ export const FrameTreeDetails = forwardRef<FrameTreeDetailsHandle, DetailsProps>
         </dl>
         <div className="frame-tree-ancestor-section">
             <div className="frame-tree-inspector-section-label">{t('frameTree.path')} <span className="frame-tree-muted">L0 &gt; L{nodeAt(tree, last).dto.depth}</span></div>
+            <div className="frame-tree-path-columns" aria-hidden="true">
+                <span>{t('frameTree.pathDepth')}</span><span>{t('frameTree.pathName')}</span><span>{t('frameTree.metric.sizeBytes')}</span>
+            </div>
             <ol ref={ancestors} className="frame-tree-ancestors" data-testid="frame-tree-ancestors" aria-label={t('frameTree.path')}>
                 {path.map(id => {
                     const ancestor = nodeAt(tree, id);
@@ -113,7 +116,7 @@ export const FrameTreeDetails = forwardRef<FrameTreeDetailsHandle, DetailsProps>
                             aria-label={`L${ancestor.dto.depth} ${text}`}>
                             <span className="frame-tree-muted">L{ancestor.dto.depth}</span>
                             <span className="frame-tree-ancestor-name" title={text}>{text}</span>
-                            <span className="frame-tree-muted">{formatExactBytes(ancestor.metrics.sizeBytes)}</span>
+                            <span className="frame-tree-muted frame-tree-ancestor-bytes" title={`${ancestor.metrics.sizeBytes.toString()} B`}>{formatExactBytes(ancestor.metrics.sizeBytes)}</span>
                         </button>
                     </li>;
                 })}

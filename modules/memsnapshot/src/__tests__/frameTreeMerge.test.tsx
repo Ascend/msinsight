@@ -24,6 +24,8 @@ import { nodeAt, validateFrameTree } from '../frameTree/model';
 import { mergeSingleChildChains } from '../frameTree/mergeChains';
 import { FrameTreePanel } from '../components/FrameTreePanel';
 import { FrameTreeDetails } from '../frameTree/FrameTreeDetails';
+import { FrameTreeChart } from '../frameTree/FrameTreeChart';
+import { FrameTreeIcicle } from '../frameTree/FrameTreeIcicle';
 import type { FrameTreeDetailsHandle } from '../frameTree/FrameTreeDetails';
 import type { FrameTreeNodeDTO } from '../frameTree/types';
 import { frameTreeLeaf } from './fixtures/frameTreeMock';
@@ -58,6 +60,38 @@ const showUnmerged = async (nodes = fixture()): Promise<ReturnType<typeof render
 };
 
 describe('single-child-chain display', () => {
+    it.each(['light', 'dark'])('shares readable %s colors across charts and keeps them on drilldown', mode => {
+        const nodes = fixture();
+        Object.assign(nodes[4], { selfBytes: '0', selfRequestedBytes: '0', selfBlockCount: '0', childCount: 1 });
+        for (let depth = 5; depth <= 10; depth++) {
+            nodes.push(frame(`deep-${depth}`, depth === 5 ? 'd' : `deep-${depth - 1}`, depth, 30,
+                depth === 10 ? 30 : 0, depth === 10 ? 0 : 1));
+        }
+        const tree = validateFrameTree(nodes, nodes.length);
+        const content = (focus: string, appearance = mode): JSX.Element => <ThemeProvider theme={{ ...theme, mode: appearance }}>
+            <FrameTreeChart tree={tree} focus={focus} selected="root" onSelect={jest.fn()} onEnter={jest.fn()} />
+            <FrameTreeIcicle tree={tree} focus={focus} selected="root" matches={new Set()} onSelect={jest.fn()} onEnter={jest.fn()} />
+        </ThemeProvider>;
+        const view = render(content('root'));
+        const color = (chart: string, id: string): string | null | undefined =>
+            view.getByTestId(chart).querySelector(`g[data-node-id="${id}"] > rect`)?.getAttribute('fill');
+        for (const cell of view.getByTestId('frame-tree-chart').querySelectorAll('g[data-node-id]')) {
+            expect(cell.querySelector('rect')?.getAttribute('fill')).toBe(color('frame-tree-icicle', cell.getAttribute('data-node-id') as string));
+        }
+        expect(color('frame-tree-chart', 'static')).toBe(mode === 'dark' ? '#4F5864' : '#D8DEE6');
+        expect(color('frame-tree-chart', 'a')).toBe(color('frame-tree-chart', 'root'));
+        expect(color('frame-tree-icicle', 'd')).not.toBe(color('frame-tree-icicle', 'e'));
+        expect(color('frame-tree-icicle', 'd')).not.toBe(color('frame-tree-icicle', 'deep-5'));
+        expect(color('frame-tree-icicle', 'deep-5')).toBe(color('frame-tree-icicle', 'deep-9'));
+        const original = color('frame-tree-chart', 'e');
+        view.rerender(content('c'));
+        expect(color('frame-tree-chart', 'e')).toBe(original);
+        expect(color('frame-tree-icicle', 'e')).toBe(original);
+        view.rerender(content('c', mode === 'dark' ? 'light' : 'dark'));
+        expect(color('frame-tree-chart', 'e')).not.toBe(original);
+        expect(color('frame-tree-chart', 'e')).toBe(color('frame-tree-icicle', 'e'));
+    });
+
     it('defaults to Python-only in both charts and restores native frames without another API request', async () => {
         const nodes = fixture();
         if (nodes[2].frame) nodes[2].frame.filename = 'native.cpp';

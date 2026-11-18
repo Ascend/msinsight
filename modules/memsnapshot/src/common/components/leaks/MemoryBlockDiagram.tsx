@@ -76,6 +76,8 @@ import {
 } from '../../leaksWorker/blockWorker/allocationLineStyles';
 import { isHostMemoryEventType } from '../../utils/utils';
 import { SnapshotEventFlag, SNAPSHOT_EVENT_AXIS_OFFSET } from '../../../frameTree/SnapshotEventFlag';
+import { SnapshotEventMarkerManager } from '../../../frameTree/SnapshotEventMarkerManager';
+import type { SnapshotEventMarker } from '../../../frameTree/timeline';
 
 const BASE_MOVE_STEP = 5;
 const TOOLBAR_HEIGHT = 36;
@@ -215,7 +217,11 @@ export const MemoryBlockDiagram = observer(({
     windowKey = -1,
     onSelectBlock,
     onSelectTimestamp,
-    selectedEventId,
+    timeMarkers = [],
+    onRemoveTimeMarker = (): void => undefined,
+    onUpdateTimeMarker = (): void => undefined,
+    onLocateTimeMarker = (): void => undefined,
+    onClearTimeMarkers = (): void => undefined,
     onTransformChange,
 }: {
     session: Session;
@@ -223,7 +229,11 @@ export const MemoryBlockDiagram = observer(({
     windowKey?: number;
     onSelectBlock?: (selectionVersion: number) => void;
     onSelectTimestamp?: (timestamp: number) => void;
-    selectedEventId?: number;
+    timeMarkers?: readonly SnapshotEventMarker[];
+    onRemoveTimeMarker?: (id: number) => void;
+    onUpdateTimeMarker?: (id: number, updates: Partial<Pick<SnapshotEventMarker, 'label' | 'color' | 'hidden'>>) => void;
+    onLocateTimeMarker?: (id: number) => void;
+    onClearTimeMarkers?: () => void;
     onResetTransform?: () => void;
     onTransformChange?: (transform: RenderOptions['transform'], source?: TransformChangeSource) => void;
 }): JSX.Element => {
@@ -243,6 +253,9 @@ export const MemoryBlockDiagram = observer(({
     const [markerManagerContextKey, setMarkerManagerContextKey] = useState<string | null>(null);
     const markerManagerOpen = markerManagerContextKey === lifecycleDataContextKey;
     const closeMarkerManagement = useCallback((): void => setMarkerManagerContextKey(null), []);
+    const [timeMarkerManagerKey, setTimeMarkerManagerKey] = useState<string | null>(null);
+    const timeMarkerManagerOpen = timeMarkerManagerKey === lifecycleGraphDataContextKey;
+    const closeTimeMarkerManagement = useCallback((): void => setTimeMarkerManagerKey(null), []);
     const [layerVisibility, setLayerVisibility] = useState<LifecycleGraphLayerVisibility>({
         ...DEFAULT_LAYER_VISIBILITY,
     });
@@ -293,7 +306,10 @@ export const MemoryBlockDiagram = observer(({
         ? null
         : getColorStringByAddr(session.leaksWorkerInfo.hoverItem.addr);
 
-    const openMarkerManagement = (): void => setMarkerManagerContextKey(lifecycleDataContextKey);
+    const openMarkerManagement = (): void => {
+        closeTimeMarkerManagement();
+        setMarkerManagerContextKey(lifecycleDataContextKey);
+    };
 
     const clearBlockHover = (): void => {
         plotInteractionActive.current = false;
@@ -860,6 +876,14 @@ export const MemoryBlockDiagram = observer(({
                         markerManagerOpen={markerManagerOpen}
                         onMarkerManagementOpen={openMarkerManagement}
                         onMarkerManagementClose={closeMarkerManagement}
+                        timeMarkerManagerOpen={timeMarkerManagerOpen}
+                        onTimeMarkerManagementOpen={onSelectTimestamp === undefined
+                            ? undefined
+                            : (): void => {
+                                closeMarkerManagement();
+                                setTimeMarkerManagerKey(lifecycleGraphDataContextKey);
+                            }}
+                        onTimeMarkerManagementClose={closeTimeMarkerManagement}
                     />
                     : <></>}
                 <Axis session={session} />
@@ -888,8 +912,9 @@ export const MemoryBlockDiagram = observer(({
                     </AllocationLineLegend>
                     : <></>}
                 <MarkLineBlock session={session} />
-                {onSelectTimestamp !== undefined || selectedEventId !== undefined
-                    ? <SnapshotEventFlag key={lifecycleGraphDataContextKey} session={session} eventId={selectedEventId} onSelect={onSelectTimestamp} />
+                {onSelectTimestamp !== undefined || timeMarkers.length > 0
+                    ? <SnapshotEventFlag key={lifecycleGraphDataContextKey} session={session} markers={timeMarkers}
+                        onSelect={onSelectTimestamp} onActivate={onLocateTimeMarker} onRemove={onRemoveTimeMarker} />
                     : null}
                 {enhancedControls && layerVisibility.markers
                     ? <LifecycleMemoryMarkerOverlay
@@ -913,6 +938,10 @@ export const MemoryBlockDiagram = observer(({
                 {enhancedControls && markerManagerOpen
                     ? <LifecycleMemoryMarkerManager session={session} onClose={closeMarkerManagement} />
                     : <></>}
+                {enhancedControls && timeMarkerManagerOpen
+                    ? <SnapshotEventMarkerManager markers={timeMarkers} onClose={closeTimeMarkerManagement}
+                        onRemove={onRemoveTimeMarker} onUpdate={onUpdateTimeMarker} onClear={onClearTimeMarkers} />
+                    : null}
                 {layerVisibility.blocks ? <HoverItem session={session} /> : <></>}
                 {hoveredBlockBaseline === null
                     ? <></>

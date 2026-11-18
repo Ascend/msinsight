@@ -48,6 +48,34 @@ async function assertDetailsHeight(page, width, context) {
     }
 }
 
+async function assertChartColors(page) {
+    const result = await page.evaluate(() => {
+        const icicle = document.querySelector('[data-testid="frame-tree-icicle"]');
+        const treemap = document.querySelector('[data-testid="frame-tree-chart"]');
+        const colors = new Map([...icicle.querySelectorAll('g[data-node-id]')].map(cell =>
+            [cell.getAttribute('data-node-id'), cell.querySelector('rect').getAttribute('fill')]));
+        const mismatches = [...treemap.querySelectorAll('g[data-node-id]')].filter(cell =>
+            cell.querySelector('rect').getAttribute('fill') !== colors.get(cell.getAttribute('data-node-id'))).length;
+        const luminance = hex => {
+            const [r, g, b] = [1, 3, 5].map(offset => {
+                const value = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+                return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const ratios = [icicle, treemap].flatMap(chart => [...chart.querySelectorAll('g[data-node-id]')].flatMap(cell => {
+            const fill = luminance(cell.querySelector('rect').getAttribute('fill'));
+            return [...cell.querySelectorAll('text')].map(text => {
+                const foreground = luminance(text.getAttribute('fill'));
+                return (Math.max(fill, foreground) + 0.05) / (Math.min(fill, foreground) + 0.05);
+            });
+        }));
+        return { mismatches, textCount: ratios.length, minimumContrast: Math.min(...ratios) };
+    });
+    assert.equal(result.mismatches, 0, 'Both charts must use identical colors for each node, including self allocations');
+    assert(result.textCount > 0 && result.minimumContrast >= 4.5, `Chart text must remain readable: ${JSON.stringify(result)}`);
+}
+
 async function build() {
     const compiler = webpack({
         mode: 'development', devtool: false, context: __dirname,
@@ -95,6 +123,28 @@ async function main() {
         const errors = [];
         page.on('pageerror', error => errors.push(error.message));
         for (const width of [1440, 390]) {
+            for (const theme of ['light', 'dark']) {
+                await page.setViewportSize({ width, height: 500 });
+                await page.goto(`http://127.0.0.1:${server.address().port}/?tabs=1&lang=zhCN&theme=${theme}`);
+                const tabs = page.locator('.ant-tabs');
+                const colors = await tabs.evaluate(element => ({
+                    active: getComputedStyle(element.querySelector('.ant-tabs-tab-active .ant-tabs-tab-btn')).color,
+                    close: getComputedStyle(element.querySelector('.ant-tabs-tab-remove')).color,
+                }));
+                assert.equal(colors.close, theme === 'dark' ? 'rgb(211, 220, 233)' : 'rgb(78, 88, 101)', 'Close icons must use readable theme colors');
+                assert.equal(colors.active, theme === 'dark' ? 'rgb(102, 177, 255)' : 'rgb(0, 0, 0)', 'The active tab must remain readable in both themes');
+                await tabs.getByRole('tab').last().click();
+                assert.equal(await tabs.getByRole('tab').last().getAttribute('aria-selected'), 'true');
+                await page.waitForFunction(color =>
+                    getComputedStyle(document.querySelector('.ant-tabs-tab:not(.ant-tabs-tab-active) .ant-tabs-tab-btn')).color === color,
+                theme === 'dark' ? 'rgb(211, 220, 233)' : 'rgb(78, 88, 101)');
+                if (process.env.FRAME_TREE_SCREENSHOT_DIR) {
+                    fs.mkdirSync(process.env.FRAME_TREE_SCREENSHOT_DIR, { recursive: true });
+                    await page.screenshot({ path: path.join(process.env.FRAME_TREE_SCREENSHOT_DIR, `tabs-${width}-${theme}.png`) });
+                }
+            }
+        }
+        for (const width of [1440, 390]) {
             for (const language of ['enUS', 'zhCN']) {
               for (const theme of ['light', 'dark']) {
                 await page.setViewportSize({ width, height: 1800 });
@@ -132,7 +182,8 @@ async function main() {
                 assert.equal(await rootRect.getAttribute('x'), '42');
                 assert.equal(await rootRect.getAttribute('y'), '26');
                 assert.equal(await rootRect.getAttribute('height'), '19');
-                assert.equal(await rootRect.getAttribute('fill'), theme === 'dark' ? '#2a2f37' : '#F4F6FA');
+                assert.equal(await rootRect.getAttribute('fill'), theme === 'dark' ? '#35404E' : '#E5EAF1');
+                await assertChartColors(page);
                 const upper = await icicle.boundingBox();
                 const lower = await treemap.boundingBox();
                 const board = await details.boundingBox();
@@ -155,7 +206,11 @@ async function main() {
                     })).sort((a, b) => b.width - a.width)[0]);
                 assert(target && target.width >= 6, 'Deep call stacks must remain visible and clickable');
                 const hovered = page.getByTestId(`frame-tree-icicle-${target.id}`);
+                const originalFill = await hovered.locator('rect').getAttribute('fill');
                 await hovered.hover();
+                assert.equal(await hovered.locator('rect').getAttribute('fill'), originalFill, 'Hover must preserve branch colors');
+                assert.equal(await hovered.locator('rect').evaluate(element => getComputedStyle(element).stroke),
+                    theme === 'dark' ? 'rgb(155, 198, 244)' : 'rgb(40, 91, 145)', 'Hover outlines must adapt to the theme');
                 await page.waitForFunction(id => document.querySelector('.frame-tree-inspector')?.getAttribute('data-node-id') === id, target.id);
                 const ancestorWindow = await page.getByTestId('frame-tree-ancestors').evaluate(element => {
                     const bounds = element.getBoundingClientRect();
@@ -170,6 +225,12 @@ async function main() {
                 assert.equal(ancestorWindow.indents.length, 11);
                 assert(ancestorWindow.indents.every(indent => indent === 4),
                     'All visible ancestor levels must align without progressive indentation');
+                assert(await page.getByTestId('frame-tree-ancestors').evaluate(element =>
+                    Array.from(element.querySelectorAll('button')).every(row => {
+                        const value = row.querySelector('.frame-tree-ancestor-bytes').getBoundingClientRect();
+                        return value.left >= element.getBoundingClientRect().left &&
+                            value.right <= element.getBoundingClientRect().right + 1;
+                    })), 'The fixed byte column must remain visible beside long call paths');
                 assert.equal(await icicle.getByRole('tooltip').count(), 0, 'Icicle popup must be removed');
                 const chain = await hovered.evaluate(element => {
                     const svg = element.ownerSVGElement;
@@ -285,7 +346,8 @@ async function main() {
                 const alternate = theme === 'dark' ? 'light' : 'dark';
                 await page.evaluate(value => window.setTheme(value === 'dark'), alternate);
                 await page.waitForFunction(value => document.querySelector('[data-testid="frame-tree-icicle"]').getAttribute('data-theme') === value, alternate);
-                assert.equal(await rootRect.getAttribute('fill'), alternate === 'dark' ? '#2a2f37' : '#F4F6FA');
+                assert.equal(await rootRect.getAttribute('fill'), alternate === 'dark' ? '#35404E' : '#E5EAF1');
+                await assertChartColors(page);
                 await page.evaluate(value => window.setTheme(value === 'dark'), theme);
                 await page.waitForFunction(value => document.querySelector('[data-testid="frame-tree-icicle"]').getAttribute('data-theme') === value, theme);
                 const mergeToggle = page.getByRole('checkbox', { name: language === 'zhCN' ? '合并单子链' : 'Merge single-child chains', exact: true });
@@ -475,7 +537,9 @@ async function main() {
                 await page.goto(`http://127.0.0.1:${server.address().port}/?event-axis=1&lang=${language}&theme=${theme}`);
                 const axis = page.getByTestId('snapshot-event-marker-axis');
                 await axis.waitFor();
-                const surface = axis.getByRole('button');
+                const surface = axis.getByRole('button', { name: language === 'zhCN'
+                    ? '单击时间标记栏添加事件，通过标签切换不同时间点的内存拆解'
+                    : 'Click the time marker strip to add an event; switch between memory breakdown tabs', exact: true });
                 const box = await surface.boundingBox();
                 assert(box && box.height > 20);
                 assert.equal(await page.getByTestId('snapshot-event-flag').count(), 0);
@@ -487,31 +551,67 @@ async function main() {
                 assert(Math.abs(first - 25) <= 1);
                 assert.equal(await page.getByTestId('snapshot-event-flag').count(), 1);
                 await surface.hover({ position: { x: box.width * 3 / 4, y: box.height / 2 } });
-                assert.equal(await axis.locator('svg').count(), 1, 'Hover preview does not create a second flag');
+                assert.equal(await axis.locator('[data-time-marker-select] svg').count(), 1, 'Hover preview does not create a second flag');
                 await surface.click({ position: { x: box.width * 3 / 4, y: box.height / 2 } });
                 const second = Number(await page.getByTestId('snapshot-axis-event').innerText());
                 assert(Math.abs(second - 75) <= 1 && second > first);
                 assert.equal(await page.getByTestId('snapshot-axis-commits').innerText(), '2');
-                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 1, 'A new point replaces the previous point');
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 2, 'Both event markers remain visible');
                 const plotWidth = Number(await page.getByTestId('snapshot-axis-plot').getAttribute('data-width'));
                 await page.getByTestId('snapshot-axis-pan').click();
-                const panned = await page.getByTestId('snapshot-event-flag').evaluate(element => parseFloat(element.style.left));
+                const panned = await page.locator('[data-testid="snapshot-event-flag"][data-marker-id="2"]').evaluate(element => parseFloat(element.style.left));
                 assert(Math.abs(panned - (second / 100 - 0.25) * plotWidth) < 0.1);
                 await page.getByTestId('snapshot-axis-zoom').click();
-                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 0);
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 1);
                 assert.equal(await axis.count(), 1, 'The marker strip remains available after zooming off the selected point');
                 await surface.click({ position: { x: box.width / 2, y: box.height / 2 } });
-                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 1);
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 2);
                 assert.equal(await page.getByTestId('snapshot-axis-commits').innerText(), '3');
                 await page.getByTestId('snapshot-axis-reset').click();
                 await surface.press('Enter');
                 assert.equal(await page.getByTestId('snapshot-axis-event').innerText(), '50');
                 assert.equal(await page.getByTestId('snapshot-axis-commits').innerText(), '4');
-                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 1);
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 4);
+                await page.getByTestId('snapshot-axis-manager').click();
+                const manager = page.getByTestId('snapshot-event-marker-manager');
+                assert.equal(await manager.getByTestId('snapshot-event-marker-row').count(), 4);
+                const firstRow = manager.getByTestId('snapshot-event-marker-row').first();
+                assert.equal(await firstRow.getByRole('button').count(), 2, 'Each breakdown row offers visibility and deletion, without a locate action');
+                await firstRow.locator('input:not([type="color"])').fill('Checkpoint');
+                assert.equal(await axis.getByRole('button', { name: /Checkpoint/ }).count(), 1);
+                await firstRow.getByRole('button', { name: language === 'zhCN' ? '移除拆解：Checkpoint' : 'Remove breakdown: Checkpoint', exact: true }).click();
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 3);
                 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
                 if (process.env.FRAME_TREE_SCREENSHOT_DIR) {
                     await page.screenshot({ path: path.join(process.env.FRAME_TREE_SCREENSHOT_DIR, `event-axis-${width}-${language}-${theme}.png`), fullPage: true });
                 }
+                await manager.getByRole('button', { name: language === 'zhCN' ? '关闭内存拆解管理' : 'Close memory breakdown management', exact: true }).click();
+                const marker = axis.locator('[data-time-marker]').first();
+                const inlineDelete = marker.locator('[data-marker-delete]');
+                await page.mouse.move(0, 0);
+                assert.equal(await inlineDelete.isVisible(), false);
+                await marker.locator('[data-time-marker-select]').focus();
+                assert.equal(await inlineDelete.isVisible(), true, 'Keyboard focus reveals the delete action');
+                await surface.focus();
+                assert.equal(await inlineDelete.isVisible(), false);
+                await marker.hover();
+                assert.equal(await inlineDelete.isVisible(), true);
+                await inlineDelete.click();
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 2);
+                assert.equal(await page.getByTestId('snapshot-axis-commits').innerText(), '4', 'Delete must not create another marker');
+                await page.getByTestId('snapshot-axis-manager').click();
+                const clear = manager.getByRole('button', { name: language === 'zhCN' ? '移除全部拆解' : 'Remove all breakdowns', exact: true });
+                await clear.click();
+                const confirmation = page.getByRole('dialog').filter({ hasText: language === 'zhCN'
+                    ? '移除所有拆解标记和标签？此操作不会删除快照数据。' : 'Remove all breakdown markers and tabs? Snapshot data will not be deleted.' });
+                await confirmation.getByRole('button', { name: language === 'zhCN' ? /取\s*消/ : 'Cancel', exact: true }).click();
+                await confirmation.waitFor({ state: 'hidden' });
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 2, 'Cancel must retain all time markers');
+                await clear.click();
+                await confirmation.getByRole('button', { name: language === 'zhCN' ? /确\s*定/ : 'OK', exact: true }).click();
+                await confirmation.waitFor({ state: 'hidden' });
+                assert.equal(await page.getByTestId('snapshot-event-flag').count(), 0);
+                assert.equal(await manager.getByTestId('snapshot-event-marker-row').count(), 0);
             }
           }
         }

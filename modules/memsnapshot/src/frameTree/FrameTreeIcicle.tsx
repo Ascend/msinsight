@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import type { FrameTree } from './types';
 import { formatExactBytes, nodeAt, pathToNode } from './model';
 import { frameTreeNodeName } from './FrameTreeChart';
-import { ICICLE_STYLE, fitIcicleLabel, icicleColors, icicleTextColor, icicleTicks, layoutReferenceIcicle, shadeIcicleColor } from './referenceIcicle';
+import { ICICLE_STYLE, fitIcicleLabel, frameTreeColors, frameTreePalette, icicleTextColor, icicleTicks, layoutReferenceIcicle } from './referenceIcicle';
 import { ICICLE_CELL_GAP, MIN_FRAME_SIZE } from './minimumSize';
 
 const Icicle = styled.div`
@@ -35,15 +35,15 @@ const Icicle = styled.div`
     .icicle-stage { position: relative; width: 100%; height: clamp(600px, 75vh, 900px); overflow: auto; overscroll-behavior: contain auto; }
     .icicle-stage > svg { display: block; min-width: 100%; height: auto; }
     .icicle-cell { cursor: pointer; outline: none; }
-    .icicle-cell rect { stroke: ${(p): string => p.theme.borderColorLight}; stroke-width: .8px; }
+    .icicle-cell rect { stroke: var(--frame-tree-stroke); stroke-width: .8px; }
     .icicle-cell[data-selected="true"] rect, .icicle-cell[data-match="true"] rect {
-        stroke: ${(p): string => p.theme.primaryColor}; stroke-width: 2px;
+        stroke: var(--frame-tree-emphasis); stroke-width: 2px;
     }
     svg[data-hovering="true"] .icicle-cell { opacity: .28; }
     svg[data-hovering="true"] .icicle-cell[data-call-path="true"] { opacity: 1; }
-    .icicle-cell[data-call-path="true"] rect { stroke: ${(p): string => p.theme.textColorPrimary}; stroke-width: 1px; }
+    .icicle-cell[data-call-path="true"] rect { stroke: var(--frame-tree-emphasis); stroke-width: 1px; }
     .icicle-cell[data-hovered="true"] rect, .icicle-cell:focus-visible rect {
-        stroke: ${(p): string => p.theme.textColorPrimary}; stroke-width: 2px;
+        stroke: var(--frame-tree-emphasis); stroke-width: 2px;
     }
 `;
 
@@ -60,6 +60,8 @@ export function FrameTreeIcicle({ tree, focus, selected, locked = false, matches
 }): JSX.Element {
     const { t } = useTranslation('leaks');
     const theme = useTheme();
+    const dark = theme.mode === 'dark';
+    const palette = frameTreePalette(dark);
     const container = useRef<HTMLDivElement>(null);
     const plot = useRef<SVGSVGElement>(null);
     const elements = useRef(new Map<string, SVGGElement>());
@@ -79,15 +81,7 @@ export function FrameTreeIcicle({ tree, focus, selected, locked = false, matches
     }, []);
     const rootLayout = useMemo(() => layoutReferenceIcicle(tree, tree.rootId, width), [tree, width]);
     const layout = useMemo(() => focus === tree.rootId ? rootLayout : layoutReferenceIcicle(tree, focus, width), [tree, focus, width, rootLayout]);
-    const colors = useMemo(() => {
-        const branches = [theme.colorPalette?.royalblue, theme.colorPalette?.turquoise, theme.colorPalette?.coral,
-            theme.colorPalette?.gold, theme.colorPalette?.palevioletred].filter((color): color is string => typeof color === 'string');
-        return icicleColors(tree, {
-            root: theme.bgColorLight,
-            branches: branches.length ? branches : [theme.primaryColor],
-            synthetic: theme.bgColorGrey ?? theme.borderColor,
-        });
-    }, [tree, theme]);
+    const colors = useMemo(() => frameTreeColors(tree, dark), [tree, dark]);
     const total = nodeAt(tree, focus).metrics.sizeBytes;
     const ticks = useMemo(() => icicleTicks(total), [total]);
     const focusDepth = nodeAt(tree, focus).dto.depth;
@@ -146,7 +140,8 @@ export function FrameTreeIcicle({ tree, focus, selected, locked = false, matches
         return clearHover;
     }, [tree, layout, t, locked, selected, clearHover, showHover]);
     const { rowHeight, gutter, top, bottom } = ICICLE_STYLE;
-    return <Icicle ref={container} data-testid="frame-tree-icicle" data-focus={focus} data-locked={locked} data-view="icicle" data-theme={theme.mode}>
+    return <Icicle ref={container} data-testid="frame-tree-icicle" data-focus={focus} data-locked={locked} data-view="icicle" data-theme={theme.mode}
+        style={{ '--frame-tree-stroke': palette.stroke, '--frame-tree-emphasis': palette.emphasis } as React.CSSProperties}>
         <div className="icicle-stage" style={{ maxHeight: Math.max(600, rootLayout.height) }}>
             {total === 0n
                 ? <p role="status">{t('frameTree.noArea')}</p>
@@ -175,9 +170,8 @@ export function FrameTreeIcicle({ tree, focus, selected, locked = false, matches
                     {layout.cells.map(cell => {
                         const node = nodeAt(tree, cell.nodeId);
                         const name = `${frameTreeNodeName(node, t).replace(/^\u21b3 /, '')}${cell.self ? ` / ${t('frameTree.self')}` : ''}`;
-                        const color = colors.get(cell.nodeId) ?? theme.bgColorLight;
-                        const fill = cell.self ? shadeIcicleColor(color, 0.25) : color;
-                        const text = node.dto.kind === 'root' ? theme.textColorPrimary : icicleTextColor(fill);
+                        const fill = colors.get(cell.nodeId) ?? palette.root;
+                        const text = icicleTextColor(fill);
                         const fontSize = cell.depth <= 2 ? 12 : 10.5;
                         const bytes = cell.self ? node.metrics.selfBytes : node.metrics.sizeBytes;
                         const value = formatExactBytes(bytes);

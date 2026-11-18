@@ -61,9 +61,12 @@ jest.mock('../common/components/leaks/LifecycleGraphToolbar', () => ({
     LifecycleZoomModeIcon: () => null,
     LifecycleZoomModeTooltip: () => null,
 }));
-jest.mock('../common/components/leaks/LifecycleMemoryMarkerManager', () => ({ LifecycleMemoryMarkerManager: () => null }));
+jest.mock('../common/components/leaks/LifecycleMemoryMarkerManager', () => ({
+    ...jest.requireActual('../common/components/leaks/LifecycleMemoryMarkerManager'), LifecycleMemoryMarkerManager: () => null,
+}));
 jest.mock('../common/components/leaks/TimelineFlagIcon', () => ({ TimelineFlagIcon: () => null }));
 jest.mock('../common/components/leaks/LifecycleMemoryMarkerOverlay', () => ({
+    ...jest.requireActual('../common/components/leaks/LifecycleMemoryMarkerOverlay'),
     LifecycleMemoryMarkerOverlay: ({ blockPreview }: { blockPreview?: { memoryBytes: number } | null }) => {
         const ReactModule = require('react');
         return ReactModule.createElement('div', {
@@ -108,7 +111,8 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         session.deviceId = '0';
         const first = jest.fn();
         const next = jest.fn();
-        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={first} selectedEventId={135} /></ThemeProvider>);
+        const markers = [{ id: 1, coordinate: 135, eventId: 135, label: 'Time 1' }];
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={first} timeMarkers={markers} /></ThemeProvider>);
         const canvas = view.container.querySelector('canvas') as HTMLCanvasElement;
         jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
             left: 0, top: 0, right: 1000, bottom: 480, width: 1000, height: 480, x: 0, y: 0, toJSON: () => ({}),
@@ -138,7 +142,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(first).toHaveBeenCalledWith(135);
         expect(view.getByTestId('snapshot-event-flag').style.left).toBe('500px');
         expect(view.getAllByTestId('snapshot-event-flag')).toHaveLength(1);
-        view.rerender(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={next} selectedEventId={135} /></ThemeProvider>);
+        view.rerender(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={next} timeMarkers={markers} /></ThemeProvider>);
         fireEvent.click(view.getByRole('button', { name: 'frameTree.selectEventFromAxis' }), { clientX: 500, detail: 1 });
         expect(next).toHaveBeenCalledWith(135);
         expect(first).toHaveBeenCalledTimes(1);

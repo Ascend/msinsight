@@ -307,6 +307,8 @@ const DeleteBadge = styled.button`
     }
 `;
 
+export { DeleteBadge as MarkerDeleteBadge };
+
 type HoverCardPlacement = 'top' | 'center' | 'bottom';
 
 const MarkerHoverCard = styled.div<{ placement: HoverCardPlacement }>`

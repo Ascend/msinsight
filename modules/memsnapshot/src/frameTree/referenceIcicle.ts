@@ -107,30 +107,56 @@ export function layoutReferenceIcicle(tree: FrameTree, focus: string, availableW
     return { width, height: top + bottom + levels * rowHeight, levels, cells };
 }
 
-export function shadeIcicleColor(hex: string, amount: number): string {
-    return '#' + [1, 3, 5].map(offset =>
-        Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(offset, offset + 2), 16) * (1 + amount))))
-            .toString(16).padStart(2, '0')).join('');
+const FRAME_TREE_PALETTES = {
+    light: {
+        root: '#E5EAF1',
+        synthetic: '#D8DEE6',
+        stroke: '#C4CBD5',
+        emphasis: '#285B91',
+        branches: ['#A9C6E8', '#9DCDC8', '#B7C9A4', '#DDC79C', '#DBB4AC'],
+    },
+    dark: {
+        root: '#35404E',
+        synthetic: '#4F5864',
+        stroke: '#657181',
+        emphasis: '#9BC6F4',
+        branches: ['#3F638E', '#2E635F', '#526943', '#705E3C', '#7A4B43'],
+    },
+};
+
+export function frameTreePalette(dark: boolean): typeof FRAME_TREE_PALETTES.light {
+    return dark ? FRAME_TREE_PALETTES.dark : FRAME_TREE_PALETTES.light;
 }
 
-export function icicleColors(tree: FrameTree, palette: { root: string; branches: readonly string[]; synthetic: string }): Map<string, string> {
-    const colors = new Map([[tree.rootId, palette.root]]);
-    childIds(tree, tree.rootId).forEach((id, index) => {
-        const base = nodeAt(tree, id).dto.kind === 'frame'
-            ? palette.branches[index % palette.branches.length] ?? palette.synthetic
-            : palette.synthetic;
-        colors.set(id, base);
+export function frameTreeColors(tree: FrameTree, dark: boolean): Map<string, string> {
+    const palette = frameTreePalette(dark);
+    const colors = new Map<string, string>();
+    const pending = [{ id: tree.rootId, family: -1, depth: 0 }];
+    let nextFamily = 0;
+    // Use the full tree, not the focus; keep the common trunk neutral until real calls branch.
+    while (pending.length) {
+        const entry = pending.pop();
+        if (!entry) break;
+        const { id, family, depth } = entry;
+        const kind = nodeAt(tree, id).dto.kind;
+        const base = kind === 'root' || (kind === 'frame' && family < 0)
+            ? palette.root
+            : kind === 'frame' ? palette.branches[family % palette.branches.length] : palette.synthetic;
+        const blend = kind === 'frame' && family >= 0 ? (depth % 4) / 3 * 0.09 : 0;
+        colors.set(id, blend === 0
+            ? base
+            : '#' + [1, 3, 5].map(offset =>
+                Math.round(parseInt(base.slice(offset, offset + 2), 16) * (1 - blend) + (dark ? 255 : 0) * blend)
+                    .toString(16).padStart(2, '0')).join(''));
         const children = childIds(tree, id);
-        const pending = children.map((child, rank) => ({
-            id: child, color: shadeIcicleColor(base, (rank / Math.max(1, children.length - 1) - 0.5) * 0.3),
+        const branches = family < 0 && children.filter(child => nodeAt(tree, child).dto.kind === 'frame').length > 1;
+        const entries = children.map(child => ({
+            id: child,
+            family: branches && nodeAt(tree, child).dto.kind === 'frame' ? nextFamily++ : family,
+            depth: branches ? 0 : depth + 1,
         }));
-        while (pending.length) {
-            const entry = pending.pop();
-            if (!entry) break;
-            colors.set(entry.id, entry.color);
-            for (const child of childIds(tree, entry.id)) pending.push({ id: child, color: entry.color });
-        }
-    });
+        for (let index = entries.length - 1; index >= 0; index--) pending.push(entries[index]);
+    }
     return colors;
 }
 
@@ -139,7 +165,8 @@ export function icicleTextColor(hex: string): string {
         const value = parseInt(hex.slice(offset, offset + 2), 16) / 255;
         return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
     });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.179 ? '#111111' : '#ffffff';
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05) ? '#000000' : '#ffffff';
 }
 
 const characterUnits = (character: string): number => /[\u3000-\u9fff\uff00-\uffef]/.test(character) ? 1 : 0.58;

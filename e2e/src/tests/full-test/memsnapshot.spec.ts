@@ -426,6 +426,84 @@ test.describe('MemSnapshot', () => {
         await expect(manager).toHaveScreenshot('snapshot-linked-block-marker-manager.png', { maxDiffPixels: 100 });
     });
 
+    test('switch time-marker breakdown tabs without stacking panels or deleting memory markers', async ({ memSnapshotPage, page }, testInfo) => {
+        const frame = memSnapshotPage.memoryFrame;
+        await memSnapshotPage.addMemoryMarker(120);
+        const surface = frame.getByTestId('snapshot-event-marker-axis').getByRole('button', { name: /^Click the time marker strip/ });
+        const bounds = await surface.boundingBox();
+        if (!bounds) throw new Error('Time marker strip must be visible');
+        const panel = frame.getByTestId('frameTreePanel');
+        const visibleBreakdown = frame.locator('[data-testid="snapshot-breakdown"]:visible');
+        await surface.click({ position: { x: bounds.width / 4, y: bounds.height / 2 } });
+        await expect(visibleBreakdown.getByTestId('frame-tree-ready')).toBeVisible({ timeout: 30000 });
+        const firstEvent = await visibleBreakdown.getByTestId('frame-tree-context').locator('span').first().innerText();
+        const firstEventId = firstEvent.match(/Event ID (\d+)/)?.[1];
+        expect(firstEventId).toBeDefined();
+        await expect(panel.getByRole('tab').first()).toContainText(`Event ${firstEventId}`);
+        await surface.click({ position: { x: bounds.width * 3 / 4, y: bounds.height / 2 } });
+        await expect(panel.getByRole('tab')).toHaveCount(2);
+        await expect(frame.getByTestId('snapshot-event-flag')).toHaveCount(2);
+        await expect(visibleBreakdown).toHaveCount(1);
+        await expect(visibleBreakdown.getByTestId('frame-tree-ready')).toBeVisible({ timeout: 30000 });
+        await expect(visibleBreakdown.getByTestId('frame-tree-context')).not.toContainText(firstEvent);
+        const secondEvent = await visibleBreakdown.getByTestId('frame-tree-context').locator('span').first().innerText();
+        const secondEventId = secondEvent.match(/Event ID (\d+)/)?.[1];
+        expect(secondEventId).toBeDefined();
+        await panel.getByRole('tab').first().click();
+        await expect(visibleBreakdown.getByTestId('frame-tree-context')).toContainText(firstEvent);
+        await frame.getByRole('button', { name: 'Memory breakdown management', exact: true }).click();
+        const manager = frame.getByTestId('snapshot-event-marker-manager');
+        const markerNames = manager.locator('input:not([type="color"])');
+        await expect(manager.getByTestId('snapshot-event-marker-row')).toHaveCount(2);
+        await markerNames.first().fill('Checkpoint');
+        await expect(panel.getByRole('tab').first()).toContainText('Checkpoint');
+        const firstRow = manager.getByTestId('snapshot-event-marker-row').first();
+        const markerId = await frame.getByTestId('snapshot-event-flag').first().getAttribute('data-marker-id');
+        const coloredFlag = frame.locator(`[data-time-marker="${markerId}"] [data-time-marker-select]`);
+        const coloredLine = frame.locator(`[data-testid="snapshot-event-flag"][data-marker-id="${markerId}"]`);
+        await firstRow.locator('input[type="color"]').evaluate(input => {
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '#2fa87c');
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await expect(coloredFlag).toHaveCSS('color', 'rgb(47, 168, 124)');
+        await expect(coloredLine).toHaveCSS('color', 'rgb(47, 168, 124)');
+        await firstRow.getByRole('button', { name: 'Hide Checkpoint', exact: true }).click();
+        await expect(firstRow.getByRole('button', { name: 'Show Checkpoint', exact: true })).toHaveAttribute('aria-pressed', 'true');
+        await expect(frame.getByTestId('snapshot-event-flag')).toHaveCount(1);
+        await expect(coloredFlag).toHaveCount(0);
+        await expect(panel.getByRole('tab')).toHaveCount(2);
+        await expect(visibleBreakdown.getByTestId('frame-tree-context')).toContainText(firstEvent);
+        await frame.getByRole('button', { name: 'Close memory breakdown management', exact: true }).click();
+        await panel.getByRole('tab').last().click();
+        await panel.getByRole('tab').first().click();
+        await expect(frame.getByTestId('snapshot-event-flag')).toHaveCount(1);
+        await frame.getByRole('button', { name: 'Memory breakdown management', exact: true }).click();
+        await firstRow.getByRole('button', { name: 'Show Checkpoint', exact: true }).click();
+        await expect(frame.getByTestId('snapshot-event-flag')).toHaveCount(2);
+        await expect(coloredLine).toHaveCSS('color', 'rgb(47, 168, 124)');
+        for (const prefix of ['事件', 'Event']) {
+            await page.getByTestId('switch-lng').click();
+            await expect(panel.getByRole('tab')).toContainText(['Checkpoint', `${prefix} ${secondEventId}`]);
+            await expect(markerNames.first()).toHaveValue('Checkpoint');
+            await expect(markerNames.last()).toHaveValue(`${prefix} ${secondEventId}`);
+            await expect(frame.getByTestId('snapshot-event-flag').last()).toHaveAttribute('aria-label', new RegExp(`^${prefix} ${secondEventId} `));
+        }
+        await testInfo.attach('time-marker-management', { body: await manager.screenshot(), contentType: 'image/png' });
+        await manager.getByTestId('snapshot-event-marker-row').last()
+            .getByRole('button', { name: /^Remove breakdown:/ }).click();
+        await expect(panel.getByRole('tab')).toHaveCount(1);
+        await expect(frame.getByTestId('snapshot-event-flag')).toHaveCount(1);
+        await frame.getByRole('button', { name: 'Close memory breakdown management', exact: true }).click();
+        const inlineDelete = frame.locator('[data-time-marker]').getByRole('button', { name: 'Remove breakdown: Checkpoint', exact: true });
+        await expect(inlineDelete).toBeHidden();
+        await frame.locator('[data-time-marker-select]').hover();
+        await expect(inlineDelete).toBeVisible();
+        await inlineDelete.click();
+        await expect(panel.getByRole('tab')).toHaveCount(0);
+        await expect(frame.getByTestId('snapshot-event-flag')).toHaveCount(0);
+        await expect(frame.getByTestId('memoryMarkerBaselineGuide')).toHaveCount(1);
+    });
+
     test('press K again on the same block to remove its marker', async ({ memSnapshotPage, page }) => {
         const frame = memSnapshotPage.memoryFrame;
         await memSnapshotPage.hoverMemoryBlock();
