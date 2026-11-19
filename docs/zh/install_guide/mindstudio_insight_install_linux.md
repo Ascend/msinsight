@@ -1,4 +1,4 @@
-# 安装指南-Linux系统
+# 安装指南：Linux系统
 
 ## 安装MindStudio Insight
 
@@ -26,7 +26,7 @@
 >
 > 推荐使用VNC转发方式，可获得更为流畅的使用体验。
 
-**表 1**  转发方式说明<a id="转发方式说明"></a>
+**表 1** 转发方式说明<a id="转发方式说明"></a>
 
 |转发方式|网络延迟|安全性|备注|
 |--|--|--|--|
@@ -55,7 +55,7 @@
 
 **依赖列表**
 
-在Linux环境下，安装MindStudio Insight前需要安装相关依赖，请参见[**表 3**  依赖列表](#依赖列表)安装对应依赖。
+在Linux环境下，安装MindStudio Insight前需要安装相关依赖，请参见[**表 3** 依赖列表](#依赖列表)安装对应依赖。
 
 <a id="依赖列表"></a>
 
@@ -133,7 +133,7 @@
 
             回显信息如下：
 
-            ```tex
+            ```output
             = Name 和 Summary 匹配：webkit2gtk =====================================================================================
             webkit2gtk3-devel.aarch64 : Development files for webkit2gtk3
             webkit2gtk3-help.noarch : Documentation files for webkit2gtk3
@@ -215,13 +215,13 @@
 
 2. 回显如下，按照提示输入密码。
 
-    ```shell
+    ```output
     You will require a password to access your desktops.
     Password:请输入密码
     Verify:请再次输入密码
     ```
 
-3. 输入密码后，回显如下。<a id="3"></a>
+3. 输入密码后，回显如下：<a id="3"></a>
 
     ```ColdFusion
     Would you like to enter a view-only password (y/n)?
@@ -247,9 +247,9 @@
     >
     > 此处的`x`值与[3](#3)中首行回显的`x`值一致。
 
-5. 执行`vi ~/.vnc/xstartup`，打开xstartup启动脚本，并在脚本最后新增一行文本，配置脚本，需要增加的文本内容请参见[**表 4**  文本内容](#文本内容)。
+5. 执行`vi ~/.vnc/xstartup`，打开xstartup启动脚本，并在脚本最后新增一行文本，配置脚本，需要增加的文本内容请参见[**表 4** 文本内容](#文本内容)。
 
-    **表 4**  文本内容<a id="文本内容"></a>
+    **表 4** 文本内容<a id="文本内容"></a>
 
     |已安装依赖|文本内容|
     |--|--|
@@ -278,17 +278,17 @@ vncserver -localhost -geometry 1920x1080
 1. 打开远程登录工具，选择“Tools \> MobaSSHTunnel \(port forwarding\)”。此处以MobaXterm工具为例。
 2. 单击“New SSH Tunnel”，新建一个SSH配置。
 
-    **图 1**  新建SSH配置
+    **图 1** 新建SSH配置
 
     ![](./figures/install_guide/create_new_ssh_config_1.png "新建SSH配置")
 
-3. 选择“Local port forwarding”，按照[**表 5**  配置Local port forwarding页面信息](#配置Local_port_forwarding页面信息)配置页面信息。
+3. 选择“Local port forwarding”，按照[**表 5** 配置Local port forwarding页面信息](#配置Local_port_forwarding页面信息)配置页面信息。
 
-    **图 2**  Local port forwarding
+    **图 2** Local port forwarding
 
     ![](./figures/install_guide/Local-port-forwarding.png "Local-port-forwarding")
 
-    **表 5**  配置Local port forwarding页面信息<a id="配置Local_port_forwarding页面信息"></a>
+    **表 5** 配置Local port forwarding页面信息<a id="配置Local_port_forwarding页面信息"></a>
 
     |参数|说明|示例|
     |--|--|--|
@@ -314,13 +314,13 @@ vncserver -localhost -geometry 1920x1080
     > - 如果使用了端口转发功能，“Remote hostname or IP address”为127.0.0.1，“Port”为端口转发中的Forwarded port。
     > - 如果未使用端口转发，“Remote hostname or IP address”为实际远端Linux的IP，“Port”为5900加设置VNC Server中的`x`（显示序号）值。<br>
 
-    **图 3**  配置VNC
+    **图 3** 配置VNC
 
     ![](./figures/install_guide/configure_vnc_1.png "配置VNC")
 
 3. 配置完成后，单击“OK”，在弹窗中输入VNC的密码后，将桌面转发至本地进行后续操作。
 
-    **图 4**  桌面
+    **图 4** 桌面
 
     ![](./figures/install_guide/desktop_1.png "桌面")
 

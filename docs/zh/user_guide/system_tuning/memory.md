@@ -6,7 +6,7 @@
 
 **注意事项**
 
-对于超过300万条的数据，在内存折线图表渲染时采用LTTB（Largest Triangle Three Buckets）算法进行降采样，以提升渲染性能，所以当数据量较大时，仅显示采样结果，将图表放大至较小范围时，可完整显示数据点。
+对于超过300万条的数据，在内存折线图渲染时采用LTTB（Largest Triangle Three Buckets）算法进行降采样，以提升渲染性能，所以当数据量较大时，仅显示采样结果，将图表放大至较小范围时，可完整显示数据点。
 
 ## 界面介绍
 
@@ -94,11 +94,11 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 > - 单击折线图右上角![](../figures/system_tuning/zh-cn_image_0000002500040358.png)按钮，使其为置灰状态，则折线图将锁定，不再支持鼠标左键框选放大功能；再次单击此按钮，或者单击鼠标右键即可恢复。放大功能默认开启。
 > - 单击折线图右上方![](../figures/system_tuning/zh-cn_image_0000002532040259.png)按钮，折线图将会恢复最初状态。
 > - 单击折线图右上方![](../figures/system_tuning/back.png)按钮，折线图将会回到上一步操作。
-> - 单击折线图右上方![](../figures/system_tuning/go_to_timeline.png)按钮，将会跳转对应时间域的时间线页签。
+> - 单击折线图右上方![](../figures/system_tuning/go_to_timeline.png)按钮，将会跳转到对应时间域的时间线页签。
 
 **支持搜索算子**
 
-在内存申请/释放详情表中，动态图和静态图场景支持搜索算子，具体操作如下。
+在内存申请/释放详情表中，动态图和静态图场景支持搜索算子，具体操作如下：
 
 > [!NOTE]
 >
@@ -121,13 +121,13 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
   |--|--|--|
   |名称|Name|算子名称。|
   |大小（KB）|Size(KB)|申请内存大小，单位KB。|
-  |分配时间(ms)|Allocation Time(ms)|Tensor内存分配时间。（从采集开始时计算，单位ms）。|
-  |释放时间(ms)|Release Time(ms)|Tensor内存释放时间。（从采集开始时计算，单位ms）。|
-  |时长(ms)|Duration(ms)|内存持有时间。|
-  |持有内存释放时间(ms)|Active Release Time(ms)|内存实际归还内存池时间。|
-  |内存持有时长(ms)|Active Duration(ms)|内存实际占用时间。|
+  |分配时间（ms）|Allocation Time(ms)|Tensor内存分配时间（从采集开始时计算，单位ms）。|
+  |释放时间（ms）|Release Time(ms)|Tensor内存释放时间（从采集开始时计算，单位ms）。|
+  |时长（ms）|Duration(ms)|内存持有时间。|
+  |持有内存释放时间（ms）|Active Release Time(ms)|内存实际归还内存池时间。|
+  |内存持有时长（ms）|Active Duration(ms)|内存实际占用时间。|
   |总分配内存（MB）|Allocation Total Allocated(MB)|算子内存分配时，PyTorch和GE内存实际分配总额。|
-  |总保留内存（MB）|Allocation Total Reserved(MB)|算子内存分配时，PyTorch和GE内存预留总额。|
+  |总保留内存（MB）|Allocation Total Reserved(MB)|算子内存分配时，PyTorch和GE内存保留总额。|
   |总持有内存（MB）|Allocation Total Active(MB)|算子内存分配时，当前流所申请的总内存（包括被其他流复用的未释放的内存）。|
   |总释放已分配内存（MB）|Release Total Allocated(MB)|算子内存释放后，内存池中PyTorch和GE正在使用的内存大小。|
   |总释放保留内存（MB）|Release Total Reserved(MB)|算子内存释放后，内存池中PyTorch和GE所占用的内存大小。|

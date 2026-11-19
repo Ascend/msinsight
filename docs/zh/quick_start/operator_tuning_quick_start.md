@@ -16,7 +16,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 > [!NOTE]
 >
-> 本文使用已准备好的样例数据演示分析路径，不展开 msOpProf 数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md) 中的数据说明和 msOpProf 工具文档。
+> 本文使用已准备好的样例数据演示分析路径，不展开 msOpProf 数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md) 中的数据说明和 msOpProf工具文档。
 
 ### 1.2 开始前检查
 
@@ -30,7 +30,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 ### 1.3 样例数据
 
-算子数据：[点击下载](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo/blob/main/operator)
+算子数据：[点击下载算子样例数据](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo/blob/main/operator)
 
 下载后请确认目录中包含以下两类数据：
 
@@ -110,7 +110,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 ![detail code position](./figures/quick_start/operator_quick_start_detail_code_position.png)
 
-从详情区域可以定位到用户代码位置，示例路径如下：
+从详情区域可以定位到用户源码位置，示例路径如下：
 
 ```text
 /path/to/samples/operator/ascendc/0_introduction/13_matmulleakyrelu_kernellaunch/MatmulLeakyReluInvocationAsync/matmul_leakyrelu_custom.cpp:206

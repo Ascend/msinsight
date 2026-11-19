@@ -178,7 +178,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
     |analysis.db|多卡或集群等存在通信的场景下，采集到的数据文件。|时间线（Timeline）<br> 内存（Memory）<br> 算子（Operator）<br> 概览（Summary）<br> 通信（Communication）|
     |注：“*”表示{timestamp}时间戳。|||
 
-- MindSpore训练/推理数据：支持导入MindSpore框架性能数据，获取方式请参见《[MindSpore教程](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html)》中的“调试调优 \>  [Ascend性能调优](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/debug/profiler.html)”章节。
+- MindSpore训练/推理数据：支持导入MindSpore框架性能数据，获取方式请参见《[MindSpore教程](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html)》中的“调试调优 \> [Ascend性能调优](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/debug/profiler.html)”章节。
 
     MindStudio Insight工具支持导入以“ascend\_ms”结尾的性能数据目录，性能数据文件详情请参见[**表 7** MindSpore训练/推理性能数据文件](#MindSpore训练/推理性能数据文件)。
 
@@ -238,7 +238,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 
 **集群场景**
 
-- 集群场景也称多卡场景，由多个单卡组成的集群数据，集群数据可分为小集群和大集群，MindStudio Insight工具导入不同场景的数据时，也有所不同，如[表 10 集群场景说明](#集群场景说明)所示。
+- 集群场景也称多卡场景，是指由多个单卡组成的集群数据，集群数据可分为小集群和大集群，MindStudio Insight工具导入不同场景的数据时，也有所不同，如[表 10 集群场景说明](#集群场景说明)所示。
 
     **表 10** 集群场景说明<a id="集群场景说明"></a>
 

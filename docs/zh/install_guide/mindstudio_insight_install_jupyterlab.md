@@ -1,4 +1,4 @@
-# 安装指南-JupyterLab插件
+# 安装指南：JupyterLab插件
 
 ## 安装MindStudio Insight
 
@@ -8,9 +8,9 @@
 
 **简介**
 
-在Linux环境下，MindStudio Insight工具通过集成JupyterLab插件，提供更直观和交互性强的操作界面。JupyterLab插件的优势如[**表 1**  JupyterLab插件优势](#JupyterLab插件优势)所示。
+在Linux环境下，MindStudio Insight工具通过集成JupyterLab插件，提供更直观和交互性强的操作界面。JupyterLab插件的优势如[**表 1** JupyterLab插件优势](#JupyterLab插件优势)所示。
 
-**表 1**  JupyterLab插件优势<a id="JupyterLab插件优势"></a>
+**表 1** JupyterLab插件优势<a id="JupyterLab插件优势"></a>
 
 |优势|说明|
 |--|--|
@@ -21,7 +21,7 @@
 
 **准备环境**
 
-1. 执行以下命令，在Linux环境下安装JupyterLab环境，环境要求请参见[**表 2**  环境要求](#环境要求)。
+1. 执行以下命令，在Linux环境下安装JupyterLab环境，环境要求请参见[**表 2** 环境要求](#环境要求)。
 
     ```shell
     pip install jupyterlab
@@ -31,7 +31,7 @@
     >
     >如果需要打开集群场景数据，则需要参见[安装依赖](./mindstudio_insight_install_linux.md#安装依赖)章节中的内容安装Python依赖。
 
-    **表 2**  环境要求<a id="环境要求"></a>
+    **表 2** 环境要求<a id="环境要求"></a>
 
     |类别|要求|
     |--|--|
@@ -98,9 +98,9 @@
     >
     > 建议使用非root用户执行命令。如果实际需要使用root用户启动，请严格执行root用户的命令，否则会存在安全风险。
 
-    启用后，使用浏览器，输入http://\{_your\_server\_ip_\}:\{_your\_server\_port_\}/lab地址，打开JupyterLab环境首页，如[**图 1**  JupyterLab环境首页](#JupyterLab环境首页)所示，单击MindStudio Insight图标，即可打开MindStudio Insight工具（端口号可在终端实时查看，端口号port默认值为“8888”）。
+    启用后，使用浏览器，输入http://\{_your\_server\_ip_\}:\{_your\_server\_port_\}/lab地址，打开JupyterLab环境首页，如[**图 1** JupyterLab环境首页](#JupyterLab环境首页)所示，单击MindStudio Insight图标，即可打开MindStudio Insight工具（端口号可在终端实时查看，端口号port默认值为“8888”）。
 
-    **图 1**  JupyterLab环境首页<a id="JupyterLab环境首页"></a>
+    **图 1** JupyterLab环境首页<a id="JupyterLab环境首页"></a>
 
     ![](./figures/install_guide/jupyterlab_homepage_1.png "JupyterLab环境首页")
 
@@ -158,17 +158,17 @@
 
     - JupyterLab支持通过如下三种方式配置导入数据的默认目录（按照优先级排序），具体配置完成后，导入数据界面如[**图 2** JupyterLab配置默认目录](#JupyterLab配置默认目录)所示。
 
-        1. 通过命令行显示配置默认目录，命令及回显如下：
+        1. 通过命令行显式配置默认目录，命令及回显如下：
 
             ```bash
-            #通过命令行显示配置默认目录
+            #通过命令行显式配置默认目录
             jupyter lab --MSInsight.initial_dir="/home"
 
             #回显如下
             MindStudio Insight file selector initial directory (MSInsight.initial_dir): '/home'
             ```
 
-        2. 通过配置文件显示配置默认目录，命令及回显如下：
+        2. 通过配置文件显式配置默认目录，命令及回显如下：
 
             ```bash
             # 通过jupyter_server_config.py配置文件配置默认目录
@@ -184,7 +184,7 @@
         3. 通过环境变量配置默认目录，命令及回显如下：
 
             ```bash
-            #通过配置文件显示配置默认目录
+            #通过环境变量配置默认目录
             export MINDSTUDIO_INSIGHT_INITIAL_DIR="/home"
 
             #启动JupyterLab（注意，root用户启动需要增加“--allow-root”）
@@ -194,7 +194,7 @@
             MindStudio Insight file selector initial directory (MSInsight.initial_dir): '/home'
             ```
 
-        4. 若以上配置命令为空字符串，则按照MindStudio Insight默认路径导入数据。
+        若以上配置命令为空字符串，则按照MindStudio Insight默认路径导入数据。
 
         **图 2** JupyterLab配置默认目录<a id="JupyterLab配置默认目录"></a>
 

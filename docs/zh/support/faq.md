@@ -19,7 +19,7 @@
 1. 单击[链接](https://developer.microsoft.com/en-US/microsoft-edge/webview2/#download-section)，进入 Microsoft 官网。
 2. 下载 “Evergreen Standalone Installer” 中的 x64 安装包，如[**图 1**  WebView2 安装包](#WebView2 安装包)所示。
 
-    **图 1**  WebView2 安装包<a id="WebView2 安装包"></a>
+    **图 1** WebView2 安装包<a id="WebView2 安装包"></a>
     ![](./figures/FAQ/webview2_installer_1.png "WebView2 安装包")
 
 3. 安装完成后，重新运行 MindStudio Insight。
@@ -63,7 +63,7 @@
 
 **问题现象**
 
-在 Linux 系统中，通过 X11 转发方式运行 MindStudio Insight 时，在输入框已存在信息情况下，重新粘贴所需信息时会出现错误。
+在 Linux 系统中，通过 X11 转发方式运行 MindStudio Insight 时，在输入框已存在信息的情况下，重新粘贴所需信息时会出现错误。
 
 **原因分析**
 
@@ -73,10 +73,10 @@
 
 方案一：
 
-1. 在远程登录工具菜单栏单击“Settings \> Configuration“。此处以 MobaXterm 工具为例。
+1. 在远程登录工具菜单栏单击“Settings \> Configuration”。此处以 MobaXterm 工具为例。
 2. 选择“X11”页签，在“Clipboard”选项中选择“disable"copy on select"”，如[**图 1**  MobaXterm Configuration](#MobaXterm Configuration)所示。
 
-    **图 1**  MobaXterm Configuration<a id="MobaXterm Configuration"></a>
+    **图 1** MobaXterm Configuration<a id="MobaXterm Configuration"></a>
     ![](./figures/FAQ/MobaXterm-Configuration.png "MobaXterm-Configuration")
 
 3. 单击“OK”。
@@ -103,7 +103,7 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 1. 打开电脑的文件资源管理器。
 2. 单击“此电脑 \> 映射网络驱动器”，弹出“映射网络驱动器”弹窗，如[**图 1**  映射网络驱动器](#映射网络驱动器)。
 
-    **图 1**  映射网络驱动器<a id="映射网络驱动器"></a>
+    **图 1** 映射网络驱动器<a id="映射网络驱动器"></a>
     ![](./figures/FAQ/map_network_drive_1.png "映射网络驱动器")
 
 3. 下拉“驱动器\(D\)”选框，选择连接指定的驱动器号。
@@ -132,7 +132,7 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 
 **问题现象**
 
-在 Windows 系统上安装 MindStudio Insight 时，选择勾选“Run MindStudio Insight“自动打开MindStudio Insight的情况下，拖入文件显示禁用。
+在 Windows 系统上安装 MindStudio Insight 时，勾选“Run MindStudio Insight”自动打开MindStudio Insight的情况下，拖入文件显示禁用。
 
 **原因分析**
 
@@ -151,7 +151,7 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 
 在 Linux 系统中使用“X11 方式”或“VNC 方式”启动 MindStudio Insight 时，工具界面白屏，出现“cannot open shared object file swrast\_dri.so”报错信息，如[**图 1**  报错截图](#报错截图)所示。
 
-**图 1**  报错截图<a id="报错截图"></a>
+**图 1** 报错截图<a id="报错截图"></a>
 ![](./figures/FAQ/error_screenshot_1.png "报错截图")
 
 **原因分析**
@@ -168,13 +168,13 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 
 2. 安装完成后，重新打开 MindStudio Insight即可。
 
-## 9. 启动 VNC 时出现 “Oh no! Something has gone wrong.” 报错怎么办？
+## 9. 启动 VNC 时出现`Oh no! Something has gone wrong.`报错怎么办？
 
 **问题现象**
 
-在 Linux 系统上，使用“VNC 方式”启动 MindStudio Insight 时，启动VNC，出现“Oh no! Something has gone wrong.”报错弹窗，如[**图 1**  报错信息](#报错信息)所示。
+在 Linux 系统上，使用“VNC 方式”启动 MindStudio Insight 时，出现“Oh no! Something has gone wrong.”报错弹窗，如[**图 1**  报错信息](#报错信息)所示。
 
-**图 1**  报错信息<a id="报错信息"></a>
+**图 1** 报错信息<a id="报错信息"></a>
 ![](./figures/FAQ/error_message_1.png "报错信息")
 
 **原因分析**
@@ -197,11 +197,11 @@ VNC在某些情况下需要通过SSH通道来实现连接，而TCP转发正是�
 
 4. 重启成功后，重新打开新的窗口启动 VNC。
 
-## 10. OpenEuler 及其衍生系统安装依赖时提示找不到依赖怎么办？
+## 10. openEuler 及其衍生系统安装依赖时提示找不到依赖怎么办？
 
 **问题现象**
 
-在 Linux 操作系统上，OpenEuler 及其衍生操作系统在安装依赖时，提示找不到相关依赖。
+在 Linux 操作系统上，openEuler 及其衍生操作系统在安装依赖时，提示找不到相关依赖。
 
 **原因分析**
 
@@ -227,7 +227,7 @@ VNC在某些情况下需要通过SSH通道来实现连接，而TCP转发正是�
 
 **问题现象**
 
-使用 MindStudio Insight 导入数据后，通信界面未显示数据。
+使用 MindStudio Insight 导入数据后，Communication 页面未显示数据。
 
 **原因分析**
 
@@ -243,7 +243,7 @@ VNC在某些情况下需要通过SSH通道来实现连接，而TCP转发正是�
 
 在Linux的TencentOS Server 4.4\_x86操作系统中，启动 MindStudio Insight，启动失败，报错信息如下：
 
-```tex
+```text
 ** (MindStudio-Insight:302256): WARNING **: 08:07:35.531: webkit_settings_set_enable_offline_web_application_cache is deprecated and does nothing.
 JIT session error: Missing definitions in module fs789_variant0_6-jitted-objectbuffer: [ fs_variant_whole ]
 Failed to materialize symbols: { (fs789_variant0_6, { fs_variant_partial, fs_variant_whole }) }
@@ -274,11 +274,11 @@ The nesting depth of the imported sub-file exceeds 5 or the sub-file path length
 
 **解决方案**
 
-1. 首先排查是否文件路径过长，如果**文件路径长度超过260**则可以修改文件路径名称；
-2. 然后排查是否文件嵌套过深，如以**导入目录到trace_view.json文件的嵌套层数**是否超过5层来判断，如果超过5层则可以修改嵌套深度；
+1. 首先排查文件路径是否过长，如果**文件路径长度超过260**则可以修改文件路径名称；
+2. 然后排查文件嵌套是否过深，如以**导入目录到trace_view.json文件的嵌套层数**是否超过5层来判断，如果超过5层则可以修改嵌套深度；
 
    ![image.png](./figures/FAQ/Import_Path_Too_Long/nesting-depth-check.png)
-3. 检查导入文件是否为有效数据，文件是否有损坏或不完整
+3. 检查导入文件是否为有效数据，文件是否有损坏或不完整；
 4. 如果以上方法均无法解决问题，请联系 MindStudio Insight 工具接口人进一步定位。
 
 ## 15. System view 和 Operator 页签没有内容怎么办？
@@ -361,7 +361,7 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 
 Profiling 采集交付件分为**Text 类型**与 **DB 类型**，8.1.RC1 之后的 CANN 包进行 Profiling 采集时，若选择输出 Text 交付件，会同时生成 Text 与 DB 类型数据，MindStudio Insight 会优先识别为 DB 数据。
 
-DB 数据的优点是磁盘占用小，文件解析加载更快。但部分用户可能不习惯新的 DB 交付件，和新的泳道排布关系，想要恢复为 text 场景。
+DB 数据的优点是磁盘占用小，文件解析加载更快。但部分用户可能不习惯新的 DB 交付件，和新的泳道排布关系，想要恢复为 Text 场景。
 
 **解决方案**
 
@@ -409,9 +409,9 @@ MindStudio Insight 在导入集群数据时确定数据类型，Communication �
 
 若同一目录同时包含 TEXT 和 DB 交付件，MindStudio Insight 优先按 DB 格式导入。若需要按纯 TEXT 格式导入，请参考 FAQ 17。
 
-**正常数据目录（适用于 msprof 26.1.0）**
+**正常数据目录（适用于 msProf 26.1.0）**
 
-以下目录结构由 msprof 26.1.0 的数据导出约定保证，目录示例可参考 [26.1.0 集群分析工具文档](https://gitcode.com/Ascend/msprof-analyze/blob/tag_MindStudio_26.1.0.B100_002/docs/zh/user_guide/cluster_analyse_instruct.md)。该目录结构仅适用于 msprof 26.1.0，后续版本如有变化，请以对应版本的上游文档为准。
+以下目录结构由 msProf 26.1.0 的数据导出约定保证，目录示例可参考 [26.1.0 集群分析工具文档](https://gitcode.com/Ascend/msprof-analyze/blob/tag_MindStudio_26.1.0.B100_002/docs/zh/user_guide/cluster_analyse_instruct.md)。该目录结构仅适用于 msprof 26.1.0，后续版本如有变化，请以对应版本的上游文档为准。
 
 以下目录树仅列出 Communication 页面判断和读取通信数据时使用的关键文件。集群目录中通常包含多个 Rank 目录，每个 Rank 的文件结构应保持一致。
 

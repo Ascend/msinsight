@@ -1,20 +1,20 @@
 # 整体界面介绍
 
-![](./figures/source_tuning/timeline.png "timline")
+![](./figures/source_tuning/timeline.png "timeline")
 
-算子执行过程是一个多核并发的过程，所以在流水图中一级泳道按照AiCore进行分类，泳道名格式：core_id.coreTypeCoreId. coreType有两类：cube和vec。
+算子执行过程是一个多核并发的过程，所以在流水图中一级泳道按照AiCore进行分类，泳道名格式：core_id.coreTypeCoreId。coreType有两类：cube和vec。
 
 ## 泳道介绍
 
-泳道可以分类3类：数据搬运类、控制流、计算流、统计事件
+泳道可以分为4类：数据搬运流、控制流、计算流、统计事件。
 
 **数据搬运流**
 
-计算时需要把数据搬入，计算完成后，再搬出，数据搬运流反映了数据搬入搬出的流水情况
+计算时需要把数据搬入，计算完成后，再搬出，数据搬运流反映了数据搬入搬出的流水情况。
 
 MTE1泳道：L1 --> L0A/ L0B
 
-MTE2泳道：GM --> L1、 GM--> L0A/L
+MTE2泳道：GM --> L1、GM--> L0A/L
 
 MTE3泳道：UB--> GM
 
@@ -24,7 +24,7 @@ FixPipe泳道：L0->GM/L1
 
 **控制流**
 
-控制单元为整个计算过程提供了指令控制，负责整个Ai Core的运行控制，控制流泳道反映了计算过程中分支、循环等情况
+控制单元为整个计算过程提供了指令控制，负责整个Ai Core的运行控制，控制流泳道反映了计算过程中分支、循环等情况。
 
 FLOWCTRL泳道：控制流指令流水
 
@@ -54,7 +54,7 @@ AscendC是SPMD模型，即多个核心上运行同一份kernel，用block_idx处
 
 **MTE2瓶颈**：CopyIn瓶颈
 
-MTE2主要负责将数据从GM、L2中搬入L1、L0A/L0B，UB中， 如果流水图中MTE2长，计算流中空泡多，说明数据供给赶不上。
+MTE2主要负责将数据从GM、L2中搬入L1、L0A/L0B，UB中，如果流水图中MTE2长，计算流中空泡多，说明数据供给赶不上。
 
 ```mermaid
 flowchart TD
@@ -100,7 +100,7 @@ Vector 算子保证数据对齐、mask 合理、单次处理长度足够大。
 
 检查是否存在大量 scalar 计算、地址计算、动态分支拖慢主循环。
 
-**pip之间有较大的空洞：同步/队列/流水编排问题**
+**pipe之间有较大的空洞：同步/队列/流水编排问题**
 
 ```mermaid
 sequenceDiagram
@@ -116,9 +116,9 @@ sequenceDiagram
   CO->>Qout: DeQue output tile
 ```
 
-如果说MTE2搬完很久才开始计算或者计算结束后很久才开始搬运，常见原因有队列同步、buffer数量、stage排布或循环结构不合理
+如果说MTE2搬完很久才开始计算或者计算结束后很久才开始搬运，常见原因有队列同步、buffer数量、stage排布或循环结构不合理。
 
-**. 串行 CopyIn / Compute / CopyOut**
+**1. 串行 CopyIn / Compute / CopyOut**
 
 问题代码：每个 tile 三段串行，MTE2 搬完后 Vector 才开始，Vector 算完后 MTE3 才写。
 
@@ -638,7 +638,7 @@ if (tilingKey == SMALL_M) {
 
 问题版：
 
-```C++
+```c++
 for (int i = 0; i < tileNum; ++i) {
     if (IsTail(i)) {
         PrepareTail();
@@ -718,7 +718,7 @@ host tiling 阶段提前决定分支
 适度 unroll，但避免代码膨胀
 ```
 
-**CACHEMISS：局部指令性差**
+**CACHEMISS：指令局部性差**
 
 ```text
 热路径代码过大

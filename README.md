@@ -19,7 +19,7 @@
 
 <span style="font-size:14px;">
 
-🔹 **[2026.10.19]**：MindStudio Insight 26.2.0版本上线， 围绕原生 PyTorch Trace 导入、内存快照分析、Timeline 硬件指标和算子调优体验持续增强。
+🔹 **[2026.10.19]**：MindStudio Insight 26.2.0版本上线，围绕原生 PyTorch Trace 导入、内存快照分析、Timeline 硬件指标和算子调优体验持续增强。
 
 🔹 **[2026.07.25]**：MindStudio Insight 26.1.0 版本上线，围绕 Host 侧性能分析、内存快照分析、容器化部署、Web 访问和 Timeline 交互体验持续增强，主要面向昇腾 AI 性能调优场景的开发者。
 
@@ -52,7 +52,7 @@ MindStudio Insight 围绕昇腾 AI 性能分析主路径提供多维可视化调
 | **系统调优** | 分析 Timeline、通信、内存、算子耗时等系统性能瓶颈。 | 《[系统调优](./docs/zh/user_guide/system_tuning/system_tuning_overview.md)》 |
 | **算子调优** | 展示指令流水、源码映射、负载分析和 Cache 等算子性能信息。 | 《[算子调优](./docs/zh/user_guide/operator_tuning/operator_tuning_overview.md)》 |
 | **服务化调优** | 通过请求端到端 Timeline 和性能曲线定位推理服务化瓶颈。 | 《[服务化调优](./docs/zh/user_guide/service_optimization.md)》 |
-| **内存调优** | 展示 device 侧内存分配、调用栈和标签信息，辅助定位内存问题。 | 《[内存调优](./docs/zh/user_guide/memory_tuning/memscope_memory_tuning.md)》 |
+| **内存调优** | 展示 Device 侧内存分配、调用栈和标签信息，辅助定位内存问题。 | 《[内存调优](./docs/zh/user_guide/memory_tuning/memscope_pytorch_snapshot_comparison.md)》 |
 
 ## 🚀 快速入门
 
@@ -62,7 +62,7 @@ MindStudio Insight 围绕昇腾 AI 性能分析主路径提供多维可视化调
 
 ## 📦 安装指南
 
-MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时也提供 JupyterLab 插件和 Docker 镜像两种便捷的使用方式。具体环境依赖、软件包获取和安装方法，请参见《[MindStudio Insight 安装指南](./docs/zh/install_guide/mindstudio_insight_install_overview.md)》。
+MindStudio Insight 支持在Windows、Linux和macOS系统上安装使用，同时也提供 JupyterLab 插件和 Docker 镜像两种便捷的使用方式。具体环境依赖、软件包获取和安装方法，请参见《[MindStudio Insight 安装指南](./docs/zh/install_guide/mindstudio_insight_install_overview.md)》。
 
 ## 📘 使用指南
 
@@ -72,7 +72,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时
 🔹 《[系统调优](./docs/zh/user_guide/system_tuning/system_tuning_overview.md)》<br>
 🔹 《[算子调优](./docs/zh/user_guide/operator_tuning/operator_tuning_overview.md)》<br>
 🔹 《[服务化调优](./docs/zh/user_guide/service_optimization.md)》<br>
-🔹 《[内存调优](./docs/zh/user_guide/memory_tuning/memscope_memory_tuning.md)》
+🔹 《[内存调优](./docs/zh/user_guide/memory_tuning/memscope_pytorch_snapshot_comparison.md)》
 
 ## 💡 典型案例
 
@@ -87,7 +87,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，同时
 为提升文档查阅效率，我们提供多种高效检索方式：<br>
 🔹 [AI 问答（DeepWiki）](https://deepwiki.com/mindstudio-docs/master)：自然语言问答，快速把握项目架构与模块关系。<br>
 🔹 [AI 问答（ZRead）](https://zread.ai/mindstudio-docs/master)：中文问答体验更优，精准定位功能用法与细节。<br>
-🔹 [精确搜索（ReadTheDocs）](https://msinsight.readthedocs.io/zh-cn/latest/)：关键词全文检索，直达安装、使用、FAQ 等文档。
+🔹 [精确搜索（ReadTheDocs）](https://msinsight.readthedocs.io/zh-cn/latest/)：关键词全文检索，直达安装、使用、FAQ等文档。
 
 ## 🛠️ 贡献指南
 

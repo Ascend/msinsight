@@ -17,7 +17,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 > [!NOTE]
 >
-> 本文使用已准备好的样例数据演示分析路径，不展开 msProf 数据采集命令。若需要采集真实系统数据，请参考 [MindStudio Insight 系统调优](../user_guide/system_tuning/system_tuning_overview.md) 中的数据说明和 msProf 工具文档。
+> 本文使用已准备好的样例数据演示分析路径，不展开 msProf 数据采集命令。若需要采集真实系统数据，请参考 [MindStudio Insight 系统调优](../user_guide/system_tuning/system_tuning_overview.md) 中的数据说明和 msProf工具文档。
 
 ### 1.2 开始前检查
 
@@ -31,7 +31,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 ### 1.3 样例数据
 
-可点击下载[系统数据](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo/blob/main/system)
+可点击下载[系统数据](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo/blob/main/system)。
 
 下载后请确认目录中包含如下结构：
 
@@ -136,7 +136,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 ### 2.2 分析 Communication（通信）页签
 
-**操作：** 切换到 Communication（通信）页签，选择 “Communication Duration Analysis（通信耗时分析）” 单选项。
+**操作：** 切换到 Communication（通信）页签，选择“Communication Duration Analysis（通信耗时分析）”单选项。
 
 **观察目标：** 查看各卡通信耗时是否存在明显差异，判断是否有卡进入同步阶段过早或过晚。
 
@@ -152,7 +152,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 ### 2.3 分析 Timeline（时间线）页签
 
-**操作：** 右键通信算子缩略图中 15 卡的最小通信算子，选择 “Find in Timeline（跳转至时间线视图）” 项目，然后适当缩放，查看 15 卡在通信之前的行为。
+**操作：** 右键通信算子缩略图中 15 卡的最小通信算子，选择“Find in Timeline（跳转至时间线视图）”选项，然后适当缩放，查看 15 卡在通信之前的行为。
 
 **观察目标：** 确认这张卡在通信前是处于计算、通信还是空闲状态，从而判断导致同步差异的原因。
 
@@ -164,7 +164,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 ![timeline unit selected list](./figures/quick_start/system_quick_start_selected_unit_list.png)
 
-观察框选后的 Slice List（选中列表）部分，发现 Free 用时是计算用时的 3 倍左右。卡空闲通常的原因有：用户代码纯 CPU 操作耗时长、Host 系统线程抢占等。此时应继续补充 Host 侧数据，进一步分析为什么这张卡在通信前处于空闲状态。
+观察框选后的 Slice List（选中列表）部分，发现 Free 用时是计算用时的 3 倍左右。卡空闲的常见原因有：用户代码纯 CPU 操作耗时长、Host 系统线程抢占等。此时应继续补充 Host 侧数据，进一步分析为什么这张卡在通信前处于空闲状态。
 
 > 结论：性能瓶颈更可能来自卡空闲时间过多。下一步需要检查用户代码、采集 Host 数据，继续分析导致卡空闲的根因。
 
