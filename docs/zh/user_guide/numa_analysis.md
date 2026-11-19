@@ -2,7 +2,7 @@
 
 ## 简介
 
-NUMA（Non-Uniform Memory Access，非一致内存访问）分析用于展示CPU侧Socket、NUMA节点、DRAM以及节点间访问关系，帮助开发者定位内存访问不均衡、跨Socket访问过多、线程与内存亲和性不合理等Host侧性能问题。
+NUMA（Non-Uniform Memory Access，非一致性内存访问）分析用于展示CPU侧Socket、NUMA节点、DRAM以及节点间访问关系，帮助开发者定位内存访问不均衡、跨Socket访问过多、线程与内存亲和性不合理等Host侧性能问题。
 
 导入包含NUMA指标的性能数据后，可在NUMA界面查看NUMA高层架构图、系统汇总指标、Socket/NUMA节点/DRAM/通信链路详情；也可在时间线（Timeline）中查看NUMA相关Platform Metric、Thread State、LLC Hit/Miss等泳道，将CPU侧内存访问问题、线程运行状态与NPU执行过程关联起来分析。
 
@@ -100,7 +100,7 @@ NUMA高层架构图中的指标用于描述所选时间范围内不同层级的�
 
 ## 时间线（Timeline）中查看NUMA数据
 
-时间线（Timeline）用于展示模型运行过程中的事件、算子、系统指标和硬件指标。导入的数据包含对应指标时，Timeline中可展示NUMA Platform Metric、Thread State和LLC Cache泳道，帮助开发者将NUMA访问异常、线程调度状态与模型执行阶段进行关联。Timeline的基础使用方式请参见[时间线（Timeline）](./system_tuning/timeline.md#timeline)。
+时间线（Timeline）用于展示模型运行过程中的事件、算子、系统指标和硬件指标。导入的数据包含对应指标时，Timeline中可展示NUMA Platform Metric、Thread State和LLC Cache泳道，帮助开发者将NUMA异常、线程调度状态与模型执行阶段进行关联。Timeline的基础使用方式请参见[时间线（Timeline）](./system_tuning/timeline.md#timeline)。
 
 ### NUMA Platform Metric泳道
 
@@ -146,7 +146,7 @@ Thread State泳道按线程展示采集周期内不同运行状态所占的比�
 状态持续时间（秒） = 数据库记录的状态时间（纳秒） / 1,000,000,000
 ```
 
-例如，某个聚合时间段内Active、Sync Wait、Preemption和Unknown的持续时间分别为70 ms、20 ms、10 ms和0 ms，则对应占比分别为70%、20%、10%和0%。将鼠标悬停在该数据点上，可同时查看各状态的持续时间和占比。
+例如，某个聚合时间段内Active、Sync Wait、Preemption和Unknown的持续时间分别为70ms、20ms、10ms和0ms，则对应占比分别为70%、20%、10%和0%。将鼠标悬停在该数据点上，可同时查看各状态的持续时间和占比。
 
 > [!NOTE]
 >
@@ -199,7 +199,7 @@ LLC Cache泳道位于对应的Thread节点下，按线程展示采集周期内�
 
 建议确认采集配置是否启用了NUMA相关指标，并重新导入包含 `ascend_pytorch_profiler.db` 的完整Profiling结果目录。
 
-### 部分指标显示“未采集到数据”
+### 部分指标显示未采集到数据
 
 该提示表示当前时间范围内没有对应指标的有效采样点；对于带宽类指标，至少两个不同时间戳的采样点才可计算流量总量；采样点不足时也会显示该提示。建议在Timeline中扩大分析时间范围，或确认采集工具和硬件平台是否支持该指标。
 

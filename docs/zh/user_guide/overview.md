@@ -8,11 +8,11 @@ MindStudio Insight提供了丰富的调优分析手段，能够可视化呈现�
 
 ## 典型使用流程
 
-使用 MindStudio Insight 进行性能分析时，通常按以下流程操作：
+使用MindStudio Insight进行性能分析时，通常按以下流程操作：
 
 1. **安装工具**：按照[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_overview.md)完成安装。
-2. **采集数据**：使用 msProf、msOpProf、msMemScope 或服务化 Profiling 工具采集性能数据。
-3. **导入数据**：在 MindStudio Insight 中导入对应文件或目录，基础操作请参见[MindStudio Insight基础操作](./basic_operations.md)。
+2. **采集数据**：使用msProf、msOpProf、msMemScope或服务化 Profiling工具采集性能数据。
+3. **导入数据**：在MindStudio Insight中导入对应文件或目录，基础操作请参见[MindStudio Insight基础操作](./basic_operations.md)。
 4. **选择场景**：根据问题类型进入系统调优、算子调优、服务化调优或内存调优界面。
 5. **定位瓶颈**：结合时间线、详情表、通信分析、内存视图或源码视图定位问题。
 6. **处理异常**：若导入失败或界面无数据，可先查看[FAQ](../support/faq.md)。
@@ -24,7 +24,7 @@ MindStudio Insight提供了丰富的调优分析手段，能够可视化呈现�
 | 模型整体运行慢、卡间不均衡、通信耗时异常 | [系统调优](./system_tuning/system_tuning_overview.md) | msProf | Summary、Communication、Timeline、Host Bound 分析 |
 | 单个算子耗时高、流水并行度不足、源码热点明显 | [算子调优](./operator_tuning/operator_tuning_overview.md) | msOpProf | Timeline、Source、Details、Cache |
 | 推理服务请求时延高、首 Token 慢、KV Cache 使用异常 | [服务化调优](./service_optimization.md) | 服务化 Profiling | Timeline、Curve、request_data、batch_info、forward_info |
-| 显存持续增长、OOM、内存未释放或内存池异常 | [内存调优](./memory_tuning/memscope_memory_tuning.md) | msMemScope | MemScope 内存详情、PyTorch Snapshot、调用栈火焰图 |
+| 内存持续增长、OOM、内存未释放或内存池异常 | [内存调优](./memory_tuning/memscope_memory_tuning.md) | msMemScope | MemScope 内存详情、PyTorch Snapshot、调用栈火焰图 |
 
 ## 相关资源
 
@@ -65,7 +65,7 @@ MindStudio Insight工具支持系统调优、算子调优、服务化调优和�
   | 功能界面           | 介绍                                                         | 备注                                     |
     | ------------------ | ------------------------------------------------------------ | ---------------------------------------- |
     | 时间线（Timeline） | 以时间线视图方式为用户提供指令在昇腾处理器上的运行情况，并按照调度流程来呈现整体的运行状况，支持查看指令详情、搜索指令等功能。 | -                                        |
-    | 源码（Source）     | 展示算子指令热点图，支持查看算子源码与指令集的映射关系和耗时情况。 | 支持msprof采集的算子Profiling的bin文件。 |
+    | 源码（Source）     | 展示算子指令热点图，支持查看算子源码与指令集的映射关系和耗时情况。 | 支持msProf采集的算子Profiling的bin文件。 |
     | 详情（Details）    | 展示算子基础信息、计算负载分析和内存负载分析，并以图形和数据窗格呈现方式展示分析结果。 | 支持msprof采集的算子Profiling的bin文件。 |
     | 缓存（Cache）      | 展示用户程序Kernel函数内的L2 Cache访问情况，以便用户优化Cache命中率。 | 支持msprof采集的算子Profiling的bin文件。 |
 
@@ -80,7 +80,7 @@ MindStudio Insight工具支持系统调优、算子调优、服务化调优和�
 
 - 内存调优
 
-  MindStudio Insight工具以图形化形式呈现device侧内存详细分配情况，并结合Python调用栈及自定义打点标签标记各种内存申请使用详情，进行内存问题的详细定位及调优。
+  MindStudio Insight工具以图形化形式呈现Device侧内存详细分配情况，并结合Python调用栈及自定义打点标签标记各种内存申请使用详情，进行内存问题的详细定位及调优。
 
   | 功能界面          | 介绍                                                         | 场景说明                                      |
   | ----------------- | ------------------------------------------------------------ | --------------------------------------------- |

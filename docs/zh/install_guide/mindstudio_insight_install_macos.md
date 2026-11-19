@@ -1,4 +1,4 @@
-# 安装指南-macOS系统
+# 安装指南：macOS系统
 
 ## 安装MindStudio Insight
 
@@ -12,15 +12,15 @@
 
 **安装步骤**
 
-1. 鼠标双击“MindStudio-Insight\__\{version\}_\_macos-_\{arch\}_.dmg”软件包，进入许可协议界面，单击“Agree”，如[**图 1**  许可协议](#许可协议)所示。
+1. 鼠标双击“MindStudio-Insight\__\{version\}_\_macos-_\{arch\}_.dmg”软件包，进入许可协议界面，单击“Agree”，如[**图 1** 许可协议](#许可协议)所示。
 
-    **图 1**  许可协议<a id="许可协议"></a>
+    **图 1** 许可协议<a id="许可协议"></a>
 
     ![](./figures/install_guide/license_agreement_1.png "许可协议")
 
-2. 弹出Installer弹窗，在Installer弹窗中，将MindStudio Insight应用拖拽至Applications文件夹中，如[**图 2**  拖拽应用至文件夹](#拖拽应用至文件夹)所示。
+2. 弹出Installer弹窗，在Installer弹窗中，将MindStudio Insight应用拖拽至Applications文件夹中，如[**图 2** 拖拽应用至文件夹](#拖拽应用至文件夹)所示。
 
-    **图 2**  拖拽应用至文件夹<a id="拖拽应用至文件夹"></a>
+    **图 2** 拖拽应用至文件夹<a id="拖拽应用至文件夹"></a>
 
     ![](./figures/install_guide/drag_app_to_folder_1.png "拖拽应用至文件夹")
 

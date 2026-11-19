@@ -1,4 +1,4 @@
-# 安装指南-Docker镜像
+# 安装指南：Docker镜像
 
 ## 安装MindStudio Insight
 
@@ -64,7 +64,7 @@
 
     命令回显中将显示已加载镜像的名称和Tag，例如：
 
-    ```text
+    ```output
     Loaded image: {image_name}:{image_tag}
     ```
 
@@ -203,12 +203,12 @@
 
 |参数|说明|
 |--|--|
-|`{host_https_port}`|服务器上用于访问MindStudio Insight的HTTPS端口，例如`9443`。|
-|`{host_http_port}`|服务器上用于访问MindStudio Insight的HTTP端口，例如`9880`。|
-|`/path/to/profile_data`|服务器上存放待分析性能数据的目录，请替换为实际的绝对路径。|
-|`/path/to/certs`|服务器上存放mTLS证书的目录，请替换为实际的绝对路径。|
-|`msinsight`|容器名称，可根据实际情况修改。|
-|`{image_name}:{image_tag}`|在线拉取或加载离线镜像后得到的镜像名称和Tag。|
+|{host_https_port}|服务器上用于访问MindStudio Insight的HTTPS端口，例如`9443`。|
+|{host_http_port}|服务器上用于访问MindStudio Insight的HTTP端口，例如`9880`。|
+|/path/to/profile_data|服务器上存放待分析性能数据的目录，请替换为实际的绝对路径。|
+|/path/to/certs|服务器上存放mTLS证书的目录，请替换为实际的绝对路径。|
+|msinsight|容器名称，可根据实际情况修改。|
+|{image_name}:{image_tag}|在线拉取或加载离线镜像后得到的镜像名称和Tag。|
 
 执行以下命令，可查看容器是否启动成功：
 
@@ -230,9 +230,9 @@ docker logs msinsight
 
 ## 升级MindStudio Insight
 
-如果需要升级MindStudio Insight，需先卸载已安装的MindStudio Insight，再获取最新MindStudio Insight软件包重新安装。
+如果需要升级MindStudio Insight，需先卸载已安装的MindStudio Insight，再获取最新MindStudio Insight镜像包重新安装。
 
-请根据实际场景，参见[卸载MindStudio Insight](#卸载mindstudio-insight)章节内容完成卸载操作，并重新安装最新MindStudio Insight软件包。
+请根据实际场景，参见[卸载MindStudio Insight](#卸载mindstudio-insight)章节内容完成卸载操作，并重新安装最新MindStudio Insight镜像包。
 
 ## 卸载MindStudio Insight
 

@@ -1,4 +1,4 @@
-# 安装指南-Windows系统
+# 安装指南：Windows系统
 
 ## 安装MindStudio Insight
 
@@ -6,9 +6,9 @@
 
 **准备环境**
 
-MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配置有一定要求，请参见[**表 1**  系统配置要求](#系统配置要求)。
+MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配置有一定要求，请参见[**表 1** 系统配置要求](#系统配置要求)。
 
-**表 1**  系统配置要求<a id="系统配置要求"></a>
+**表 1** 系统配置要求<a id="系统配置要求"></a>
 
 |类别|要求|说明|
 |--|--|--|
@@ -19,21 +19,21 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 **安装步骤**
 
 1. 双击**MindStudio-Insight\__\{version\}_\_win.exe**软件包，开始安装MindStudio Insight。
-2. 进入MindStudio Insight  Setup界面，单击“Next”，如[**图 1** Setup](#Setup)所示。
+2. 进入MindStudio Insight Setup界面，单击“Next”，如[**图 1** Setup](#Setup)所示。
 
     **图 1** Setup<a id="Setup"></a>
 
     ![](./figures/install_guide/Setup.png "Setup")
 
-3. 进入许可协议界面，单击“I Agree”，如[**图 2**  License-Agreement](#License-Agreement)所示。
+3. 进入许可协议界面，单击“I Agree”，如[**图 2** License-Agreement](#License-Agreement)所示。
 
-    **图 2**  License-Agreement<a id="License-Agreement"></a>
+    **图 2** License-Agreement<a id="License-Agreement"></a>
 
     ![](./figures/install_guide/License-Agreement.png "License-Agreement")
 
-4. 选择MindStudio Insight的安装路径，单击“Next”，如[**图 3**  选择安装路径](#选择安装路径)所示。
+4. 选择MindStudio Insight的安装路径，单击“Next”，如[**图 3** 选择安装路径](#选择安装路径)所示。
 
-    **图 3**  选择安装路径<a id="选择安装路径"></a>
+    **图 3** 选择安装路径<a id="选择安装路径"></a>
 
     ![](./figures/install_guide/select_installation_path_1.png "选择安装路径")
 
@@ -41,15 +41,15 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
     >
     > 默认安装目录为“C:\\Program Files \(x86\)\\MindStudio Insight”。如果选择安装到其他目录，为避免其他用户修改运行文件，需要取消普通用户的修改权限，可在所选文件夹右键选择“属性 \> 安全”，在“安全”页签下修改用户的权限。
 
-5. 选择安装组件MindStudio Insight，单击“Install”，如[**图 4**  选择安装组件](#选择安装组件)所示。
+5. 选择安装组件MindStudio Insight，单击“Install”，如[**图 4** 选择安装组件](#选择安装组件)所示。
 
-    **图 4**  选择安装组件<a id="选择安装组件"></a>
+    **图 4** 选择安装组件<a id="选择安装组件"></a>
 
     ![](./figures/install_guide/select_installation_components_1.png "选择安装组件")
 
-6. 完成MindStudio Insight安装，单击“Finish”，如[**图 5**  完成安装](#完成安装)所示。<a id="6"></a>
+6. 完成MindStudio Insight安装，单击“Finish”，如[**图 5** 完成安装](#完成安装)所示。<a id="6"></a>
 
-    **图 5**  完成安装 <a id="完成安装"></a>
+    **图 5** 完成安装 <a id="完成安装"></a>
 
     ![](./figures/install_guide/installation_completed_1.png "完成安装")
 
@@ -80,18 +80,18 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 
 2. 单击“Next”。
 
-    **图 7**  卸载
+    **图 7** 卸载
 
     ![](./figures/install_guide/uninstall_1.png "卸载")
 
 3. 勾选“Remove cache data”清理缓存数据，单击“Uninstall”卸载。
 
-    **图 8**  清理缓存数据
+    **图 8** 清理缓存数据
 
     ![](./figures/install_guide/clear_cache_data_1.png "清理缓存数据")
 
 4. 完成卸载。
 
-    **图 9**  卸载完成
+    **图 9** 卸载完成
 
     ![](./figures/install_guide/uninstall_completed_1.png "卸载完成")
