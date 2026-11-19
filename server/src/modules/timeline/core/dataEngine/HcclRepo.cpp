@@ -451,7 +451,7 @@ void HcclRepo::QueryPlaneDetail(const SliceQuery &sliceQuery, const TaskPO &targ
         }
     }
     commucationTaskInfoTable->Select(CommucationTaskInfoColumn::ROW_ID, CommucationTaskInfoColumn::GLOBAL_TASK_ID)
-        .Select(CommucationTaskInfoColumn::SRC_RANK)
+        .Select(CommucationTaskInfoColumn::NOTIFY_ID, CommucationTaskInfoColumn::SRC_RANK)
         .Select(CommucationTaskInfoColumn::DST_RANK, CommucationTaskInfoColumn::TRANSPORT_TYPE)
         .Select(CommucationTaskInfoColumn::SIZE, CommucationTaskInfoColumn::DATA_TYPE)
         .Select(CommucationTaskInfoColumn::LINK_TYPE, CommucationTaskInfoColumn::RDMA_TYPE)
