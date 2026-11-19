@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <limits>
 #include "HcclRepo_mock_data.h"
 #include "CommucationOpTable.h"
 #include "HcclRepo.h"
@@ -602,7 +603,8 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfo) {
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
     const std::string expectArgs =
-        "{\"notifyId\":\"0\",\"streamId\":\"16\",\"taskId\":\"3730\",\"contextId\":\"4294967295\",\"taskType\":"
+        "{\"notifyId\":\"9223372036854775807\",\"streamId\":\"16\",\"taskId\":\"3730\","
+        "\"contextId\":\"4294967295\",\"taskType\":"
         "\"kkkk\",\"srcRank\":\"1\",\"dstRank\":\"2\",\"transportType\":\"LOCAL\",\"size(Byte)\":\"40\",\"dataType\":"
         "\"INT16\","
         "\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
@@ -638,6 +640,20 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoMarksMultipleFallbackCand
     const bool result = hcclRepoMock.QuerySliceDetailInfo(query, slice);
 
     EXPECT_TRUE(result);
+    EXPECT_FALSE(slice.isCommunicationGroup);
+    Dic::document_t args;
+    args.Parse(slice.args.c_str());
+    ASSERT_FALSE(args.HasParseError());
+    for (const auto *key : {"notifyId", "srcRank", "dstRank", "streamId", "taskId", "contextId"}) {
+        ASSERT_TRUE(args.HasMember(key)) << key;
+        ASSERT_TRUE(args[key].IsString()) << key;
+    }
+    EXPECT_STREQ(args["notifyId"].GetString(), "9223372036854775807");
+    EXPECT_STREQ(args["srcRank"].GetString(), "1");
+    EXPECT_STREQ(args["dstRank"].GetString(), "2");
+    EXPECT_STREQ(args["streamId"].GetString(), "16");
+    EXPECT_STREQ(args["taskId"].GetString(), "3730");
+    EXPECT_STREQ(args["contextId"].GetString(), "4294967295");
     EXPECT_NE(slice.args.find("\"_ambiguousKeys\":[\"notifyId\",\"taskType\",\"srcRank\",\"dstRank\","
                               "\"transportType\",\"size(Byte)\",\"dataType\",\"linkType\","
                               "\"bandwidth(GB/s)\",\"rdmaType\"]"),
@@ -676,7 +692,8 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoWithGroupInfo) {
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
     const std::string expectArgs =
-        "{\"notifyId\":\"0\",\"streamId\":\"16\",\"taskId\":\"3730\",\"contextId\":\"4294967295\",\"taskType\":"
+        "{\"notifyId\":\"9223372036854775807\",\"streamId\":\"16\",\"taskId\":\"3730\","
+        "\"contextId\":\"4294967295\",\"taskType\":"
         "\"kkkk\",\"srcRank\":\"1\",\"dstRank\":\"2\",\"globalSrcRank\":\"5\",\"globalDstRank\":\"6\","
         "\"transportType\":\"LOCAL\",\"size(Byte)\":\"40\",\"dataType\":"
         "\"INT16\",\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
@@ -766,8 +783,8 @@ TEST_F(PlaneDetailCompatibilityTest, MissingOptionalFieldsPreserveDetailsAndQuer
         "DROP TABLE COMMUNICATION_TASK_INFO;"
         "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER,taskType INTEGER,srcRank INTEGER,"
         "dstRank INTEGER,transportType INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,"
-        "rdmaType INTEGER,groupName INTEGER);"
-        "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,0,1,2,0,1024,0,0,0,7);"));
+        "rdmaType INTEGER,groupName INTEGER,notifyId INTEGER);"
+        "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,0,1,2,0,1024,0,0,0,7,NULL);"));
     TrackInfoManager::Instance().UpdateDeviceMap(rank, {{rank, "0"}});
     HcclRepo repo;
     SliceQuery query;
@@ -780,6 +797,10 @@ TEST_F(PlaneDetailCompatibilityTest, MissingOptionalFieldsPreserveDetailsAndQuer
     EXPECT_NE(slice.args.find("\"streamId\":\"999\""), std::string::npos);
     EXPECT_NE(slice.args.find("\"size(Byte)\":\"1024\""), std::string::npos);
     EXPECT_NE(slice.args.find("\"bandwidth(GB/s)\":\"\""), std::string::npos);
+    EXPECT_NE(slice.args.find("\"notifyId\":\"0\""), std::string::npos);
+    ASSERT_TRUE(database->ExecSql("UPDATE COMMUNICATION_TASK_INFO SET notifyId=8590131252;"));
+    ASSERT_TRUE(repo.QuerySliceDetailInfo(query, slice));
+    EXPECT_NE(slice.args.find("\"notifyId\":\"8590131252\""), std::string::npos);
     ASSERT_TRUE(database->ExecSql("INSERT INTO STRING_IDS VALUES(0,'');"));
     ASSERT_TRUE(repo.QuerySliceDetailInfo(query, slice));
     EXPECT_TRUE(slice.name.empty());
@@ -791,3 +812,132 @@ TEST_F(PlaneDetailCompatibilityTest, MissingOptionalFieldsPreserveDetailsAndQuer
                                   "ALTER TABLE COMMUNICATION_TASK_INFO DROP COLUMN size;"));
     EXPECT_FALSE(repo.QuerySliceDetailInfo(query, slice));
 }
+
+namespace {
+class HcclNotifyIdTest : public PlaneDetailCompatibilityTest, public ::testing::WithParamInterface<bool> {
+  protected:
+    void SetUp() override {
+        TimelineMemoryDatabaseTestBase::SetUp();
+        ASSERT_NE(database, nullptr);
+        ASSERT_TRUE(database->ExecSql(
+            "DROP TABLE TASK; DROP TABLE COMMUNICATION_TASK_INFO;"
+            "CREATE TABLE TASK(startNs INTEGER,endNs INTEGER,deviceId INTEGER,globalTaskId INTEGER,"
+            "taskType INTEGER,streamId INTEGER,taskId INTEGER,contextId INTEGER);"
+            "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER,taskType INTEGER,notifyId INTEGER,"
+            "srcRank INTEGER,dstRank INTEGER,transportType INTEGER,size INTEGER,dataType INTEGER,"
+            "linkType INTEGER,rdmaType INTEGER,groupName INTEGER);"
+            "CREATE TABLE ENUM_HCCL_DATA_TYPE(id INTEGER,name TEXT);"
+            "CREATE TABLE ENUM_HCCL_LINK_TYPE(id INTEGER,name TEXT);"
+            "CREATE TABLE ENUM_HCCL_RDMA_TYPE(id INTEGER,name TEXT);"
+            "CREATE TABLE ENUM_HCCL_TRANSPORT_TYPE(id INTEGER,name TEXT);"
+            "INSERT INTO STRING_IDS VALUES(10,'Notify_Wait'),(7,'group');"
+            "INSERT INTO TASK VALUES(100,200,0,1,10,41,5025,3);"
+            "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,10,0,2,3,0,0,0,0,0,7);"));
+        if (GetParam()) {
+            ASSERT_TRUE(database->ExecSql("ALTER TABLE COMMUNICATION_TASK_INFO ADD COLUMN timestampNs INTEGER;"
+                                          "UPDATE COMMUNICATION_TASK_INFO SET timestampNs=150;"));
+        }
+        TrackInfoManager::Instance().UpdateDeviceMap(rank, {{rank, "0"}});
+        query.rankId = rank;
+        query.sliceId = "1";
+        query.trackId = TrackInfoManager::Instance().GetTrackId(rank, "hccl", "7_8");
+    }
+
+    void ExpectNotifyId(const std::string &expected, bool ambiguous = false, const std::string &contextId = "3") {
+        HcclRepo repo;
+        CompeteSliceDomain detail;
+        ASSERT_TRUE(repo.QuerySliceDetailInfo(query, detail));
+        EXPECT_EQ(detail.name, "Notify_Wait");
+        EXPECT_FALSE(detail.isCommunicationGroup);
+        Dic::document_t args;
+        args.Parse(detail.args.c_str());
+        ASSERT_FALSE(args.HasParseError());
+        for (const auto *key : {"notifyId", "streamId", "taskId", "contextId"}) {
+            ASSERT_TRUE(args.HasMember(key)) << key;
+            ASSERT_TRUE(args[key].IsString()) << key;
+        }
+        EXPECT_EQ(std::string(args["notifyId"].GetString()), expected);
+        EXPECT_STREQ(args["streamId"].GetString(), "41");
+        EXPECT_STREQ(args["taskId"].GetString(), "5025");
+        EXPECT_EQ(std::string(args["contextId"].GetString()), contextId);
+        EXPECT_EQ(args.HasMember("_ambiguousKeys"), ambiguous);
+    }
+
+    SliceQuery query;
+};
+}
+
+// SQLite INTEGER cannot store uint64 above INT64_MAX: oversized literals become REAL.
+// Verify the existing safe conversion contract, rather than expecting unavailable original bits.
+TEST_P(HcclNotifyIdTest, ReadsStoredValuesWithoutOverflow) {
+    struct Case {
+        std::string sqlValue;
+        std::string storageType;
+        std::string expected;
+    };
+    const std::vector<Case> cases = {
+        {"0", "integer", "0"},
+        {"8590131252", "integer", "8590131252"},
+        {"9007199254740993", "integer", "9007199254740993"},
+        {"9223372036854775807", "integer", "9223372036854775807"},
+        {"9223372036854775808", "real", "9223372036854775807"},
+        {"18446744073709551615", "real", "9223372036854775807"},
+        {"'18446744073709551615'", "real", "9223372036854775807"},
+        {"18446744073709551616", "real", "9223372036854775807"},
+        {"1e300", "real", "9223372036854775807"},
+        {"-1", "integer", "0"},
+        {"-9223372036854775808", "integer", "0"},
+        {"-1e300", "real", "0"},
+        {"NULL", "null", "0"},
+    };
+    for (const auto &item : cases) {
+        SCOPED_TRACE(item.sqlValue);
+        ASSERT_TRUE(database->ExecSql("UPDATE COMMUNICATION_TASK_INFO SET notifyId=" + item.sqlValue));
+        auto stmt =
+            database->CreatPreparedStatement("SELECT typeof(notifyId) AS storageType FROM COMMUNICATION_TASK_INFO");
+        ASSERT_NE(stmt, nullptr);
+        auto result = stmt->ExecuteQuery();
+        ASSERT_NE(result, nullptr);
+        ASSERT_TRUE(result->Next());
+        ASSERT_EQ(result->GetString("storageType"), item.storageType);
+        ExpectNotifyId(item.expected);
+    }
+}
+
+TEST_P(HcclNotifyIdTest, Uint64BindingSaturatesBeforeWritingSqliteInteger) {
+    const uint64_t maxInt64 = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+    for (const uint64_t value : {maxInt64, maxInt64 + 1, std::numeric_limits<uint64_t>::max()}) {
+        SCOPED_TRACE(value);
+        auto stmt = database->CreatPreparedStatement("UPDATE COMMUNICATION_TASK_INFO SET notifyId=?");
+        ASSERT_NE(stmt, nullptr);
+        stmt->BindParams(value);
+        ASSERT_TRUE(stmt->Execute());
+        auto check =
+            database->CreatPreparedStatement("SELECT typeof(notifyId) AS storageType FROM COMMUNICATION_TASK_INFO");
+        ASSERT_NE(check, nullptr);
+        auto result = check->ExecuteQuery();
+        ASSERT_NE(result, nullptr);
+        ASSERT_TRUE(result->Next());
+        ASSERT_EQ(result->GetString("storageType"), "integer");
+        ExpectNotifyId(std::to_string(maxInt64));
+    }
+}
+
+TEST_P(HcclNotifyIdTest, PreservesNotifyIdForMatchedOrLegacyFallbackRow) {
+    ASSERT_TRUE(database->ExecSql("UPDATE COMMUNICATION_TASK_INFO SET notifyId=8590131244;"
+                                  "INSERT INTO TASK VALUES(300,400,0,1,10,41,5025,5);"));
+    if (GetParam()) {
+        // Reverse the detail row/time order: each TASK must get its own Notify ID, not the first row's ID.
+        ASSERT_TRUE(database->ExecSql("UPDATE COMMUNICATION_TASK_INFO SET timestampNs=350;"
+                                      "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,10,8590131252,"
+                                      "2,0,0,0,0,0,0,7,150);"));
+    } else {
+        ASSERT_TRUE(database->ExecSql("INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,10,8590131252,"
+                                      "2,0,0,0,0,0,0,7);"));
+    }
+    ExpectNotifyId(GetParam() ? "8590131252" : "8590131244", !GetParam());
+    query.sliceId = "2";
+    ExpectNotifyId("8590131244", !GetParam(), "5");
+}
+
+INSTANTIATE_TEST_SUITE_P(CommunicationSchemas, HcclNotifyIdTest, ::testing::Bool());
