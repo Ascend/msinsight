@@ -184,6 +184,10 @@ describe('FrontendAgentCommandController command diagnostics', () => {
                 retryable: true,
                 details: {
                     reason: 'module_not_active', command: 'Timeline.zoom', targetModule: 'Timeline', activeModule: 'Compute',
+                    commandDefinition: {
+                        name: 'Timeline.zoom', title: 'Timeline.zoom', description: 'Timeline.zoom',
+                        inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+                    },
                 },
             });
             expect(transportExecute).not.toHaveBeenCalled();
@@ -234,10 +238,12 @@ describe('FrontendAgentCommandController command diagnostics', () => {
         controller.setActiveModule('Compute');
 
         try {
-            await expect(execute(controller, 'Timeline.zoom')).rejects.toMatchObject({
+            const error = await execute(controller, 'Timeline.zoom').catch(value => value);
+            expect(error).toMatchObject({
                 code: COMMAND_ERROR_CODES.UNAVAILABLE,
                 details: { reason: 'module_not_active', targetModule: 'Timeline', activeModule: 'Compute' },
             });
+            expect(error).not.toHaveProperty('details.commandDefinition');
             await expect(execute(controller, 'Unknown.query')).rejects.toMatchObject({
                 code: COMMAND_ERROR_CODES.NOT_FOUND,
                 details: { reason: 'command_not_found' },

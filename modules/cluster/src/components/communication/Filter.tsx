@@ -60,12 +60,26 @@ const defaultOptionMap = {
     stageOptions: [],
 };
 
-const observeCondition = observable<{ value: Partial<ConditionDataType> }>({ value: defaultCondition });
+type PreparationContext = { signal: AbortSignal; deadline: number };
+type PrepareAnalysis = (type: AnalysisType, context: PreparationContext) => Promise<ConditionDataType>;
+type FilterResult = { condition: ConditionDataType; optionMap: optionMapDataType };
+interface ConditionUpdate {
+    partial: Partial<ConditionDataType>;
+    command?: { context: PreparationContext; resolve: (condition: ConditionDataType) => void; reject: (error: unknown) => void };
+    valid: () => boolean;
+    finish: (error?: unknown, result?: FilterResult) => void;
+}
+const observeCondition = observable<{ value: Partial<ConditionDataType> }>({ value: {} }, { value: observable.ref });
 let pendingConditionUpdate: Partial<ConditionDataType> | undefined;
+let registeredPrepare: PrepareAnalysis | undefined;
 
 export function updateData(filterParams: Partial<ConditionDataType>): void {
-    pendingConditionUpdate = filterParams;
-    observeCondition.value = filterParams;
+    pendingConditionUpdate = { ...pendingConditionUpdate, ...filterParams };
+    observeCondition.value = pendingConditionUpdate;
+}
+
+export function prepareAnalysisType(type: AnalysisType, context: PreparationContext): Promise<ConditionDataType> {
+    return registeredPrepare?.(type, context) ?? Promise.reject(new Error('Communication filter is not ready.'));
 }
 
 function getDefaultStageOptValue(inputArray: Array<{value: string | number}>): string | number {
@@ -109,6 +123,8 @@ function getStageKeyFromCondition(condition: ConditionDataType): string {
 }
 
 function getStageValueByObserveCondition(condition: ConditionDataType, stageOptions: optionDataType[]): string {
+    // 未提交更新中的 Select 值是 hash 组合，优先精确匹配，避免同名通信域串选。
+    if (stageOptions.some(item => item.value === condition.stage)) return condition.stage;
     let res: string = '';
     for (let i = 0; i < stageOptions.length; i++) {
         const temp = (stageOptions[i] as unknown as {groupIdHash: {compare: string; baseline: string}; stage: string; strategy: string});
@@ -318,74 +334,142 @@ interface FilterProps {
 const Filter = observer(({ session, handleFilterChange, onLoadingChange }: FilterProps) => {
     const [condition, setCondition] = useState<ConditionDataType>(defaultCondition);
     const [optionMap, setOptionMap] = useState<optionMapDataType>(defaultOptionMap);
-    const conditionRef = useRef<ConditionDataType>(condition);
-    const latestOptionRequestId = useRef(0);
+    const committed = useRef<FilterResult>({ condition, optionMap });
+    const currentUpdate = useRef<ConditionUpdate>();
+    const pendingCommit = useRef<FilterResult>();
+    const mounted = useRef(false);
     const activeCommunicator = session.activeCommunicator?.value;
+    const previousCommunicator = useRef(activeCommunicator);
+    const context = [session, session.id, session.selectedClusterPath, session.clusterCompleted, session.durationFileCompleted,
+        session.communicatorData.partitionModes, session.isCompare];
+    const currentContext = useRef(context);
+    const committedContext = useRef<typeof context>();
+    currentContext.current = context;
 
-    const handleChange = (key: keyof ConditionDataType, val: any): void => {
-        updateCondition(conditionRef.current, key, val);
-    };
-    const updateCondition = async (initObj: ConditionDataType, key?: keyof ConditionDataType, val?: any): Promise<void> => {
-        if (!session.clusterCompleted) {
-            delayExecute(() => {
-                if (!session.clusterCompleted) {
-                    const resetCondition = { ...defaultCondition, type: conditionRef.current.type };
-                    conditionRef.current = resetCondition;
-                    setCondition(resetCondition);
-                    setOptionMap(defaultOptionMap);
-                }
-            });
+    const updateCondition = async (partial: Partial<ConditionDataType> = {}, key?: keyof ConditionDataType, val?: any,
+        command?: ConditionUpdate['command']): Promise<void> => {
+        if (command !== undefined && (!session.clusterCompleted ||
+            committedContext.current?.some((value, index) => value !== context[index]) !== false)) {
+            command.reject(new Error('Communication filter is not ready.'));
             return;
         }
-        const requestId = ++latestOptionRequestId.current;
+        const previous = currentUpdate.current;
+        // 未提交的普通字段必须完整归一化，不能沿用旧 step 的 group/options。
+        const inherited = previous?.command === undefined ? previous?.partial : undefined;
+        partial = { ...inherited, ...partial, ...(key === undefined ? {} : { [key]: val }) };
+        previous?.finish(new Error('Communication filter preparation was superseded.'));
+        const abort = (): void => update.finish(new Error('Communication filter preparation was aborted or timed out.'));
+        const update: ConditionUpdate = {
+            partial,
+            command,
+            valid: () => mounted.current && currentUpdate.current === update &&
+                context.every((value, index) => value === currentContext.current[index]) &&
+                (command === undefined || (!command.context.signal.aborted && command.context.deadline > Date.now())),
+            finish: (error, result) => {
+                if (currentUpdate.current !== update) return;
+                currentUpdate.current = undefined;
+                pendingCommit.current = undefined;
+                command?.context.signal.removeEventListener('abort', abort);
+                if (result !== undefined) {
+                    // 先固定已提交快照；父回调同步取消或发起新更新也不能回滚它。
+                    committed.current = result;
+                    committedContext.current = context;
+                    const realCondition = { ...result.condition, clusterPath: session.selectedClusterPath };
+                    handleFilterChange(realCondition);
+                    if (command !== undefined && result.condition.type !== partial.type) {
+                        command.reject(new Error('The requested communication analysis type is unavailable.'));
+                    } else command?.resolve(realCondition);
+                } else {
+                    if (mounted.current) {
+                        setCondition(committed.current.condition);
+                        setOptionMap(committed.current.optionMap);
+                    }
+                    command?.reject(error);
+                }
+                if (currentUpdate.current === undefined) onLoadingChange?.(false);
+            },
+        };
+        currentUpdate.current = update;
+        command?.context.signal.addEventListener('abort', abort, { once: true });
+        if (!update.valid()) {
+            abort();
+            return;
+        }
         onLoadingChange?.(true);
-        try {
-            const { condition: newCondition, optionMap: newOptionMap } = await getOptionsAndValue(session, initObj, optionMap, key, val);
-            if (requestId !== latestOptionRequestId.current) {
+        const apply = (result: FilterResult): void => {
+            if (!update.valid()) {
+                abort();
                 return;
             }
-            newCondition.targetOperatorName = session.targetOperator?.name;
-            conditionRef.current = newCondition;
-            setCondition(newCondition);
-            setOptionMap(newOptionMap);
-        } finally {
-            if (requestId === latestOptionRequestId.current) {
-                onLoadingChange?.(false);
-            }
+            pendingCommit.current = result;
+            setOptionMap(result.optionMap);
+            setCondition(result.condition);
+        };
+        if (!session.clusterCompleted) {
+            pendingConditionUpdate = partial;
+            delayExecute(() => apply({ condition: { ...defaultCondition, type: committed.current.condition.type }, optionMap: defaultOptionMap }));
+            return;
+        }
+        try {
+            const result = await getOptionsAndValue(session, { ...committed.current.condition, ...partial },
+                { ...committed.current.optionMap }, inherited === undefined ? key : undefined, val);
+            result.condition.targetOperatorName = session.targetOperator?.name;
+            apply(result);
+        } catch (error) {
+            update.finish(error);
         }
     };
+    const updateConditionRef = useRef(updateCondition);
+    updateConditionRef.current = updateCondition;
+    const handleChange = (key: keyof ConditionDataType, val: any): void => { void updateCondition({}, key, val); };
 
     useEffect(() => {
-        const applyPendingCondition = (): void => {
-            const externalCondition = pendingConditionUpdate ?? observeCondition.value;
+        mounted.current = true;
+        const prepare: PrepareAnalysis = (type, commandContext) => new Promise((resolve, reject) => {
+            void updateConditionRef.current({}, 'type', type, { context: commandContext, resolve, reject });
+        });
+        registeredPrepare = prepare;
+        const applyPending = (): void => {
+            const partial = pendingConditionUpdate;
             pendingConditionUpdate = undefined;
-            const newCondition = { ...conditionRef.current, ...externalCondition };
-            conditionRef.current = newCondition;
-            updateCondition(newCondition);
+            void updateConditionRef.current(partial);
         };
-        const disposer = observe(observeCondition, applyPendingCondition);
-        if (pendingConditionUpdate !== undefined) {
-            applyPendingCondition();
-        }
+        const disposer = observe(observeCondition, applyPending);
         return () => {
+            mounted.current = false;
             disposer();
-            latestOptionRequestId.current += 1;
-            onLoadingChange?.(false);
+            if (registeredPrepare === prepare) registeredPrepare = undefined;
+            const update = currentUpdate.current;
+            if (update !== undefined && update.command === undefined) pendingConditionUpdate = { ...update.partial, ...pendingConditionUpdate };
+            update?.finish(new Error('Communication filter was unmounted.'));
         };
     }, []);
     useEffect(() => {
-        updateCondition(conditionRef.current);
-    }, [session.clusterCompleted, session.durationFileCompleted, session.selectedClusterPath, session.communicatorData.partitionModes, session.isCompare]);
+        const partial = pendingConditionUpdate;
+        pendingConditionUpdate = undefined;
+        void updateConditionRef.current(partial);
+    }, context);
     useEffect(() => {
-        setTimeout(() => {
-            if (activeCommunicator !== undefined && activeCommunicator !== conditionRef.current.stage) {
-                updateCondition(conditionRef.current, 'stage', activeCommunicator);
+        const changed = previousCommunicator.current !== activeCommunicator;
+        previousCommunicator.current = activeCommunicator;
+        if (changed) {
+            void updateConditionRef.current({}, activeCommunicator === undefined ? undefined : 'stage', activeCommunicator);
+            return;
+        }
+        const timer = setTimeout(() => {
+            if (currentUpdate.current?.command === undefined && activeCommunicator !== undefined && activeCommunicator !== committed.current.condition.stage) {
+                void updateConditionRef.current({}, 'stage', activeCommunicator);
             }
         });
+        return () => clearTimeout(timer);
     }, [activeCommunicator]);
     useEffect(() => {
-        const realCondition = { ...condition, clusterPath: session.selectedClusterPath };
-        handleFilterChange(realCondition);
+        const update = currentUpdate.current;
+        const result = pendingCommit.current;
+        // 撤销后的恢复渲染没有候选，不重复发布旧条件。
+        if (update === undefined || result?.condition !== condition) return;
+        if (update.valid()) update.finish(undefined, result);
+        else update.finish(new Error('Communication filter preparation was aborted or timed out.'));
     }, [condition]);
 
     return (<FilterCom handleChange={handleChange} condition={condition} optionMap={optionMap} session={session}/>);

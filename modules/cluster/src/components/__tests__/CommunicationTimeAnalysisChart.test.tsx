@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import React from 'react';
-import { act, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import CommunicationTimeAnalysisChart, {
     AnalysisChartData,
     consumeCommunicationChartZoomData,
@@ -28,6 +28,7 @@ import { useEventBus } from '../../utils/eventBus';
 import * as insightUtils from '@insight/lib/utils';
 import i18n, { resources } from '@insight/lib/i18n';
 import { notification } from 'antd';
+import { registerCommunicationChartConsumer } from '../../agent/communicationController';
 
 const mockRefValues: Array<{ current: unknown }> = [];
 
@@ -39,6 +40,7 @@ jest.mock('react', () => {
 });
 jest.mock('mobx-react-lite', () => ({ observer: (component: React.ComponentType) => component }));
 jest.mock('../../utils/eventBus', () => ({ useEventBus: jest.fn() }));
+jest.mock('../../agent/communicationController', () => ({ registerCommunicationChartConsumer: jest.fn() }));
 jest.mock('../../connection', () => ({ __esModule: true, default: { send: jest.fn() } }));
 jest.mock('@insight/lib/icon', () => ({ ResetIcon: () => null }), { virtual: true });
 jest.mock('@insight/lib/theme', () => ({
@@ -55,6 +57,10 @@ jest.mock('../communication/CommunicationTimeWebGLRenderer', () => ({
     ...jest.requireActual('../communication/CommunicationTimeWebGLRenderer'),
     createCommunicationTimeWebGLRenderer: jest.fn(() => null),
 }));
+
+beforeEach(() => {
+    jest.mocked(registerCommunicationChartConsumer).mockReturnValue(jest.fn());
+});
 
 it('uses the same visual defaults as the ECharts HTML tooltip', () => {
     expect(getEChartsTooltipStyle()).toEqual({
@@ -173,82 +179,119 @@ it('handles shortcuts only while the chart is focused, and releases focus with E
     global.ResizeObserver = originalResizeObserver;
 });
 
-it('uses the latest operator data when a hidden chart initializes after becoming visible', () => {
-    jest.useFakeTimers();
+describe('registered communication chart consumer', () => {
+    const registerConsumer = registerCommunicationChartConsumer as jest.Mock;
     const originalResizeObserver = global.ResizeObserver;
-    let resizeCallback: ResizeObserverCallback = () => {};
-    global.ResizeObserver = class {
-        constructor(callback: ResizeObserverCallback) {
-            resizeCallback = callback;
-        }
-
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {}
-    } as unknown as typeof ResizeObserver;
-    const chart = {
-        on: jest.fn(),
-        off: jest.fn(),
-        getZr: jest.fn(() => ({ on: jest.fn(), off: jest.fn() })),
-        isDisposed: jest.fn(() => false),
-        getOption: jest.fn(() => ({ dataZoom: [{ start: 0, end: 100 }, { start: 0, end: 100 }] })),
-        setOption: jest.fn(),
-        resize: jest.fn(),
-    };
-    const getAdaptiveEchart = insightUtils.getAdaptiveEchart as jest.Mock;
-    const disposeAdaptiveEchart = insightUtils.disposeAdaptiveEchart as jest.Mock;
-    getAdaptiveEchart.mockReturnValue(chart);
-    global.session.selectedClusterPath = 'cluster';
-    global.session.clusterList = [{
-        name: 'cluster',
-        path: 'cluster',
-        parsed: true,
-        durationParsed: true,
-    }];
-    const emptyData = { minTime: 0, maxTime: 0, data: [] } as AnalysisChartData;
-    const operatorData = {
+    const resizeObservers: Array<{ callback: ResizeObserverCallback }> = [];
+    let width = 1000;
+    const height = 460;
+    let widthSpy: jest.SpyInstance;
+    let heightSpy: jest.SpyInstance;
+    const createData = (name = 'Send'): AnalysisChartData => ({
         minTime: 0,
-        maxTime: 100,
+        maxTime: 20000000,
         data: [{
             rankId: '0',
             dbPath: 'rank-0.db',
             lists: {
-                compare: [{ operatorName: 'AllReduce', startTime: 0, duration: 100 }],
+                compare: [{ operatorName: name, startTime: 10000000, duration: 10000000 }],
                 baseline: [],
                 diff: [],
             },
         }],
-    } as AnalysisChartData;
-
-    const { container, rerender } = render(<CommunicationTimeAnalysisChart
-        dataSource={emptyData}
-        session={global.session}
-        loading={false}
-    />);
-    rerender(<CommunicationTimeAnalysisChart
-        dataSource={operatorData}
-        session={global.session}
-        loading={false}
-    />);
-    const chartDom = container.querySelector('#hccl') as HTMLDivElement;
-    Object.defineProperties(chartDom, {
-        clientHeight: { configurable: true, value: 460 },
-        clientWidth: { configurable: true, value: 1000 },
     });
-
-    act(() => {
-        resizeCallback([], {} as ResizeObserver);
+    const target = { startValue: 10, endValue: 20, rankId: '0', name: 'Send' };
+    const chart = {
+        on: jest.fn(),
+        off: jest.fn(),
+        getZr: () => ({ on: jest.fn(), off: jest.fn() }),
+        isDisposed: jest.fn(() => false),
+        getOption: () => ({ dataZoom: [{ start: 0, end: 100 }, { start: 0, end: 100 }], yAxis: [{ data: ['0'] }] }),
+        setOption: jest.fn(),
+        resize: jest.fn(),
+        dispatchAction: jest.fn(),
+    };
+    const getConsumer = (): ((value: typeof target) => void) => registerConsumer.mock.calls[registerConsumer.mock.calls.length - 1][2];
+    const mountChart = (data = createData(), loading = false) => {
+        const view = render(<CommunicationTimeAnalysisChart dataSource={data} session={global.session} loading={loading} />);
+        (view.container.querySelector('#hccl') as HTMLDivElement).scrollIntoView = jest.fn();
+        return {
+            ...view,
+            update: (next = data, pending = false): void => {
+                view.rerender(<CommunicationTimeAnalysisChart dataSource={next} session={global.session} loading={pending} />);
+            },
+        };
+    };
+    const resize = (): void => act(() => {
+        resizeObservers[0].callback([], {} as ResizeObserver);
         jest.advanceTimersByTime(20);
     });
 
-    expect(getAdaptiveEchart).toHaveBeenCalledTimes(1);
-    expect(chart.setOption).toHaveBeenCalledWith(expect.objectContaining({
-        yAxis: expect.objectContaining({ data: ['0'] }),
-    }), { notMerge: true });
+    beforeEach(() => {
+        jest.useFakeTimers();
+        resizeObservers.length = 0;
+        width = 1000;
+        widthSpy = jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => width);
+        heightSpy = jest.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(() => height);
+        global.ResizeObserver = class {
+            constructor(callback: ResizeObserverCallback) {
+                resizeObservers.push({ callback });
+            }
 
-    getAdaptiveEchart.mockReset();
-    disposeAdaptiveEchart.mockReset();
-    global.ResizeObserver = originalResizeObserver;
+            observe(): void {}
+            unobserve(): void {}
+            disconnect(): void {}
+        } as unknown as typeof ResizeObserver;
+        chart.isDisposed.mockReturnValue(false);
+        (insightUtils.getAdaptiveEchart as jest.Mock).mockReturnValue(chart);
+        registerConsumer.mockReset().mockImplementation(() => jest.fn());
+        (useEventBus as jest.Mock).mockReset();
+        global.session.selectedClusterPath = 'cluster';
+        global.session.clusterList = [{ name: 'cluster', path: 'cluster', parsed: true, durationParsed: true }];
+    });
+
+    afterEach(() => {
+        cleanup();
+        widthSpy.mockRestore();
+        heightSpy.mockRestore();
+        global.ResizeObserver = originalResizeObserver;
+        (insightUtils.getAdaptiveEchart as jest.Mock).mockReset();
+        jest.useRealTimers();
+    });
+
+    it('applies the latest hidden data before publishing an executable consumer', () => {
+        width = 0;
+        const view = mountChart(createData('Old'));
+        const latestData = createData();
+        view.update(latestData);
+        expect(registerConsumer).not.toHaveBeenCalled();
+        chart.setOption.mockImplementationOnce(() => expect(registerConsumer).not.toHaveBeenCalled());
+        width = 1000;
+        resize();
+        expect(insightUtils.getAdaptiveEchart).toHaveBeenCalledTimes(1);
+        expect(chart.setOption).toHaveBeenCalledWith(expect.objectContaining({ yAxis: expect.objectContaining({ data: ['0'] }) }), { notMerge: true });
+        expect(registerConsumer).toHaveBeenLastCalledWith(global.session, latestData, expect.any(Function));
+        act(() => getConsumer()(target));
+        expect(chart.dispatchAction).toHaveBeenNthCalledWith(1, { type: 'dataZoom', dataZoomIndex: 0, startValue: 10, endValue: 20 });
+        expect(chart.dispatchAction).toHaveBeenCalledWith({ type: 'highlight', seriesIndex: 0, name: '0-Send' });
+    });
+
+    it('replaces the consumer without reapplying data when loading completes', () => {
+        const view = mountChart();
+        const previous = getConsumer();
+        const next = createData();
+        view.update(next, true);
+        expect(() => previous(target)).toThrow();
+        expect(registerConsumer).toHaveBeenCalledTimes(1);
+        const count = chart.setOption.mock.calls.length;
+        view.update(next);
+        expect(chart.setOption).toHaveBeenCalledTimes(count);
+        expect(registerConsumer).toHaveBeenLastCalledWith(global.session, next, expect.any(Function));
+        expect(() => previous(target)).toThrow();
+        view.unmount();
+        expect(() => getConsumer()(target)).toThrow();
+        expect(chart.dispatchAction).not.toHaveBeenCalled();
+    });
 });
 
 it('targets both zoom axes when locating a slow operator with a string rank ID', () => {
@@ -288,10 +331,11 @@ it('targets both zoom axes when locating a slow operator with a string rank ID',
     });
 });
 
-it('downplays a highlighted slow operator after five seconds', () => {
+it.each([false, true])('downplays only the latest five-second highlight (replace: %s)', replace => {
     jest.useFakeTimers();
     const chart = {
         getOption: jest.fn(() => ({ yAxis: [{ data: [] }] })),
+        isDisposed: () => false,
         dispatchAction: jest.fn(),
     };
     mockRefValues.push({ current: null }, { current: chart });
@@ -316,7 +360,14 @@ it('downplays a highlighted slow operator after five seconds', () => {
         name: '0-Send',
     });
 
-    act(() => jest.advanceTimersByTime(5000));
+    if (replace) {
+        act(() => jest.advanceTimersByTime(1000));
+        act(() => slowRankHandler?.({ startValue: 0, endValue: 1, rankId: 0, name: 'Send' }));
+        chart.dispatchAction.mockClear();
+        act(() => jest.advanceTimersByTime(4000));
+        expect(chart.dispatchAction).not.toHaveBeenCalled();
+    }
+    act(() => jest.advanceTimersByTime(replace ? 1000 : 5000));
     expect(chart.dispatchAction).toHaveBeenLastCalledWith({
         type: 'downplay',
         seriesIndex: 0,

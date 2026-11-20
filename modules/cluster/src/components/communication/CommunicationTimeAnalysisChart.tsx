@@ -35,6 +35,7 @@ import { disposeAdaptiveEchart, getAdaptiveEchart, getDefaultChartOptions, safeS
 import { ChartZoomData, ClickOperatorItem, CompareData, FormatterParams } from '../../utils/interface';
 import { queryTimelineUnitKernelDetail } from '../../utils/RequestUtils';
 import { useEventBus } from '../../utils/eventBus';
+import { registerCommunicationChartConsumer } from '../../agent/communicationController';
 import { shouldShowTailAlignTip } from './tailAlign';
 import { getChartNavigation, navigateCommunicationChart, resetCommunicationChartZoom, type ChartPointer } from './communicationChartNavigation';
 import type { ECharts, InsideDataZoomComponentOption } from 'echarts';
@@ -353,6 +354,13 @@ interface ChartInstance {
     resizeObserver: ResizeObserver;
     webgl?: CommunicationWebGLState;
     cleanup: () => void;
+}
+
+interface AppliedChartData {
+    dataSource: AnalysisChartData;
+    session: Session;
+    chart: echarts.ECharts;
+    isCompare: boolean;
 }
 
 interface CommunicationWebGLState {
@@ -1058,8 +1066,12 @@ const CommunicationTimeAnalysisChart = observer(({
     // 图表实例的引用
     const chartInst = useRef<echarts.ECharts | null>(null);
     // 图表可能在隐藏状态下延迟初始化，初始化时必须读取最新接口数据。
-    const latestDataSource = useRef(dataSource);
-    latestDataSource.current = dataSource;
+    const latestInput = useRef({ dataSource, session, loading, durationFileCompleted });
+    latestInput.current = { dataSource, session, loading, durationFileCompleted };
+    const appliedChartData = useRef<AppliedChartData | null>(null);
+    const chartConsumer = useRef<{ applied: AppliedChartData; unregister: () => void } | null>(null);
+    const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const slowRankHandler = useRef<((target: OnClickSlowRankOpCallbackParams, requireTarget?: boolean) => void) | null>(null);
     const pointerRef = useRef<ChartPointer | null>(null);
     const [keyboardActive, setKeyboardActive] = useState(false);
     const [isZoomed, setIsZoomed] = useState(false);
@@ -1123,21 +1135,74 @@ const CommunicationTimeAnalysisChart = observer(({
         }
     };
 
+    const clearHighlightTimer = React.useCallback((): void => {
+        if (highlightTimer.current !== null) {
+            clearTimeout(highlightTimer.current);
+            highlightTimer.current = null;
+        }
+    }, []);
+
+    const invalidateChartConsumer = React.useCallback((): void => {
+        const consumer = chartConsumer.current;
+        chartConsumer.current = null;
+        consumer?.unregister();
+    }, []);
+
+    const readyChart = React.useCallback((): AppliedChartData | null => {
+        const applied = appliedChartData.current;
+        const dom = chartRef.current;
+        const latest = latestInput.current;
+        const instance = dom ? chartInstanceMap.get(dom) : undefined;
+        return applied && dom && !latest.loading && latest.durationFileCompleted &&
+            applied.dataSource === latest.dataSource && applied.session === latest.session &&
+            applied.isCompare === latest.session.isCompare && chartInst.current === applied.chart &&
+            instance?.chart === applied.chart && !applied.chart.isDisposed() && dom.clientWidth > 0 && dom.clientHeight > 0 &&
+            (!instance.webgl || instance.webgl.dataSource === applied.dataSource)
+            ? applied
+            : null;
+    }, []);
+    const publishChartConsumer = React.useCallback((): void => {
+        const applied = readyChart();
+        if (applied && chartConsumer.current?.applied === applied) return;
+        invalidateChartConsumer();
+        if (!applied) return;
+        const consumer = { applied, unregister: (): void => undefined };
+        chartConsumer.current = consumer;
+        consumer.unregister = registerCommunicationChartConsumer(applied.session, applied.dataSource, target => {
+            // 已注销闭包不能在同一图表重新就绪后复活。
+            if (chartConsumer.current !== consumer || readyChart() !== applied) {
+                throw new Error('The communication chart is not ready for the current data.');
+            }
+            const rank = applied.dataSource.data.find(item => item.rankId === target.rankId);
+            if (!rank?.lists.compare.some(item => item.operatorName === target.name) || !slowRankHandler.current) {
+                throw new Error('The slow rank or operator is not available in the current communication chart.');
+            }
+            slowRankHandler.current(target, true);
+        });
+    }, [invalidateChartConsumer, readyChart]);
+
     const updateData = React.useCallback((dataSource: AnalysisChartData): void => {
+        invalidateChartConsumer();
+        appliedChartData.current = null;
+        clearHighlightTimer();
         const chartDom = chartRef.current;
-        if (chartDom && chartInst.current && dataSource) {
+        const chart = chartInst.current;
+        if (chartDom && chart && dataSource) {
             runInAction(() => {
                 consumeCommunicationChartZoomData(session, (zoomData): void => {
-                    updateChartData(chartDom, dataSource, session, zoomData);
-                    updateZoomState();
+                    if (updateChartData(chartDom, dataSource, session, zoomData)) {
+                        appliedChartData.current = { dataSource, session, chart, isCompare: session.isCompare };
+                        updateZoomState();
+                    }
                 });
             });
+            publishChartConsumer();
             setTimeout(() => {
                 // 设置图表高度
                 setChartHeight(getChartHeight(dataSource));
             });
         }
-    }, [session, updateZoomState]);
+    }, [session, updateZoomState, invalidateChartConsumer, clearHighlightTimer, publishChartConsumer]);
 
     /**
      * 使用useEffect更新图表数据
@@ -1148,6 +1213,10 @@ const CommunicationTimeAnalysisChart = observer(({
         updateData(dataSource);
     }, [updateData, dataSource]);
 
+    useEffect(() => {
+        publishChartConsumer();
+    }, [loading, publishChartConsumer]);
+
     /**
      * 使用useEffect初始化图表
      * @param
@@ -1155,18 +1224,18 @@ const CommunicationTimeAnalysisChart = observer(({
      */
     useEffect(() => {
         if (!durationFileCompleted) {
-            return;
+            return clearHighlightTimer;
         }
         const dom = chartRef.current;
         if (!dom) {
-            return;
+            return clearHighlightTimer;
         }
         const firstInitChart = (): void => {
             chartInst.current = initChartInstance(dom, setDropDownVisible);
             chartInst.current?.on('datazoom', updateZoomState);
             // 添加滚轮事件监听
             chartRef.current?.addEventListener('wheel', syncScroll, true);
-            updateData(latestDataSource.current);
+            updateData(latestInput.current.dataSource);
         };
 
         // 创建初始化 EChart 监听器，等待 DOM 元素准备就绪
@@ -1176,11 +1245,14 @@ const CommunicationTimeAnalysisChart = observer(({
                 clearTimeout(resizeObserverTimer);
             }
             resizeObserverTimer = window.setTimeout((): void => {
-                // 仅当尺寸有效时“尝试”初始化
                 if (dom.clientHeight > 0 && dom.clientWidth > 0) {
-                    // 尺寸有效后停止监听
-                    resizeObserver.disconnect();
-                    firstInitChart();
+                    if (!chartInst.current) {
+                        firstInitChart();
+                    } else {
+                        publishChartConsumer();
+                    }
+                } else {
+                    invalidateChartConsumer();
                 }
                 resizeObserverTimer = null;
             }, 20); // 设置 delay 防止 Error: ResizeObserver loop completed with undelivered notifications.
@@ -1189,30 +1261,45 @@ const CommunicationTimeAnalysisChart = observer(({
 
         // 首次尝试
         if (dom.clientHeight > 0 && dom.clientWidth > 0) {
-            // 尺寸有效后停止监听
-            resizeObserver.disconnect();
             firstInitChart();
         }
 
         // 清理函数，移除滚轮事件监听
         return (): void => {
             resizeObserver.disconnect();
+            if (resizeObserverTimer !== null) {
+                clearTimeout(resizeObserverTimer);
+            }
+            invalidateChartConsumer();
+            appliedChartData.current = null;
+            clearHighlightTimer();
             chartInst.current?.off('datazoom', updateZoomState);
             disposeChartInstance(dom); // 清理全局实例记录
-            chartRef.current?.removeEventListener('wheel', syncScroll, true);
+            chartInst.current = null;
+            dom.removeEventListener('wheel', syncScroll, true);
         };
-    }, [durationFileCompleted, updateData, updateZoomState]);
+    }, [durationFileCompleted, updateData, updateZoomState, publishChartConsumer, invalidateChartConsumer, clearHighlightTimer]);
 
     /**
      * 监听并处理慢算子点击事件的函数。
      * @param res - 包含慢算子事件参数的对象，包括起始值、结束值、算子名称和算子ID。
      * @returns 无返回值。
      */
-    useEventBus('onClickSlowRankOp', (res): void => {
+    const highlightSlowRankOperator = (res: OnClickSlowRankOpCallbackParams, requireTarget = false): void => {
         // 解构慢算子事件参数
-        const { startValue, endValue, name, rankId } = res as OnClickSlowRankOpCallbackParams;
+        const { startValue, endValue, name, rankId } = res;
+        const chart = chartInst.current;
+        const dom = chartRef.current;
+        const webglState = dom ? chartInstanceMap.get(dom)?.webgl : undefined;
+        const webglOperator = webglState?.index
+            ? findCommunicationOperator(webglState.index, rankId, name, startValue)
+            : null;
+        if (requireTarget && (!chart || chart.isDisposed() || (webglState && !webglOperator))) {
+            throw new Error('The slow rank or operator is not available in the current communication chart.');
+        }
         const dataSourceAxisY = (chartInst.current?.getOption()?.yAxis ?? []) as YAxis[];
         const rankZoomRange = getRankDataZoomRange(dataSourceAxisY?.[0]?.data ?? [], rankId);
+        clearHighlightTimer();
         // 根据接收到的起始值和结束值调整图表横轴范围
         chartInst.current?.dispatchAction({
             type: 'dataZoom',
@@ -1227,10 +1314,6 @@ const CommunicationTimeAnalysisChart = observer(({
             ...rankZoomRange,
         });
 
-        const webglState = chartRef.current ? chartInstanceMap.get(chartRef.current)?.webgl : undefined;
-        const webglOperator = webglState?.index
-            ? findCommunicationOperator(webglState.index, rankId, name, startValue)
-            : null;
         if (webglState) {
             scheduleWebGLRender(chartRef.current as HTMLElement);
             webglState.renderer.setSelectedOperator(webglOperator?.id ?? null);
@@ -1248,10 +1331,12 @@ const CommunicationTimeAnalysisChart = observer(({
                 name: `${rankId}-${name}`,
             });
         }
-        // 延迟取消高亮
-        setTimeout(() => {
+        // 新高亮或换数据会撤销旧计时器，回调也不能操作新实例。
+        highlightTimer.current = setTimeout(() => {
+            highlightTimer.current = null;
+            if (!chart || chartInst.current !== chart || chart.isDisposed()) return;
             if (webglState) {
-                webglState.renderer.setSelectedOperator(null);
+                if (dom && chartInstanceMap.get(dom)?.webgl === webglState) webglState.renderer.setSelectedOperator(null);
             } else {
                 chartInst.current?.dispatchAction({
                     type: 'downplay',
@@ -1284,7 +1369,9 @@ const CommunicationTimeAnalysisChart = observer(({
             block: 'center',
             behavior: 'smooth',
         });
-    });
+    };
+    slowRankHandler.current = highlightSlowRankOperator;
+    useEventBus('onClickSlowRankOp', (res): void => highlightSlowRankOperator(res as OnClickSlowRankOpCallbackParams));
 
     return durationFileCompleted
         ? <div>

@@ -181,7 +181,18 @@ export class FrontendAgentCommandController {
             const entry = this.catalog.getVisible(commandName, this.activeModule);
             if (!entry) {
                 const error = this.commandUnavailable(commandName);
-                if (error.details?.reason === 'module_not_active') throw error;
+                if (error.details?.reason === 'module_not_active') {
+                    const targetModule = error.details.targetModule;
+                    const target = typeof targetModule === 'string' ? this.catalog.getVisible(commandName, targetModule) : undefined;
+                    // 仅为跨页预检补充可信定义，不放宽命令执行范围。
+                    if (target?.source === 'module') {
+                        throw new CommandError({
+                            ...error.toJSON(),
+                            details: { ...error.details, commandDefinition: toJsonObject(target.definition) },
+                        });
+                    }
+                    throw error;
+                }
                 throw unavailableHelpCommand(commandName);
             }
             return { command: toJsonObject(entry.definition) };

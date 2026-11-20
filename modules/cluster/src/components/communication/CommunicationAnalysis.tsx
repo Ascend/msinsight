@@ -34,7 +34,7 @@ import AdviceLabel, { type CommunicationAdvice } from './CommunicationDuration/A
 import Operators from './CommunicationDuration/Opertators';
 import DiffTimeTable from './DiffTimeTable';
 import { ClickOperatorItem, GetSlowRankListResult } from '../../utils/interface';
-import { clearCommunicationPageState, updateCommunicationPageState, setCommunicationAgentState, type SlowRanksContext } from '../../agent/communicationController';
+import { clearCommunicationPageState, updateCommunicationPageState, setCommunicationAgentState, type SlowRanksContext, type ChartContext } from '../../agent/communicationController';
 
 interface ShowDataType {
     chartData: DataItem[];
@@ -70,19 +70,39 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
     const [card, setCard] = useState(DEFAULT_CARD_INFO);
     const [operatorLoading, setOperatorLoading] = useState(false);
     const [durationLoading, setDurationLoading] = useState(false);
-    const [filterLoading, setFilterLoading] = useState(false);
+    const [filterLoading, setFilterLoading] = useState(true);
     const [showData, setShowData] = useState<ShowDataType>(getEmptyShowData);
     const [conditions, setConditions] = useState<ConditionDataType>(defaultCondition);
+    const [chartContext, setChartContext] = useState<ChartContext>();
     const latestOperatorRequestId = useRef(0);
     const latestDurationRequestId = useRef(0);
     const showOperator = (newCard: CardInfo): void => {
         setCard(newCard);
     };
     const returnHome = (): void => { setCard(DEFAULT_CARD_INFO); };
+    const loadChart = (newConditions: ConditionDataType): void => {
+        const requestId = ++latestOperatorRequestId.current;
+        const context = { session, clusterPath: session.selectedClusterPath, conditions: { ...newConditions }, isCompare: session.isCompare };
+        const isCurrent = (): boolean => requestId === latestOperatorRequestId.current &&
+            session.clusterCompleted && session.durationFileCompleted &&
+            session.selectedClusterPath === context.clusterPath && session.isCompare === context.isCompare;
+        setChartContext(undefined);
+        setOperatorLoading(true);
+        void queryCommunicationOperatorLists({ ...newConditions, isCompare: context.isCompare }, isCurrent)
+            .then(data => {
+                if (data !== undefined && isCurrent()) {
+                    setShowData(previousData => ({ ...previousData, analysisChartData: data }));
+                    setChartContext({ ...context, result: data });
+                }
+            })
+            .catch(() => undefined)
+            .finally(() => { if (isCurrent()) setOperatorLoading(false); });
+    };
     const handleFilterChange = (newConditions: ConditionDataType): void => {
         setConditions(previousConditions => ({ ...previousConditions, ...newConditions }));
-        const operatorRequestId = ++latestOperatorRequestId.current;
+        latestOperatorRequestId.current += 1;
         const durationRequestId = ++latestDurationRequestId.current;
+        setChartContext(undefined);
         if (newConditions.type !== AnalysisType.COMMUNICATION_DURATION_ANALYSIS) {
             setOperatorLoading(false);
             setDurationLoading(false);
@@ -95,25 +115,9 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
             setDurationLoading(false);
             return;
         }
-        setOperatorLoading(true);
+        loadChart(newConditions);
         setDurationLoading(true);
         const requestConditions = { ...newConditions, isCompare: session.isCompare };
-
-        void queryCommunicationOperatorLists(
-            requestConditions,
-            () => operatorRequestId === latestOperatorRequestId.current,
-        )
-            .then(data => {
-                if (data !== undefined && operatorRequestId === latestOperatorRequestId.current) {
-                    setShowData(previousData => ({ ...previousData, analysisChartData: data }));
-                }
-            })
-            .catch(() => undefined)
-            .finally(() => {
-                if (operatorRequestId === latestOperatorRequestId.current) {
-                    setOperatorLoading(false);
-                }
-            });
 
         void queryCommunication(
             requestConditions,
@@ -133,33 +137,13 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
     };
 
     const handleOperatorAlignment = (targetOperator?: ClickOperatorItem): void => {
-        const requestId = ++latestOperatorRequestId.current;
-        setOperatorLoading(true);
-        void queryCommunicationOperatorLists(
-            {
-                ...conditions,
-                targetOperatorName: targetOperator?.name ?? '',
-                isCompare: session.isCompare,
-            },
-            () => requestId === latestOperatorRequestId.current,
-        )
-            .then(data => {
-                if (data !== undefined && requestId === latestOperatorRequestId.current) {
-                    setShowData(previousData => ({ ...previousData, analysisChartData: data }));
-                }
-            })
-            .catch(() => undefined)
-            .finally(() => {
-                if (requestId === latestOperatorRequestId.current) {
-                    setOperatorLoading(false);
-                }
-            });
+        loadChart({ ...conditions, targetOperatorName: targetOperator?.name ?? '' });
     };
 
     useEffect(() => () => {
         latestOperatorRequestId.current += 1;
         latestDurationRequestId.current += 1;
-    }, []);
+    }, [session]);
 
     useEffect(() => {
         if (!active || !session.clusterCompleted) {
@@ -179,8 +163,8 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
             },
             selection: card.cardId === '' ? null : { kind: 'rank-detail', rankId: card.cardId },
         });
-        return clearCommunicationPageState;
     }, [session, session.clusterCompleted, active, conditions, card.cardId]);
+    useEffect(() => clearCommunicationPageState, []);
 
     return <CommunicationAnalysisCom
         session={session}
@@ -191,6 +175,7 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
         onOperatorAlignment={handleOperatorAlignment}
         handleFilterChange={handleFilterChange} showData={showData}
         active={active} showOperator={showOperator} setShowData={setShowData} conditions={conditions}
+        chartContext={chartContext} chartStatus={operatorLoading ? 'pending' : chartContext ? 'ready' : 'error'}
         rankId={card.cardId} dbPath={card.dbPath} returnHome={returnHome}
     />;
 });
@@ -199,23 +184,39 @@ const CommunicationAnalysisCom = (props: {[propName: string]: any}): JSX.Element
     const {
         session, handleFilterChange, showData, active, showOperator,
         setShowData, conditions, rankId, dbPath, returnHome, operatorLoading, durationLoading, filterLoading, onFilterLoadingChange,
-        onOperatorAlignment,
+        onOperatorAlignment, chartContext, chartStatus,
     } = props;
     const { t } = useTranslation('communication');
     const [loadingSlowRank, setLoadingSlowRank] = useState(false);
     const [slowRankData, setSlowRankData] = useState<GetSlowRankListResult | null>(null);
     const [slowRanksContext, setSlowRanksContext] = useState<SlowRanksContext>();
+    const [adviceConditions, setAdviceConditions] = useState<ConditionDataType>();
     const slowRanksGeneration = useRef(0);
-    // Invalidate only the observation provenance; do not change UI data or issue another request.
+    // 失效代次在此结束 loading；旧响应仍不能结束新请求。
     useEffect(() => {
         slowRanksGeneration.current++;
+        setLoadingSlowRank(false);
         setSlowRanksContext(undefined);
     }, [session, session.selectedClusterPath, session.isCompare, session.clusterCompleted, session.durationFileCompleted]);
     useEffect(() => {
-        setCommunicationAgentState(active && session.clusterCompleted
-            ? { conditions, slowRanks: slowRankData, slowRanksContext, chart: showData.analysisChartData, unitcount: session.unitcount, isCompare: session.isCompare }
-            : undefined);
-    }, [active, session, session.clusterCompleted, conditions, slowRankData, slowRanksContext, showData.analysisChartData, session.unitcount, session.isCompare]);
+        if (!active || !session.clusterCompleted) {
+            setCommunicationAgentState(undefined);
+            return;
+        }
+        setCommunicationAgentState({
+            conditions,
+            slowRanks: slowRankData,
+            slowRanksContext,
+            adviceStatus: adviceConditions !== conditions || loadingSlowRank ? 'pending' : slowRanksContext ? 'ready' : 'error',
+            chart: showData.analysisChartData,
+            chartContext,
+            chartStatus,
+            filterLoading,
+            unitcount: session.unitcount,
+            isCompare: session.isCompare,
+        });
+    }, [active, session, session.clusterCompleted, conditions, slowRankData, slowRanksContext, loadingSlowRank, adviceConditions,
+        showData.analysisChartData, chartContext, chartStatus, filterLoading, session.unitcount, session.isCompare]);
     useEffect(() => () => setCommunicationAgentState(undefined), []);
     const slowRankTooltipContent = t('slowRankList.TitleTooltip', { returnObjects: true }) as string[];
     const slowRankTooltipList = slowRankTooltipContent.map((item, index) => <div style={{ padding: '6px 0' }} key={index}>{item}</div>);
@@ -224,22 +225,25 @@ const CommunicationAnalysisCom = (props: {[propName: string]: any}): JSX.Element
         const generation = ++slowRanksGeneration.current;
         const context = { session, clusterPath: session.selectedClusterPath, conditions: { ...conditions }, isCompare: session.isCompare };
         setSlowRanksContext(undefined);
+        setAdviceConditions(conditions);
         const fetchData = async (): Promise<void> => {
             setLoadingSlowRank(true);
             const res = await getSlowRankList(conditions).catch((error: unknown) => {
-                // Match other communication requests: report failures without an unhandled effect rejection.
                 console.log(error);
                 return null;
-            }).finally(() => {
-                setLoadingSlowRank(false);
             });
+            // 旧筛选响应不能覆盖当前结果或结束当前 loading。
+            if (generation !== slowRanksGeneration.current || session.selectedClusterPath !== context.clusterPath ||
+                session.isCompare !== context.isCompare) return;
+            setLoadingSlowRank(false);
             setSlowRankData(res);
-            // Late responses may still update the existing UI, but must never become agent advice.
-            if (res && generation === slowRanksGeneration.current) setSlowRanksContext({ ...context, result: res });
+            if (res) setSlowRanksContext({ ...context, result: res });
         };
 
         if (conditions.type === AnalysisType.COMMUNICATION_DURATION_ANALYSIS) {
             fetchData();
+        } else {
+            setLoadingSlowRank(false);
         }
         return () => { slowRanksGeneration.current++; };
     }, [conditions]);

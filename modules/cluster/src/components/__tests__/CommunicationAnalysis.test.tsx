@@ -19,6 +19,10 @@ import React from 'react';
 import * as testingLibrary from '@testing-library/react';
 import '@testing-library/jest-dom';
 import CommunicationAnalysis from '../communication/CommunicationAnalysis';
+import { runInAction } from 'mobx';
+import { Session } from '../../entity/session';
+import { AnalysisType, updateData } from '../communication/Filter';
+import * as communicationController from '../../agent/communicationController';
 import {
     getSlowRankList,
     queryCommunication,
@@ -127,6 +131,48 @@ beforeEach(() => {
     (queryMatrixOperators as jest.Mock).mockResolvedValue({ operatorName: ['Total Op Info'] });
     (queryOperators as jest.Mock).mockResolvedValue({ operatorName: ['Total Op Info'] });
     (getSlowRankList as jest.Mock).mockResolvedValue(null);
+});
+
+afterEach(() => { jest.restoreAllMocks(); });
+
+it.each(['matrix', 'session'])('ends invalidated slow-rank loading after a %s change without ending a newer request', async(change) => {
+    const published = jest.spyOn(communicationController, 'setCommunicationAgentState');
+    let resolveOld!: (value: Awaited<ReturnType<typeof getSlowRankList>>) => void;
+    let resolveNew!: (value: Awaited<ReturnType<typeof getSlowRankList>>) => void;
+    jest.mocked(getSlowRankList)
+        .mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }))
+        .mockImplementationOnce(() => new Promise(resolve => { resolveNew = resolve; }));
+    (queryCommunicationOperatorLists as jest.Mock).mockResolvedValue({ minTime: 0, maxTime: 1, data: [] });
+    (queryCommunication as jest.Mock).mockResolvedValue({ items: [], advice: [] });
+
+    const view = testingLibrary.render(<CommunicationAnalysis session={session} />);
+    testingLibrary.fireEvent.click(await testingLibrary.screen.findByDisplayValue(AnalysisType.COMMUNICATION_DURATION_ANALYSIS));
+    await testingLibrary.waitFor(() => expect(getSlowRankList).toHaveBeenCalledTimes(1));
+    expect(published).toHaveBeenLastCalledWith(expect.objectContaining({ adviceStatus: 'pending' }));
+
+    if (change === 'matrix') {
+        testingLibrary.fireEvent.click(testingLibrary.screen.getByDisplayValue(AnalysisType.COMMUNICATION_MATRIX));
+    } else {
+        // 新数据的筛选归一化失败，没有新请求接手旧 loading。
+        (queryIterations as jest.Mock).mockRejectedValueOnce(new Error('options unavailable'));
+        const replacement = new Session({ id: '2' });
+        runInAction(() => {
+            replacement.selectedClusterPath = 'cluster2';
+            replacement.clusterList = [{ name: 'cluster2', path: 'cluster2', parsed: true, durationParsed: true }];
+        });
+        view.rerender(<CommunicationAnalysis session={replacement} />);
+        await testingLibrary.waitFor(() => expect(queryIterations).toHaveBeenCalledTimes(2));
+    }
+    await testingLibrary.waitFor(() => expect(published).toHaveBeenLastCalledWith(expect.objectContaining({ adviceStatus: 'error' })));
+    expect(getSlowRankList).toHaveBeenCalledTimes(1);
+
+    testingLibrary.act(() => { updateData({ type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS }); });
+    await testingLibrary.waitFor(() => expect(getSlowRankList).toHaveBeenCalledTimes(2));
+    await testingLibrary.act(async() => { resolveOld({ hasAdvice: false, fastRankId: 'old', fastTotalElapseTime: 0, data: [] }); });
+    expect(published).toHaveBeenLastCalledWith(expect.objectContaining({ adviceStatus: 'pending', slowRanks: null }));
+    const result = { hasAdvice: false, fastRankId: '', fastTotalElapseTime: 0, data: [] };
+    await testingLibrary.act(async() => { resolveNew(result); });
+    expect(published).toHaveBeenLastCalledWith(expect.objectContaining({ adviceStatus: 'ready', slowRanks: result }));
 });
 
 it('loads operator and duration data concurrently with independent loading states', async() => {

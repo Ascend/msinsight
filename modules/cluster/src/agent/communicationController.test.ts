@@ -30,8 +30,9 @@ jest.mock('../connection', () => ({ __esModule: true, default: { send: jest.fn()
 jest.mock('../components/communication/Filter', () => ({
     __esModule: true,
     ...jest.requireActual<typeof import('../components/communication/Filter')>('../components/communication/Filter'),
-    default: ({ handleFilterChange }: { handleFilterChange: typeof mockFilterChange }) => {
+    default: ({ handleFilterChange, onLoadingChange }: { handleFilterChange: typeof mockFilterChange; onLoadingChange?: (loading: boolean) => void }) => {
         mockFilterChange = handleFilterChange;
+        jest.requireActual<typeof import('react')>('react').useEffect(() => onLoadingChange?.(false), [onLoadingChange]);
         return null;
     },
 }));
@@ -441,8 +442,8 @@ describe('Communication page reporting through the real component', () => {
         await act(async () => { resolveNew(advisedResult()); });
         expect(observeCommunication().slowRankAdvice).toMatchObject({ status: 'ready' });
         await act(async () => { resolveOld({ ...advisedResult(), fastRankId: '99' }); });
-        // Existing UI data is untouched; mismatched result identity makes observation unavailable.
-        expect(observeCommunication().slowRankAdvice).toEqual({ status: 'unavailable' });
+        // 旧请求不能覆盖已提交的新筛选结果。
+        expect(observeCommunication().slowRankAdvice).toMatchObject({ status: 'ready', fastRankId: '0' });
     });
 
     test('clears completed advice on a filter change until the next response arrives', async () => {
