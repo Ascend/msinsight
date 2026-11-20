@@ -21,6 +21,9 @@ import styled from '@emotion/styled';
 import SwitchTheme from './SwitchTheme';
 import SwitchLanguage from './SwitchLanguage';
 import Version from './Version';
+import SwitchClusterView from './SwitchClusterView';
+import type { Session } from '@/entity/session';
+import { canUseModernCluster, isClusterApplication } from '@/cluster/viewVersion';
 
 const Container = styled.div`
   position: absolute;
@@ -39,11 +42,12 @@ const Container = styled.div`
   }
 `;
 
-const Index = observer(() => {
+const Index = observer(({ activeModule, session }: { activeModule: string; session: Session }) => {
     return <Container>
         <SwitchTheme/>
         <SwitchLanguage/>
         <Version/>
+        {isClusterApplication(activeModule) && canUseModernCluster(session) && <SwitchClusterView session={session} />}
     </Container>;
 });
 

@@ -64,4 +64,7 @@ export const listenerMap: Record<string, ListenerCallback> = {
     openImportDialog: openImportDialogHandler,
     [PARSE_CLUSTER_COMPLETED]: clusterCompletedHandler,
     [PARSE_CLUSTER_STEP2_COMPLETED]: clusterDurationCompletedHandler,
+    // Readiness is consumed by the source-bound ClusterApplicationFrame listener.
+    'communication/ready': () => {},
+    'clusterPage/ready': () => {},
 };

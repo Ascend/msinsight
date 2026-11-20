@@ -15,12 +15,15 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { clusterView, isClusterApplication } from '@/cluster/viewVersion';
 import { ServerConnector } from '@insight/lib/connection';
 import { INTERCEPTOR_HANDLERS, NOTIFICATION_INTERCEPTOR_HANDLERS, NOTIFICATION_STATISTIC_HANDLERS } from './interceptor';
 import { listenerMap } from './notification';
 import { store } from '@/store';
 import { requestModule } from '@/centralServer/server';
 import { GLOBAL_HOST } from '@/centralServer/websocket/defs';
+import { message } from 'antd';
+import i18n from '@insight/lib/i18n';
 
 type TargetWindow = Window;
 
@@ -58,8 +61,14 @@ export function registerEventListeners(): void {
 
     // 转发ws消息到模块
     connector.registerAwaitFetch(async (e) => {
-        const currentRemote = store.sessionStore.activeSession?.activeDataSource ?? GLOBAL_HOST;
+        const session = store.sessionStore.activeSession;
+        const currentRemote = session?.activeDataSource ?? GLOBAL_HOST;
         const { remote = currentRemote, args, module } = e.data;
+        if (session && isClusterApplication(e.data.from) && args?.params?.isCompare === true && clusterView.versionFor(session) === 'modern') {
+            const warning = i18n.t('clusterView.compareUnavailable', { ns: 'framework' });
+            message.warning(warning);
+            return { dataSource: remote, body: { error: { code: 'MODERN_CLUSTER_COMPARISON_UNAVAILABLE', message: warning } } };
+        }
         const result = await requestModule(module, args);
         return { dataSource: remote, body: result };
     });

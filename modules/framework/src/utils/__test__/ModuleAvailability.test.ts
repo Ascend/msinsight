@@ -4,21 +4,27 @@
  */
 
 import React from 'react';
+import { ProjectType } from '../enum';
+import { clusterView } from '../../cluster/viewVersion';
 import { act, fireEvent, render } from '@testing-library/react';
 import connector from '@/connection';
-import TabPane from '../../components/TabPane/Index';
+import TabPane, { getAvailableModules, updateDataScene } from '../../components/TabPane/Index';
 import type { Session } from '../../entity/session';
 import { modulesConfig, type ModuleConfig } from '../../moduleConfig';
 import { updateSession } from '@/connection/notificationHandler';
-import { getAvailableModules, updateDataScene } from '../../components/TabPane/Index';
+import { onDivLoad } from '@/vscode-adapter';
+
+const initialEnv = process.env;
+beforeEach(() => { process.env = { ...initialEnv, REACT_APP_ENABLE_MODERN_CLUSTER: 'true', REACT_APP_IS_VSCODE: 'false' }; });
+afterEach(() => { process.env = initialEnv; });
 
 jest.mock('@/moduleConfig', () => jest.requireActual('../../moduleConfig'), { virtual: true });
-jest.mock('@/utils/enum', () => ({ SessionAction: { SWITCH_ACTIVE_MODULE: 'switch active module' } }), { virtual: true });
+jest.mock('@/utils/enum', () => ({ ...jest.requireActual('../../utils/enum'), SessionAction: { SWITCH_ACTIVE_MODULE: 'switch active module' } }), { virtual: true });
 jest.mock('@/utils/Request', () => ({ getModuleConfig: jest.fn() }), { virtual: true });
 jest.mock('@/connection/notificationHandler', () => ({ updateSession: jest.fn() }), { virtual: true });
 jest.mock('@/connection', () => ({ __esModule: true, default: { send: jest.fn() } }), { virtual: true });
 jest.mock('@/vscode-adapter', () => ({
-    onDivLoad: jest.fn(), isVscodePluginEnvironment: jest.fn(() => false), isVscodeEnv: jest.fn(() => false),
+    onDivLoad: jest.fn(), isVscodePluginEnvironment: () => process.env.REACT_APP_IS_VSCODE === 'true', isVscodeEnv: () => process.env.REACT_APP_IS_VSCODE === 'true',
 }), { virtual: true });
 jest.mock('@insight/lib/utils', () => ({ safeJSONParse: jest.fn() }), { virtual: true });
 
@@ -48,7 +54,6 @@ describe('NUMA module availability', () => {
     );
 });
 
-
 describe('independent memory entry availability', () => {
     it.each([
         ['leaks', 'D:/data/scope.db', 'MemScope'],
@@ -64,33 +69,39 @@ describe('independent memory entry availability', () => {
     });
 });
 
-
 it('mounts, activates and initializes the matching registered entry on dataset switching', async () => {
     const makeSession = (selectedFilePath: string): Session => ({
-        scene: 'Leaks', isLeaks: true, isBinary: false, isCluster: false,
-        actionListener: {}, activeDataSource: { selectedFilePath, selectedFileType: 'file', projectName: 'fixture' },
+        scene: 'Leaks',
+        isLeaks: true,
+        isBinary: false,
+        isCluster: false,
+        actionListener: {},
+        activeDataSource: { selectedFilePath, selectedFileType: 'file', projectName: 'fixture' },
     } as unknown as Session);
     const view = render(React.createElement(TabPane, { session: makeSession('/fixture/scope.db') }));
     const scope = view.container.querySelector('iframe[name="MemScope"]');
     expect(scope).not.toBeNull();
     expect(view.container.querySelector('iframe[name="MemSnapshot"]')).toBeNull();
-    fireEvent.load(scope!);
+    fireEvent.load(scope as HTMLIFrameElement);
     expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'frame/loaded', to: 'MemScope' }));
     view.rerender(React.createElement(TabPane, { session: makeSession('/fixture/snapshot.pickle') }));
     const snapshot = view.container.querySelector('iframe[name="MemSnapshot"]');
     expect(snapshot).not.toBeNull();
     expect(scope?.isConnected).toBe(false);
     expect(snapshot?.getAttribute('src')).toBe('./plugins/MemSnapshot/index.html');
-    fireEvent.load(snapshot!);
+    fireEvent.load(snapshot as HTMLIFrameElement);
     expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'frame/loaded', to: 'MemSnapshot' }));
     expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'moduleActive', to: 'MemSnapshot' }));
     await act(async () => { await Promise.resolve(); });
 });
 
-
 it('mounts the first snapshot before isLeaks becomes available', async () => {
     const session = {
-        scene: 'Default', isLeaks: false, isBinary: false, isCluster: false, actionListener: {},
+        scene: 'Default',
+        isLeaks: false,
+        isBinary: false,
+        isCluster: false,
+        actionListener: {},
         activeDataSource: { selectedFilePath: '/first.pickle', selectedFileType: 'file', projectName: 'first' },
     } as unknown as Session;
     const view = render(React.createElement(TabPane, { session }));
@@ -105,8 +116,12 @@ it.each([
     ['/snapshot-a.pickle', '/snapshot-b.pickle', 'MemSnapshot'],
 ])('keeps %s -> %s on %s despite a Timeline activation request', async (first, second, application) => {
     const makeSession = (file: string, actionListener: object = {}): Session => ({
-        scene: 'Leaks', isLeaks: true, isBinary: false, isCluster: false,
-        actionListener, activeDataSource: { selectedFilePath: file, selectedFileType: 'file', projectName: file },
+        scene: 'Leaks',
+        isLeaks: true,
+        isBinary: false,
+        isCluster: false,
+        actionListener,
+        activeDataSource: { selectedFilePath: file, selectedFileType: 'file', projectName: file },
     } as unknown as Session);
     const view = render(React.createElement(TabPane, { session: makeSession(first) }));
     expect((view.container.querySelector(`iframe[name="${application}"]`) as HTMLIFrameElement).style.display).toBe('block');
@@ -120,7 +135,10 @@ it.each([
 
 it('allows Timeline again after switching memory data to ordinary profiling', async () => {
     const makeSession = (memory: boolean): Session => ({
-        scene: memory ? 'Leaks' : 'Default', isLeaks: memory, isBinary: false, isCluster: false,
+        scene: memory ? 'Leaks' : 'Default',
+        isLeaks: memory,
+        isBinary: false,
+        isCluster: false,
         actionListener: { type: 'switch active module', value: 'Timeline' },
         activeDataSource: { selectedFilePath: memory ? '/scope.db' : '/profiling', selectedFileType: 'file', projectName: 'fixture' },
     } as unknown as Session);
@@ -133,7 +151,11 @@ it('allows Timeline again after switching memory data to ordinary profiling', as
 
 it('keeps MemScope visible after returning from Snapshot and receiving a late Timeline activation', async () => {
     const makeSession = (selectedFilePath: string, actionListener: object = {}): Session => ({
-        scene: 'Leaks', isLeaks: true, isBinary: false, isCluster: false, actionListener,
+        scene: 'Leaks',
+        isLeaks: true,
+        isBinary: false,
+        isCluster: false,
+        actionListener,
         activeDataSource: { selectedFilePath, selectedFileType: 'file', projectName: 'fixture' },
     } as unknown as Session);
     const view = render(React.createElement(TabPane, { session: makeSession('/snapshot.pickle') }));
@@ -152,9 +174,16 @@ it('keeps MemScope visible after returning from Snapshot and receiving a late Ti
 });
 
 describe('other module impact audit', () => {
+    beforeEach(() => clusterView.select('legacy'));
+    afterEach(async () => { await act(async () => { clusterView.select('modern'); }); });
     const sessionFor = (scene: string, value: string, hasNumaData = false): Session => ({
-        scene, isLeaks: false, isBinary: scene === 'Compute', isCluster: scene === 'Cluster', isIE: scene === 'IE',
-        hasNumaData, actionListener: { type: 'switch active module', value },
+        scene,
+        isLeaks: false,
+        isBinary: scene === 'Compute',
+        isCluster: scene === 'Cluster',
+        isIE: scene === 'IE',
+        hasNumaData,
+        actionListener: { type: 'switch active module', value },
         activeDataSource: { selectedFilePath: '/profiling', selectedFileType: 'file', projectName: 'fixture' },
     } as unknown as Session);
     it.each([
@@ -198,4 +227,82 @@ describe('other module impact audit', () => {
         expect(connector.send).not.toHaveBeenCalled();
         await act(async () => { await Promise.resolve(); });
     });
+});
+
+const clusterSession = (): Session => ({
+    scene: 'Cluster',
+    isCluster: true,
+    isBinary: false,
+    isLeaks: false,
+    actionListener: { type: 'switch active module', value: 'Communication' },
+    activeDataSource: {
+        selectedFilePath: '/profiling',
+        selectedFileType: 'file',
+        projectName: 'fixture',
+        children: [{ type: 'CLUSTER', path: '/profiling', projectType: ProjectType.DB_CLUSTER }],
+    },
+} as unknown as Session);
+
+it.each([undefined, 'false', 'vscode'])('loads original cluster entries for %s despite a modern preference', async flag => {
+    clusterView.select('modern');
+    if (flag === 'vscode') { process.env.REACT_APP_IS_VSCODE = 'true'; } else if (flag === undefined) {
+        delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER;
+    } else { process.env.REACT_APP_ENABLE_MODERN_CLUSTER = flag; }
+    const session = clusterSession();
+    const view = render(React.createElement(TabPane, { session }));
+    const summary = view.container.querySelector('#Summary') as HTMLElement;
+    const communication = view.container.querySelector('#Communication') as HTMLElement;
+    expect(summary).toHaveAttribute('src', './plugins/Cluster/summary.html');
+    expect(communication).toHaveAttribute('src', './plugins/Cluster/communication.html');
+    expect(view.container.querySelector('[data-cluster-application]')).toBeNull();
+    if (flag === 'vscode') {
+        expect(summary.tagName).toBe('DIV'); expect(communication.tagName).toBe('DIV');
+        expect(onDivLoad).toHaveBeenCalledWith('Summary'); expect(onDivLoad).toHaveBeenCalledWith('Communication');
+    } else {
+        fireEvent.load(communication);
+        expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'Communication', event: 'frame/loaded' }));
+    }
+    expect(clusterView.select('modern')).toBe(false);
+    expect(clusterView.version).toBe('modern');
+    await act(async () => { await Promise.resolve(); });
+});
+
+it('switches both cluster entries together and remounts them to reset target filters', async () => {
+    process.env.REACT_APP_SUMMARY_MODERN_SRC = './plugins/SummaryModern/index.html';
+    clusterView.select('modern');
+    const session = clusterSession();
+    const view = render(React.createElement(TabPane, { session }));
+    const modernSummary = view.container.querySelector('iframe[name="Summary"]') as HTMLIFrameElement;
+    const modernCommunication = view.container.querySelector('iframe[name="Communication"]') as HTMLIFrameElement;
+    expect(modernSummary.src).toContain('/plugins/SummaryModern/index.html');
+    expect(modernCommunication.src).toContain('/plugins/Communication/index.html');
+    await act(async () => { clusterView.select('legacy'); });
+    const legacySummary = view.container.querySelector('iframe[name="Summary"]') as HTMLIFrameElement;
+    expect(legacySummary.src).toContain('/plugins/Cluster/summary.html');
+    expect((view.container.querySelector('iframe[name="Communication"]') as HTMLIFrameElement).src).toContain('/plugins/Cluster/communication.html');
+    expect(modernSummary.isConnected).toBe(false); expect(modernCommunication.isConnected).toBe(false);
+    await act(async () => { clusterView.select('modern'); });
+    expect(view.container.querySelector('iframe[name="Summary"]')).not.toBe(modernSummary);
+    expect(legacySummary.isConnected).toBe(false);
+    delete process.env.REACT_APP_SUMMARY_MODERN_SRC;
+});
+
+it('forces both pages to legacy for text data even with a saved modern preference', () => {
+    clusterView.select('modern');
+    const session = clusterSession();
+    const view = render(React.createElement(TabPane, { session }));
+    expect(view.container.querySelector('iframe[name="Communication"]')).toHaveAttribute('src', './plugins/Communication/index.html');
+    const textSession = {
+        ...session,
+        activeDataSource: {
+            ...session.activeDataSource,
+            children: [{ type: 'CLUSTER', path: '/profiling', projectType: ProjectType.TEXT_CLUSTER }],
+        },
+    } as unknown as Session;
+    view.rerender(React.createElement(TabPane, { session: textSession }));
+    expect(view.container.querySelector('iframe[name="Communication"]')).toHaveAttribute('src', './plugins/Cluster/communication.html');
+    expect(view.container.querySelector('iframe[name="Summary"]')).toHaveAttribute('src', './plugins/Cluster/summary.html');
+    expect(clusterView.version).toBe('modern');
+    view.rerender(React.createElement(TabPane, { session }));
+    expect(view.container.querySelector('iframe[name="Communication"]')).toHaveAttribute('src', './plugins/Communication/index.html');
 });

@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { observer } from 'mobx-react';
 import { Session } from '@/entity/session';
 import TabPane from './TabPane/Index';
@@ -25,9 +25,10 @@ interface IProps {
     session: Session;
 }
 const Main = observer(({ session }: IProps) => {
+    const [activeModule, setActiveModule] = useState('');
     return <div style={{ height: '100%' }}>
-        <ToolBox />
-        <TabPane session={session}/>
+        <ToolBox activeModule={activeModule} session={session} />
+        <TabPane session={session} onActiveModuleChange={setActiveModule}/>
     </div>;
 });
 
