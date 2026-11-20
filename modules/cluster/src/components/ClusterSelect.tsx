@@ -17,6 +17,7 @@
  */
 
 import React, { useMemo } from 'react';
+import connector from '../connection';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
 import styled from '@emotion/styled';
@@ -65,6 +66,7 @@ export const ClusterSelect = observer(({ width, session, onChange }: { width?: n
                 session.resetForClusterChange();
                 session.selectedClusterPath = val;
             });
+            connector.send({ event: 'clusterPage/selectCluster', body: { project: session.selectedProjectName, clusterPath: val } });
             onChange?.(val);
         })}
         options={clusterOptions}
