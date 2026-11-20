@@ -134,6 +134,14 @@
       "ConnectionClosedMessage": "The WebSocket connection has been closed. Please reconnect or restart MindStudio Insight.",
       "Reconnect": "Reconnect",
       "ConnectionNotAvailable": "The WebSocket connection is not available. Please restart MindStudio Insight."
+    },
+    "clusterView": {
+      "legacy": "Return to legacy view",
+      "modern": "Go to new view",
+      "exitCompare": "Exit cluster comparison first",
+      "compareUnavailable": "Cluster comparison is unavailable in the new view. Switch to the legacy view.",
+      "unavailable": "New {{page}} is unavailable. Retry or switch both pages to legacy.",
+      "retry": "Retry"
     }
   }
 }

@@ -132,6 +132,14 @@
       "ConnectionClosedMessage": "WebSocket 连接已关闭，请重新连接或重启 MindStudio Insight",
       "Reconnect": "重新连接",
       "ConnectionNotAvailable": "WebSocket 连接不可用，请重启 MindStudio Insight"
+    },
+    "clusterView": {
+      "legacy": "返回旧版",
+      "modern": "前往新版",
+      "exitCompare": "请先退出集群对比",
+      "compareUnavailable": "新版暂不支持集群对比，请切回旧版进行对比",
+      "unavailable": "新版 {{page}} 暂不可用，请重试或统一切换到旧版",
+      "retry": "重试"
     }
   }
 }

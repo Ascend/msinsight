@@ -15,6 +15,11 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { clusterNavigation, navigationContext } from '@/cluster/navigation';
+import { ClusterApplicationFrame } from './ClusterApplicationFrame';
+import { clusterView, isClusterApplication, isModernClusterEnabled, modernClusterSource } from '@/cluster/viewVersion';
+import { isInClusterCompare } from '@/utils/Compare';
+import { sendTheme, sendLanguage } from '@/connection/sendNotification';
 import { MemoryApplicationFrame } from './MemoryApplicationFrame';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react';
@@ -157,8 +162,9 @@ function isAllowedIframeSrc(src: string | undefined | null): boolean {
     return cleanSrc.startsWith('./plugins/');
 }
 
-const Index = observer(({ session }: {session: Session}) => {
+const Index = observer(({ session, onActiveModuleChange }: { session: Session; onActiveModuleChange?: (module: string) => void }) => {
     const { t } = useTranslation('framework', { keyPrefix: 'tabs' });
+    const version = clusterView.versionFor(session);
     const [scene, setScene] = useState<Scene>('Default');
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [selectedModule, setActiveModule] = useState('Timeline');
@@ -201,6 +207,8 @@ const Index = observer(({ session }: {session: Session}) => {
     const onClick: MenuProps['onClick'] = e => {
         setActiveModule(e.key);
     };
+
+    useEffect(() => { onActiveModuleChange?.(activeModule); }, [activeModule, onActiveModuleChange]);
 
     useEffect(() => {
         connector.send({
@@ -256,7 +264,7 @@ const Index = observer(({ session }: {session: Session}) => {
 
     // 添加监听新的页签加载后发送当前工程
     useEffect(() => {
-        const frames = document.querySelectorAll<HTMLIFrameElement>('iframe:not([data-memory-application])');
+        const frames = document.querySelectorAll<HTMLIFrameElement>('iframe:not([data-memory-application]):not([data-cluster-application])');
 
         Array.from(frames).forEach((frame) => {
             // 设置 onload 监听器等待 iframe 加载完成
@@ -315,8 +323,31 @@ const Index = observer(({ session }: {session: Session}) => {
     return <Container>
         <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
         <div className="tab-body">
-            {availableModules.map((moduleConfig) =>
-                isMemoryApplication(moduleConfig.name)
+            {availableModules.map((moduleConfig) => {
+                if (isClusterApplication(moduleConfig.name) && isModernClusterEnabled()) {
+                    return <ClusterApplicationFrame key={`${moduleConfig.name}-${version}`} name={moduleConfig.name}
+                        modern={version === 'modern'} visible={activeModule === moduleConfig.name}
+                        src={version === 'modern' ? modernClusterSource(moduleConfig.name) : moduleConfig.attributes.src}
+                        onReady={(ready) => {
+                            connector.send({
+                                event: 'frame/loaded',
+                                to: moduleConfig.name,
+                                body: {
+                                    selectedProjectName: session.activeDataSource.projectName,
+                                    selectedFileType: session.activeDataSource.selectedFileType,
+                                    selectedFilePath: session.activeDataSource.selectedFilePath,
+                                    pageInfo: { cluster: session.clusterPageInfo, timeline: session.timelinePageInfo },
+                                },
+                            });
+                            connector.send({ event: 'clusterBaselineToggle', to: moduleConfig.name, body: { status: isInClusterCompare() } });
+                            sendTheme(moduleConfig.name); sendLanguage(moduleConfig.name);
+                            if (ready) {
+                                const intent = clusterNavigation.mounted(moduleConfig.name, navigationContext(session.activeDataSource.projectName, session.clusterPageInfo.selectedClusterPath));
+                                if (intent) { connector.send({ to: moduleConfig.name, event: intent.event, body: intent.body }); }
+                            }
+                        }} />;
+                }
+                return isMemoryApplication(moduleConfig.name)
                     ? <MemoryApplicationFrame key={moduleConfig.name} application={moduleConfig.name}
                         visible={activeModule === moduleConfig.name}
                         attributes={moduleConfig.attributes}
@@ -355,8 +386,8 @@ const Index = observer(({ session }: {session: Session}) => {
                                 name={moduleConfig.name}
                                 style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
                             />
-                        ),
-            )}
+                        );
+            })}
         </div>
     </Container>;
 });

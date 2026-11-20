@@ -15,6 +15,8 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { clusterNavigation, navigationContext } from '@/cluster/navigation';
+import { clusterView } from '@/cluster/viewVersion';
 import { runInAction } from 'mobx';
 import { store } from '@/store';
 import type { CardInfo, Session } from '@/entity/session';
@@ -165,6 +167,9 @@ export const switchModuleHandler = (e: NotificationMessage): void => {
         session.actionListener = { type: SessionAction.SWITCH_ACTIVE_MODULE, value: moduleName };
     });
     if (body.toModuleEvent !== undefined) {
+        if (clusterView.versionFor(session) === 'modern' && moduleName === 'Communication' &&
+            ['locateCommunication', 'viewCommunicationDurationAnalysis'].includes(body.toModuleEvent) &&
+            clusterNavigation.defer(moduleName, { context: navigationContext(session.activeDataSource.projectName, session.clusterPageInfo.selectedClusterPath), event: body.toModuleEvent, body: (body.params ?? {}) as Record<string, unknown> })) { return; }
         // 向目标模块发送消息
         connector.send({
             event: body.toModuleEvent,

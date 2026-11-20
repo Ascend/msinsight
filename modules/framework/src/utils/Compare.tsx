@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { clusterView } from '@/cluster/viewVersion';
 import { message as Message } from 'antd';
 import { runInAction } from 'mobx';
 import i18n from '@insight/lib/i18n';
@@ -64,14 +65,26 @@ export const sendTabRemoveBaseline = function(dataSource: any, singleDataPath: s
 };
 
 /**
- * 设置基线数据
- * @param projectName 工程名
- * @param fileType 文件类型
- * @param filePath 路径
- * @param baselineClusterPath 基线项目的集群路径
- * @param selectedClusterPath 当前选中项目的集群路径
+ * 设置基线数据，处理新版限制并在请求结束后释放版本切换锁。
+ * @param params 基线工程、文件及当前集群上下文
  */
-export const setBaselineData = async ({ projectName, fileType, filePath, rankId, baselineClusterPath, currentClusterPath }: ClusterFile): Promise<void> => {
+export const setBaselineData = async (params: ClusterFile): Promise<void> => {
+    const session = store.sessionStore.activeSession;
+    const { fileType } = params;
+    // Reject cluster comparisons before changing an existing baseline (rank comparisons stay available).
+    if (clusterView.versionFor(session) === 'modern' && (fileType === 'PROJECT' || fileType === 'CLUSTER')) {
+        Message.warning(i18n.t('clusterView.compareUnavailable', { ns: 'framework' }));
+        return;
+    }
+    clusterView.setComparisonPending(true);
+    try {
+        await applyBaselineData(params);
+    } finally {
+        clusterView.setComparisonPending(false);
+    }
+};
+
+const applyBaselineData = async ({ projectName, fileType, filePath, rankId, baselineClusterPath, currentClusterPath }: ClusterFile): Promise<void> => {
     const session = store.sessionStore.activeSession;
     // 取消原来的基线数据
     await cancelBaselineData();
@@ -85,6 +98,11 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
     if (notNull(result.errorMessage) || notNull(result?.error?.code)) {
         Message.warning(result.errorMessage as string ?? result.error?.code);
     } else if (isClusterCompare) {
+        if (clusterView.versionFor(session) === 'modern') {
+            await cancelBaseline({ projectName, filePath });
+            Message.warning(i18n.t('clusterView.compareUnavailable', { ns: 'framework' }));
+            return;
+        }
         handleClusterCompare({ projectName, fileType, filePath, ...result } as CompareData);
     } else {
         const { rankId: resultRankId, cardId: resultCardId, dbPath, cardName, host, isFtrace } = result as CompareData;
@@ -203,6 +221,10 @@ const getFtraceType = (files: FileOrDirectory[], filePath: string, rankId?: stri
 export const setCompareData = ({ projectName, fileType, filePath, rankId }: File): void => {
     const session = store.sessionStore.activeSession;
     const { activeDataSource } = session;
+    if (clusterView.versionFor(session) === 'modern' && (fileType === 'PROJECT' || fileType === 'CLUSTER')) {
+        Message.warning(i18n.t('clusterView.compareUnavailable', { ns: 'framework' }));
+        return;
+    }
     if (projectName !== activeDataSource.projectName) {
         Message.warning(i18n.t('Set Comparsion Data Out Of Range', { ns: 'framework' }));
         return;
