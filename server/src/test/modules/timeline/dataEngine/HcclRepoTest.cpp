@@ -602,7 +602,8 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfo) {
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
     const std::string expectArgs =
-        "{\"notifyId\":\"0\",\"streamId\":\"16\",\"taskId\":\"3730\",\"contextId\":\"4294967295\",\"taskType\":"
+        "{\"notifyId\":\"9223372036854775807\",\"streamId\":\"16\",\"taskId\":\"3730\","
+        "\"contextId\":\"4294967295\",\"taskType\":"
         "\"kkkk\",\"srcRank\":\"1\",\"dstRank\":\"2\",\"transportType\":\"LOCAL\",\"size(Byte)\":\"40\",\"dataType\":"
         "\"INT16\","
         "\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
@@ -676,7 +677,8 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoWithGroupInfo) {
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
     const std::string expectArgs =
-        "{\"notifyId\":\"0\",\"streamId\":\"16\",\"taskId\":\"3730\",\"contextId\":\"4294967295\",\"taskType\":"
+        "{\"notifyId\":\"9223372036854775807\",\"streamId\":\"16\",\"taskId\":\"3730\","
+        "\"contextId\":\"4294967295\",\"taskType\":"
         "\"kkkk\",\"srcRank\":\"1\",\"dstRank\":\"2\",\"globalSrcRank\":\"5\",\"globalDstRank\":\"6\","
         "\"transportType\":\"LOCAL\",\"size(Byte)\":\"40\",\"dataType\":"
         "\"INT16\",\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
@@ -766,8 +768,8 @@ TEST_F(PlaneDetailCompatibilityTest, MissingOptionalFieldsPreserveDetailsAndQuer
         "DROP TABLE COMMUNICATION_TASK_INFO;"
         "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER,taskType INTEGER,srcRank INTEGER,"
         "dstRank INTEGER,transportType INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,"
-        "rdmaType INTEGER,groupName INTEGER);"
-        "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,0,1,2,0,1024,0,0,0,7);"));
+        "rdmaType INTEGER,groupName INTEGER,notifyId INTEGER);"
+        "INSERT INTO COMMUNICATION_TASK_INFO VALUES(1,0,1,2,0,1024,0,0,0,7,NULL);"));
     TrackInfoManager::Instance().UpdateDeviceMap(rank, {{rank, "0"}});
     HcclRepo repo;
     SliceQuery query;
@@ -780,6 +782,10 @@ TEST_F(PlaneDetailCompatibilityTest, MissingOptionalFieldsPreserveDetailsAndQuer
     EXPECT_NE(slice.args.find("\"streamId\":\"999\""), std::string::npos);
     EXPECT_NE(slice.args.find("\"size(Byte)\":\"1024\""), std::string::npos);
     EXPECT_NE(slice.args.find("\"bandwidth(GB/s)\":\"\""), std::string::npos);
+    EXPECT_NE(slice.args.find("\"notifyId\":\"0\""), std::string::npos);
+    ASSERT_TRUE(database->ExecSql("UPDATE COMMUNICATION_TASK_INFO SET notifyId=8590131252;"));
+    ASSERT_TRUE(repo.QuerySliceDetailInfo(query, slice));
+    EXPECT_NE(slice.args.find("\"notifyId\":\"8590131252\""), std::string::npos);
     ASSERT_TRUE(database->ExecSql("INSERT INTO STRING_IDS VALUES(0,'');"));
     ASSERT_TRUE(repo.QuerySliceDetailInfo(query, slice));
     EXPECT_TRUE(slice.name.empty());
