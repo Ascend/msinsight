@@ -90,6 +90,7 @@ export interface ConnectHost {
 }
 
 export interface FileOrDirectory {
+    projectType?: ProjectType;
     type?: LayerType;
     name: string;
     path: string;

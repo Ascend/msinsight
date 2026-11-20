@@ -67,6 +67,7 @@ export const transformFile = (tree: ImportTreeInfo | undefined, depth: number): 
         case 'CLUSTER':
             result = [{
                 type: tree.type,
+                projectType: tree.projectType,
                 name: tree.fileDir,
                 path: tree.filePath,
                 children: tree.children.map((child) => transformFile(child, depth + 1))

@@ -16,6 +16,8 @@
  * -------------------------------------------------------------------------
  */
 import { customConsole as console } from '../utils/Console';
+import { RequestChannel, type FetchParams } from './RequestChannel';
+export { RequestChannel } from './RequestChannel';
 
 type ReservedEventHandler = 'request';
 type EventHanlder = string;
@@ -29,7 +31,6 @@ type ListenerCallback = (res: MessageEvent) => void;
 export interface ListenerHandler { event: EventHanlder; sequence: number }
 type TargetWindow = Window;
 type GetTragetWindows = () => TargetWindow[];
-type SendTargetKey = number | string;
 abstract class BaseConnector {
     protected readonly _errMsgType = 'postMessage';
     protected invalidFunc: null | (() => void) = null;
@@ -146,22 +147,9 @@ abstract class BaseConnector {
     protected abstract awaitFetch(e: MessageEvent): void;
 }
 
-type FetchSequenceID = number;
-
-interface FetchParams {
-    [x: string]: unknown;
-    event?: never;
-}
-interface FetchRequest {
-    [x: string]: any;
-    event: 'request';
-    from: SendTargetKey;
-    id: FetchSequenceID;
-}
 export class ClientConnector extends BaseConnector {
     protected readonly _level: string = 'client';
-    private readonly _msgSequence: Map<FetchSequenceID, { resolve: (value: unknown) => void; reject: (value: unknown) => void }> = new Map();
-    private _curFetchSequenceID: FetchSequenceID = 0;
+    private readonly requests = new RequestChannel((message, onError) => this.send<string>(message, onError));
     private readonly _module: string;
 
     constructor({
@@ -180,27 +168,12 @@ export class ClientConnector extends BaseConnector {
         super.send(body, reject);
     }
 
-    async fetch(params: FetchParams): Promise<unknown> {
-        return new Promise((resolve, reject) => {
-            params.id = this._curFetchSequenceID;
-            (params as Record<string, unknown>).event = 'request';
-            const body = params as unknown as SendParams<string>;
-            this.send(body, reject);
-            this._msgSequence.set(this._curFetchSequenceID++, { resolve, reject });
-        });
-    };
+    fetch(params: FetchParams, signal?: AbortSignal): Promise<unknown> {
+        return this.requests.fetch(params, signal);
+    }
 
-    protected awaitFetch(res: MessageEvent<FetchRequest>): void {
-        const result = this._msgSequence.get(res.data.id);
-        if (result !== undefined) {
-            const { resolve, reject } = result;
-            if (res.data.body?.error !== null && res.data.body?.error !== undefined) {
-                reject(res.data.body.error);
-            } else {
-                resolve(res.data);
-            }
-            this._msgSequence.delete(res.data.id);
-        }
+    protected awaitFetch(res: MessageEvent): void {
+        this.requests.receive(res.data);
     }
 
     protected getFrameWindow(): TargetWindow {
@@ -218,6 +191,7 @@ export class ServerConnector extends BaseConnector {
     protected readonly _sendBefore?: <T extends EventHanlder>(body: SendParams<T>) => SendParams<T>;
     protected readonly _level: string = 'server';
     private _responseForFetch: Response | null = null;
+    private readonly frameInstances = new WeakMap<Window, symbol>();
 
     constructor({ getInterceptorHandlers, sendBefore }: {
         getTargetWindow?: GetTragetWindows;
@@ -231,6 +205,19 @@ export class ServerConnector extends BaseConnector {
 
     registerAwaitFetch(callback: Response): void {
         this._responseForFetch = callback;
+    }
+
+    // A slow backend operation must not keep a removed iframe alive while waiting for its reply.
+    private frameInstance(name: string): symbol | undefined {
+        if (!name) { return undefined; }
+        const [frame] = this.getClientWindows(name);
+        if (!frame) { return undefined; }
+        let instance = this.frameInstances.get(frame);
+        if (!instance) {
+            instance = Symbol(name);
+            this.frameInstances.set(frame, instance);
+        }
+        return instance;
     }
 
     send<T extends EventHanlder>(body: SendParams<T>, reject?: (err: Error) => void): void {
@@ -247,7 +234,9 @@ export class ServerConnector extends BaseConnector {
             console.error(this.printErrMsg(errMsg));
             return;
         }
+        const instance = this.frameInstance(event.data.from);
         const res = await this._responseForFetch(event);
+        if (instance !== this.frameInstance(event.data.from)) { return; }
         // 判断是否对该命令的返回内容进行了拦截配置，如果有配置，则先执行拦截方法逻辑
         const callback = this._getInterceptorHandlers(event.data.args.command);
         if (typeof callback === 'function') {

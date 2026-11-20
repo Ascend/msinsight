@@ -15,35 +15,33 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { ClientConnector } from '../connection';
+import type { ClientConnector } from '../connection';
 import { errorCenter, WsError } from './ErrorCenter';
-import { createSmartDebounceRequestFunc } from './createSmartDebounceRequestFunc';
+import { createSmartDebounceRequestFunc, type DebouncedRequestFunc } from './createSmartDebounceRequestFunc';
 
 export interface RequestOptions {
     silent?: boolean; // 不显示报错信息
+    signal?: AbortSignal; // 取消本次请求的前端等待，不终止后端计算
 }
+type RequestData<Options = RequestOptions> = (command: string, params: any, module?: string, options?: Options) => Promise<any>;
 
 /**
  * 创建请求方法
  * @param connector 各模块的 connector 实例
  */
-export function createRequest(connector: ClientConnector) {
-    return async (
-        command: string,
-        params: any,
-        module?: string,
-        options?: RequestOptions,
-    ): Promise<any> => {
+export function createRequest(connector: Pick<ClientConnector, 'fetch'>): RequestData {
+    return async (command, params, module, options) => {
         try {
             const data = await connector.fetch({
                 args: { command, params },
                 module: module !== undefined ? module : String(command).split('/')[0]?.toLowerCase(),
-            });
+            }, options?.signal);
 
             return (data as any)?.body;
         } catch (error: any) {
-            const wsError = new WsError(error.code, error.message);
-            if (!options?.silent && error.code < 9000) {
+            if (error?.name === 'AbortError') { throw error; }
+            const wsError = new WsError(error?.code, error?.message ?? String(error?.code ?? error));
+            if (!options?.silent && error?.code < 9000) {
                 errorCenter.handleError(wsError);
             }
 
@@ -65,10 +63,10 @@ export function createDebounceRequest(
         delay?: number;
         leading?: boolean;
     },
-) {
+): DebouncedRequestFunc<RequestData<Pick<RequestOptions, 'silent'>>> {
     const request = createRequest(connector);
     const debounced = createSmartDebounceRequestFunc(
-        async (command: string, params: any, module?: string, options?: RequestOptions) => {
+        async (command: string, params: any, module?: string, options?: Pick<RequestOptions, 'silent'>) => {
             return request(command, params, module, options);
         },
         {

@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import {
+    selectClusterHandler,
     deleteCardHandler,
     getParseStatusHandler,
     getThemeHandler,
@@ -52,6 +53,7 @@ const PARSE_CLUSTER_COMPLETED = 'frame:parseClusterCompleted';
 const PARSE_CLUSTER_STEP2_COMPLETED = 'frame:parseClusterDurationCompleted';
 
 export const listenerMap: Record<string, ListenerCallback> = {
+    'clusterPage/selectCluster': selectClusterHandler,
     updateSession: updateSessionHandler,
     getParseStatus: getParseStatusHandler,
     getTheme: getThemeHandler,

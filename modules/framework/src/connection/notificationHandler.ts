@@ -29,6 +29,7 @@ import {
 import { NotificationMessage } from './notification';
 import { SessionAction } from '@/utils/enum';
 import { customConsole as console } from '@insight/lib/utils';
+import { selectedClusterContext } from '@/cluster/selection';
 
 export const updateSessionHandler = (e: NotificationMessage): void => {
     const session = store.sessionStore.activeSession;
@@ -209,4 +210,13 @@ export const clusterDurationCompletedHandler = (e: any): void => {
             body: session.clusterPageInfo,
         });
     });
+};
+
+export const selectClusterHandler = (event: NotificationMessage): void => {
+    if (!['Summary', 'Communication'].includes(event.data.from ?? '')) { return; }
+    const session = store.sessionStore.activeSession;
+    const next = selectedClusterContext(session.clusterPageInfo, session.activeDataSource.projectName, event.data.body);
+    if (!next) { return; }
+    runInAction(() => { session.clusterPageInfo = next; });
+    connector.send({ event: 'updateClusterPageInfo', body: next });
 };
