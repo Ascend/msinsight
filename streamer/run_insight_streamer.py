@@ -62,11 +62,8 @@ def run_command(command, check=True):
 
 
 def parse_version_parts(tag):
-    """Extract numeric parts from an image tag so tags can be sorted approximately by version."""
-    numbers = [int(part) for part in re.findall(r"\d+", tag)]
-    if not numbers:
-        return (-1, tag)
-    return (*numbers, tag)
+    """Build a sortable key: numeric parts compare first, then the raw tag as a stable tie-breaker."""
+    return tuple(int(part) for part in re.findall(r"\d+", tag)), tag
 
 
 def image_matches(repository):
