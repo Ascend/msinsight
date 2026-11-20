@@ -304,7 +304,6 @@
     "actionDetails": "命令与参数",
     "actionNeedsChoice": "还需要补充信息以确定操作目标。请告诉助手你要操作的具体目标，并重新生成操作按钮。",
     "actionFailed": "操作失败：{{error}}",
-    "actionModuleNotActive": "当前页面没有该功能，请切换到 {{module}} 页面后使用。",
     "allowFileRead": "允许读取文件？",
     "allowBashCommand": "允许运行 Bash 命令？",
     "allowToolUse": "允许使用工具？",

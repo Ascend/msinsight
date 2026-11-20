@@ -120,8 +120,9 @@ export const parseFailHandler: NotificationInterceptor<{ rankId?: string; error?
     if (!/\.(pickle|pkl)$/i.test(fileId) || !isActiveDataSourceFile(fileId)) {
         return;
     }
+    const error = data.error?.trim() ?? '';
     updateSession({
-        memSnapshotParseFailure: { fileId, error: data.error?.trim() || 'Failed to parse snapshot data.' },
+        memSnapshotParseFailure: { fileId, error: error.length > 0 ? error : 'Failed to parse snapshot data.' },
         memSnapshotParseFileId: fileId,
         memSnapshotParseLoading: false,
         memSnapshotParseProgress: 0,

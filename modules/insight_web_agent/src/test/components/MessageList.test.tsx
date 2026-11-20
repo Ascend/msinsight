@@ -21,15 +21,16 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { themeInstance } from '@insight/lib/theme';
-import i18n from '@insight/lib/i18n';
 import { COMMAND_ERROR_CODES, CommandError } from '@insight/lib/FrontendAgentCommand';
 import { ActionBlock } from '../../components/ActionBlock';
 import type { ChatMessage } from '../../types';
 
 const mockExecuteFrontendCommand = jest.fn();
+const mockCancelFrontendCommand = jest.fn();
 
 jest.mock('../../bridge/frontendAgentCommandTransport', () => ({
     executeFrontendCommand: (...args: unknown[]) => mockExecuteFrontendCommand(...args),
+    cancelFrontendCommand: (...args: unknown[]) => mockCancelFrontendCommand(...args),
 }));
 
 jest.mock('react-markdown', () => ({
@@ -123,6 +124,7 @@ const actionXml = (blockId: number): string => `<insight-action>
 
 beforeEach(() => {
     mockExecuteFrontendCommand.mockReset();
+    mockCancelFrontendCommand.mockReset();
 });
 
 const MockMarkdown = ({ text }: { text: string }): JSX.Element => {
@@ -526,68 +528,133 @@ test('a failed repeat clears a previous successful execution', async () => {
     expect(mockExecuteFrontendCommand.mock.calls.map(([command]) => command)).toEqual(['help', 'observe', 'help', 'observe', 'help']);
 });
 
-describe('action module availability diagnostics', () => {
-    beforeEach(async () => {
-        await i18n.changeLanguage('zhCN');
+describe('cross-page action confirmation', () => {
+    const action = {
+        actionId: 'cross-page', label: 'Block #123', description: 'Highlight block #123.',
+        command: 'MemScope.lifecycleGraph.selectBlock', args: { blockId: 123 },
+    };
+    const definition = {
+        name: action.command, title: 'Select memory block', description: 'Select one block in the lifecycle graph.',
+        inputSchema: { type: 'object' },
+    };
+    const inactive = (details = {}, code: string = COMMAND_ERROR_CODES.UNAVAILABLE): CommandError => new CommandError({
+        code, message: 'Original command failure', retryable: true,
+        details: {
+            reason: 'module_not_active', command: action.command, targetModule: ' MemScope ', activeModule: 'Timeline',
+            commandDefinition: definition, ...details,
+        },
     });
-
-    afterEach(async () => {
-        await i18n.changeLanguage('enUS');
-    });
-
-    test.each([
-        ['preflight', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', ' MemScope ', true],
-        ['execution', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', 'MemScope', true],
-        ['preflight', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_registered', 'MemScope', false],
-        ['execution', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_registered', 'MemScope', false],
-        ['preflight', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', '', false],
-        ['execution', COMMAND_ERROR_CODES.UNAVAILABLE, 'module_not_active', '   ', false],
-        ['preflight', COMMAND_ERROR_CODES.NOT_FOUND, 'module_not_active', 'MemScope', false],
-        ['execution', COMMAND_ERROR_CODES.NOT_FOUND, 'module_not_active', 'MemScope', false],
-    ] as const)('%s handles %s / %s / "%s" without automatic navigation or retry', async (stage, code, reason, targetModule, showSwitchHint) => {
-        const error = new CommandError({
-            code,
-            message: 'Original command failure',
-            retryable: true,
-            details: { reason, targetModule, activeModule: 'Timeline' },
+    const calls = (): unknown[][] => mockExecuteFrontendCommand.mock.calls.map(([command, args]) => [command, args]);
+    const approveAction = async (): Promise<void> => {
+        await userEvent.click(await screen.findByRole('button', { name: 'Approve and run' }));
+    };
+    const succeeded = async (): Promise<void> => { await screen.findByText('Action completed.'); };
+    const switchResult = { activeModule: 'MemScope' };
+    const helpResult = { command: definition };
+    const queue = (...results: unknown[]): void => {
+        results.forEach(result => {
+            if (result instanceof Error) mockExecuteFrontendCommand.mockRejectedValueOnce(result);
+            else mockExecuteFrontendCommand.mockResolvedValueOnce(result);
         });
-        if (stage === 'execution') {
-            mockExecuteFrontendCommand.mockResolvedValueOnce({
-                command: {
-                    name: 'MemScope.lifecycleGraph.selectBlock',
-                    title: 'Select memory block',
-                    description: 'Select one block in the lifecycle graph.',
-                    inputSchema: { type: 'object' },
-                },
-            });
-        }
-        mockExecuteFrontendCommand.mockRejectedValueOnce(error);
-        render(<MessageList
-            messages={[{
-                id: 'assistant-inactive-action',
-                role: 'assistant',
-                content: [{ id: 'text-1', type: 'text', text: actionXml(123) }],
-            }]}
-            onPermissionDecision={noopPermissionDecision}
-            pendingPrompt={false}
-        />);
+    };
+    const mount = async (value = action) => {
+        const view = render(<ActionBlock action={value} />);
+        await userEvent.click(screen.getByRole('button', { name: action.label }));
+        const approve = await screen.findByRole('button', { name: 'Approve and run' });
+        return { ...view, approve };
+    };
+    const run = async (): Promise<void> => {
+        const { approve } = await mount();
+        await userEvent.click(approve);
+    };
 
-        await userEvent.click(screen.getByRole('button', { name: 'Block #123' }));
-        if (stage === 'execution') {
-            await userEvent.click(await screen.findByRole('button', { name: String(i18n.t('actionApprove', { ns: 'insightWebAgent' })) }));
-        }
-
-        const switchHint = '当前页面没有该功能，请切换到 MemScope 页面后使用。';
-        expect(await screen.findByText(showSwitchHint ? switchHint : '操作失败：Original command failure')).toBeInTheDocument();
-        if (!showSwitchHint) expect(screen.queryByText(switchHint)).not.toBeInTheDocument();
-        expect(document.querySelector('.action-approval-title')).not.toBeInTheDocument();
-        // A failure only reports the target page: it must not switch modules or dispatch/retry the target automatically.
-        expect(mockExecuteFrontendCommand.mock.calls.map(([command, args]) => [command, args])).toEqual(
-            stage === 'preflight'
-                ? [['help', { command: 'MemScope.lifecycleGraph.selectBlock' }]]
-                : [['help', { command: 'MemScope.lifecycleGraph.selectBlock' }], ['MemScope.lifecycleGraph.selectBlock', { blockId: 123 }]],
-        );
+    test('one inline approval freezes arguments, waits for navigation and excludes double clicks', async () => {
+        let finishSwitch!: (value: unknown) => void;
+        queue(inactive(), new Promise(resolve => { finishSwitch = resolve; }), helpResult, {});
+        const mutableAction = { ...action, args: { ...action.args } };
+        const { approve } = await mount(mutableAction);
+        mutableAction.args.blockId = 456;
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.getByText(definition.title)).toBeInTheDocument();
+        expect(screen.getByText(/"blockId": 123/)).toBeInTheDocument();
+        act(() => {
+            fireEvent.click(approve);
+            fireEvent.click(approve);
+        });
+        expect(calls()).toEqual([['help', { command: action.command }], ['framework.switchModule', { moduleId: 'MemScope' }]]);
+        expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+        await act(async () => { finishSwitch(switchResult); });
+        await succeeded();
+        expect(calls().slice(2)).toEqual([['help', { command: action.command }], [action.command, { blockId: 123 }]]);
+        expect(screen.queryByRole('button', { name: 'Approve and run' })).not.toBeInTheDocument();
     });
+
+    test('changed definition after navigation renews approval', async () => {
+        queue(inactive(), switchResult, { command: { ...definition, title: 'Changed capability' } }, {});
+        await run();
+        expect(await screen.findByText('Changed capability')).toBeInTheDocument();
+        expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(3);
+        await approveAction();
+        await succeeded();
+        expect(calls()[3]).toEqual([action.command, action.args]);
+    });
+
+    test('does not retry repeated inactive errors indefinitely', async () => {
+        queue(helpResult, inactive(), switchResult, helpResult, inactive());
+        await run();
+        await screen.findByText('Action failed: Original command failure');
+        expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(5);
+    });
+
+    test('execution-stage inactive recovers without a second approval', async () => {
+        queue(helpResult, inactive({ commandDefinition: undefined }), switchResult, helpResult, {});
+        await run();
+        await succeeded();
+        expect(calls()).toEqual([
+            ['help', { command: action.command }], [action.command, action.args],
+            ['framework.switchModule', { moduleId: 'MemScope' }], ['help', { command: action.command }], [action.command, action.args],
+        ]);
+        expect(screen.queryByRole('button', { name: 'Approve and run' })).not.toBeInTheDocument();
+    });
+
+    test('successful repeat reuses cross-page consent', async () => {
+        let finishSwitch!: (value: unknown) => void;
+        queue(inactive(), switchResult, helpResult, {}, inactive(), new Promise(resolve => { finishSwitch = resolve; }), helpResult, {});
+        await run();
+        await succeeded();
+        const firstRunCalls = calls().length;
+        await userEvent.click(screen.getByRole('button', { name: action.label }));
+        await waitFor(() => expect(calls().slice(firstRunCalls)).toEqual([
+            ['help', { command: action.command }], ['framework.switchModule', { moduleId: 'MemScope' }],
+        ]));
+        expect(screen.queryByRole('button', { name: 'Approve and run' })).not.toBeInTheDocument();
+        await act(async () => { finishSwitch(switchResult); });
+        await succeeded();
+        expect(calls().slice(firstRunCalls + 2)).toEqual([['help', { command: action.command }], [action.command, action.args]]);
+    });
+
+    test.each(['replace', 'unmount'])('discards pending navigation after action %s', async change => {
+        let finish!: (value: unknown) => void;
+        queue(inactive(), new Promise(resolve => { finish = resolve; }));
+        const { rerender, unmount } = await mount();
+        await approveAction();
+        const requestId = mockExecuteFrontendCommand.mock.calls[1][2];
+        if (change === 'unmount') unmount();
+        else rerender(<ActionBlock action={{ ...action, args: { blockId: 456 } }} />);
+        await act(async () => { finish(switchResult); });
+        expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(2);
+        expect(mockCancelFrontendCommand).toHaveBeenCalledWith(requestId);
+    });
+
+    test.each([inactive({ command: 'Other.command' }), inactive({}, COMMAND_ERROR_CODES.NOT_FOUND)])(
+        'does not navigate for an untrusted inactive diagnostic: %j', async error => {
+            queue(error);
+            render(<ActionBlock action={action} />);
+            await userEvent.click(screen.getByRole('button', { name: action.label }));
+            await screen.findByText('Action failed: Original command failure');
+            expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(1);
+        },
+    );
 });
 
 test('hides an unclosed action while streaming and shows it literally after completion', () => {

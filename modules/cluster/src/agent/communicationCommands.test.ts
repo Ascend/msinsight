@@ -1,19 +1,20 @@
+import { waitFor } from '@testing-library/react';
 import type { CommandDefinition, CommandHandler, JsonObject } from '@insight/lib/FrontendAgentCommand';
 import type { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandClient';
-import { AnalysisType, defaultCondition, updateData } from '../components/communication/Filter';
+import { AnalysisType, defaultCondition, prepareAnalysisType } from '../components/communication/Filter';
 import { getSlowRankList, queryTimelineUnitKernelDetail } from '../utils/RequestUtils';
 import type { Session } from '../entity/session';
 import connector from '../connection';
 import eventBus from '../utils/eventBus';
 import {
     registerCommunicationCommands, setCommunicationAgentState, setCommunicationAgentSession,
-    updateCommunicationPageState, observeCommunication,
+    updateCommunicationPageState, observeCommunication, registerCommunicationChartConsumer,
 } from './communicationController';
 
 jest.mock('../components/communication/Filter', () => ({
     AnalysisType: { COMMUNICATION_MATRIX: 'CommunicationMatrix', COMMUNICATION_DURATION_ANALYSIS: 'CommunicationDurationAnalysis' },
     defaultCondition: { type: 'CommunicationMatrix', stage: 'stage-one' },
-    updateData: jest.fn(),
+    prepareAnalysisType: jest.fn(),
 }));
 jest.mock('../utils/RequestUtils', () => ({
     ...jest.requireActual<typeof import('../utils/RequestUtils')>('../utils/RequestUtils'),
@@ -37,9 +38,13 @@ const client = {
     },
 } as ModuleAgentCommandClient;
 
-const invoke = (name: string, args: JsonObject = {}): Promise<unknown> => Promise.resolve().then(() => handlers.get(name)?.(args, {
-    requestId: 'test-request', deadline: Date.now() + 5000, signal: new AbortController().signal,
+const invoke = (name: string, args: JsonObject = {}, signal = new AbortController().signal): Promise<unknown> => Promise.resolve().then(() => handlers.get(name)?.(args, {
+    requestId: 'test-request', deadline: Date.now() + 5000, signal,
 }));
+const consumers: Array<() => void> = [];
+const chartConsumer = (session: Session, chart: ReturnType<typeof durationState>['chart']): void => {
+    consumers.push(registerCommunicationChartConsumer(session, chart, target => eventBus.emit('onClickSlowRankOp', target)));
+};
 
 const durationState = () => ({
     conditions: { ...defaultCondition, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS },
@@ -89,14 +94,18 @@ const publish = (state = durationState()) => {
         scope: { iterationId: null, baselineIterationId: null, stage: 'stage-one', pgName: null,
             groupIdHash: null, baselineGroupIdHash: null, operatorName: null }, selection: null,
     });
-    const published = { ...state, slowRanksContext: { result: state.slowRanks, session,
-        clusterPath: '/cluster', conditions: { ...state.conditions }, isCompare: false } };
+    const published = { ...state, adviceStatus: 'ready' as const, chartStatus: 'ready' as const,
+        slowRanksContext: { result: state.slowRanks, session,
+            clusterPath: '/cluster', conditions: { ...state.conditions }, isCompare: false },
+        chartContext: { result: state.chart, session, clusterPath: '/cluster', conditions: { ...state.conditions }, isCompare: false } };
     setCommunicationAgentState(published);
+    chartConsumer(session, state.chart);
     return { state: published, session };
 };
 
 beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(prepareAnalysisType).mockReset();
     handlers.clear();
     definitions.clear();
     setCommunicationAgentState(undefined);
@@ -104,6 +113,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    consumers.splice(0).forEach(dispose => dispose());
     setCommunicationAgentSession(undefined);
     setCommunicationAgentState(undefined);
 });
@@ -122,19 +132,7 @@ test.each([undefined, 'AllReduce'])('string wire IDs remain consistent through o
     });
     const result = await getSlowRankList({ ...state.conditions, isCompare: state.isCompare });
     expect(result).toBe(wire);
-    const session = {
-        clusterCompleted: true, durationFileCompleted: true, isCompare: false,
-        selectedClusterPath: '/cluster', unitcount: 1,
-    } as Session;
-    setCommunicationAgentSession(session);
-    updateCommunicationPageState({
-        analysisType: AnalysisType.COMMUNICATION_DURATION_ANALYSIS,
-        scope: { iterationId: null, baselineIterationId: null, stage: 'stage-one', pgName: null,
-            groupIdHash: null, baselineGroupIdHash: null, operatorName: null },
-        selection: null,
-    });
-    setCommunicationAgentState({ ...state, slowRanks: result,
-        slowRanksContext: { result, session, clusterPath: '/cluster', conditions: state.conditions, isCompare: false } });
+    const published = publish({ ...state, slowRanks: result });
     const advice = observeCommunication().slowRankAdvice as { fastRankId: string; ranks: Array<{ rankId: string; operators: Array<{ name: string }> }> };
     expect(advice).toMatchObject({ status: 'ready', fastRankId: '0', ranks: [{ rankId: '3' }] });
     const rankId = advice.ranks[0].rankId;
@@ -149,23 +147,95 @@ test.each([undefined, 'AllReduce'])('string wire IDs remain consistent through o
         params: expect.objectContaining({ rankId: '3', duration: 2000000, processId: 12, startTime: 0 }),
     }) }));
     // Membership is checked against the current chart, not just the advice rows.
-    setCommunicationAgentState({ ...state, slowRanks: result, chart: { ...state.chart, data: [] } });
+    const chart = { ...state.chart, data: [] };
+    setCommunicationAgentState({ ...published.state, chart, chartContext: { ...published.state.chartContext, result: chart } });
     await expect(invoke('Communication.highlightSlowRank', args)).rejects.toThrow('not available in the current communication chart');
     await expect(invoke('Communication.highlightSlowRank', { rankId, operatorName: 'Missing' })).rejects.toThrow('not in the current advice');
 });
 
-test('registers three discoverable commands and switches the active analysis without dropping filters', async () => {
-    expect([...definitions.keys()]).toEqual([
-        'Communication.switchAnalysis', 'Communication.highlightSlowRank', 'Communication.locateInTimeline',
-    ]);
-    setCommunicationAgentState({ ...durationState(), conditions: { ...defaultCondition, type: AnalysisType.COMMUNICATION_MATRIX } });
-    await invoke('Communication.switchAnalysis', { type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS });
-    expect(updateData).toHaveBeenCalledWith({ ...defaultCondition, type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS });
+const showView = (state: ReturnType<typeof publish>['state']): void => {
+    setCommunicationAgentState(state);
+    updateCommunicationPageState({ analysisType: state.conditions.type, scope: state.conditions, selection: null });
+};
+const showMatrix = (state: ReturnType<typeof publish>['state']): void => {
+    showView({ ...state, conditions: { ...state.conditions, type: AnalysisType.COMMUNICATION_MATRIX } });
+};
+
+test('switches normalized analysis without waiting for business results', async () => {
+    expect([...definitions.keys()]).toEqual(['Communication.switchAnalysis', 'Communication.highlightSlowRank', 'Communication.locateInTimeline']);
+    const { state } = publish();
+    consumers.splice(0).forEach(dispose => dispose());
+    showMatrix(state);
+    jest.mocked(prepareAnalysisType).mockImplementation(async () => {
+        setCommunicationAgentState({ ...state, adviceStatus: 'pending', chartStatus: 'pending' });
+        updateCommunicationPageState({ analysisType: state.conditions.type, scope: state.conditions, selection: null });
+        return state.conditions;
+    });
+    await expect(invoke('Communication.switchAnalysis', { type: state.conditions.type })).resolves.toEqual({ analysisType: state.conditions.type });
+    expect(prepareAnalysisType).toHaveBeenCalledWith(state.conditions.type, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(eventBus.emit).not.toHaveBeenCalled();
     await expect(invoke('Communication.switchAnalysis', { type: 'unknown' })).rejects.toThrow('type must be');
 });
 
+test.each(['highlightSlowRank', 'locateInTimeline'])('does not execute %s when preparation fails', async command => {
+    const { state } = publish();
+    showMatrix(state);
+    jest.mocked(prepareAnalysisType).mockRejectedValue(new Error('Filter options failed'));
+    await expect(invoke(`Communication.${command}`, target)).rejects.toThrow('Filter options failed');
+    expect(queryTimelineUnitKernelDetail).not.toHaveBeenCalled();
+    expect(connector.send).not.toHaveBeenCalled();
+    expect(eventBus.emit).not.toHaveBeenCalled();
+});
+
+test('prepares Duration and waits for the parent, data and chart before highlighting', async () => {
+    const { state, session } = publish();
+    consumers.splice(0).forEach(dispose => dispose());
+    showMatrix(state);
+    jest.mocked(prepareAnalysisType).mockResolvedValue(state.conditions);
+    const settled = jest.fn();
+    const pending = invoke('Communication.highlightSlowRank', target).then(settled);
+    await waitFor(() => expect(prepareAnalysisType).toHaveBeenCalledWith(AnalysisType.COMMUNICATION_DURATION_ANALYSIS, expect.any(Object)));
+    expect(settled).not.toHaveBeenCalled();
+    setCommunicationAgentState({ ...state, adviceStatus: 'pending', chartStatus: 'pending' });
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+    updateCommunicationPageState({ analysisType: state.conditions.type, scope: state.conditions, selection: null });
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+    setCommunicationAgentState(state);
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+    chartConsumer(session, state.chart);
+    await pending;
+    expect(eventBus.emit).toHaveBeenCalledTimes(1);
+});
+
+test.each(['cancel', 'page-clear'])('prevents late execution after %s while preparing', async reason => {
+    const { state, session } = publish();
+    consumers.splice(0).forEach(dispose => dispose());
+    showMatrix(state);
+    jest.mocked(prepareAnalysisType).mockResolvedValue(state.conditions);
+    const abort = new AbortController();
+    const pending = invoke('Communication.highlightSlowRank', target, abort.signal);
+    const failure = expect(pending).rejects.toThrow();
+    await waitFor(() => expect(prepareAnalysisType).toHaveBeenCalled());
+    if (reason === 'cancel') abort.abort();
+    else setCommunicationAgentState(undefined);
+    await failure;
+    showView(state);
+    chartConsumer(session, state.chart);
+    expect(eventBus.emit).not.toHaveBeenCalled();
+});
+
+test.each(['advice', 'chart'])('rejects a failed %s resource without highlighting', async resource => {
+    const { state } = publish();
+    setCommunicationAgentState({ ...state, [`${resource}Status`]: 'error' });
+    await expect(invoke('Communication.highlightSlowRank', target)).rejects.toThrow('load');
+    expect(eventBus.emit).not.toHaveBeenCalled();
+});
+
 test('highlights an advised slow-rank operator', async () => {
-    setCommunicationAgentState(durationState());
+    publish();
     await expect(invoke('Communication.highlightSlowRank', { rankId: '7' })).rejects.toThrow('not in the current advice');
     expect(await invoke('Communication.highlightSlowRank', { rankId: '3' })).toEqual({ rankId: '3', operatorName: 'AllReduce' });
     expect(eventBus.emit).toHaveBeenCalledWith('onClickSlowRankOp', {
@@ -208,13 +278,14 @@ test('does not match rank 01 to rank 1 in advice or the rendered chart', async (
 });
 
 test.each([3, 0, '', null])('rejects non-string or empty rank identity %s', async rankId => {
-    setCommunicationAgentState(durationState());
+    publish();
     await expect(invoke('Communication.highlightSlowRank', { rankId })).rejects.toThrow('rankId must be a non-empty string');
     expect(eventBus.emit).not.toHaveBeenCalled();
 });
 
-test('navigates directly without selecting or highlighting an operator', async () => {
+test('navigates without a chart consumer or prior highlight', async () => {
     publish();
+    consumers.splice(0).forEach(dispose => dispose());
     (queryTimelineUnitKernelDetail as jest.Mock).mockResolvedValue({ pid: 12, startTime: 0, rankId: '3' });
     await invoke('Communication.locateInTimeline', target);
     expect(eventBus.emit).not.toHaveBeenCalled();
@@ -225,10 +296,42 @@ test('navigates directly without selecting or highlighting an operator', async (
             params: expect.objectContaining({ duration: 2000000, processId: 12, startTime: 0 }),
         }),
     }));
-    setCommunicationAgentState({ ...durationState(), conditions: { ...defaultCondition, type: AnalysisType.COMMUNICATION_MATRIX } });
-    await expect(invoke('Communication.locateInTimeline', target)).rejects.toThrow('Open Communication Duration Analysis');
+    expect(prepareAnalysisType).not.toHaveBeenCalled();
 });
 
+test('prepares Duration from Matrix before locating with the normalized data', async () => {
+    const { state } = publish();
+    consumers.splice(0).forEach(dispose => dispose());
+    showMatrix(state);
+    const conditions = { ...state.conditions, iterationId: '2' };
+    const chart = { ...state.chart, data: [{ ...state.chart.data[0], dbPath: '/data/normalized-rank3' }] };
+    const normalized = { ...state, conditions, chart,
+        slowRanksContext: { ...state.slowRanksContext, conditions },
+        chartContext: { ...state.chartContext, conditions, result: chart } };
+    let complete!: (value: typeof conditions) => void;
+    const preparation = new Promise<typeof conditions>(resolve => { complete = resolve; });
+    jest.mocked(prepareAnalysisType).mockReturnValueOnce(preparation);
+    jest.mocked(queryTimelineUnitKernelDetail).mockResolvedValue({ pid: 12, startTime: 0, rankId: '3' });
+
+    const pending = invoke('Communication.locateInTimeline', target);
+    await waitFor(() => expect(prepareAnalysisType).toHaveBeenCalledWith(
+        AnalysisType.COMMUNICATION_DURATION_ANALYSIS, expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    ));
+    expect(queryTimelineUnitKernelDetail).not.toHaveBeenCalled();
+    expect(connector.send).not.toHaveBeenCalled();
+    complete(conditions);
+    await preparation;
+    expect(queryTimelineUnitKernelDetail).not.toHaveBeenCalled();
+    setCommunicationAgentState({ ...normalized, adviceStatus: 'pending', chartStatus: 'pending' });
+    updateCommunicationPageState({ analysisType: conditions.type, scope: conditions, selection: null });
+    await Promise.resolve();
+    expect(queryTimelineUnitKernelDetail).not.toHaveBeenCalled();
+    showView(normalized);
+    await expect(pending).resolves.toEqual({ ...target, navigated: true });
+    expect(queryTimelineUnitKernelDetail).toHaveBeenCalledWith({ name: 'AllReduce', rankId: '3', dbPath: '/data/normalized-rank3' });
+    expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'switchModule', body: expect.objectContaining({ switchTo: 'timeline' }) }));
+    expect(eventBus.emit).not.toHaveBeenCalled();
+});
 
 test('publishes the explicit target schema and context requirement', () => {
     expect(definitions.get('Communication.locateInTimeline')).toMatchObject({
@@ -286,7 +389,7 @@ test('explicit targets ignore latest highlights including during pending details
     let complete!: (detail: unknown) => void;
     jest.mocked(queryTimelineUnitKernelDetail).mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }));
     const first = invoke('Communication.locateInTimeline', target);
-    await Promise.resolve();
+    await waitFor(() => expect(queryTimelineUnitKernelDetail).toHaveBeenCalledTimes(1));
     await invoke('Communication.highlightSlowRank', target);
     await invoke('Communication.highlightSlowRank', { rankId: '4' });
     complete({ pid: 12, startTime: 0, rankId: '3' });
@@ -309,7 +412,8 @@ test.each(['cancel', 'session', 'cluster', 'filter', 'state', 'target', 'chart',
         const pending = Promise.resolve().then(() => handlers.get('Communication.locateInTimeline')?.(target, {
             requestId: 'pending', deadline: Date.now() + 5000, signal: abort.signal,
         }));
-        await Promise.resolve();
+        const failure = expect(pending).rejects.toThrow();
+        await waitFor(() => expect(queryTimelineUnitKernelDetail).toHaveBeenCalledTimes(1));
         if (change === 'cancel') abort.abort();
         if (change === 'session') setCommunicationAgentSession({ ...session } as Session);
         if (change === 'cluster') session.selectedClusterPath = '/other';
@@ -323,7 +427,7 @@ test.each(['cancel', 'session', 'cluster', 'filter', 'state', 'target', 'chart',
             scope: { iterationId: null, baselineIterationId: null, stage: null, pgName: null,
                 groupIdHash: null, baselineGroupIdHash: null, operatorName: null }, selection: null });
         complete({ pid: 12, startTime: 0, rankId: '3' });
-        await expect(pending).rejects.toThrow();
+        await failure;
         expect(connector.send).not.toHaveBeenCalled();
     },
 );

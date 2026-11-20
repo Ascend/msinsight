@@ -119,8 +119,10 @@ export const addDataPath = async function(project: Project, action: ProjectActio
             connector.send({
                 event: 'updateSession',
                 body: {
-                    memSnapshotParseAttempt: parseAttempt, memSnapshotSourcePaths: sourcePaths,
-                    memSnapshotImportPending: true, memSnapshotParseFailure: null,
+                    memSnapshotParseAttempt: parseAttempt,
+                    memSnapshotSourcePaths: sourcePaths,
+                    memSnapshotImportPending: true,
+                    memSnapshotParseFailure: null,
                 },
             });
         }
@@ -141,7 +143,7 @@ export const addDataPath = async function(project: Project, action: ProjectActio
         // still run error handling, remote/import and project updates when their responses overlap.
         const hasMatchingFailure = parseAttempt === session.memSnapshotParseAttempt &&
             isFileInDataSource(project, session.memSnapshotParseFailure?.fileId ?? '');
-        const importedSnapshotFile = sourcePaths.find(isMemSnapshotFile) || findMemSnapshotFile(result?.children);
+        const importedSnapshotFile = sourcePaths.find(isMemSnapshotFile) ?? findMemSnapshotFile(result?.children);
         const isSnapshotImport = Boolean(importedSnapshotFile) || hasMatchingFailure;
         if (isSnapshotImport && parseAttempt !== undefined && parseAttempt !== session.memSnapshotParseAttempt) {
             return false;
@@ -182,7 +184,9 @@ export const addDataPath = async function(project: Project, action: ProjectActio
             const snapshotImportPending = session.memSnapshotImportPending;
             session.reset();
             session.memSnapshotParseFailure = parseFailure;
-            session.memSnapshotParseFileId = importedSnapshotFile || parseFailure?.fileId || '';
+            session.memSnapshotParseFileId = importedSnapshotFile.length > 0
+                ? importedSnapshotFile
+                : (parseFailure?.fileId ?? '');
             session.memSnapshotSourcePaths = snapshotSourcePaths;
             session.memSnapshotImportPending = snapshotImportPending;
         }
@@ -199,13 +203,17 @@ export const addDataPath = async function(project: Project, action: ProjectActio
         connector.send({
             event: 'remote/import',
             body: {
-                dataSource: transformTimelineDataSource(project), importResult: res, switchProject,
+                dataSource: transformTimelineDataSource(project),
+                importResult: res,
+                switchProject,
                 memSnapshotImportPending: session.memSnapshotImportPending,
-                ...(!isSnapshotImport || parseAttempt === undefined ? {} : {
-                    memSnapshotParseAttempt: parseAttempt,
-                    memSnapshotSourcePaths: session.memSnapshotSourcePaths,
-                    memSnapshotParseFailure: session.memSnapshotParseFailure,
-                }),
+                ...(!isSnapshotImport || parseAttempt === undefined
+                    ? {}
+                    : {
+                        memSnapshotParseAttempt: parseAttempt,
+                        memSnapshotSourcePaths: session.memSnapshotSourcePaths,
+                        memSnapshotParseFailure: session.memSnapshotParseFailure,
+                    }),
             },
             target: 'plugin',
         }); // 由于发送时页签应该只有 时间线、内存、算子 存在，所以这个事件只能被这三个页签收到

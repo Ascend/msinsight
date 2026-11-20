@@ -19,13 +19,19 @@ import styled from '@emotion/styled';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { COMMAND_ERROR_CODES, isCommandErrorShape } from '@insight/lib/FrontendAgentCommand';
-import { executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
+import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import type { ActionItem } from '../types';
 import { ActionApprovalCard, type ActionCommandDefinition } from './ActionApprovalCard';
 
 const COMMAND_TIMEOUT_MS = 30000;
 
 type ActionState = 'idle' | 'loading' | 'approval' | 'executing' | 'succeeded' | 'needsChoice' | 'failed';
+
+interface PendingApproval {
+    action: ActionItem;
+    definition: ActionCommandDefinition;
+    targetModule?: string;
+}
 
 const Container = styled.div`
     display: grid;
@@ -75,29 +81,56 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const busy = useRef(false);
     const mounted = useRef(true);
+    const pendingSwitch = useRef<string>();
     const approvedDefinition = useRef<string>();
     useEffect(() => {
         mounted.current = true;
-        return () => { mounted.current = false; };
+        return () => {
+            mounted.current = false;
+            if (pendingSwitch.current) cancelFrontendCommand(pendingSwitch.current);
+        };
     }, []);
     const [state, setState] = useState<ActionState>('idle');
-    const [definition, setDefinition] = useState<ActionCommandDefinition>();
+    const [pendingApproval, setPendingApproval] = useState<PendingApproval>();
     const [error, setError] = useState<string>();
-    const [targetModule, setTargetModule] = useState<string>();
     const reportError = (nextError: unknown): void => {
         approvedDefinition.current = undefined;
-        const module = isCommandErrorShape(nextError) && nextError.code === COMMAND_ERROR_CODES.UNAVAILABLE &&
-            nextError.details?.reason === 'module_not_active' ? nextError.details.targetModule : undefined;
-        setTargetModule(typeof module === 'string' && module.trim() ? module.trim() : undefined);
+        setPendingApproval(undefined);
         setError(errorMessage(nextError));
         setState('failed');
     };
-    const [frozenAction, setFrozenAction] = useState<ActionItem>();
+    const showApproval = (approval: PendingApproval): void => {
+        approvedDefinition.current = undefined;
+        setPendingApproval(approval);
+        setState('approval');
+    };
 
-    const execute = async (snapshot: ActionItem, fingerprint: string): Promise<void> => {
+    const execute = async (approval: PendingApproval): Promise<void> => {
+        const { action: snapshot, definition, targetModule } = approval;
         setState('executing');
         setError(undefined);
         try {
+            if (targetModule) {
+                pendingSwitch.current = crypto.randomUUID();
+                try {
+                    await executeFrontendCommand(
+                        'framework.switchModule',
+                        { moduleId: targetModule },
+                        pendingSwitch.current,
+                        Date.now() + COMMAND_TIMEOUT_MS,
+                    );
+                } finally {
+                    pendingSwitch.current = undefined;
+                }
+                if (!mounted.current) return;
+                const currentDefinition = await loadCommandDefinition(snapshot.command);
+                if (!mounted.current) return;
+                // 跨页授权只适用于已确认的定义，切换后必须重新核验。
+                if (JSON.stringify(currentDefinition) !== JSON.stringify(definition)) {
+                    showApproval({ action: snapshot, definition: currentDefinition });
+                    return;
+                }
+            }
             const commandResult = await executeFrontendCommand(
                 snapshot.command,
                 snapshot.args,
@@ -108,15 +141,15 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
             const needsChoice = commandResult !== null && typeof commandResult === 'object' &&
                 'needsChoice' in commandResult && commandResult.needsChoice === true;
             // 仅成功执行才允许重复免确认；未完成的目标选择不能视为成功。
-            approvedDefinition.current = needsChoice ? undefined : fingerprint;
+            approvedDefinition.current = needsChoice ? undefined : JSON.stringify(definition);
+            setPendingApproval(undefined);
             setState(needsChoice ? 'needsChoice' : 'succeeded');
         } catch (nextError) {
-            if (mounted.current) reportError(nextError);
-        } finally {
-            if (mounted.current) {
-                setDefinition(undefined);
-                setFrozenAction(undefined);
-            }
+            if (!mounted.current) return;
+            // 已同意的操作可恢复一次跨页拒绝，恢复链再次失败时直接终止。
+            const target = !targetModule ? inactiveTargetModule(nextError, snapshot.command) : undefined;
+            if (target) await execute({ action: snapshot, definition, targetModule: target });
+            else reportError(nextError);
         }
     };
 
@@ -125,28 +158,25 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
         if (busy.current || state === 'approval') return;
         busy.current = true;
         setState('loading');
-        setDefinition(undefined);
-        setFrozenAction(undefined);
+        setPendingApproval(undefined);
         setError(undefined);
         try {
             const snapshot = cloneAction(action);
-            const result = await executeFrontendCommand(
-                'help',
-                { command: snapshot.command },
-                crypto.randomUUID(),
-                Date.now() + COMMAND_TIMEOUT_MS,
-            );
+            let approval: PendingApproval;
+            try {
+                approval = { action: snapshot, definition: await loadCommandDefinition(snapshot.command) };
+            } catch (nextError) {
+                const targetModule = inactiveTargetModule(nextError, snapshot.command);
+                if (!targetModule || !isCommandErrorShape(nextError)) throw nextError;
+                const definition = commandDefinitionFromHelp({ command: nextError.details?.commandDefinition }, snapshot.command);
+                approval = { action: snapshot, definition, targetModule };
+            }
             // A replaced/unmounted action must never dispatch a delayed preflight result.
             if (!mounted.current) return;
-            const commandDefinition = commandDefinitionFromHelp(result, snapshot.command);
-            const fingerprint = JSON.stringify(commandDefinition);
-            if (approvedDefinition.current === fingerprint) {
-                await execute(snapshot, fingerprint);
+            if (approvedDefinition.current === JSON.stringify(approval.definition)) {
+                await execute(approval);
             } else {
-                approvedDefinition.current = undefined;
-                setDefinition(commandDefinition);
-                setFrozenAction(snapshot);
-                setState('approval');
+                showApproval(approval);
             }
         } catch (nextError) {
             if (mounted.current) reportError(nextError);
@@ -156,10 +186,10 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
     };
 
     const approve = async (): Promise<void> => {
-        if (busy.current || state !== 'approval' || !frozenAction || !definition) return;
+        if (busy.current || state !== 'approval' || !pendingApproval) return;
         busy.current = true;
         try {
-            await execute(frozenAction, JSON.stringify(definition));
+            await execute(pendingApproval);
         } finally {
             busy.current = false;
         }
@@ -167,11 +197,20 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
 
     const cancel = (): void => {
         if (busy.current) return;
-        setDefinition(undefined);
-        setFrozenAction(undefined);
+        setPendingApproval(undefined);
         setError(undefined);
         setState('idle');
     };
+
+    const approvalCard = pendingApproval && (state === 'approval' || state === 'executing') ? (
+        <ActionApprovalCard
+            action={pendingApproval.action}
+            definition={pendingApproval.definition}
+            executing={state === 'executing'}
+            onApprove={() => { void approve(); }}
+            onCancel={cancel}
+        />
+    ) : null;
 
     return (
         <Container>
@@ -185,33 +224,24 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
             >
                 {state === 'loading' ? t('actionLoading') : state === 'executing' ? t('actionExecuting') : action.label}
             </button>
-            {state === 'approval' && definition && frozenAction ? (
-                <ActionApprovalCard
-                    action={frozenAction}
-                    definition={definition}
-                    executing={false}
-                    onApprove={() => {
-                        approve();
-                    }}
-                    onCancel={cancel}
-                />
-            ) : null}
-            {state === 'executing' && definition && frozenAction ? (
-                <ActionApprovalCard
-                    action={frozenAction}
-                    definition={definition}
-                    executing
-                    onApprove={() => undefined}
-                    onCancel={() => undefined}
-                />
-            ) : null}
+            {approvalCard}
             {state === 'succeeded' ? <div className="action-result succeeded">{t('actionSucceeded')}</div> : null}
             {state === 'needsChoice' ? <div className="action-result">{t('actionNeedsChoice')}</div> : null}
-            {state === 'failed' ? <div className="action-result failed">{targetModule
-                ? t('actionModuleNotActive', { module: targetModule })
-                : t('actionFailed', { error })}</div> : null}
+            {state === 'failed' ? <div className="action-result failed">{t('actionFailed', { error })}</div> : null}
         </Container>
     );
+};
+
+const loadCommandDefinition = async (command: string): Promise<ActionCommandDefinition> => {
+    const result = await executeFrontendCommand('help', { command }, crypto.randomUUID(), Date.now() + COMMAND_TIMEOUT_MS);
+    return commandDefinitionFromHelp(result, command);
+};
+
+const inactiveTargetModule = (error: unknown, command: string): string | undefined => {
+    if (!isCommandErrorShape(error) || error.code !== COMMAND_ERROR_CODES.UNAVAILABLE ||
+        error.details?.reason !== 'module_not_active' || error.details.command !== command) return undefined;
+    const target = error.details.targetModule;
+    return typeof target === 'string' && target.trim() ? target.trim() : undefined;
 };
 
 const commandDefinitionFromHelp = (value: unknown, expectedCommand: string): ActionCommandDefinition => {
