@@ -211,6 +211,32 @@ TEXT 数据来源示意：
 
 当前文档未展开 `summary/statistic` 的完整请求/响应字段。若后续补充，应优先从前端请求封装、后端协议定义和测试用例中确认字段名称、类型和默认值。
 
+### 3.7 集群统计接口
+
+四个 Summary WebSocket 命令通过 `params.clusterPath` 定位已导入的 `cluster_analysis.db`，并使用 `params.step`
+筛选迭代。`clusterPath` 为必填的非空字符串。`step` 缺失或传入非字符串时按空字符串处理。
+空字符串 `""`、`"all"` 和 `"All"` 均汇总全部迭代。`"2"` 和 `"step2"` 都可查询第 2 步。
+`ClusterStepTraceTime` 优先匹配 `"2"`，通信统计表优先匹配 `"step2"`，首选键缺少记录时使用另一种写法。
+字面值 `"step"` 可查询上游没有迭代号的通信统计记录。
+
+| 命令 | 数据表 | 响应 `body` |
+| --- | --- | --- |
+| `summary/clusterTime` | `ClusterStepTraceTime` | `units.time` 和 `time`。对 `rank` 行累计纯计算、未重叠通信、计算与通信重叠、空闲和准备耗时。 |
+| `summary/rankTime` | `ClusterStepTraceTime` | `units.time`、`units.ratio` 和 `ranks[]`。每项包含字符串 `rankId`、耗时对象 `time` 和占比对象 `ratio`。 |
+| `summary/communicationTime` | `CommTimeStatistic` | `units.time` 和 `ranks[]`。每项包含字符串 `rankId`，以及跨通信域累计的 `time.transit`、`time.wait`、`time.synchronization` 和 `time.free`。 |
+| `summary/clusterBandwidth` | `TransitStatistic` | `units.bandwidth` 和 `transportTypes[]`。每项包含 `transportType` 和 `bandwidth`。同一传输类型的总传输量除以总传输耗时。 |
+
+三个耗时接口均返回 `ms`。查询将 `ClusterStepTraceTime` 中的微秒值除以 1000，直接使用 `CommTimeStatistic`
+中的毫秒值。纯计算耗时为计算总耗时减去重叠耗时。Rank 总耗时为计算总耗时、未重叠通信、空闲和非负准备耗时之和。
+`ratio.compute` 和 `ratio.communication` 分别以计算总耗时和通信总耗时为分子，以 Rank 总耗时为分母，单位为 `percent`。
+带宽以 MB 除以 ms，单位为 `GB/s`。
+
+总耗时为零时占比为零。各项通信耗时按 Rank 累加非 `NULL` 值，某项耗时全部缺测时返回零。
+带宽分传输类型分别累加非 `NULL` 的传输量和耗时。总传输耗时不大于零时，返回零带宽。
+
+数据表缺失、表存在性检查失败或所选迭代没有记录时，`clusterTime` 返回五项零值，其他接口返回空数组。
+参数、连接和统计 SQL 错误通过 WebSocket 的错误响应返回。
+
 ## 4. 代码入口
 
 维护 Summary 页面时，可优先从以下位置确认实现。具体路径可能随代码演进变化，修改文档时需以仓库源码为准。

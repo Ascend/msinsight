@@ -17,6 +17,7 @@
  */
 
 #include "pch.h"
+#include "SummaryClusterStatisticsProtocol.h"
 #include "SummaryProtocolUtil.h"
 #include "SummaryProtocolRequest.h"
 #include "SummaryProtocolResponse.h"
@@ -38,6 +39,10 @@ void SummaryProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_QUERY_EXPERT_HOTSPOT, ToQueryExpertHotspotRequest);
     jsonToReqFactory.emplace(REQ_RES_QUERY_MODEL_INFO, ToQueryModelInfoRequest);
     jsonToReqFactory.emplace(REQ_RES_SUMMARY_SLOW_RANK_ADVISOR, ToSummarySlowRankAdvisorRequest);
+    jsonToReqFactory.emplace(REQ_RES_SUMMARY_CLUSTER_TIME, ToSummaryClusterStatisticsRequest);
+    jsonToReqFactory.emplace(REQ_RES_SUMMARY_RANK_TIME, ToSummaryClusterStatisticsRequest);
+    jsonToReqFactory.emplace(REQ_RES_SUMMARY_COMMUNICATION_TIME, ToSummaryClusterStatisticsRequest);
+    jsonToReqFactory.emplace(REQ_RES_SUMMARY_CLUSTER_BANDWIDTH, ToSummaryClusterStatisticsRequest);
 }
 
 void SummaryProtocol::RegisterResponseToJsonFuncs() {
@@ -54,6 +59,10 @@ void SummaryProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_QUERY_EXPERT_HOTSPOT, ToQueryExpertHotspotResponse);
     resToJsonFactory.emplace(REQ_RES_QUERY_MODEL_INFO, ToQueryModelInfoResponse);
     resToJsonFactory.emplace(REQ_RES_SUMMARY_SLOW_RANK_ADVISOR, ToSummarySlowRankAdvisorResponse);
+    resToJsonFactory.emplace(REQ_RES_SUMMARY_CLUSTER_TIME, ToSummaryClusterTimeResponse);
+    resToJsonFactory.emplace(REQ_RES_SUMMARY_RANK_TIME, ToSummaryRankTimeResponse);
+    resToJsonFactory.emplace(REQ_RES_SUMMARY_COMMUNICATION_TIME, ToSummaryCommunicationTimeResponse);
+    resToJsonFactory.emplace(REQ_RES_SUMMARY_CLUSTER_BANDWIDTH, ToSummaryClusterBandwidthResponse);
 }
 
 void SummaryProtocol::RegisterEventToJsonFuncs() {}
@@ -290,6 +299,20 @@ std::unique_ptr<Request> SummaryProtocol::ToSummarySlowRankAdvisorRequest(const 
     return ToQueryParallelismArrangementRequest(json, error);
 }
 
+std::unique_ptr<Request> SummaryProtocol::ToSummaryClusterStatisticsRequest(const json_t &json, std::string &error) {
+    auto request = std::make_unique<SummaryClusterStatisticsRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*request, json)) {
+        error = "Failed to set request base info for cluster statistics.";
+        return nullptr;
+    }
+    const auto &params = json["params"];
+    if (params.IsObject()) {
+        JsonUtil::SetByJsonKeyValue(request->clusterPath, params, "clusterPath");
+        JsonUtil::SetByJsonKeyValue(request->step, params, "step");
+    }
+    return request;
+}
+
 #pragma endregion
 
 #pragma region <<Response To Json>>
@@ -348,6 +371,24 @@ std::optional<document_t> SummaryProtocol::ToQueryModelInfoResponse(const Respon
 std::optional<document_t> SummaryProtocol::ToSummarySlowRankAdvisorResponse(const Response &response) {
     return ToResponseJson<SummarySlowRankAdvisorResponse>(
         dynamic_cast<const SummarySlowRankAdvisorResponse &>(response));
+}
+
+std::optional<document_t> SummaryProtocol::ToSummaryClusterTimeResponse(const Response &response) {
+    return ToResponseJson<SummaryClusterTimeResponse>(dynamic_cast<const SummaryClusterTimeResponse &>(response));
+}
+
+std::optional<document_t> SummaryProtocol::ToSummaryRankTimeResponse(const Response &response) {
+    return ToResponseJson<SummaryRankTimeResponse>(dynamic_cast<const SummaryRankTimeResponse &>(response));
+}
+
+std::optional<document_t> SummaryProtocol::ToSummaryCommunicationTimeResponse(const Response &response) {
+    return ToResponseJson<SummaryCommunicationTimeResponse>(
+        dynamic_cast<const SummaryCommunicationTimeResponse &>(response));
+}
+
+std::optional<document_t> SummaryProtocol::ToSummaryClusterBandwidthResponse(const Response &response) {
+    return ToResponseJson<SummaryClusterBandwidthResponse>(
+        dynamic_cast<const SummaryClusterBandwidthResponse &>(response));
 }
 #pragma endregion
 } // namespace Protocol

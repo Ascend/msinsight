@@ -19,6 +19,7 @@
 #include "../../DatabaseTestCaseMockUtil.h"
 #include "DbClusterDataBase.h"
 #include "KernelMfuDatabaseAccesser.h"
+#include "SummaryClusterStatisticsProtocol.h"
 
 using namespace Dic::Global::PROFILER::MockUtil;
 class DbClusterDataBaseTest : public ::testing::Test {
@@ -33,6 +34,171 @@ class DbClusterDataBaseTest : public ::testing::Test {
         }
     };
 };
+
+class SummaryClusterDatabaseTest : public DbClusterDataBaseTest {
+  protected:
+    void SetUp() override {
+        ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+        database.SetDbPtr(db);
+    }
+
+    sqlite3 *db = nullptr;
+    std::recursive_mutex sqlMutex;
+    MockDatabase database{sqlMutex};
+};
+
+TEST_F(SummaryClusterDatabaseTest, AggregatesRankTraceTimesInMilliseconds) {
+    ASSERT_TRUE(database.ExecSql(R"(
+        CREATE TABLE ClusterStepTraceTime(step TEXT, type TEXT, "index" TEXT, computing REAL,
+            communication_not_overlapped REAL, overlapped REAL, communication REAL, free REAL, preparing REAL);
+        INSERT INTO ClusterStepTraceTime VALUES
+            ('2', 'rank', '10', 0, 0, 0, 0, 0, -1),
+            ('2', 'rank', '2', 600, 200, 200, 400, 100, 100),
+            ('step3', 'rank', '2', 200, 100, 50, 150, 100, 0),
+            ('2', 'stage', '0', 99999, 99999, 99999, 99999, 99999, 99999);
+    )"));
+
+    Dic::Protocol::SummaryClusterTime clusterTime;
+    ASSERT_TRUE(database.QuerySummaryClusterTime("step2", clusterTime));
+    EXPECT_DOUBLE_EQ(clusterTime.computingNotOverlapped, 0.4);
+    EXPECT_DOUBLE_EQ(clusterTime.communicationNotOverlapped, 0.2);
+    EXPECT_DOUBLE_EQ(clusterTime.computingCommunicationOverlapped, 0.2);
+    EXPECT_DOUBLE_EQ(clusterTime.free, 0.1);
+    EXPECT_DOUBLE_EQ(clusterTime.preparing, 0.099);
+
+    std::vector<Dic::Protocol::SummaryRankTime> ranks;
+    ASSERT_TRUE(database.QuerySummaryRankTime("2", ranks));
+    ASSERT_EQ(ranks.size(), 2);
+    EXPECT_EQ(ranks[0].rankId, "2");
+    EXPECT_DOUBLE_EQ(ranks[0].total, 1.0);
+    EXPECT_DOUBLE_EQ(ranks[0].computing, 0.6);
+    EXPECT_DOUBLE_EQ(ranks[0].communication, 0.4);
+    EXPECT_DOUBLE_EQ(ranks[0].computeRatio, 60.0);
+    EXPECT_DOUBLE_EQ(ranks[0].communicationRatio, 40.0);
+    EXPECT_EQ(ranks[1].rankId, "10");
+    EXPECT_DOUBLE_EQ(ranks[1].total, 0.0);
+    EXPECT_DOUBLE_EQ(ranks[1].computeRatio, 0.0);
+    EXPECT_DOUBLE_EQ(ranks[1].communicationRatio, 0.0);
+
+    ASSERT_TRUE(database.QuerySummaryRankTime("3", ranks));
+    ASSERT_EQ(ranks.size(), 1);
+    EXPECT_DOUBLE_EQ(ranks[0].total, 0.4);
+    ASSERT_TRUE(database.QuerySummaryRankTime("All", ranks));
+    ASSERT_EQ(ranks.size(), 2);
+    EXPECT_DOUBLE_EQ(ranks[0].total, 1.4);
+    EXPECT_DOUBLE_EQ(ranks[0].computeRatio, 0.8 / 1.4 * 100.0);
+    EXPECT_DOUBLE_EQ(ranks[0].communicationRatio, 0.55 / 1.4 * 100.0);
+    ASSERT_TRUE(database.QuerySummaryClusterTime("all", clusterTime));
+    EXPECT_DOUBLE_EQ(clusterTime.computingNotOverlapped, 0.55);
+    EXPECT_DOUBLE_EQ(clusterTime.computingCommunicationOverlapped, 0.25);
+    ASSERT_TRUE(database.QuerySummaryClusterTime("99", clusterTime));
+    EXPECT_DOUBLE_EQ(clusterTime.computingNotOverlapped, 0.0);
+    ASSERT_TRUE(database.QuerySummaryRankTime("99", ranks));
+    EXPECT_TRUE(ranks.empty());
+}
+
+TEST_F(SummaryClusterDatabaseTest, SumsCommunicationDomainsAndUsesPreferredStepKey) {
+    ASSERT_TRUE(database.ExecSql(R"(
+        CREATE TABLE CommTimeStatistic(step TEXT, rank_id INTEGER, group_name TEXT, comm_transit_time REAL,
+            comm_wait_time REAL, comm_sync_time REAL, comm_free_time REAL);
+        INSERT INTO CommTimeStatistic VALUES
+            ('step2', 10, 'a', 0, NULL, 3, 4),
+            ('step2', 2, 'a', 1.25, 2, 3, 4),
+            ('step2', 2, 'b', 0.50, NULL, 2, 1),
+            ('step2', 2, 'c', NULL, NULL, NULL, NULL),
+            ('2', 2, 'a', 10, 20, 30, 40),
+            ('3', 2, 'a', 5, 4, 3, 2),
+            ('step', 2, 'a', 2, 3, 4, 5);
+    )"));
+
+    std::vector<Dic::Protocol::SummaryCommunicationTime> ranks;
+    ASSERT_TRUE(database.QuerySummaryCommunicationTime("2", ranks));
+    ASSERT_EQ(ranks.size(), 2);
+    EXPECT_EQ(ranks[0].rankId, "2");
+    EXPECT_DOUBLE_EQ(ranks[0].transit, 1.75);
+    EXPECT_DOUBLE_EQ(ranks[0].wait, 2.0);
+    EXPECT_DOUBLE_EQ(ranks[0].synchronization, 5.0);
+    EXPECT_DOUBLE_EQ(ranks[0].free, 5.0);
+    EXPECT_EQ(ranks[1].rankId, "10");
+    EXPECT_DOUBLE_EQ(ranks[1].wait, 0.0);
+    ASSERT_TRUE(database.QuerySummaryCommunicationTime("step3", ranks));
+    ASSERT_EQ(ranks.size(), 1);
+    EXPECT_DOUBLE_EQ(ranks[0].transit, 5.0);
+    ASSERT_TRUE(database.QuerySummaryCommunicationTime("step", ranks));
+    ASSERT_EQ(ranks.size(), 1);
+    EXPECT_DOUBLE_EQ(ranks[0].transit, 2.0);
+    ASSERT_TRUE(database.QuerySummaryCommunicationTime("all", ranks));
+    ASSERT_EQ(ranks.size(), 2);
+    EXPECT_DOUBLE_EQ(ranks[0].transit, 18.75);
+    EXPECT_DOUBLE_EQ(ranks[0].wait, 29.0);
+}
+
+TEST_F(SummaryClusterDatabaseTest, ComputesBandwidthFromSizeAndTimeTotals) {
+    ASSERT_TRUE(database.ExecSql(R"(
+        CREATE TABLE TransitStatistic(step TEXT, rank_id INTEGER, group_name TEXT, band_type TEXT,
+            transit_size REAL, transit_time REAL);
+        INSERT INTO TransitStatistic VALUES
+            ('step2', 2, 'a', 'HCCS', 100, 10),
+            ('step2', 10, 'b', 'HCCS', 100, 40),
+            ('step3', 2, 'a', 'HCCS', 100, 10),
+            ('step2', 2, 'a', 'LOCAL', NULL, NULL),
+            ('step2', 2, 'a', 'PCIE', 10, 0),
+            ('step2', 2, 'a', 'RDMA', 30, 10),
+            ('step2', 2, 'b', 'RDMA', NULL, 10),
+            ('step2', 10, 'c', 'RDMA', 10, NULL);
+    )"));
+
+    std::vector<Dic::Protocol::SummaryTransportBandwidth> types;
+    ASSERT_TRUE(database.QuerySummaryClusterBandwidth("2", types));
+    ASSERT_EQ(types.size(), 4);
+    EXPECT_EQ(types[0].transportType, "HCCS");
+    EXPECT_DOUBLE_EQ(types[0].bandwidth, 4.0);
+    EXPECT_EQ(types[1].transportType, "LOCAL");
+    EXPECT_DOUBLE_EQ(types[1].bandwidth, 0.0);
+    EXPECT_EQ(types[2].transportType, "PCIE");
+    EXPECT_DOUBLE_EQ(types[2].bandwidth, 0.0);
+    EXPECT_EQ(types[3].transportType, "RDMA");
+    EXPECT_DOUBLE_EQ(types[3].bandwidth, 2.0);
+    ASSERT_TRUE(database.QuerySummaryClusterBandwidth("all", types));
+    ASSERT_EQ(types.size(), 4);
+    EXPECT_DOUBLE_EQ(types[0].bandwidth, 5.0);
+    ASSERT_TRUE(database.QuerySummaryClusterBandwidth("99", types));
+    EXPECT_TRUE(types.empty());
+}
+
+TEST_F(SummaryClusterDatabaseTest, DistinguishesAbsentTablesFromInvalidTableStructure) {
+    Dic::Protocol::SummaryClusterTime time;
+    time.free = 1;
+    std::vector<Dic::Protocol::SummaryRankTime> rankTimes(1);
+    std::vector<Dic::Protocol::SummaryCommunicationTime> commTimes(1);
+    std::vector<Dic::Protocol::SummaryTransportBandwidth> bandwidths(1);
+    EXPECT_TRUE(database.QuerySummaryClusterTime("2", time));
+    EXPECT_DOUBLE_EQ(time.free, 0.0);
+    EXPECT_TRUE(database.QuerySummaryRankTime("all", rankTimes));
+    EXPECT_TRUE(rankTimes.empty());
+    EXPECT_TRUE(database.QuerySummaryCommunicationTime("all", commTimes));
+    EXPECT_TRUE(commTimes.empty());
+    EXPECT_TRUE(database.QuerySummaryClusterBandwidth("all", bandwidths));
+    EXPECT_TRUE(bandwidths.empty());
+
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE TransitStatistic(band_type TEXT, step TEXT)"));
+    EXPECT_FALSE(database.QuerySummaryClusterBandwidth("2", bandwidths));
+}
+
+TEST_F(SummaryClusterDatabaseTest, ReturnsEmptyDataWhenTableCheckFails) {
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE TransitStatistic(step TEXT, band_type TEXT, "
+                                 "transit_size REAL, transit_time REAL);"
+                                 "INSERT INTO TransitStatistic VALUES ('step2', 'RDMA', 100, 20);"));
+    const auto denySelect = [](void *, int action, const char *, const char *, const char *, const char *) {
+        return action == SQLITE_SELECT ? SQLITE_DENY : SQLITE_OK;
+    };
+    ASSERT_EQ(sqlite3_set_authorizer(db, denySelect, nullptr), SQLITE_OK);
+
+    std::vector<Dic::Protocol::SummaryTransportBandwidth> bandwidths(1);
+    EXPECT_TRUE(database.QuerySummaryClusterBandwidth("2", bandwidths));
+    EXPECT_TRUE(bandwidths.empty());
+    EXPECT_EQ(sqlite3_set_authorizer(db, nullptr, nullptr), SQLITE_OK);
+}
 
 TEST_F(DbClusterDataBaseTest, QueryCommunicationRankIdFallsBackOnlyForMissingTraceHostAndSingleHostMapping) {
     std::recursive_mutex sqlMutex;

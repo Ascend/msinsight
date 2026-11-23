@@ -144,6 +144,10 @@ const std::string REQ_RES_IMPORT_EXPERT_DATA = "summary/importExpertData";
 const std::string REQ_RES_QUERY_EXPERT_HOTSPOT = "summary/queryExpertHotspot";
 const std::string REQ_RES_QUERY_MODEL_INFO = "summary/queryModelInfo";
 const std::string REQ_RES_SUMMARY_SLOW_RANK_ADVISOR = "summary/slowRank/advisor";
+const std::string REQ_RES_SUMMARY_CLUSTER_TIME = "summary/clusterTime";
+const std::string REQ_RES_SUMMARY_RANK_TIME = "summary/rankTime";
+const std::string REQ_RES_SUMMARY_COMMUNICATION_TIME = "summary/communicationTime";
+const std::string REQ_RES_SUMMARY_CLUSTER_BANDWIDTH = "summary/clusterBandwidth";
 
 // pipeline
 const std::string REQ_RES_PIPELINE_FWD_BWD_TIMELINE = "parallelism/pipeline/fwdBwdTimeline";

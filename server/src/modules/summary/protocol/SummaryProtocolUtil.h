@@ -20,6 +20,7 @@
 #define PROFILER_SERVER_SUMMARY_PROTOCOL_UTIL_H
 
 #include <optional>
+#include "SummaryClusterStatisticsProtocol.h"
 #include "SummaryProtocolResponse.h"
 
 namespace Dic {
@@ -48,6 +49,15 @@ template <>
 std::optional<document_t> ToResponseJson<ImportExpertDataResponse>(const ImportExpertDataResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<QueryExpertHotspotResponse>(const QueryExpertHotspotResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<SummaryClusterTimeResponse>(const SummaryClusterTimeResponse &response);
+template <> std::optional<document_t> ToResponseJson<SummaryRankTimeResponse>(const SummaryRankTimeResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<SummaryCommunicationTimeResponse>(
+    const SummaryCommunicationTimeResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<SummaryClusterBandwidthResponse>(
+    const SummaryClusterBandwidthResponse &response);
 } // end of namespace Protocol
 } // end of namespace Dic
 
