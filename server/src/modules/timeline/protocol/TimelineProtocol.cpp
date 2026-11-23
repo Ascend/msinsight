@@ -125,6 +125,7 @@ void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_FLOW_CATEGORY_LIST, ToFlowCategoryListRequest);
     jsonToReqFactory.emplace(REQ_RES_FLOW_CATEGORY_EVENTS, ToFlowCategoryEventsRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_COUNTER, ToUnitCounterRequest);
+    jsonToReqFactory.emplace(REQ_RES_PMU_COUNTER, ToPmuCounterRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW, ToSystemViewRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW, ToExpAnaAICoreFreqRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW_TRACE, ToSystemViewRequest);
@@ -165,6 +166,7 @@ void TimelineProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_FLOW_CATEGORY_LIST, ToFlowCategoryListResponse);
     resToJsonFactory.emplace(REQ_RES_FLOW_CATEGORY_EVENTS, ToFlowCategoryEventsResponse);
     resToJsonFactory.emplace(REQ_RES_UNIT_COUNTER, ToUnitCounterResponse);
+    resToJsonFactory.emplace(REQ_RES_PMU_COUNTER, ToPmuCounterResponse);
     resToJsonFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW, ToSystemViewResponseJson);
     resToJsonFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW_TRACE, ToSystemViewTraceResponseJson);
     resToJsonFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqResponseJson);
@@ -513,6 +515,41 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitCounterRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.metaType, json["params"], "metaType");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.metricGroup, json["params"], "metricGroup");
     return reqPtr;
+}
+
+std::unique_ptr<Request> TimelineProtocol::ToPmuCounterRequest(const json_t &json, std::string &error) {
+    auto request = std::make_unique<PmuCounterRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*request, json) || !json.HasMember("params") || !json["params"].IsObject()) {
+        error = "Invalid PMU counter request.";
+        return nullptr;
+    }
+    const auto &params = json["params"];
+    for (const char *key : {"dbPath", "rankId", "counterId"}) {
+        if (!params.HasMember(key) || !params[key].IsString()) {
+            error = std::string("PMU counter requires a string ") + key;
+            return nullptr;
+        }
+    }
+    for (const char *key : {"startTime", "endTime"}) {
+        if (!params.HasMember(key) || !params[key].IsUint64()) {
+            error = std::string("PMU counter requires an unsigned integer ") + key;
+            return nullptr;
+        }
+    }
+    if (params.HasMember("targetBuckets") && !params["targetBuckets"].IsUint()) {
+        error = "PMU counter targetBuckets must be an unsigned integer.";
+        return nullptr;
+    }
+    JsonUtil::SetByJsonKeyValue(request->params.dbPath, params, "dbPath");
+    JsonUtil::SetByJsonKeyValue(request->params.rankId, params, "rankId");
+    JsonUtil::SetByJsonKeyValue(request->params.counterId, params, "counterId");
+    JsonUtil::SetByJsonKeyValue(request->params.startTime, params, "startTime");
+    JsonUtil::SetByJsonKeyValue(request->params.endTime, params, "endTime");
+    JsonUtil::SetByJsonKeyValue(request->params.targetBuckets, params, "targetBuckets");
+    if (!request->params.CheckParams(0, error)) {
+        return nullptr;
+    }
+    return request;
 }
 
 std::unique_ptr<Request> TimelineProtocol::ToSystemViewRequest(const Dic::json_t &json, std::string &error) {
@@ -1027,6 +1064,10 @@ std::optional<document_t> TimelineProtocol::ToFlowCategoryEventsResponse(const R
 
 std::optional<document_t> TimelineProtocol::ToUnitCounterResponse(const Response &response) {
     return ToResponseJson<UnitCounterResponse>(dynamic_cast<const UnitCounterResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToPmuCounterResponse(const Response &response) {
+    return ToResponseJson<PmuCounterResponse>(dynamic_cast<const PmuCounterResponse &>(response));
 }
 
 std::optional<document_t> TimelineProtocol::ToSystemViewResponseJson(const Dic::Protocol::Response &response) {

@@ -18,6 +18,7 @@
 #include "pch.h"
 #include "TimelineProtocol.h"
 #include "TimelineProtocolUtil.h"
+#include <cmath>
 
 namespace Dic {
 namespace Protocol {
@@ -487,6 +488,32 @@ template <> std::optional<document_t> ToResponseJson<UnitCounterResponse>(const 
         data.PushBack(tmp, allocator);
     }
     JsonUtil::AddMember(body, "data", data, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <> std::optional<document_t> ToResponseJson<PmuCounterResponse>(const PmuCounterResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    const auto &result = response.body;
+    JsonUtil::AddMember(body, "counterId", result.counterId, allocator);
+    JsonUtil::AddMember(body, "status", result.status, allocator);
+    JsonUtil::AddMember(body, "nativeUnit", result.nativeUnit, allocator);
+    json_t segments(kArrayType);
+    for (const auto &segment : result.segments) {
+        json_t item(kObjectType);
+        JsonUtil::AddMember(item, "startTime", segment.startTime, allocator);
+        JsonUtil::AddMember(item, "endTime", segment.endTime, allocator);
+        json_t value(kNullType);
+        if (segment.value.has_value() && std::isfinite(*segment.value)) {
+            value.SetDouble(*segment.value);
+        }
+        JsonUtil::AddMember(item, "value", value, allocator);
+        segments.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "segments", segments, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }
@@ -1172,6 +1199,30 @@ json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &
     JsonUtil::AddMember(metadata, "dataType", dataType, allocator);
     JsonUtil::AddMember(metadata, "headerTooltip", unitTrack.metaData.headerTooltip, allocator);
     JsonUtil::AddMember(metadata, "maxValue", unitTrack.metaData.maxValue, allocator);
+    if (unitTrack.metaData.pmu.has_value()) {
+        const auto &pmu = *unitTrack.metaData.pmu;
+        json_t info(kObjectType);
+        JsonUtil::AddMember(info, "kind", pmu.kind, allocator);
+        JsonUtil::AddMember(info, "nodeKey", pmu.nodeKey, allocator);
+        JsonUtil::AddMember(info, "sourceKey", pmu.sourceKey, allocator);
+        if (pmu.cpu.has_value()) {
+            JsonUtil::AddMember(info, "cpu", *pmu.cpu, allocator);
+        }
+        if (pmu.kind == "event") {
+            JsonUtil::AddMember(info, "counterId", pmu.counterId, allocator);
+            JsonUtil::AddMember(info, "eventId", pmu.eventId, allocator);
+            JsonUtil::AddMember(info, "eventName", pmu.eventName, allocator);
+            JsonUtil::AddMember(info, "unit", pmu.unit, allocator);
+            JsonUtil::AddMember(info, "intervalNs", pmu.intervalNs, allocator);
+            if (pmu.eventSource.has_value()) {
+                JsonUtil::AddMember(info, "eventSource", *pmu.eventSource, allocator);
+            }
+            if (pmu.hasSamples.has_value()) {
+                JsonUtil::AddMember(info, "hasSamples", *pmu.hasSamples, allocator);
+            }
+        }
+        JsonUtil::AddMember(metadata, "pmu", info, allocator);
+    }
     json_t children(kArrayType);
     for (const auto &track : unitTrack.children) {
         children.PushBack(UnitTrackToJson(*track, allocator, depth + 1), allocator);

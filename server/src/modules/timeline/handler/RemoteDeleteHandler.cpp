@@ -18,17 +18,58 @@
 #include "pch.h"
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "DbTraceDataBase.h"
 #include "TraceFileSimulationParser.h"
 #include "TraceTime.h"
 #include "ParserStatusManager.h"
 #include "JsonFileParserManager.h"
 #include "RemoteDeleteHandler.h"
+#include "RankLaneMergeCoordinator.h"
 #include "MsprofFtraceImportService.h"
 
 namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
+namespace {
+bool RestorePmuSourceTimeRanges(const std::string &rankId, RemoteDeleteBody &body) {
+    auto &manager = DataBaseManager::Instance();
+    auto sources = RankLaneMergeCoordinator::Instance().GetSuccessfulSources(rankId);
+    if (sources.empty()) {
+        sources = manager.GetSourceFileIdsByRankId(rankId);
+    }
+    std::vector<std::shared_ptr<VirtualTraceDatabase>> databases;
+    bool hasPmuSource = false;
+    for (const auto &source : sources) {
+        auto database = manager.GetTraceDatabaseByFileId(source);
+        auto fullDb = std::dynamic_pointer_cast<FullDb::DbTraceDataBase>(database);
+        hasPmuSource = hasPmuSource || (fullDb != nullptr && fullDb->CheckTableExist("HOST_PMU_COUNTER_DATA"));
+        databases.emplace_back(std::move(database));
+    }
+    if (!hasPmuSource) {
+        return false;
+    }
+    for (const auto &database : databases) {
+        auto fullDb = std::dynamic_pointer_cast<FullDb::DbTraceDataBase>(database);
+        if (fullDb != nullptr) {
+            fullDb->UpdateStartTime(rankId);
+            body.startTimeUpdated = body.startTimeUpdated || TraceTime::Instance().GetStartTime() != UINT64_MAX;
+            continue;
+        }
+        uint64_t min = UINT64_MAX;
+        uint64_t max = 0;
+        if (database == nullptr || !database->QueryExtremumTimestamp(min, max) || min > max || (min == 0 && max == 0)) {
+            continue;
+        }
+        body.startTimeUpdated = true;
+        TraceTime::Instance().UpdateTime(min, max);
+        TraceTime::Instance().UpdateCardTimeDuration(rankId, min, max);
+        TraceTime::Instance().UpdateCardMinTimestamp(rankId, min);
+    }
+    return true;
+}
+}
+
 bool RemoteDeleteHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     RemoteDeleteRequest &request = dynamic_cast<RemoteDeleteRequest &>(*requestPtr.get());
     std::unique_ptr<RemoteDeleteResponse> responsePtr = std::make_unique<RemoteDeleteResponse>();
@@ -56,6 +97,9 @@ void RemoteDeleteHandler::GetUpdateTime(RemoteDeleteBody &body) {
     for (const auto &fileId : fileIdList) {
         const auto status = parseStatusInstance.GetParserStatus(fileId);
         if (status == ParserStatus::FINISH || status == ParserStatus::FINISH_ALL) {
+            if (RestorePmuSourceTimeRanges(fileId, body)) {
+                continue;
+            }
             uint64_t min = UINT64_MAX;
             uint64_t max = 0;
             auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(fileId);

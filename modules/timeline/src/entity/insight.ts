@@ -223,6 +223,7 @@ export interface InsightUnitParams<
     configBar?: (session: Session, metadata: MetaData, onClick?: () => void, isHovered?: boolean, isSelected?: boolean) => JSX.Element | null;
     tag?: string | ((session: Session, metadata: MetaData) => string | null);
     description?: string;
+    height?: () => number;
     chart?: ChartDesc<ChartType> | Array<ChartDesc<ChartType>>;
     renderInfo?: (session: Session, metadata: MetaData, thisUnit: InsightUnit) => JSX.Element | string | null;
     detail?: DetailDesc<DetailType, ExtraDataType, MoreDataType, MetaData, keyof DetailType>;
@@ -412,7 +413,7 @@ Omit<InsightUnitParams<T, Record<string, unknown>, Record<string, unknown>, Reco
             return params.renderInfo?.(session, this.metadata, this) ?? null;
         };
 
-        height = (): number => heightOf(this.chart, this.name);
+        height = (): number => params.height?.() ?? heightOf(this.chart, this.name);
     };
     return basicUnitClass;
 };

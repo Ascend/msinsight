@@ -26,6 +26,7 @@
 #include "ProjectParserMemSnapshot.h"
 #include "ParserIE.h"
 #include "DataBaseManager.h"
+#include "DbTraceDataBase.h"
 #include "ClusterFileParser.h"
 #include "TraceTime.h"
 #include "MemoryParse.h"
@@ -78,6 +79,40 @@ static bool IsFtraceUnit(const Protocol::Unit &unit) {
 
     const auto &processName = firstChild->metaData.processName;
     return processName == "CPU Scheduling" || processName == "Process Scheduling";
+}
+
+static bool RestorePmuSourceTimeRanges(const std::string &rankId, const std::string &fileId,
+    const std::vector<std::string> &successfulSources) {
+    const auto sourceIds = successfulSources.empty() ? std::vector<std::string>{fileId} : successfulSources;
+    std::vector<std::shared_ptr<VirtualTraceDatabase>> databases;
+    bool hasPmuSource = false;
+    for (const auto &source : sourceIds) {
+        auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(source);
+        auto fullDb = std::dynamic_pointer_cast<FullDb::DbTraceDataBase>(database);
+        hasPmuSource = hasPmuSource || (fullDb != nullptr && fullDb->CheckTableExist("HOST_PMU_COUNTER_DATA"));
+        databases.emplace_back(std::move(database));
+    }
+    if (!hasPmuSource) {
+        return false;
+    }
+    for (const auto &database : databases) {
+        if (database == nullptr) {
+            continue;
+        }
+        auto fullDb = std::dynamic_pointer_cast<FullDb::DbTraceDataBase>(database);
+        if (fullDb != nullptr) {
+            // Preserve separate session intervals; a rank-wide envelope would bridge their gaps.
+            fullDb->UpdateStartTime(rankId);
+            continue;
+        }
+        uint64_t min = UINT64_MAX;
+        uint64_t max = 0;
+        if (database->QueryExtremumTimestamp(min, max) && min <= max && (min != 0 || max != 0)) {
+            TraceTime::Instance().UpdateTime(min, max);
+            TraceTime::Instance().UpdateCardTimeDuration(rankId, min, max);
+        }
+    }
+    return true;
 }
 
 // 静态变量 锁初始化
@@ -290,7 +325,9 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
     } else {
         event->body.startTimeUpdated = true;
         TraceTime::Instance().UpdateTime(min, max);
-        TraceTime::Instance().UpdateCardTimeDuration(rankId, min, max);
+        if (!RestorePmuSourceTimeRanges(rankId, fileId, successfulSources)) {
+            TraceTime::Instance().UpdateCardTimeDuration(rankId, min, max);
+        }
     }
     event->body.maxTimeStamp = TraceTime::Instance().GetDuration();
     event->body.startTime = TraceTime::Instance().GetStartTime();

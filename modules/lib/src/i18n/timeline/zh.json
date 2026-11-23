@@ -1,5 +1,14 @@
 {
   "timeline": {
+    "pmuCounter": {
+      "loading": "正在加载…",
+      "queryFailed": "计数器数据加载失败",
+      "retry": "重试",
+      "noSamples": "无采样数据",
+      "unsupported": "缺少计算所需的计数数据",
+      "invalidData": "计数器数据无效",
+      "noDataInRange": "当前时间范围内无数据"
+    },
     "Align to Start": "对齐到起始位置",
     "Timestamp Offset": "时间戳偏移",
     "Host Offset": "Host偏移量",

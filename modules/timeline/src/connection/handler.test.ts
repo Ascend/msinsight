@@ -55,6 +55,8 @@ const makeSession = (): Session => ({
     threadsToFetch: new Set(),
     mergedThreadData: { clear: jest.fn() },
     resetKernelMfuState: jest.fn(),
+    pmuCounterCache: { clear: jest.fn() },
+    pmuCounterGeneration: 3,
     updateUnitsForMultiDevice: jest.fn(),
     timelineMaker: { refreshTrigger: 0 },
 } as unknown as Session);
@@ -76,6 +78,8 @@ it('clears previous project registrations even when every incoming card reuses a
     expect(CardUnit).not.toHaveBeenCalled();
     expect(clear).toHaveBeenCalledTimes(1);
     expect(session.rankCardInfoMap.size).toBe(0);
+    expect(session.pmuCounterCache.clear).toHaveBeenCalledTimes(1);
+    expect(session.pmuCounterGeneration).toBe(4);
     expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ event: 'updateCategory' }));
 });
 
@@ -104,4 +108,5 @@ it('preserves registered primary and baseline cards when appending within the sa
     expect(session.rankCardInfoMap.has('baseline-rank')).toBe(true);
     expect(CardUnit).toHaveBeenCalledTimes(1);
     expect(session.mergedThreadData.clear).not.toHaveBeenCalled();
+    expect(session.pmuCounterCache.clear).not.toHaveBeenCalled();
 });

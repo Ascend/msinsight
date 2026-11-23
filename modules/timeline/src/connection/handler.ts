@@ -223,6 +223,8 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
             if (unitData.startTimeUpdated === true) {
                 session.simpleCache.clear();
             }
+            session.pmuCounterCache?.clear();
+            session.pmuCounterGeneration = (session.pmuCounterGeneration ?? 0) + 1;
             // 设置会话的域范围
             let domainEnd = session.endTimeAll ?? session.domain.defaultDuration;
             if (domainEnd > MAX_INITIAL_DURATION) {
@@ -340,6 +342,8 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
     // belong to the incoming project. Wait for its parse/success registrations.
     if (isNeedResetRankId) {
         session.rankCardInfoMap.clear();
+        session.pmuCounterCache?.clear();
+        session.pmuCounterGeneration = (session.pmuCounterGeneration ?? 0) + 1;
     }
     if (!session.units.length) {
         session.threadsToFetch.clear();
@@ -699,6 +703,8 @@ const resetPage = (data?: Record<string, unknown>): void => {
         session.isNeedResetRankId = true;
         clearUnits(session, data);
         session.simpleCache.clear();
+        session.pmuCounterCache?.clear();
+        session.pmuCounterGeneration = (session.pmuCounterGeneration ?? 0) + 1;
         let remoteMaxTimeStamps = 0;
         session.remoteAttrs.forEach((attrs) => {
             remoteMaxTimeStamps = Math.max(<number>attrs.maxTimeStamp, remoteMaxTimeStamps);
@@ -811,6 +817,8 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
             });
             const removeUnits = unitsBeforeRemoval.filter(unit => !session.units.includes(unit));
             pruneMergedThreadDataForRemovedUnits(session, removeUnits);
+            session.pmuCounterCache?.clear();
+            session.pmuCounterGeneration = (session.pmuCounterGeneration ?? 0) + 1;
             if (session.selectedUnits[0] !== undefined && !session.units.includes(session.selectedUnits[0])) {
                 session.selectedUnits = [];
             }
@@ -890,6 +898,8 @@ export const removeSingleRemoteHandler: NotificationHandler = async (data): Prom
             return metadata.dataSource.remote !== dataSource.remote || !(metadata.dataSource.dataPath as string[]).includes(singleDataPath);
         });
         pruneMergedThreadDataForRemovedUnits(session, removeUnits);
+        session.pmuCounterCache?.clear();
+        session.pmuCounterGeneration = (session.pmuCounterGeneration ?? 0) + 1;
         if (session.selectedUnits[0] !== undefined && !session.units.includes(session.selectedUnits[0])) {
             session.selectedUnits = [];
         }

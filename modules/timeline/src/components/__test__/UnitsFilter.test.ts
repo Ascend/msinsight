@@ -18,7 +18,7 @@
 
 import type { InsightUnit } from '../../entity/insight';
 import type { Session } from '../../entity/session';
-import { doUnitsFilter, getUnitFilterName, normalizeUnitFilterName, useUnitsNameSet } from '../UnitsFilter';
+import { doUnitsFilter, getUnitFilterName, normalizeUnitFilterName, startFilter, useUnitsNameSet } from '../UnitsFilter';
 
 const createUnit = (name: string, metadata: Record<string, unknown>, children?: InsightUnit[]): InsightUnit => ({
     name,
@@ -138,5 +138,72 @@ describe('UnitsFilter metrics filtering', () => {
         expect(npuMetrics.isDisplay).toBe(false);
         expect(hbm.isDisplay).toBe(false);
         expect(counter.isDisplay).toBe(false);
+    });
+});
+
+describe('PMU event filtering', () => {
+    const createPmuCard = (cpuCount: number, cardName = 'rank0'): InsightUnit => {
+        const cpus = Array.from({ length: cpuCount }, (_, cpu) => {
+            const names = cpu === cpuCount - 1 ? ['cycles', 'task-clock', 'last-cpu-event'] : ['cycles', 'task-clock'];
+            const counters = names.map(eventName => createUnit('Counter', {
+                metaType: 'PMU_COUNTER',
+                threadName: eventName,
+                pmu: { kind: 'event', cpu, eventName },
+            }));
+            return createUnit('Label', {
+                metaType: 'PMU_COUNTER', processName: `CPU ${cpu}`, pmu: { kind: 'cpu', cpu },
+            }, counters);
+        });
+        const pmu = createUnit('Label', {
+            metaType: 'PMU_COUNTER', processName: 'PMU', pmu: { kind: 'group' },
+        }, cpus);
+        return createUnit('Card', { cardName }, [createUnit('Label', { processName: 'CPU Metrics' }, [pmu])]);
+    };
+    const cpuUnits = (card: InsightUnit): InsightUnit[] => card.children?.[0].children?.[0].children ?? [];
+
+    it('lists distinct events across all 201 CPUs without CPU labels', () => {
+        const card = createPmuCard(201);
+        const { unitNames } = useUnitsNameSet({ units: [card] } as Session);
+        expect([...unitNames]).toEqual(['CPU Metrics', 'PMU', 'cycles', 'task-clock', 'last-cpu-event']);
+        expect(getUnitFilterName(cpuUnits(card)[0])).toBe('');
+    });
+
+    it('keeps the selected event and its ancestors on every CPU, then restores every lane when cleared', () => {
+        const card = createPmuCard(201);
+        const session = { units: [card] } as Session;
+        startFilter(session, [], ['cycles']);
+        expect(card.isDisplay).toBe(true);
+        expect(card.children?.[0].isExpanded).toBe(true);
+        for (const cpu of cpuUnits(card)) {
+            expect(cpu.isDisplay).toBe(true);
+            expect(cpu.isExpanded).toBe(true);
+            expect(cpu.children?.filter(event => event.isDisplay).map(getUnitFilterName)).toEqual(['cycles']);
+        }
+        startFilter(session, [], []);
+        for (const cpu of cpuUnits(card)) {
+            expect(cpu.children?.every(event => event.isDisplay)).toBe(true);
+        }
+    });
+
+    it('hides CPUs without the selected event and respects the selected card', () => {
+        const first = createPmuCard(201, 'rank0');
+        const second = createPmuCard(2, 'rank1');
+        const session = { units: [first, second] } as Session;
+        startFilter(session, ['rank0'], ['last-cpu-event']);
+        expect(first.isDisplay).toBe(true);
+        expect(second.isDisplay).toBe(false);
+        expect(cpuUnits(first).filter(cpu => cpu.isDisplay).map(cpu => cpu.metadata.processName)).toEqual(['CPU 200']);
+        expect(cpuUnits(first)[200].children?.filter(event => event.isDisplay).map(getUnitFilterName)).toEqual(['last-cpu-event']);
+    });
+
+    it('supports selecting hardware and software events together across sources', () => {
+        const cards = [createPmuCard(2, 'rank0'), createPmuCard(3, 'rank1')];
+        startFilter({ units: cards } as Session, [], ['cycles', 'task-clock']);
+        for (const card of cards) {
+            expect(card.isDisplay).toBe(true);
+            for (const cpu of cpuUnits(card)) {
+                expect(cpu.children?.filter(event => event.isDisplay).map(getUnitFilterName)).toEqual(['cycles', 'task-clock']);
+            }
+        }
     });
 });

@@ -50,6 +50,7 @@ std::optional<document_t> ToResponseJson<FlowCategoryListResponse>(const FlowCat
 template <>
 std::optional<document_t> ToResponseJson<FlowCategoryEventsResponse>(const FlowCategoryEventsResponse &response);
 template <> std::optional<document_t> ToResponseJson<UnitCounterResponse>(const UnitCounterResponse &response);
+template <> std::optional<document_t> ToResponseJson<PmuCounterResponse>(const PmuCounterResponse &response);
 template <> std::optional<document_t> ToResponseJson<SystemViewResponse>(const SystemViewResponse &response);
 template <> std::optional<document_t> ToResponseJson<SystemViewTraceResponse>(const SystemViewTraceResponse &response);
 template <>

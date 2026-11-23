@@ -26,6 +26,7 @@ import type { Session } from '../entity/session';
 import { CustomButton } from './base/StyledButton';
 import type { InsightUnit } from '../entity/insight';
 import type { CardMetaData, MetaDataInnerBase } from '../entity/data';
+import { PMU_GROUP_NAME } from '../entity/pmuCounter';
 import { useTranslation } from 'react-i18next';
 
 const CustomDiv = styled.div`
@@ -124,6 +125,12 @@ export const normalizeUnitFilterName = (name = ''): string => name.replace(/\(\d
 
 export const getUnitFilterName = (unit: InsightUnit): string => {
     const metadata = unit.metadata as MetaDataInnerBase;
+    // CPU labels only organize PMU events; filtering an event applies to every logical CPU.
+    if (metadata.metaType === 'PMU_COUNTER' && metadata.pmu !== undefined) {
+        if (metadata.pmu.kind === 'group') { return PMU_GROUP_NAME; }
+        if (metadata.pmu.kind === 'cpu') { return ''; }
+        if (metadata.pmu.kind === 'event') { return normalizeUnitFilterName(metadata.pmu.eventName ?? metadata.threadName); }
+    }
     if (unit.name === 'Thread' || unit.name === 'Counter') {
         return normalizeUnitFilterName(metadata.threadName);
     }
@@ -158,7 +165,7 @@ const displayUnitTree = (unit: InsightUnit, loopIndex = 0): void => {
  * @param cardSelection - 选中的卡片名称数组。
  * @param unitSelection - 选中的单位名称数组。
  */
-const startFilter = (session: Session, cardSelection: string[], unitSelection: string[]): void => {
+export const startFilter = (session: Session, cardSelection: string[], unitSelection: string[]): void => {
     // 设置所有单位为显示状态
     setAllUnitsDisplay(session);
     // 如果没有选择任何卡片或单位，则直接返回
@@ -302,7 +309,7 @@ const setAllUnitsDisplay = (session: Session): void => {
         });
         if (unit.children) {
             for (const child of unit.children) {
-                setUnitDisplay(child, loopIndex++); // 递归调用，增加循环索引
+                setUnitDisplay(child, loopIndex + 1);
             }
         }
     };
@@ -328,7 +335,12 @@ export const useUnitsNameSet = (session: Session): { cardNames: Set<string>; uni
         if (unit.name === 'Card' && !unit.isMultiDeviceHidden) {
             cardNames.add((unit.metadata as CardMetaData).cardName ?? '');
         }
-        if (unit.name === 'Process' || unit.name === 'Label') {
+        const metadata = unit.metadata as MetaDataInnerBase;
+        const pmuKind = metadata.metaType === 'PMU_COUNTER' ? metadata.pmu?.kind : undefined;
+        if (pmuKind === 'event') {
+            const eventName = getUnitFilterName(unit);
+            if (eventName) { unitNames.add(eventName); }
+        } else if (pmuKind !== 'cpu' && (unit.name === 'Process' || unit.name === 'Label')) {
             const metaDataName = getUnitFilterName(unit);
             if (metaDataName === 'Process Scheduling' || (!metaDataName.toLowerCase().includes('process') && !metaDataName.toLowerCase().includes('thread'))) {
                 unitNames.add(metaDataName);
@@ -342,7 +354,7 @@ export const useUnitsNameSet = (session: Session): { cardNames: Set<string>; uni
         }
         if (unit.children) {
             for (const child of unit.children) {
-                visitUnit(child, loopIndex++); // 递归调用，增加循环索引
+                visitUnit(child, loopIndex + 1);
             }
         }
     };
