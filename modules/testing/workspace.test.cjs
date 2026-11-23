@@ -46,6 +46,13 @@ test('fails if an existing test module loses all tests', t => {
     assert.throws(() => discoverWorkspace(root, {}), /No tests found in feature/);
 });
 
+test('discovers overview as an independent workspace package', t => {
+    const root = fixture(t, ['cluster', 'summary']);
+    addTest(root, 'cluster');
+    addTest(root, 'summary');
+    assert.deepEqual(discoverWorkspace(root, {}).map(module => module.name), ['cluster', 'summary']);
+});
+
 test('explicit no-test exceptions remain visible and start discovering newly added tests', t => {
     const root = fixture(t, ['feature']);
     fs.mkdirSync(path.join(root, 'feature'));

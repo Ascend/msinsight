@@ -15,7 +15,7 @@ import { updateSession } from '@/connection/notificationHandler';
 import { onDivLoad } from '@/vscode-adapter';
 
 const initialEnv = process.env;
-beforeEach(() => { process.env = { ...initialEnv, REACT_APP_ENABLE_MODERN_CLUSTER: 'true', REACT_APP_IS_VSCODE: 'false' }; });
+beforeEach(() => { process.env = { ...initialEnv, REACT_APP_IS_VSCODE: 'false' }; });
 afterEach(() => { process.env = initialEnv; });
 
 jest.mock('@/moduleConfig', () => jest.requireActual('../../moduleConfig'), { virtual: true });
@@ -243,11 +243,9 @@ const clusterSession = (): Session => ({
     },
 } as unknown as Session);
 
-it.each([undefined, 'false', 'vscode'])('loads original cluster entries for %s despite a modern preference', async flag => {
+it('loads original cluster entries in VSCode despite a modern preference', async () => {
     clusterView.select('modern');
-    if (flag === 'vscode') { process.env.REACT_APP_IS_VSCODE = 'true'; } else if (flag === undefined) {
-        delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER;
-    } else { process.env.REACT_APP_ENABLE_MODERN_CLUSTER = flag; }
+    process.env.REACT_APP_IS_VSCODE = 'true';
     const session = clusterSession();
     const view = render(React.createElement(TabPane, { session }));
     const summary = view.container.querySelector('#Summary') as HTMLElement;
@@ -255,13 +253,8 @@ it.each([undefined, 'false', 'vscode'])('loads original cluster entries for %s d
     expect(summary).toHaveAttribute('src', './plugins/Cluster/summary.html');
     expect(communication).toHaveAttribute('src', './plugins/Cluster/communication.html');
     expect(view.container.querySelector('[data-cluster-application]')).toBeNull();
-    if (flag === 'vscode') {
-        expect(summary.tagName).toBe('DIV'); expect(communication.tagName).toBe('DIV');
-        expect(onDivLoad).toHaveBeenCalledWith('Summary'); expect(onDivLoad).toHaveBeenCalledWith('Communication');
-    } else {
-        fireEvent.load(communication);
-        expect(connector.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'Communication', event: 'frame/loaded' }));
-    }
+    expect(summary.tagName).toBe('DIV'); expect(communication.tagName).toBe('DIV');
+    expect(onDivLoad).toHaveBeenCalledWith('Summary'); expect(onDivLoad).toHaveBeenCalledWith('Communication');
     expect(clusterView.select('modern')).toBe(false);
     expect(clusterView.version).toBe('modern');
     await act(async () => { await Promise.resolve(); });
@@ -274,6 +267,8 @@ it('switches both cluster entries together and remounts them to reset target fil
     const view = render(React.createElement(TabPane, { session }));
     const modernSummary = view.container.querySelector('iframe[name="Summary"]') as HTMLIFrameElement;
     const modernCommunication = view.container.querySelector('iframe[name="Communication"]') as HTMLIFrameElement;
+    expect(view.container.querySelector('#Overview')).toBeNull();
+    expect(view.container.querySelectorAll('iframe[name="Summary"]')).toHaveLength(1);
     expect(modernSummary.src).toContain('/plugins/SummaryModern/index.html');
     expect(modernCommunication.src).toContain('/plugins/Communication/index.html');
     await act(async () => { clusterView.select('legacy'); });

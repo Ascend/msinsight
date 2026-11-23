@@ -21,6 +21,7 @@ export interface ModuleConfig {
     name: string;
     requestName: Lowercase<string>;
     attributes: IframeHTMLAttributes<HTMLIFrameElement>;
+    modernSrc?: string;
     isDefault?: boolean;
     isCluster?: boolean;
     isCompute?: boolean;
@@ -79,6 +80,7 @@ export const modulesConfig: ModuleConfig[] = [
     {
         name: 'Summary',
         requestName: 'summary',
+        modernSrc: isDev ? 'http://localhost:3013/' : './plugins/Overview/index.html',
         attributes: {
             src: isDev ? 'http://localhost:3003/summary.html' : './plugins/Cluster/summary.html',
         },

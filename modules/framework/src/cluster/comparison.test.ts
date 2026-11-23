@@ -27,13 +27,9 @@ import { clusterView } from './viewVersion';
 import { store } from '../store';
 import { cancelBaseline, setBaseline } from '../utils/Request';
 
-const initialModernClusterFlag = process.env.REACT_APP_ENABLE_MODERN_CLUSTER;
-beforeEach(() => { process.env.REACT_APP_ENABLE_MODERN_CLUSTER = 'true'; });
-afterEach(() => {
-    if (initialModernClusterFlag === undefined) { delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER; } else {
-        process.env.REACT_APP_ENABLE_MODERN_CLUSTER = initialModernClusterFlag;
-    }
-});
+const initialEnv = process.env;
+beforeEach(() => { process.env = { ...initialEnv, REACT_APP_IS_VSCODE: 'false' }; });
+afterEach(() => { process.env = initialEnv; });
 
 jest.mock('@/connection', () => ({ __esModule: true, default: { send: jest.fn() } }));
 jest.mock('@insight/lib/i18n', () => ({ __esModule: true, default: { t: (key: string) => key } }));
@@ -80,8 +76,8 @@ it('preserves legacy cluster comparison', async () => {
     expect(setBaseline).toHaveBeenCalledWith(input); expect(isInClusterCompare()).toBe(true);
     expect(clusterView.comparisonPending).toBe(false);
 });
-it('preserves DB cluster comparison when the new pages are disabled by the build flag', async () => {
-    delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER;
+it('preserves DB cluster comparison in the VSCode legacy loader', async () => {
+    process.env.REACT_APP_IS_VSCODE = 'true';
     await setBaselineData(input);
     expect(message.warning).not.toHaveBeenCalled();
     expect(setBaseline).toHaveBeenCalledWith(input);

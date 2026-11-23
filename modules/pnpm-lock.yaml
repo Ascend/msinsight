@@ -175,6 +175,8 @@ importers:
 
   cluster: {}
 
+  summary: {}
+
   compute: {}
 
   framework: {}

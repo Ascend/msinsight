@@ -35,6 +35,7 @@ PLUGIN_DIR = os.path.join(os.path.dirname(MODULES_DIR), MODULES_DIR, 'framework'
 
 MODULES_MAP = {
     'cluster': 'Cluster',
+    'summary': 'Overview',
     'reinforcement-learning': 'RL',
     'memory': 'Memory',
     'operator': 'Operator',

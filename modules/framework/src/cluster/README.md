@@ -1,29 +1,29 @@
 # Summary / Communication 公共接入协议
 
-本文约定两条公共 PR 合入后的完整接入行为。公共请求与集群选择同步由当前 PR 提供，新旧版本切换和页面容器由独立的页面切换 PR 提供；两者均合入后再使用下述新版开关。
+本文约定公共请求、集群选择同步、新旧版本切换和页面容器的完整接入行为。Web 环境首次打开默认使用旧版，可通过版本切换按钮进入新版。
 
 framework 管理两个集群页签的版本偏好、数据格式判断、集群选择和待执行定位。Summary 和 Communication 各自实现页面、Store、图表和业务接口，复用 lib 的公共请求、组件、主题与国际化。页面之间通过宿主协调上下文。
 
-## 分批合入与启用
+## 默认行为与启动
 
-`REACT_APP_ENABLE_MODERN_CLUSTER` 是 **framework 的构建开关**，只有字符串 `true` 开启 Web 新版接入，默认关闭。VSCode 构建暂时保留旧版及原有 HTML 注入加载方式，无论开关值如何均隐藏版本切换按钮。关闭时两个页签沿用原有页面入口，工具栏隐藏版本切换按钮，DB/TEXT 的旧版集群对比继续可用；已有 localStorage 新版偏好不能绕过开关，也不会被关闭状态覆盖。
+Web 开发和生产构建在未保存版本偏好时均默认使用旧版页面。DB 数据允许切换新版，并尊重用户已保存的新旧版本偏好；TEXT、无法确认格式的数据及正在进行的集群对比继续使用旧版。VSCode 构建暂时保留旧版及原有 HTML 注入加载方式，隐藏版本切换按钮，且不覆盖已保存的版本偏好。
 
-公共接入可以先单独合入，不需要安装或打包任何新版页面。两位开发者随后分别提交自己的页面和构建分发配置。在两个新版页面均已接入并完成联合验收后，由发布构建显式启用开关。开启后 DB 数据默认新版（尊重已保存的旧版偏好），TEXT 和无法确认格式的数据继续使用旧版。一次版本切换同时重建两个页签，不保留旧 iframe 的局部筛选与图表状态。
+发布时需包含 Summary 和 Communication 的新版页面及构建产物。一次版本切换同时重建两个页签，不保留旧 iframe 的局部筛选与图表状态。用户仍可主动切回旧版，使用原有集群对比功能。
 
 在 `modules` 目录运行 framework 联调：
 
 ```sh
-REACT_APP_ENABLE_MODERN_CLUSTER=true pnpm --filter @insight/framework start
+pnpm --filter @insight/framework start
 ```
 
-Summary 开发者同时设置 `REACT_APP_SUMMARY_MODERN_SRC` 为自己已启动的本地服务地址。端口由 Summary 项目确定；开发地址只允许 `http://localhost:<port>/...` 或 `http://127.0.0.1:<port>/...`。修改环境变量后需重启开发服务或重新构建。
+Summary 的新旧页面地址统一注册在 `moduleConfig.ts`，不需要额外的 `.env` 文件，Communication 沿用既有配置。Summary 默认使用下表入口，也可通过 `REACT_APP_SUMMARY_MODERN_SRC` 覆盖。开发地址只允许 `http://localhost:<port>/...` 或 `http://127.0.0.1:<port>/...`；生产地址必须位于 `./plugins/` 下。修改配置或环境变量后需重启开发服务或重新构建。
 
 | 页面 | 开发入口 | 生产入口 |
 | --- | --- | --- |
-| Summary | `REACT_APP_SUMMARY_MODERN_SRC` | 同一变量指定 `./plugins/` 下的实际入口，不允许目录穿越或外部地址 |
+| Summary | `http://localhost:3013/` | `./plugins/Overview/index.html` |
 | Communication | `http://localhost:3012/` | `./plugins/Communication/index.html` |
 
-页签名称和 iframe 的 `name` 固定为 `Summary`、`Communication`，不随语言或版本变化。Summary 需要在自身 PR 中完成 workspace 注册、开发启动、构建及插件产物分发。开启联调开关不会自动启动页面服务或生成插件文件；缺少入口或加载失败会显示不可用状态，可统一切回旧版。
+页签名称和 iframe 的 `name` 固定为 `Summary`、`Communication`，不随语言或版本变化。Summary 需要完成 workspace 注册、开发启动、构建及插件产物分发。启动 framework 不会自动启动页面服务或生成插件文件；缺少入口或加载失败会显示不可用状态，可统一切回旧版。
 
 ## 消息封装与就绪顺序
 
