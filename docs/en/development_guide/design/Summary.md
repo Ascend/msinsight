@@ -211,6 +211,36 @@ The Details area displays statistical information at the single-rank dimension.
 
 The current document does not expand the complete request/response fields of <code>summary/statistic</code>. If supplemented later, the field names, types, and default values should be confirmed first from the frontend request encapsulation, backend protocol definitions, and test cases.
 
+### 3.7 Cluster Statistics APIs
+
+The four Summary WebSocket commands read an imported `cluster_analysis.db` identified by `params.clusterPath`.
+`clusterPath` is a required non-empty string. A missing or non-string `step` is treated as an empty string.
+An empty string (`""`), `"all"`, or `"All"` aggregates every step. Both `"2"` and `"step2"` select step 2.
+`ClusterStepTraceTime` prefers `"2"` and the communication statistics tables prefer `"step2"`.
+Each query uses the alternate key when the preferred key has no records. The literal `"step"` selects communication
+statistics produced from source data without step IDs.
+
+| Command | Table | Response `body` |
+| --- | --- | --- |
+| `summary/clusterTime` | `ClusterStepTraceTime` | `units.time` and `time`, with five time metrics summed over rank rows. |
+| `summary/rankTime` | `ClusterStepTraceTime` | `units.time`, `units.ratio`, and `ranks[]` containing `rankId`, `time`, and `ratio`. |
+| `summary/communicationTime` | `CommTimeStatistic` | `units.time` and `ranks[]` containing `rankId` and the sum of transit, wait, synchronization, and idle times across communication domains. |
+| `summary/clusterBandwidth` | `TransitStatistic` | `units.bandwidth` and `transportTypes[]` containing `transportType` and `bandwidth`. Bandwidth is the total transfer size divided by the total transfer time for each transport type. |
+
+All durations are returned in `ms`. Queries divide the source microsecond values in `ClusterStepTraceTime` by 1000 and
+use the millisecond values in `CommTimeStatistic` directly. Pure compute time is total compute time minus overlapped
+time. Rank total time includes total compute time, non-overlapped communication time, idle time, and preparation time
+clamped to zero for the total calculation. The compute and communication ratios use that total as their denominator
+and are returned in `percent`. Bandwidth is calculated in MB per ms and returned in `GB/s`.
+
+A zero total duration gives zero ratios. Each communication time metric sums the available values for its rank and
+returns zero when all values are missing. For each transport type, the bandwidth query sums the available transfer
+sizes and times independently. A nonpositive total transfer time yields zero bandwidth.
+
+If the table is absent, the table existence check fails, or the selected step has no records, `clusterTime` returns
+five zero values and the other commands return empty arrays. Invalid parameters, connection failures, and statistics
+query failures use the WebSocket error response.
+
 ## 4. Code Entry
 
 When maintaining the Summary page, you can first check the implementation at the following locations. The specific paths may change as the code evolves, so always refer to the repository source code when modifying the documentation.

@@ -424,6 +424,111 @@ std::optional<document_t> ToResponseJson<SummarySlowRankAdvisorResponse>(
     JsonUtil::AddMember(json, KEY_BODY, body, allocator);
     return std::optional<document_t>{std::move(json)};
 }
+
+namespace {
+json_t ToSummaryTimeJson(const SummaryClusterTime &time, Document::AllocatorType &allocator) {
+    json_t json(kObjectType);
+    JsonUtil::AddMember(json, "computingNotOverlapped", time.computingNotOverlapped, allocator);
+    JsonUtil::AddMember(json, "communicationNotOverlapped", time.communicationNotOverlapped, allocator);
+    JsonUtil::AddMember(json, "computingCommunicationOverlapped", time.computingCommunicationOverlapped, allocator);
+    JsonUtil::AddMember(json, "free", time.free, allocator);
+    JsonUtil::AddMember(json, "preparing", time.preparing, allocator);
+    return json;
+}
+} // namespace
+
+template <>
+std::optional<document_t> ToResponseJson<SummaryClusterTimeResponse>(const SummaryClusterTimeResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t units(kObjectType);
+    JsonUtil::AddMember(units, "time", "ms", allocator);
+    JsonUtil::AddMember(body, "units", units, allocator);
+    json_t time = ToSummaryTimeJson(response.body, allocator);
+    JsonUtil::AddMember(body, "time", time, allocator);
+    JsonUtil::AddMember(json, KEY_BODY, body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <> std::optional<document_t> ToResponseJson<SummaryRankTimeResponse>(const SummaryRankTimeResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t units(kObjectType);
+    JsonUtil::AddMember(units, "time", "ms", allocator);
+    JsonUtil::AddMember(units, "ratio", "percent", allocator);
+    JsonUtil::AddMember(body, "units", units, allocator);
+    json_t items(kArrayType);
+    for (const auto &rank : response.body) {
+        json_t item(kObjectType);
+        json_t time = ToSummaryTimeJson(rank.time, allocator);
+        JsonUtil::AddMember(time, "total", rank.total, allocator);
+        JsonUtil::AddMember(time, "computing", rank.computing, allocator);
+        JsonUtil::AddMember(time, "communication", rank.communication, allocator);
+        json_t ratio(kObjectType);
+        JsonUtil::AddMember(ratio, "compute", rank.computeRatio, allocator);
+        JsonUtil::AddMember(ratio, "communication", rank.communicationRatio, allocator);
+        JsonUtil::AddMember(item, "rankId", rank.rankId, allocator);
+        JsonUtil::AddMember(item, "time", time, allocator);
+        JsonUtil::AddMember(item, "ratio", ratio, allocator);
+        items.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "ranks", items, allocator);
+    JsonUtil::AddMember(json, KEY_BODY, body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <>
+std::optional<document_t> ToResponseJson<SummaryCommunicationTimeResponse>(
+    const SummaryCommunicationTimeResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t units(kObjectType);
+    JsonUtil::AddMember(units, "time", "ms", allocator);
+    JsonUtil::AddMember(body, "units", units, allocator);
+    json_t items(kArrayType);
+    for (const auto &rank : response.body) {
+        json_t item(kObjectType);
+        json_t time(kObjectType);
+        JsonUtil::AddMember(time, "transit", rank.transit, allocator);
+        JsonUtil::AddMember(time, "wait", rank.wait, allocator);
+        JsonUtil::AddMember(time, "synchronization", rank.synchronization, allocator);
+        JsonUtil::AddMember(time, "free", rank.free, allocator);
+        JsonUtil::AddMember(item, "rankId", rank.rankId, allocator);
+        JsonUtil::AddMember(item, "time", time, allocator);
+        items.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "ranks", items, allocator);
+    JsonUtil::AddMember(json, KEY_BODY, body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <>
+std::optional<document_t> ToResponseJson<SummaryClusterBandwidthResponse>(
+    const SummaryClusterBandwidthResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t units(kObjectType);
+    JsonUtil::AddMember(units, "bandwidth", "GB/s", allocator);
+    JsonUtil::AddMember(body, "units", units, allocator);
+    json_t items(kArrayType);
+    for (const auto &type : response.body) {
+        json_t item(kObjectType);
+        JsonUtil::AddMember(item, "transportType", type.transportType, allocator);
+        JsonUtil::AddMember(item, "bandwidth", type.bandwidth, allocator);
+        items.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "transportTypes", items, allocator);
+    JsonUtil::AddMember(json, KEY_BODY, body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
 #pragma endregion
 } // end of namespace Protocol
 } // end of namespace Dic

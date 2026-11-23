@@ -63,6 +63,8 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_COMMUNICATION_DETAIL_FAILED,
         "Unable to load communication details. Please try again or re-import the profiling "
         "data."},
+    {ErrorCode::QUERY_CLUSTER_STATISTICS_FAILED,
+        "Unable to load cluster statistics. Please check the imported cluster analysis database."},
     {ErrorCode::UPDATE_PARALLEL_STRATEGY_FAILED, "Unable to save the parallel strategy settings. Please try again."},
     {ErrorCode::UPDATE_PARALLEL_SHOW_MAP_FAILED,
         "Unable to display the selected parallel dimension. Please check the parallel strategy "

@@ -21,6 +21,13 @@
 
 #include "VirtualClusterDatabase.h"
 
+namespace Dic::Protocol {
+struct SummaryClusterTime;
+struct SummaryRankTime;
+struct SummaryCommunicationTime;
+struct SummaryTransportBandwidth;
+}
+
 namespace Dic {
 namespace Module {
 namespace FullDb {
@@ -71,6 +78,10 @@ class DbClusterDataBase : public VirtualClusterDatabase {
     bool InsertDuplicateUpdateBaseInfo(const std::map<std::string, std::string> &baseInfoMap) override;
     bool QueryAllPerformanceDataByStep(
         const std::string &step, std::unordered_map<std::uint32_t, StepStatistic> &data) override;
+    bool QuerySummaryClusterTime(const std::string &step, Protocol::SummaryClusterTime &time);
+    bool QuerySummaryRankTime(const std::string &step, std::vector<Protocol::SummaryRankTime> &ranks);
+    bool QuerySummaryCommunicationTime(const std::string &step, std::vector<Protocol::SummaryCommunicationTime> &ranks);
+    bool QuerySummaryClusterBandwidth(const std::string &step, std::vector<Protocol::SummaryTransportBandwidth> &types);
 
     void InsertClusterBaseInfo(ClusterBaseInfo &baseInfo);
 

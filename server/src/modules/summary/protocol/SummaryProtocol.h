@@ -47,6 +47,7 @@ class SummaryProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToQueryExpertHotspotRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToQueryModelInfoRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToSummarySlowRankAdvisorRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToSummaryClusterStatisticsRequest(const json_t &json, std::string &error);
 
     // response to json
     static std::optional<document_t> ToTopNResponse(const Response &response);
@@ -62,6 +63,10 @@ class SummaryProtocol : public ProtocolUtil {
     static std::optional<document_t> ToQueryExpertHotspotResponse(const Response &response);
     static std::optional<document_t> ToQueryModelInfoResponse(const Response &response);
     static std::optional<document_t> ToSummarySlowRankAdvisorResponse(const Response &response);
+    static std::optional<document_t> ToSummaryClusterTimeResponse(const Response &response);
+    static std::optional<document_t> ToSummaryRankTimeResponse(const Response &response);
+    static std::optional<document_t> ToSummaryCommunicationTimeResponse(const Response &response);
+    static std::optional<document_t> ToSummaryClusterBandwidthResponse(const Response &response);
 };
 } // namespace Protocol
 } // namespace Dic

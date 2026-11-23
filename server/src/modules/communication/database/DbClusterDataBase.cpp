@@ -19,6 +19,7 @@
 #include "TableDefs.h"
 #include "TraceTime.h"
 #include "DbClusterDataBase.h"
+#include "SummaryClusterStatisticsProtocol.h"
 // LCOV_EXCL_BR_START
 
 namespace Dic {
@@ -642,6 +643,243 @@ bool DbClusterDataBase::QueryAllPerformanceDataByStep(
     }
 
     return ExecuteQueryAllPerformanceDataByStep(sql, step, data);
+}
+
+namespace {
+const std::string TABLE_COMM_TIME_STATISTIC = "CommTimeStatistic";
+const std::string TABLE_TRANSIT_STATISTIC = "TransitStatistic";
+
+std::pair<std::string, std::string> SummaryStepKeys(const std::string &step, bool rankTrace) {
+    if (step.empty() || step == "All" || step == "all") {
+        return {};
+    }
+    const std::string prefix = "step";
+    const std::string number = step.rfind(prefix, 0) == 0 ? step.substr(prefix.size()) : step;
+    if (number.empty() || number.find_first_not_of("0123456789") != std::string::npos) {
+        return {step, step};
+    }
+    const std::string prefixed = prefix + number;
+    return rankTrace ? std::make_pair(number, prefixed) : std::make_pair(prefixed, number);
+}
+}
+
+bool DbClusterDataBase::QuerySummaryClusterTime(const std::string &step, Protocol::SummaryClusterTime &time) {
+    time = {};
+    if (!IsOpen()) {
+        return false;
+    }
+    if (!CheckTableExist(TABLE_STEP_TRACE_TIME)) {
+        return true;
+    }
+
+    const auto [preferredStep, fallbackStep] = SummaryStepKeys(step, true);
+    std::string sql = R"(
+        SELECT TOTAL(t.computing - t.overlapped) AS computingNotOverlapped,
+               TOTAL(t.communication_not_overlapped) AS communicationNotOverlapped,
+               TOTAL(t.overlapped) AS computingCommunicationOverlapped,
+               TOTAL(t.free) AS free,
+               TOTAL(t.preparing) AS preparing
+        FROM ClusterStepTraceTime AS t
+        WHERE t.type = 'rank'
+    )";
+    if (!preferredStep.empty()) {
+        sql += R"(
+            AND t.step = CASE WHEN EXISTS (
+                SELECT 1 FROM ClusterStepTraceTime AS s WHERE s.step = ?1 AND s.type = 'rank'
+            ) THEN ?1 ELSE ?2 END
+        )";
+    }
+
+    auto statement = CreatPreparedStatement(sql);
+    if (statement == nullptr) {
+        return false;
+    }
+    auto result =
+        preferredStep.empty() ? statement->ExecuteQuery() : statement->ExecuteQuery(preferredStep, fallbackStep);
+    if (result == nullptr) {
+        return false;
+    }
+    while (result->Next()) {
+        time.computingNotOverlapped = result->GetDouble("computingNotOverlapped") / THOUSAND;
+        time.communicationNotOverlapped = result->GetDouble("communicationNotOverlapped") / THOUSAND;
+        time.computingCommunicationOverlapped = result->GetDouble("computingCommunicationOverlapped") / THOUSAND;
+        time.free = result->GetDouble("free") / THOUSAND;
+        time.preparing = result->GetDouble("preparing") / THOUSAND;
+    }
+    if (result->GetErrorCode() != SQLITE_DONE) {
+        ServerLog::Error("Failed to query Summary cluster time: ", result->GetErrorMessage());
+        return false;
+    }
+    return true;
+}
+
+bool DbClusterDataBase::QuerySummaryRankTime(const std::string &step, std::vector<Protocol::SummaryRankTime> &ranks) {
+    ranks.clear();
+    if (!IsOpen()) {
+        return false;
+    }
+    if (!CheckTableExist(TABLE_STEP_TRACE_TIME)) {
+        return true;
+    }
+
+    const auto [preferredStep, fallbackStep] = SummaryStepKeys(step, true);
+    std::string sql = R"(
+        SELECT t."index" AS rankId,
+               TOTAL(t.computing) AS computing,
+               TOTAL(t.communication) AS communication,
+               TOTAL(t.computing - t.overlapped) AS computingNotOverlapped,
+               TOTAL(t.communication_not_overlapped) AS communicationNotOverlapped,
+               TOTAL(t.overlapped) AS computingCommunicationOverlapped,
+               TOTAL(t.free) AS free,
+               TOTAL(t.preparing) AS preparing
+        FROM ClusterStepTraceTime AS t
+        WHERE t.type = 'rank'
+    )";
+    if (!preferredStep.empty()) {
+        sql += R"(
+            AND t.step = CASE WHEN EXISTS (
+                SELECT 1 FROM ClusterStepTraceTime AS s WHERE s.step = ?1 AND s.type = 'rank'
+            ) THEN ?1 ELSE ?2 END
+        )";
+    }
+    sql += R"(
+        GROUP BY t."index"
+        ORDER BY CAST(t."index" AS INTEGER)
+    )";
+
+    auto statement = CreatPreparedStatement(sql);
+    if (statement == nullptr) {
+        return false;
+    }
+    auto result =
+        preferredStep.empty() ? statement->ExecuteQuery() : statement->ExecuteQuery(preferredStep, fallbackStep);
+    if (result == nullptr) {
+        return false;
+    }
+    while (result->Next()) {
+        Protocol::SummaryRankTime rank;
+        rank.rankId = result->GetString("rankId");
+        rank.computing = result->GetDouble("computing") / THOUSAND;
+        rank.communication = result->GetDouble("communication") / THOUSAND;
+        rank.time.computingNotOverlapped = result->GetDouble("computingNotOverlapped") / THOUSAND;
+        rank.time.communicationNotOverlapped = result->GetDouble("communicationNotOverlapped") / THOUSAND;
+        rank.time.computingCommunicationOverlapped = result->GetDouble("computingCommunicationOverlapped") / THOUSAND;
+        rank.time.free = result->GetDouble("free") / THOUSAND;
+        rank.time.preparing = result->GetDouble("preparing") / THOUSAND;
+        rank.total =
+            rank.computing + rank.time.communicationNotOverlapped + rank.time.free + std::max(rank.time.preparing, 0.0);
+        if (rank.total != 0) {
+            rank.computeRatio = rank.computing / rank.total * PERCENTAGE_RATIO_SCALE;
+            rank.communicationRatio = rank.communication / rank.total * PERCENTAGE_RATIO_SCALE;
+        }
+        ranks.push_back(std::move(rank));
+    }
+    if (result->GetErrorCode() != SQLITE_DONE) {
+        ServerLog::Error("Failed to query Summary rank time: ", result->GetErrorMessage());
+        return false;
+    }
+    return true;
+}
+
+bool DbClusterDataBase::QuerySummaryCommunicationTime(
+    const std::string &step, std::vector<Protocol::SummaryCommunicationTime> &ranks) {
+    ranks.clear();
+    if (!IsOpen()) {
+        return false;
+    }
+    if (!CheckTableExist(TABLE_COMM_TIME_STATISTIC)) {
+        return true;
+    }
+
+    const auto [preferredStep, fallbackStep] = SummaryStepKeys(step, false);
+    std::string sql = R"(
+        SELECT t.rank_id AS rankId,
+               TOTAL(t.comm_transit_time) AS transit,
+               TOTAL(t.comm_wait_time) AS wait,
+               TOTAL(t.comm_sync_time) AS synchronization,
+               TOTAL(t.comm_free_time) AS free
+        FROM CommTimeStatistic AS t
+    )";
+    if (!preferredStep.empty()) {
+        sql += R"(
+            WHERE t.step = CASE WHEN EXISTS (
+                SELECT 1 FROM CommTimeStatistic AS s WHERE s.step = ?1
+            ) THEN ?1 ELSE ?2 END
+        )";
+    }
+    sql += R"(
+        GROUP BY t.rank_id
+        ORDER BY CAST(t.rank_id AS INTEGER)
+    )";
+
+    auto statement = CreatPreparedStatement(sql);
+    if (statement == nullptr) {
+        return false;
+    }
+    auto result =
+        preferredStep.empty() ? statement->ExecuteQuery() : statement->ExecuteQuery(preferredStep, fallbackStep);
+    if (result == nullptr) {
+        return false;
+    }
+    while (result->Next()) {
+        ranks.push_back({result->GetString("rankId"), result->GetDouble("transit"), result->GetDouble("wait"),
+            result->GetDouble("synchronization"), result->GetDouble("free")});
+    }
+    if (result->GetErrorCode() != SQLITE_DONE) {
+        ServerLog::Error("Failed to query Summary communication time: ", result->GetErrorMessage());
+        return false;
+    }
+    return true;
+}
+
+bool DbClusterDataBase::QuerySummaryClusterBandwidth(
+    const std::string &step, std::vector<Protocol::SummaryTransportBandwidth> &types) {
+    types.clear();
+    if (!IsOpen()) {
+        return false;
+    }
+    if (!CheckTableExist(TABLE_TRANSIT_STATISTIC)) {
+        return true;
+    }
+
+    const auto [preferredStep, fallbackStep] = SummaryStepKeys(step, false);
+    std::string sql = R"(
+        SELECT t.band_type AS transportType,
+               CASE WHEN TOTAL(t.transit_time) > 0
+                    THEN TOTAL(t.transit_size) / TOTAL(t.transit_time)
+                    ELSE 0 END AS bandwidth
+        FROM TransitStatistic AS t
+    )";
+    if (!preferredStep.empty()) {
+        sql += R"(
+            WHERE t.step = CASE WHEN EXISTS (
+                SELECT 1 FROM TransitStatistic AS s WHERE s.step = ?1
+            ) THEN ?1 ELSE ?2 END
+        )";
+    }
+    sql += R"(
+        GROUP BY t.band_type
+        ORDER BY t.band_type
+    )";
+
+    auto statement = CreatPreparedStatement(sql);
+    if (statement == nullptr) {
+        return false;
+    }
+    auto result =
+        preferredStep.empty() ? statement->ExecuteQuery() : statement->ExecuteQuery(preferredStep, fallbackStep);
+    if (result == nullptr) {
+        return false;
+    }
+    while (result->Next()) {
+        const double bandwidth = result->GetDouble("bandwidth");
+        types.push_back({result->GetString("transportType"), std::isfinite(bandwidth) ? bandwidth : 0.0});
+    }
+    if (result->GetErrorCode() != SQLITE_DONE) {
+        ServerLog::Error("Failed to query Summary cluster bandwidth: ", result->GetErrorMessage());
+        return false;
+    }
+    return true;
 }
 
 bool DbClusterDataBase::HasClusterBaseInfoTable() const { return hasClusterBaseInfoTable; }

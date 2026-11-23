@@ -28,6 +28,10 @@
 #include "ImportExpertDataHandler.h"
 #include "QueryExpertHotspotHandler.h"
 #include "QueryModelInfoHandler.h"
+#include "SummaryClusterTimeHandler.h"
+#include "SummaryRankTimeHandler.h"
+#include "SummaryCommunicationTimeHandler.h"
+#include "SummaryClusterBandwidthHandler.h"
 #include "SummarySlowRankAdvisorHandler.h"
 #include "ProtocolDefs.h"
 #include "SummaryModule.h"
@@ -58,6 +62,10 @@ void SummaryModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(REQ_RES_IMPORT_EXPERT_DATA, std::make_unique<ImportExpertDataHandler>());
     requestHandlerMap.emplace(REQ_RES_QUERY_MODEL_INFO, std::make_unique<QueryModelInfoHandler>());
     requestHandlerMap.emplace(REQ_RES_SUMMARY_SLOW_RANK_ADVISOR, std::make_unique<SummarySlowRankAdvisorHandler>());
+    requestHandlerMap.emplace(REQ_RES_SUMMARY_CLUSTER_TIME, std::make_unique<SummaryClusterTimeHandler>());
+    requestHandlerMap.emplace(REQ_RES_SUMMARY_RANK_TIME, std::make_unique<SummaryRankTimeHandler>());
+    requestHandlerMap.emplace(REQ_RES_SUMMARY_COMMUNICATION_TIME, std::make_unique<SummaryCommunicationTimeHandler>());
+    requestHandlerMap.emplace(REQ_RES_SUMMARY_CLUSTER_BANDWIDTH, std::make_unique<SummaryClusterBandwidthHandler>());
 }
 
 void SummaryModule::OnRequest(std::unique_ptr<Protocol::Request> request) {
