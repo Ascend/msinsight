@@ -20,13 +20,13 @@ import { supportsModernCluster, type ClusterDataContext } from './dataFormat';
 import { CLUSTER_VERSION_KEY, ClusterViewPreference, modernClusterSource, canUseModernCluster } from './viewVersion';
 
 const initialEnv = process.env;
-beforeEach(() => { process.env = { ...initialEnv, REACT_APP_ENABLE_MODERN_CLUSTER: 'true', REACT_APP_IS_VSCODE: 'false' }; });
+beforeEach(() => { process.env = { ...initialEnv, REACT_APP_IS_VSCODE: 'false' }; });
 afterEach(() => { process.env = initialEnv; });
 
 afterEach(() => localStorage.removeItem(CLUSTER_VERSION_KEY));
-it('defaults both cluster pages to modern and restores a saved selection', () => {
+it('defaults both cluster pages to legacy and restores a saved selection', () => {
     localStorage.removeItem(CLUSTER_VERSION_KEY);
-    const preference = new ClusterViewPreference(); expect(preference.version).toBe('modern');
+    const preference = new ClusterViewPreference(); expect(preference.version).toBe('legacy');
     preference.select('legacy'); expect(new ClusterViewPreference().version).toBe('legacy');
     preference.select('modern'); expect(new ClusterViewPreference().version).toBe('modern');
 });
@@ -37,19 +37,52 @@ it('rejects switching during active or pending cluster comparison without changi
     expect(new ClusterViewPreference().version).toBe('legacy');
     preference.setComparisonPending(false); expect(preference.select('modern')).toBe(true);
 });
-it('requires a registered modern Summary and never uses the old Summary as its replacement', () => {
+it('uses registered modern entries rather than legacy pages when no override is provided', () => {
+    delete process.env.REACT_APP_SUMMARY_MODERN_SRC;
     expect(modernClusterSource('Communication')).toBe('./plugins/Communication/index.html');
-    expect(modernClusterSource('Summary')).toBeUndefined();
+    expect(modernClusterSource('Summary')).toBe('./plugins/Overview/index.html');
 });
+
+it.each([
+    ['development', 'http://localhost:3013/'],
+    ['production', './plugins/Overview/index.html'],
+])('resolves the registered %s Summary entry and permits an explicit override', (environment, summary) => {
+    process.env.REACT_APP_ENV = environment;
+    delete process.env.REACT_APP_SUMMARY_MODERN_SRC;
+    jest.isolateModules(() => {
+        const { modernClusterSource: resolve } = jest.requireActual<typeof import('./viewVersion')>('./viewVersion');
+        expect(resolve('Summary')).toBe(summary);
+        process.env.REACT_APP_SUMMARY_MODERN_SRC = './plugins/CustomSummary/index.html';
+        expect(resolve('Summary')).toBe('./plugins/CustomSummary/index.html');
+    });
+});
+
+it.each(['', 'https://outside.example/summary/', './plugins/../Summary/index.html', 'http://localhost:3013/'])(
+    'rejects an invalid production override %s instead of silently using the default',
+    override => {
+        process.env.REACT_APP_ENV = 'production';
+        process.env.REACT_APP_SUMMARY_MODERN_SRC = override;
+        expect(modernClusterSource('Summary')).toBeUndefined();
+    },
+);
 
 const source = (projectType?: ProjectType): ClusterDataContext => ({
     activeDataSource: { children: [{ type: 'CLUSTER', name: 'cluster', path: '/cluster', projectType, children: [] }] },
     clusterPageInfo: { selectedClusterPath: '/cluster' },
 });
-it.each([undefined, 'false', '1', 'TRUE'])('keeps the shared integration disabled for flag %s even with a saved modern preference', flag => {
-    if (flag === undefined) { delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER; } else {
-        process.env.REACT_APP_ENABLE_MODERN_CLUSTER = flag;
-    }
+it.each(['development', 'production'])('keeps DB pages legacy by default in %s and allows opting into modern', environment => {
+    process.env.REACT_APP_ENV = environment;
+    localStorage.removeItem(CLUSTER_VERSION_KEY);
+    const preference = new ClusterViewPreference();
+    expect(preference.versionFor(source(ProjectType.DB_CLUSTER))).toBe('legacy');
+    expect(canUseModernCluster(source(ProjectType.DB_CLUSTER))).toBe(true);
+    expect(modernClusterSource('Summary')).toBeDefined();
+    expect(modernClusterSource('Communication')).toBeDefined();
+    expect(preference.select('modern')).toBe(true);
+    expect(preference.versionFor(source(ProjectType.DB_CLUSTER))).toBe('modern');
+});
+it('keeps VSCode on its existing loader without changing the saved preference', () => {
+    process.env.REACT_APP_IS_VSCODE = 'true';
     localStorage.setItem(CLUSTER_VERSION_KEY, 'modern');
     const preference = new ClusterViewPreference();
     expect(preference.versionFor(source(ProjectType.DB_CLUSTER))).toBe('legacy');

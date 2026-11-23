@@ -61,7 +61,7 @@ test.describe('Communication', () => {
         await expect(page.locator('iframe[name="Communication"]').contentFrame().getByTestId('filters').getByText('Total Op Info')).toBeVisible();
         await expect(page.locator('iframe[name="Communication"]').contentFrame().locator('#matrixchart canvas')).toBeVisible();
         await page.locator('iframe[name="Communication"]').contentFrame().getByRole('radio', { name: 'Communication Duration' }).click();
-        await expect(page.locator('iframe[name="Communication"]').contentFrame().locator('#hccl canvas')).toBeVisible();
+        await expect(page.locator('iframe[name="Communication"]').contentFrame().locator('#hccl canvas[data-zr-dom-id]')).toBeVisible();
         await expect(page.locator('iframe[name="Communication"]').contentFrame().locator('#main canvas')).toBeVisible();
         await page.waitForTimeout(2000);
     });

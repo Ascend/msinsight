@@ -24,7 +24,7 @@ import { ProjectType } from '../../utils/enum';
 import { clusterView } from '../../cluster/viewVersion';
 
 const initialEnv = process.env;
-beforeEach(() => { process.env = { ...initialEnv, REACT_APP_ENABLE_MODERN_CLUSTER: 'true', REACT_APP_IS_VSCODE: 'false' }; });
+beforeEach(() => { process.env = { ...initialEnv, REACT_APP_IS_VSCODE: 'false' }; });
 afterEach(() => { process.env = initialEnv; });
 
 jest.mock('./SwitchTheme', () => function Theme() { return <button>Theme</button>; });
@@ -35,11 +35,11 @@ const sessionFor = (projectType: ProjectType): Session => ({
     activeDataSource: { children: [{ type: 'CLUSTER', path: '/cluster', projectType }] },
     clusterPageInfo: { selectedClusterPath: '/cluster' },
 } as unknown as Session);
-it.each(['Summary', 'Communication'])('hides the version switch on %s when disabled or running in VSCode', activeModule => {
-    delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER;
+it.each(['Summary', 'Communication'])('shows the version switch by default on %s in Web but not VSCode', activeModule => {
+    clusterView.select('modern');
     const view = renderWithProviders(<ToolBox activeModule={activeModule} session={sessionFor(ProjectType.DB_CLUSTER)} />);
-    expect(view.getAllByRole('button')).toHaveLength(3);
-    process.env.REACT_APP_ENABLE_MODERN_CLUSTER = 'true'; process.env.REACT_APP_IS_VSCODE = 'true';
+    expect(view.getByRole('button', { name: 'clusterView.legacy' })).toBeInTheDocument();
+    process.env.REACT_APP_IS_VSCODE = 'true';
     view.rerender(<ToolBox activeModule={activeModule} session={sessionFor(ProjectType.DB_CLUSTER)} />);
     expect(view.getAllByRole('button')).toHaveLength(3);
     expect(view.queryByRole('button', { name: 'clusterView.legacy' })).not.toBeInTheDocument();

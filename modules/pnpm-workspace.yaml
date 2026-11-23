@@ -2,6 +2,7 @@ packages:
   - 'lib'
   - 'compute'
   - 'cluster'
+  - 'summary'
   - 'framework'
   - 'memory'
   - 'operator'

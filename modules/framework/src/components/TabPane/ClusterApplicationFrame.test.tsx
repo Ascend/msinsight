@@ -21,13 +21,9 @@ import * as testing from '@testing-library/react';
 import { ClusterApplicationFrame } from './ClusterApplicationFrame';
 import { clusterView } from '../../cluster/viewVersion';
 
-const initialModernClusterFlag = process.env.REACT_APP_ENABLE_MODERN_CLUSTER;
-beforeEach(() => { process.env.REACT_APP_ENABLE_MODERN_CLUSTER = 'true'; });
-afterEach(() => {
-    if (initialModernClusterFlag === undefined) { delete process.env.REACT_APP_ENABLE_MODERN_CLUSTER; } else {
-        process.env.REACT_APP_ENABLE_MODERN_CLUSTER = initialModernClusterFlag;
-    }
-});
+const initialEnv = process.env;
+beforeEach(() => { process.env = { ...initialEnv, REACT_APP_IS_VSCODE: 'false' }; });
+afterEach(() => { process.env = initialEnv; });
 
 const { screen } = testing;
 jest.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
