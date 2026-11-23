@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <set>
 #include "../../../TestSuit.h"
 #include "Database.h"
 #include "DataBaseManager.h"
@@ -241,4 +242,24 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForCommunicationOpTypeWithFilte
     EXPECT_EQ(
         textResponse.data.size() + dbResponse.data.size(), min(textResponse.total, commonQueryParams.pageSize) * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
+}
+
+TEST_F(VirtualSummaryDatabaseTest, QueryOperatorMoreInfoPaginatesByNameAndInputShape) {
+    OperatorMoreInfoReqParams params = {"0", "0", RequestGroup::INPUT_SHAPE, -1, "", "aclnnInplaceMuls_MulAiCore_Mul",
+        R"("113304576;")", "AI_VECTOR_CORE", 1, 10, "startTime", "ascend"};
+    constexpr size_t expectedTotal = 21;
+    std::set<std::string> startTimes;
+    for (const size_t expectedPageSize : {10, 10, 1}) {
+        OperatorMoreInfoResponse response;
+        ASSERT_TRUE(fullDbRank0.QueryOperatorMoreInfo(params, response));
+        EXPECT_EQ(response.total, expectedTotal);
+        ASSERT_EQ(response.data.size(), expectedPageSize);
+        for (const auto &row : response.data) {
+            EXPECT_EQ(row.name, params.opName);
+            EXPECT_EQ(row.inputShape, params.shape);
+            startTimes.insert(row.startTime);
+        }
+        ++params.current;
+    }
+    EXPECT_EQ(startTimes.size(), expectedTotal);
 }
