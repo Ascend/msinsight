@@ -46,6 +46,10 @@ export class SessionStore {
     }
 
     set activeSession(value: Session | undefined) {
+        if (this._activeSession !== value && this._activeSession !== undefined) {
+            this._activeSession.pmuCounterCache.clear();
+            this._activeSession.pmuCounterGeneration++;
+        }
         this._activeSession = value;
     }
 

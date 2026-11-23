@@ -20,6 +20,7 @@ import { type ThreadMetaData } from '../entity/data';
 import { type InsightUnit } from '../entity/insight';
 import { forEach } from 'lodash';
 import { isMsprofFtraceCard } from './msprofFtraceLayout';
+import { getPmuUnitIdentityKey, type PmuLaneMetadata } from '../entity/pmuCounter';
 
 export const getOperatingSystem = function (): string {
     const userAgent = navigator.userAgent.toLowerCase();
@@ -53,6 +54,9 @@ export const getRootUnit = (units: InsightUnit[]): InsightUnit[] => {
 };
 
 export const getUnitUniqueId = (unit: InsightUnit): string => {
+    if (unit.metadata?.pmu !== undefined) {
+        return getPmuUnitIdentityKey(unit.metadata as PmuLaneMetadata);
+    }
     const { cardId = '', processId = '', threadId = '' } = unit.metadata ?? {};
     return `${cardId}_${processId}_${threadId}`;
 };
@@ -70,6 +74,10 @@ export const isStreamUnit = (unit: InsightUnit): boolean => {
 export const checkIsSameUnit = (referenceMetadata?: ThreadMetaData, comparisonMetadata?: ThreadMetaData): boolean => {
     if (!referenceMetadata || !comparisonMetadata) {
         return false;
+    }
+    if (referenceMetadata.pmu !== undefined || comparisonMetadata.pmu !== undefined) {
+        return referenceMetadata.pmu !== undefined && comparisonMetadata.pmu !== undefined &&
+            getPmuUnitIdentityKey(referenceMetadata) === getPmuUnitIdentityKey(comparisonMetadata);
     }
     const isSameBase = referenceMetadata.processId === comparisonMetadata.processId &&
         referenceMetadata.cardId === comparisonMetadata.cardId &&

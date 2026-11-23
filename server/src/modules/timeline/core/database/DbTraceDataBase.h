@@ -232,6 +232,9 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     void AddPythonStackMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     void ProcessHostCounterEventsMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    void ProcessPmuCounterMetadata(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    void ExtendPmuTimeRange(uint64_t &min, uint64_t &max);
     void QueryDeviceIdInStepTraceTime(std::set<std::string> &deviceIds);
 
     bool QueryFwdBwdFromMstx(std::vector<Protocol::ThreadTraces> &traceList) override;

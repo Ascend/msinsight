@@ -33,6 +33,20 @@ struct UnitMetaData {
     std::string cardAlias;
 };
 
+struct PmuTrackMetaData {
+    std::string kind;
+    std::string nodeKey;
+    std::string sourceKey;
+    std::string counterId;
+    std::string eventId;
+    std::optional<int64_t> cpu;
+    std::string eventName;
+    std::optional<int> eventSource;
+    std::string unit;
+    std::string intervalNs;
+    std::optional<bool> hasSamples;
+};
+
 struct UnitTrackMetaData {
     std::string cardId;
     std::string dbPath;
@@ -52,6 +66,7 @@ struct UnitTrackMetaData {
     std::vector<std::string> dataType; // type = counter
     std::string headerTooltip;
     double maxValue = 0.;
+    std::optional<PmuTrackMetaData> pmu;
 };
 
 struct UnitTrack {

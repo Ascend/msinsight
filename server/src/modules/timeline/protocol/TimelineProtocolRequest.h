@@ -373,6 +373,21 @@ struct UnitCounterRequest : public Request {
     UnitCounterParams params;
 };
 
+struct PmuCounterParams {
+    std::string dbPath;
+    std::string rankId;
+    std::string counterId;
+    uint64_t startTime = 0;
+    uint64_t endTime = 0;
+    uint32_t targetBuckets = 1024;
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const;
+};
+
+struct PmuCounterRequest : public Request {
+    PmuCounterRequest() : Request(REQ_RES_PMU_COUNTER) {};
+    PmuCounterParams params;
+};
+
 struct CreateCurveParams {
     std::string fileId;
     std::string pid;

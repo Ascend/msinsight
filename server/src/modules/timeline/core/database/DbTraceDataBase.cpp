@@ -148,6 +148,7 @@ bool DbTraceDataBase::QueryUnitsMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     const bool hasThreadingAnalysis = IsThreadingAnalysisDatabase();
     if (hasThreadingAnalysis && !HasStandardTimelineData()) {
+        ProcessPmuCounterMetadata(fileId, metaData);
         return QueryThreadingAnalysisMetadata(fileId, metaData);
     }
     QueryHostMetadata(fileId, metaData);
@@ -176,6 +177,7 @@ bool DbTraceDataBase::QueryUnitsMetadata(
         GenerateOverlapAnalysisMetadata(fileId, metaData);
     }
     ProcessHostCounterEventsMetadata(fileId, metaData);
+    ProcessPmuCounterMetadata(fileId, metaData);
     QueryCounterMetadata(fileId, metaData);
     return hasThreadingAnalysis ? QueryThreadingAnalysisMetadata(fileId, metaData) : false;
 }
@@ -414,6 +416,31 @@ bool DbTraceDataBase::GenerateOverlapAnalysisMetadata(
 
 bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
     if (!IsThreadingAnalysisDatabase() || HasStandardTimelineData()) {
+        if (CheckTableExist("HOST_PMU_COUNTER_DATA")) {
+            // PMU samples share the session epoch. Include their boundaries before choosing the global origin.
+            uint64_t pmuMin = UINT64_MAX;
+            uint64_t pmuMax = 0;
+            ExtendPmuTimeRange(pmuMin, pmuMax);
+            // Reject a bad session row before aggregation so valid rows still contribute their range.
+            const std::string sql = CheckTableExist(TABLE_SESSION_TIME_INFO)
+                ? "SELECT MIN(startTimeNs) AS minTs,MAX(endTimeNs) AS maxTs FROM " + TABLE_SESSION_TIME_INFO +
+                    " WHERE startTimeNs>=0 AND endTimeNs>=0"
+                : CheckTableExist(TABLE_API) ? "SELECT MIN(startNs) AS minTs,MAX(endNs) AS maxTs FROM " + TABLE_API : "";
+            auto statement = sql.empty() ? nullptr : CreatPreparedStatement(sql);
+            auto result = statement == nullptr ? nullptr : statement->ExecuteQuery();
+            if (result != nullptr && result->Next() && sqlite3_column_type(statement->stmt, 0) == SQLITE_INTEGER &&
+                sqlite3_column_type(statement->stmt, 1) == SQLITE_INTEGER &&
+                result->GetInt64("minTs") >= 0 && result->GetInt64("maxTs") >= result->GetInt64("minTs")) {
+                pmuMin = std::min(pmuMin, result->GetUint64("minTs"));
+                pmuMax = std::max(pmuMax, result->GetUint64("maxTs"));
+            }
+            if (pmuMin > pmuMax) {
+                return false;
+            }
+            // Query outputs describe this database only; merging sources belongs to the caller.
+            min = pmuMin;
+            max = pmuMax;
+        }
         return true;
     }
     const auto tables = GetThreadingAnalysisTables();
@@ -431,6 +458,14 @@ bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
     }
     min = resultSet->GetUint64("minTs");
     max = resultSet->GetUint64("maxTs");
+    if (CheckTableExist("HOST_PMU_COUNTER_DATA") &&
+        (sqlite3_column_type(stmt->stmt, 0) != SQLITE_INTEGER ||
+         sqlite3_column_type(stmt->stmt, 1) != SQLITE_INTEGER ||
+         resultSet->GetInt64("minTs") < 0 || resultSet->GetInt64("maxTs") < resultSet->GetInt64("minTs"))) {
+        min = UINT64_MAX;
+        max = 0;
+    }
+    ExtendPmuTimeRange(min, max);
     return min <= max;
 }
 
@@ -1164,14 +1199,31 @@ bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesS
 }
 void DbTraceDataBase::UpdateStartTime(const std::string &fileId) {
     if (IsThreadingAnalysisDatabase() && !HasStandardTimelineData()) {
-        uint64_t startTime = 0;
+        uint64_t startTime = UINT64_MAX;
         uint64_t endTime = 0;
-        if (!QueryExtremumTimestamp(startTime, endTime)) {
+        if (!QueryExtremumTimestamp(startTime, endTime) || startTime > endTime) {
             return;
         }
         TraceTime::Instance().UpdateTime(startTime, endTime);
         TraceTime::Instance().UpdateCardMinTimestamp(fileId, startTime);
         TraceTime::Instance().UpdateCardTimeDuration(fileId, startTime, endTime);
+        if (CheckTableExist("HOST_PMU_COUNTER_DATA")) {
+            TraceTime::Instance().UpdateCardTimeDuration(QueryHostInfo() + "Host", startTime, endTime);
+        }
+        return;
+    }
+    // Register PMU independently. A session table can contain disjoint intervals, which must
+    // still be registered row by row instead of being replaced by one global envelope.
+    uint64_t pmuStart = UINT64_MAX;
+    uint64_t pmuEnd = 0;
+    ExtendPmuTimeRange(pmuStart, pmuEnd);
+    if (pmuStart <= pmuEnd) {
+        TraceTime::Instance().UpdateTime(pmuStart, pmuEnd);
+        TraceTime::Instance().UpdateCardMinTimestamp(fileId, pmuStart);
+        TraceTime::Instance().UpdateCardTimeDuration(fileId, pmuStart, pmuEnd);
+        TraceTime::Instance().UpdateCardTimeDuration(QueryHostInfo() + "Host", pmuStart, pmuEnd);
+    }
+    if (!CheckTableExist(TABLE_SESSION_TIME_INFO) && !CheckTableExist(TABLE_API)) {
         return;
     }
     sqlite3_stmt *stmt = nullptr;

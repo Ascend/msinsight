@@ -26,9 +26,16 @@ import type { Readable } from '../../utils/humanReadable';
 import { Canvas, CanvasContainer, LegendArea, search, zipTimeSeriesData } from './common';
 import { useBatchedRender, useData, useHoverPosX, useRangeAndDomain } from './hooks';
 import { TooltipComponent, type TooltipProps } from './TooltipComp';
-import { findFilledLineValueRange, type FilledLineSeriesMode } from './filledLineUtils';
+import { drawFilledLineArea, drawFilledLineIntervals, findFilledLineInterval, findFilledLineValueRange, type FilledLineSeriesMode } from './filledLineUtils';
 
 type FilledLineChartProps = ChartProps<'filledLine'>;
+
+export type FilledLineChartRendererProps = Omit<FilledLineChartProps, 'mapFunc'> & {
+    dataListState: number[][];
+    // One exclusive end timestamp per row. Omit for the existing sample-and-hold counter format.
+    intervalEnds?: number[];
+    children?: React.ReactNode;
+};
 
 const drawAuxiliaryLine = (context: CanvasRenderingContext2D, yScale: Scale,
     auxiliaryValue: number, width: number): void => {
@@ -52,32 +59,6 @@ interface DrawAreaParams {
     width: number;
     isIE: boolean;
 }
-
-const drawArea = ({ context, dataList, minHeight, maxHeight, xScale, yScale, palette, width, isIE }: DrawAreaParams): (undefined | number[]) => {
-    if (dataList.length === 0) { return; }
-
-    const x = [...dataList.map(it => xScale(it[0])), 1 + xScale(dataList[dataList.length - 1][0])];
-    const y0 = yScale(minHeight);
-    for (let i = 1; i < dataList[0].length; i++) {
-        context.beginPath();
-        context.moveTo(x[0], y0);
-        for (let j = 0; j < dataList.length; j++) {
-            const y = yScale(dataList[j].slice(i, dataList[0].length).reduce((prev, cur) => prev + cur, 0)) - (dataList[0].length - i);
-            context.lineTo(x[j], y);
-            context.lineTo(x[j + 1], y);
-        }
-        if (!isIE) {
-            context.lineTo(x[dataList.length], y0);
-            context.closePath();
-            context.fillStyle = palette[i - 1];
-            context.fill();
-        } else {
-            context.lineTo(x[dataList.length], y0);
-            context.strokeStyle = palette[i - 1];
-            context.stroke();
-        }
-    };
-};
 
 const drawOverlayLines = ({ context, dataList, xScale, yScale, palette }: DrawAreaParams): void => {
     if (dataList.length === 0) { return; }
@@ -117,9 +98,10 @@ interface DrawParams {
     valueFormat?: Readable;
     isIE: boolean;
     seriesMode: FilledLineSeriesMode;
+    intervalEnds?: number[];
 }
 
-const draw = ({ ctx, dataList, width, height, palette, rangeAndDomain, hideLayer, valueRange, auxiliaryValue, legend, valueFormat, isIE, seriesMode }: DrawParams):
+const draw = ({ ctx, dataList, width, height, palette, rangeAndDomain, hideLayer, valueRange, auxiliaryValue, legend, valueFormat, isIE, seriesMode, intervalEnds }: DrawParams):
 (HTMLCanvasElement | undefined) => {
     if (!ctx) { return; }
     if (dataList.length === 0 || dataList[0].length > palette.length + 1) { return; }
@@ -132,20 +114,30 @@ const draw = ({ ctx, dataList, width, height, palette, rangeAndDomain, hideLayer
     const yScale = d3.scaleLinear().range([height, 0]).domain([minHeight, maxHeight]);
     if (auxiliaryValue !== undefined) { drawAuxiliaryLine(ctx, yScale, auxiliaryValue, width); }
     const drawParams = { context: ctx, dataList: drawDataList, minHeight, maxHeight, xScale, yScale, palette: newPalette, width, isIE };
-    if (seriesMode === 'overlay') {
+    if (intervalEnds !== undefined) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, width, height);
+        ctx.clip();
+        drawFilledLineIntervals({ ...drawParams, intervalEnds, seriesMode });
+        ctx.restore();
+    } else if (seriesMode === 'overlay') {
         drawOverlayLines(drawParams);
     } else {
-        drawArea(drawParams);
+        drawFilledLineArea(drawParams);
     }
 };
 
 const findDataByX = (mousePosX: number | undefined, dataListState: number[][],
-    rangeAndDomain: Array<[number, number]>): undefined | number[] => {
+    rangeAndDomain: Array<[number, number]>, intervalEnds?: number[]): undefined | number[] => {
     if (rangeAndDomain.length === 0 || dataListState.length === 0 || mousePosX === undefined) {
         return undefined;
     }
     const reverseXScale = d3.scaleLinear().range(rangeAndDomain[1]).domain(rangeAndDomain[0]).clamp(false);
     const mouseTimestamp = reverseXScale(mousePosX);
+    if (intervalEnds !== undefined) {
+        return findFilledLineInterval(dataListState, intervalEnds, mouseTimestamp);
+    }
     // 如果鼠标位置在所有关键点范围之外，不显示tooltip
     if (dataListState[0][0] > mouseTimestamp || dataListState[dataListState.length - 1][0] < mouseTimestamp) {
         return undefined;
@@ -226,38 +218,34 @@ const removeHideLayerDatas = (dataList: number[][], palette: string[], hideLayer
 };
 
 // eslint-disable-next-line max-lines-per-function
-export const FilledLineChart = observer(({
-    margin, session, mapFunc, valueFormat, valueRange, legend, auxiliaryValue, palette, seriesMode = 'stacked', renderTooltip, metadata, height, width, unit,
-}: FilledLineChartProps) => {
+export const FilledLineChartRenderer = observer(({
+    margin, session, valueFormat, valueRange, legend, auxiliaryValue, palette, seriesMode = 'stacked', renderTooltip, metadata, height, width,
+    dataListState, intervalEnds, children,
+}: FilledLineChartRendererProps) => {
     const theme = useTheme();
-    useEffect(() => {
-        if (!/^AI Core Freq(?: Die \d+)?$/.test(String(unit.metadata.threadName ?? ''))) { return; }
-        runInAction(() => { unit.counterRenderWidth = width; });
-        return () => { runInAction(() => { unit.counterRenderWidth = 0; }); };
-    }, [unit, width]);
     const canvasContainer = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
 
-    const dataListState = useData({ session, mapFunc, unit, metadata, width, processor: zipTimeSeriesData });
     const rangeAndDomain = useRangeAndDomain(session, width, margin);
 
     const [hideLayer, setHideLayer] = useState<number[]>([]);
     const mousePosX = useHoverPosX(canvasContainer);
-    const hoveredData = useMemo(() => findDataByX(mousePosX, dataListState, rangeAndDomain), [mousePosX, dataListState, rangeAndDomain]);
+    const hoveredData = useMemo(() => findDataByX(mousePosX, dataListState, rangeAndDomain, intervalEnds),
+        [mousePosX, dataListState, rangeAndDomain, intervalEnds]);
     const colorPalette = useMemo(() => palette.map(d => theme.colorPalette[d]), [palette, theme]);
 
-    const isCanvasOrContainerInvalid = canvasContainer.current === null || canvas.current === null;
     const isDataOrRangeEmpty = dataListState.length === 0 || rangeAndDomain.length === 0;
-    const isCanvasSizeZero = canvas.current && (canvas.current.width === 0 || canvas.current.height === 0);
 
     useBatchedRender(() => {
-        if (isCanvasOrContainerInvalid || isDataOrRangeEmpty || isCanvasSizeZero) {
+        const canvasElement = canvas.current;
+        if (canvasContainer.current === null || canvasElement === null || canvasElement.width === 0 || canvasElement.height === 0) {
             return;
         }
-        const ctx = canvas.current.getContext('2d');
+        const ctx = canvasElement.getContext('2d');
         ctx?.setTransform(1, 0, 0, 1, 0, 0);
         ctx?.scale(devicePixelRatio, devicePixelRatio);
         ctx?.clearRect(0, 0, width, height);
+        if (isDataOrRangeEmpty) { return; }
         const param: DrawParams = {
             ctx,
             dataList: dataListState,
@@ -272,9 +260,10 @@ export const FilledLineChart = observer(({
             valueFormat,
             isIE: session.isIE,
             seriesMode,
+            intervalEnds,
         };
         draw(param);
-    }, [dataListState, rangeAndDomain, theme, valueRange, hideLayer, colorPalette, seriesMode]);
+    }, [dataListState, rangeAndDomain, theme, valueRange, hideLayer, colorPalette, seriesMode, intervalEnds, width, height]);
 
     const tooltipProp: TooltipProps<number[], number[][]> = {
         data: hoveredData,
@@ -289,5 +278,17 @@ export const FilledLineChart = observer(({
         <TooltipComponent {...tooltipProp} />
         <Canvas className={'drawCanvas'} ref={canvas} width={width * devicePixelRatio} height={height * devicePixelRatio}/>
         <LegendJSX legend={legend} palette={colorPalette} hideLayer={hideLayer} setHideLayer={setHideLayer}/>
+        {children}
     </CanvasContainer>;
+});
+
+export const FilledLineChart = observer((props: FilledLineChartProps) => {
+    const { session, mapFunc, unit, metadata, width } = props;
+    useEffect(() => {
+        if (!/^AI Core Freq(?: Die \d+)?$/.test(String(unit.metadata.threadName ?? ''))) { return; }
+        runInAction(() => { unit.counterRenderWidth = width; });
+        return () => { runInAction(() => { unit.counterRenderWidth = 0; }); };
+    }, [unit, width]);
+    const dataListState = useData({ session, mapFunc, unit, metadata, width, processor: zipTimeSeriesData });
+    return <FilledLineChartRenderer {...props} dataListState={dataListState}/>;
 });

@@ -22,6 +22,7 @@ import { type ChartDesc, type InsightUnit, isGetChartConfig } from '../../entity
 import type { Session } from '../../entity/session';
 import { EventChart } from './EventChart';
 import { FilledLineChart } from './FilledLineChart';
+import { PmuCounterChart } from './PmuCounterChart';
 import { StackedBarChart } from './StackedBarChart';
 import { StackStatusChart } from './StackStatusChart';
 import { StatusChart } from './StatusChart';
@@ -32,6 +33,7 @@ import { useTranslation } from 'react-i18next';
 import styled from '@emotion/styled';
 
 const chartMap: { [K in ChartType]: React.FC<ChartProps<K>> } = {
+    pmuCounter: PmuCounterChart,
     filledLine: FilledLineChart,
     stackedBar: StackedBarChart,
     keyEvent: EventChart,

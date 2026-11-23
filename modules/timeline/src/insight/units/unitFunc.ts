@@ -42,6 +42,8 @@ import {
 } from './AscendUnit';
 import { LLC_CACHE_METRIC_GROUP } from './llcCache';
 import { THREADING_STATE_METRIC_GROUP } from './threadingAnalysis';
+import { PmuCounterUnit, PmuGroupUnit } from './PmuCounterUnit';
+import { getPmuSourceIdentityKey, getPmuUnitIdentityKey, type PmuLaneMetadata } from '../../entity/pmuCounter';
 
 const THREADING_ANALYSIS_META_TYPE = 'THREADING_ANALYSIS';
 
@@ -84,6 +86,9 @@ export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataLi
         const subtreeOffsetSide = containsPythonStack(metaData) ? OFFSET_SIDE.HOST : undefined;
         const existingUnit = parentUnit?.children?.find(unit => checkMetaData(unit.metadata, metaData));
         if (existingUnit) {
+            if (metaData.metadata.pmu !== undefined) {
+                Object.assign(existingUnit.metadata, metaData.metadata, { offsetSide: OFFSET_SIDE.HOST });
+            }
             // Late Python Stack metadata also reclassifies lanes that were expanded earlier.
             if (subtreeOffsetSide !== undefined || parentUnit.metadata.offsetSide === OFFSET_SIDE.HOST) {
                 existingUnit.metadata.offsetSide = OFFSET_SIDE.HOST;
@@ -195,10 +200,29 @@ function newLane(
     parentMetaData: any,
     subtreeOffsetSide?: typeof OFFSET_SIDE.HOST,
 ): InsightUnit | undefined {
+    if (insightMetaData.metadata.metaType === 'PMU_COUNTER' && insightMetaData.metadata.pmu !== undefined) {
+        const metadata: PmuLaneMetadata = {
+            ...insightMetaData.metadata,
+            cardId: insightMetaData.metadata.cardId || parentMetaData.cardId,
+            dbPath: insightMetaData.metadata.dbPath || parentMetaData.dbPath,
+            dataSource: insightMetaData.metadata.dataSource ?? parentMetaData.dataSource,
+            offsetSide: OFFSET_SIDE.HOST,
+        };
+        if (metadata.pmu.kind === 'event' && insightMetaData.type === 'counter') {
+            return new PmuCounterUnit(metadata);
+        }
+        if (insightMetaData.type === 'label' && (metadata.pmu.kind === 'group' || metadata.pmu.kind === 'cpu')) {
+            return new PmuGroupUnit(metadata);
+        }
+        return undefined;
+    }
     switch (insightMetaData.type) {
         case 'label': {
             const parentMetaDataFromTree = parentMetaDataTree.get(insightMetaData.metadata);
-            const meta = generateMetaData<LabelMetaData>({ cardId: parentMetaDataFromTree.cardId, dbPath: parentMetaDataFromTree.dbPath },
+            const dbPath = insightMetaData.metadata.metaType === 'CPU_METRICS'
+                ? insightMetaData.metadata.dbPath || parentMetaDataFromTree.dbPath
+                : parentMetaDataFromTree.dbPath;
+            const meta = generateMetaData<LabelMetaData>({ cardId: parentMetaDataFromTree.cardId, dbPath },
                 insightMetaData.metadata.processId, insightMetaData.metadata.processName);
             meta.dataSource = parentMetaDataFromTree.dataSource;
             meta.metaType = insightMetaData.metadata.metaType;
@@ -292,7 +316,15 @@ function generateMetaData<T extends MetaDataInnerBase = MetaDataInnerBase>(
 }
 
 function checkMetaData<T extends keyof MetaDataEnumType>(unitMetaData: any, paramMetaData: InsightMetaData<T>): boolean {
+    if (unitMetaData.pmu !== undefined || paramMetaData.metadata.pmu !== undefined) {
+        return unitMetaData.pmu !== undefined && paramMetaData.metadata.pmu !== undefined &&
+            getPmuUnitIdentityKey(unitMetaData) === getPmuUnitIdentityKey(paramMetaData.metadata);
+    }
     const sameDbPath = unitMetaData.dbPath === paramMetaData.metadata.dbPath;
+    if (paramMetaData.type === 'label' && paramMetaData.metadata.metaType === 'CPU_METRICS') {
+        return unitMetaData.metaType === 'CPU_METRICS' && sameDbPath &&
+            getPmuSourceIdentityKey(unitMetaData) === getPmuSourceIdentityKey(paramMetaData.metadata);
+    }
     if (paramMetaData.type === 'thread' && sameDbPath &&
         (unitMetaData as ThreadMetaData).threadId === (paramMetaData.metadata as ThreadMetaData).threadId) {
         return true;

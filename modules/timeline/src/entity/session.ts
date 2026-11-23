@@ -29,6 +29,7 @@ import { type TimeLineMaker, TIME_MAKER_DEFAULT } from './timeMaker';
 import { platform } from '../platforms';
 import { type Phase, stateTexts } from '../utils/constant';
 import { SimpleCache } from '../cache/simplecache';
+import { PmuCounterCache } from '../cache/pmuCounterCache';
 import { InsightUnitSet } from '../utils/PageSetting';
 import { getCardOffsetKey, getCardSideOffset, type OffsetSide } from '../insight/units/offset';
 import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from './data';
@@ -190,6 +191,8 @@ export class Session {
     icon?: JSX.Element;
     caches: Caches | null = null;
     simpleCache: SimpleCache;
+    pmuCounterCache = new PmuCounterCache();
+    pmuCounterGeneration = 0;
 
     // Frontend start time of recording.
     startRecordTime: TimeStamp;
@@ -352,6 +355,7 @@ export class Session {
             timer: false,
             selectedUnits: false,
             caches: false,
+            pmuCounterCache: false,
             isNsMode: false,
             printSessionInfo: false,
             linkLines: false,

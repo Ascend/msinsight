@@ -53,6 +53,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToFlowCategoryListRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToFlowCategoryEventsRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToUnitCounterRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToPmuCounterRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToSystemViewRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToExpAnaAICoreFreqRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToEventsViewRequest(const json_t &json, std::string &error);
@@ -89,6 +90,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::optional<document_t> ToFlowCategoryListResponse(const Response &response);
     static std::optional<document_t> ToFlowCategoryEventsResponse(const Response &response);
     static std::optional<document_t> ToUnitCounterResponse(const Response &response);
+    static std::optional<document_t> ToPmuCounterResponse(const Response &response);
     static std::optional<document_t> ToSystemViewResponseJson(const Response &response);
     static std::optional<document_t> ToSystemViewTraceResponseJson(const Response &response);
     static std::optional<document_t> ToExpAnaAICoreFreqResponseJson(const Dic::Protocol::Response &response);

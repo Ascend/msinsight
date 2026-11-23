@@ -19,9 +19,29 @@
 #include "TimelineProtocolRequest.h"
 
 #include <algorithm>
+#include <charconv>
+#include <limits>
 
 namespace Dic {
 namespace Protocol {
+bool PmuCounterParams::CheckParams(uint64_t minTime, std::string &warnMsg) const {
+    constexpr uint64_t maxSafeInteger = 9007199254740991ULL;
+    constexpr uint64_t maxSqliteInteger = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+    int64_t id = -1;
+    const auto parsed = std::from_chars(counterId.data(), counterId.data() + counterId.size(), id);
+    if (dbPath.empty() || rankId.empty() || counterId.empty() || id < 0 || parsed.ec != std::errc{} ||
+        parsed.ptr != counterId.data() + counterId.size()) {
+        warnMsg = "PMU counter requires a registered source, rank context and nonnegative integer counterId.";
+        return false;
+    }
+    if (targetBuckets == 0 || targetBuckets > 4096 || startTime > endTime || endTime > maxSafeInteger ||
+        minTime > maxSqliteInteger || endTime > maxSqliteInteger - minTime) {
+        warnMsg = "PMU counter time range or display budget is invalid.";
+        return false;
+    }
+    return true;
+}
+
 static size_t Utf8CodePointLength(const std::string &value) {
     return static_cast<size_t>(std::count_if(
         value.begin(), value.end(), [](unsigned char character) { return (character & 0xC0U) != 0x80U; }));

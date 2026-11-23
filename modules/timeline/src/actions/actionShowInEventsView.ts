@@ -31,7 +31,7 @@ const isEventMenuVisible = (session: Session): boolean => {
     if (selectUnit === undefined || session.isSimulation) {
         return false;
     }
-    if ((selectUnit.metadata as Partial<ThreadMetaData>).metaType === 'DPU') {
+    if (['DPU', 'PMU_COUNTER'].includes((selectUnit.metadata as Partial<ThreadMetaData>).metaType ?? '')) {
         return false;
     }
     if (['Empty', 'Card', 'Counter', 'Root'].includes(selectUnit.name)) {

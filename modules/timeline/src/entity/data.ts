@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type { OffsetSide } from '../insight/units/offset';
+import type { PmuMetadata } from './pmuCounter';
 
 // #region cputime
 export interface ThreadInfo {
@@ -701,6 +702,7 @@ export interface MetaDataInnerBase extends MetaDataBase {
     maxValue?: number;
     bucketWidthNs?: number;
     metricGroup?: string;
+    pmu?: PmuMetadata;
 }
 
 export interface LabelMetaData extends MetaDataInnerBase {

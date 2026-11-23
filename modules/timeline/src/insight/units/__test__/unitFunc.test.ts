@@ -18,7 +18,22 @@
 
 import type { InsightMetaData } from '../../../entity/data';
 import type { InsightUnit } from '../../../entity/insight';
+import { getUnitUniqueId, checkIsSameUnit } from '../../../utils';
 import { clearParentMap, createCounterParam, createStatusParam, getHardwareSummaryDbPaths, mergeSummaryStatusData, reorderMultiSourceCardLanes, recursiveExpandUnit, updateDataSourceAndParentMetaDataMap } from '../unitFunc';
+
+jest.mock('../PmuCounterUnit', () => ({
+    PmuGroupUnit: class {
+        name = 'Label';
+        metadata: Record<string, unknown>;
+        constructor(metadata: Record<string, unknown>) { this.metadata = metadata; }
+    },
+    PmuCounterUnit: class {
+        name = 'Counter';
+        chart = { type: 'pmuCounter' };
+        metadata: Record<string, unknown>;
+        constructor(metadata: Record<string, unknown>) { this.metadata = metadata; }
+    },
+}));
 
 jest.mock('../AscendUnit', () => {
     class MockUnit {
@@ -89,6 +104,119 @@ const createCardUnit = (): InsightUnit => ({
     },
     children: [],
 } as Partial<InsightUnit> as InsightUnit);
+
+describe('PMU lane integration', () => {
+    const createTree = (dbPath: string, source: DataSource = dataSource): InsightMetaData<'card'> => {
+        const base = { cardId: 'rank0', dbPath, dataSource: source, metaType: 'PMU_COUNTER' };
+        const pmu = { sourceKey: dbPath };
+        return {
+            type: 'card',
+            dataSource: source,
+            metadata: { ...base, dbPath: 'rank0.db' },
+            children: [{
+                type: 'label',
+                dataSource: source,
+                metadata: { ...base, metaType: 'CPU_METRICS', processId: '__cpu_metrics__', processName: 'CPU Metrics' },
+                children: [{
+                    type: 'label',
+                    dataSource: source,
+                    metadata: { ...base, processName: 'PMU', pmu: { ...pmu, kind: 'group', nodeKey: 'pmu' } },
+                    children: [{
+                        type: 'label',
+                        dataSource: source,
+                        metadata: { ...base, processName: 'CPU 7', pmu: { ...pmu, kind: 'cpu', nodeKey: 'cpu:7', cpu: 7 } },
+                        children: [{
+                            type: 'counter',
+                            dataSource: source,
+                            metadata: {
+                                ...base,
+                                threadName: 'cycles',
+                                pmu: {
+                                    ...pmu,
+                                    kind: 'event',
+                                    nodeKey: 'counter:0',
+                                    cpu: 7,
+                                    counterId: '0',
+                                    eventId: '0',
+                                    eventName: 'cycles',
+                                    eventSource: 2,
+                                    unit: 'count',
+                                    intervalNs: '200000000',
+                                    hasSamples: true,
+                                },
+                            },
+                        }],
+                    }],
+                }],
+            }],
+        } as unknown as InsightMetaData<'card'>;
+    };
+    const expand = (card: InsightUnit, tree: InsightMetaData<'card'>): void => {
+        updateDataSourceAndParentMetaDataMap(tree, tree.dataSource);
+        recursiveExpandUnit(tree.children ?? [], card);
+    };
+    const child = (parent: InsightUnit, index = 0): InsightUnit => {
+        const result = parent.children?.[index];
+        if (result === undefined) { throw new Error('Expected PMU child lane'); }
+        return result;
+    };
+    const leaf = (card: InsightUnit, index = 0): InsightUnit => child(child(child(child(card, index))));
+
+    afterEach(clearParentMap);
+
+    it('preserves the real DB and PMU metadata throughout the CPU Metrics hierarchy', () => {
+        const card = createCardUnit();
+        expand(card, createTree('actual-source.db'));
+        const metrics = child(card);
+        const group = child(metrics);
+        const cpu = child(group);
+        const event = leaf(card);
+        expect([metrics.name, group.name, cpu.name, event.name]).toEqual(['Label', 'Label', 'Label', 'Counter']);
+        for (const unit of [metrics, group, cpu, event]) {
+            expect(unit.metadata.dbPath).toBe('actual-source.db');
+            expect(unit.metadata.offsetSide).toBe('host');
+        }
+        expect(group.chart).toBeUndefined();
+        expect(cpu.chart).toBeUndefined();
+        expect(event.chart).toEqual({ type: 'pmuCounter' });
+        expect(event.metadata.pmu).toMatchObject({ counterId: '0', cpu: 7, unit: 'count', intervalNs: '200000000' });
+    });
+
+    it('keeps repeated metadata idempotent and separates DB sources with identical counter numbers', () => {
+        const card = createCardUnit();
+        expand(card, createTree('source-a.db'));
+        expand(card, createTree('source-a.db'));
+        expect(card.children).toHaveLength(1);
+        expect(child(card).children).toHaveLength(1);
+        expect(child(child(child(card))).children).toHaveLength(1);
+        expand(card, createTree('source-b.db'));
+        expect(card.children).toHaveLength(2);
+        expect(getUnitUniqueId(leaf(card, 0))).not.toBe(getUnitUniqueId(leaf(card, 1)));
+        expect(checkIsSameUnit(leaf(card, 0).metadata as never, leaf(card, 1).metadata as never)).toBe(false);
+        expect(checkIsSameUnit(leaf(card, 0).metadata as never, { ...leaf(card, 0).metadata } as never)).toBe(true);
+    });
+
+    it('isolates identical backend paths from different connections', () => {
+        const card = createCardUnit();
+        expand(card, createTree('source.db', { remote: 'server-a', port: 1 } as DataSource));
+        expand(card, createTree('source.db', { remote: 'server-b', port: 1 } as DataSource));
+        expect(card.children).toHaveLength(2);
+        expect(getUnitUniqueId(leaf(card, 0))).not.toBe(getUnitUniqueId(leaf(card, 1)));
+    });
+
+    it('refreshes sample availability when the same source is parsed again', () => {
+        const card = createCardUnit();
+        const tree = createTree('source.db');
+        expand(card, tree);
+        const original = leaf(card);
+        const metadata = tree.children?.[0].children?.[0].children?.[0].children?.[0].metadata;
+        if (metadata?.pmu === undefined) { throw new Error('Expected PMU event metadata'); }
+        metadata.pmu = { ...metadata.pmu, hasSamples: false };
+        expand(card, tree);
+        expect(leaf(card)).toBe(original);
+        expect(leaf(card).metadata.pmu).toMatchObject({ hasSamples: false });
+    });
+});
 
 const createNpuMetricsTree = (): InsightMetaData<'card'> => ({
     type: 'card',

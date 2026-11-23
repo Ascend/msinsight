@@ -52,6 +52,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_THREAD_TRACES_FAILED, "Failed to query thread traces"},
     {ErrorCode::QUERY_THREAD_TRACES_SUMMARY_FAILED, "Failed to query thread traces summary data"},
     {ErrorCode::QUERY_UNIT_COUNTER_FAILED, "Failed to query unit counter"},
+    {ErrorCode::QUERY_PMU_COUNTER_FAILED, "Failed to query PMU data"},
     {ErrorCode::QUERY_SLICE_DETAIL_FAILED, "Failed to search slice details"},
     {ErrorCode::QUERY_SLICE_NAME_FAILED, "Failed to search slice name"},
     {ErrorCode::SET_CARD_ALIAS_FAILED, "Failed to set card alias"},

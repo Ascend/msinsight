@@ -21,6 +21,7 @@ import type { Readable } from '../utils/humanReadable';
 import type { AtomicObjectElementType } from './common';
 import type { Session } from './session';
 import type { InsightUnit, UnitHeight } from './insight';
+import type { PmuChartConfig, PmuChartData } from './pmuCounter';
 
 export type SizePx = number;
 
@@ -30,6 +31,7 @@ interface ChartDataType<T, U> {
 };
 
 interface ChartDataDefinition {
+    pmuCounter: ChartDataType<PmuChartConfig, PmuChartData>;
     filledLine: ChartDataType<FilledLineConfig, number[][]>;
     stackedBar: ChartDataType<StackBarConfig, StackedBarData[]>;
     keyEvent: ChartDataType<Record<string, unknown>, EventData[]>;

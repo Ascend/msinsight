@@ -27,6 +27,7 @@ import { useData } from './hooks';
 
 jest.mock('./EventChart', () => ({ EventChart: (): null => null }));
 jest.mock('./FilledLineChart', () => ({ FilledLineChart: (): null => null }));
+jest.mock('./PmuCounterChart', () => ({ PmuCounterChart: (): null => null }));
 jest.mock('./StackedBarChart', () => ({ StackedBarChart: (): null => null }));
 jest.mock('./StackStatusChart', () => ({ StackStatusChart: (): null => null }));
 jest.mock('./StatusChart', () => ({ StatusChart: jest.fn() }));

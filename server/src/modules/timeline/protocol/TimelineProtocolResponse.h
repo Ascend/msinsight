@@ -33,6 +33,7 @@
 #include "TimelineBodyStruct.h"
 #include "SystemMemoryDatabase.h"
 #include "FreeAttributionService.h"
+#include "PmuCounterTypes.h"
 
 namespace Dic {
 namespace Protocol {
@@ -332,6 +333,11 @@ struct UnitCounterBody {
 struct UnitCounterResponse : public Response {
     UnitCounterResponse() : Response(REQ_RES_UNIT_COUNTER) {}
     UnitCounterBody body;
+};
+
+struct PmuCounterResponse : public Response {
+    PmuCounterResponse() : Response(REQ_RES_PMU_COUNTER) {};
+    Dic::Module::Timeline::PmuCounterResult body;
 };
 
 struct SystemViewDetail {

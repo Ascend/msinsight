@@ -37,7 +37,9 @@ const THREAD_FETCH_TIMEOUT = 600;
 export type DataProcessor<T extends ChartType> = (data: ChartData<T>, width: number, domainStart: number, domainEnd: number) => ChartData<T>;
 const CLICK_TOLERANCE = 1;
 
-interface UseDataParams<T extends ChartType> {
+type ArrayChartType = Exclude<ChartType, 'pmuCounter'>;
+
+interface UseDataParams<T extends ArrayChartType> {
     session: Session;
     mapFunc: MapFunc<T>;
     unit: InsightUnit;
@@ -91,7 +93,7 @@ function onAutoFetchLines(session: Session, unit: InsightUnit): void {
  * @param width width
  * @returns the data that this chart is currently rendering
  */
-export const useData = <T extends ChartType>({
+export const useData = <T extends ArrayChartType>({
     session, mapFunc, unit, metadata, width, processor, refetchOnDomainChange = true,
 }: UseDataParams<T>): ChartData<T> => {
     const { domainStart, domainEnd } = session.domainRange;

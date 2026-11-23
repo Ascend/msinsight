@@ -1,5 +1,14 @@
 {
   "timeline": {
+    "pmuCounter": {
+      "loading": "Loading…",
+      "queryFailed": "Unable to load counter data",
+      "retry": "Retry",
+      "noSamples": "No samples",
+      "unsupported": "Required counter data is unavailable",
+      "invalidData": "Invalid counter data",
+      "noDataInRange": "No data in this time range"
+    },
     "Align to Start": "Align to Start",
     "Timestamp Offset": "Timestamp Offset",
     "Host Offset": "Host Offset",
