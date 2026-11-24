@@ -17,7 +17,7 @@
  */
 import React, { forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@insight/lib/components';
+import { Button, Tooltip } from '@insight/lib/components';
 import { METRIC_KEYS } from './types';
 import type { FrameTree, FrameTreeNode } from './types';
 import { exactRatio, formatExactBytes, nodeAt, pathToNode } from './model';
@@ -62,6 +62,9 @@ export const FrameTreeDetails = forwardRef<FrameTreeDetailsHandle, DetailsProps>
     const total = nodeAt(tree, tree.rootId).metrics.sizeBytes;
     const parent = tree.nodes.get(original.dto.parentId ?? '');
     const share = (exactRatio(node.metrics.sizeBytes, total) ?? 0) * 100;
+    const sourceLocation = node.dto.frame && !members
+        ? `${node.dto.frame.filename || t('frameTree.unknownFile')}:${node.dto.frame.line ?? '\u2014'}`
+        : null;
     useLayoutEffect(() => {
         if (!ancestors.current) return;
         ancestors.current.scrollTop = ancestors.current.scrollHeight;
@@ -87,8 +90,12 @@ export const FrameTreeDetails = forwardRef<FrameTreeDetailsHandle, DetailsProps>
             </div>
             <div className="frame-tree-inspector-share" role="meter" aria-label={t('frameTree.totalRatio')}
                 aria-valuenow={share} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${share}%` }} /></div>
-            {node.dto.frame && !members
-                ? <p className="frame-tree-inspector-source">{node.dto.frame.filename || t('frameTree.unknownFile')}:{node.dto.frame.line ?? '\u2014'}</p>
+            {sourceLocation !== null
+                ? <Tooltip title={sourceLocation} trigger={['hover', 'focus']}
+                    overlayStyle={{ maxWidth: 'min(640px, calc(100vw - 32px))' }}
+                    overlayInnerStyle={{ maxWidth: 'none', wordBreak: 'break-all' }}>
+                    <p className="frame-tree-inspector-source" tabIndex={0}>{sourceLocation}</p>
+                </Tooltip>
                 : null}
         </header>
         <dl className="frame-tree-inspector-metrics">

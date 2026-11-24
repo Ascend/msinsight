@@ -81,6 +81,8 @@ export const restoreMemoryCommon = (session: MemoryContext): void => {
 // Removing a dataset also clears renderer/loading metadata beyond the normal view reset.
 export const resetMemoryApplication = (session: MemoryContext): void => {
     const defaults = new MemorySession();
+    // Dataset removal does not unmount or resize the canvas.
+    defaults.leaksWorkerInfo.renderOptions.viewport = { ...session.leaksWorkerInfo.renderOptions.viewport };
     session.deviceIds = {};
     session.dbPath = '';
     session.fileHash = '';

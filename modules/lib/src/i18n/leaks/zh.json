@@ -7,6 +7,7 @@
       "selectEventFromAxis": "单击时间标记栏添加事件，通过标签切换不同时间点的内存拆解",
       "marker": "事件 {{event}}",
       "manageMarkers": "内存拆解管理",
+      "guideDescription": "通过时间标记添加拆解，切换标签查看。支持重命名、改色、显隐及移除；各分窗独立保留，不影响快照数据和差值标记。",
       "closeMarkerManager": "关闭内存拆解管理",
       "noMarkers": "暂无内存拆解，请在时间标记栏选择分析位置。",
       "renameMarker": "重命名拆解：{{name}}",

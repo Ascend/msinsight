@@ -226,6 +226,7 @@ export const LifecycleGraphToolbar = ({
             ? <LifecycleGraphInteractionGuide
                 anchorElement={containerRef.current}
                 onClose={(): void => setActivePanel(null)}
+                showBreakdown={onTimeMarkerManagementOpen !== undefined}
             />
             : <></>}
         <Panel>

@@ -7,6 +7,7 @@
       "selectEventFromAxis": "Click the time marker strip to add an event; switch between memory breakdown tabs",
       "marker": "Event {{event}}",
       "manageMarkers": "Memory breakdown management",
+      "guideDescription": "Add time markers and switch tabs to view breakdowns. Manage names, colors and visibility, or remove markers. Each window keeps its own markers; removal leaves snapshot data and difference markers unchanged.",
       "closeMarkerManager": "Close memory breakdown management",
       "noMarkers": "No memory breakdowns. Select an event on the time marker strip.",
       "renameMarker": "Rename breakdown: {{name}}",
