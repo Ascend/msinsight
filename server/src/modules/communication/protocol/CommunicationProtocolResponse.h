@@ -499,6 +499,7 @@ struct GroupInfo {
     std::string parallelStrategy;
     CompareData<std::string> groupIdHash;
     std::string type; // BASELINE or COMPARE
+    CompareData<std::string> groupId;
     bool operator==(const GroupInfo &other) const {
         return group == other.group && parallelStrategy == other.parallelStrategy && type == other.type;
     }

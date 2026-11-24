@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include "Database.h"
 #include "ClusterDomainObject.h"
+#include "CommunicationStatistics.h"
 #include "ClusterDef.h"
 #include "ProtocolMessage.h"
 #include "SummaryProtocolResponse.h"
@@ -41,6 +42,21 @@ enum class CommunicationDetailSourceMode { CLUSTER, RANK_LOCAL };
 
 class VirtualClusterDatabase : public Database {
   public:
+    virtual Communication::StatisticsResult<Communication::GroupStatistic> QueryGroupRangeRatio(const std::string &) {
+        return {};
+    }
+    virtual Communication::StatisticsResult<Communication::GroupStatistic> QueryGroupBandwidth(
+        const std::string &, const std::string &) {
+        return {};
+    }
+    virtual Communication::StatisticsResult<Communication::OperatorFluctuation> QueryOperatorFluctuation(
+        const std::string &, const std::string &) {
+        return {};
+    }
+    virtual Communication::RankStatisticsResult QueryRankStatistics(
+        const std::string &, const std::string &, const Communication::RankStatisticsOptions & = {}) {
+        return {};
+    }
     explicit VirtualClusterDatabase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {};
     ~VirtualClusterDatabase() override;
 

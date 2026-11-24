@@ -21,10 +21,19 @@
 #include "CommunicationProtocolRequest.h"
 #include "CommunicationProtocolResponse.h"
 #include "CommunicationProtocol.h"
+#include "CommunicationStatisticsProtocol.h"
 
 namespace Dic {
 namespace Protocol {
 void CommunicationProtocol::RegisterJsonToRequestFuncs() {
+    jsonToReqFactory.emplace(
+        REQ_RES_COMMUNICATION_GROUP_RANGE_RATIO, BuildRequestFromJson<CommunicationGroupRangeRatioRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_COMMUNICATION_GROUP_BANDWIDTH, BuildRequestFromJson<CommunicationGroupBandwidthRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_COMMUNICATION_OPERATOR_FLUCTUATION, BuildRequestFromJson<CommunicationOperatorFluctuationRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_COMMUNICATION_RANK_STATISTICS, BuildRequestFromJson<CommunicationRankStatisticsRequest>);
     jsonToReqFactory.emplace(REQ_RES_COMMUNICATION_OPERATOR_DETAILS, ToOperatorDetailsRequest);
     jsonToReqFactory.emplace(REQ_RES_COMMUNICATION_DISTRIBUTION, ToDistributionRequest);
     jsonToReqFactory.emplace(REQ_RES_COMMUNICATION_BANDWIDTH, ToBandwidthDataRequest);
@@ -40,6 +49,10 @@ void CommunicationProtocol::RegisterJsonToRequestFuncs() {
 }
 
 void CommunicationProtocol::RegisterResponseToJsonFuncs() {
+    for (const auto &command : {REQ_RES_COMMUNICATION_GROUP_RANGE_RATIO, REQ_RES_COMMUNICATION_GROUP_BANDWIDTH,
+             REQ_RES_COMMUNICATION_OPERATOR_FLUCTUATION, REQ_RES_COMMUNICATION_RANK_STATISTICS}) {
+        resToJsonFactory.emplace(command, CommonResponseToJson);
+    }
     resToJsonFactory.emplace(REQ_RES_COMMUNICATION_OPERATOR_DETAILS, ToOperatorDetailsResponse);
     resToJsonFactory.emplace(REQ_RES_COMMUNICATION_DISTRIBUTION, ToDistributionResponse);
     resToJsonFactory.emplace(REQ_RES_COMMUNICATION_BANDWIDTH, ToBandwidthDataResponse);

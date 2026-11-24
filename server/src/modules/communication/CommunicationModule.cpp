@@ -30,6 +30,10 @@
 #include "CommunicationAdvisorHandler.h"
 #include "CommunicationSlowRankAnalysisHandler.h"
 #include "ProtocolDefs.h"
+#include "CommunicationGroupRangeRatioHandler.h"
+#include "CommunicationGroupBandwidthHandler.h"
+#include "CommunicationOperatorFluctuationHandler.h"
+#include "CommunicationRankStatisticsHandler.h"
 
 namespace Dic {
 namespace Module {
@@ -40,6 +44,14 @@ CommunicationModule::~CommunicationModule() { requestHandlerMap.clear(); }
 
 void CommunicationModule::RegisterRequestHandlers() {
     requestHandlerMap.clear();
+    requestHandlerMap.emplace(
+        REQ_RES_COMMUNICATION_GROUP_RANGE_RATIO, std::make_unique<CommunicationGroupRangeRatioHandler>());
+    requestHandlerMap.emplace(
+        REQ_RES_COMMUNICATION_GROUP_BANDWIDTH, std::make_unique<CommunicationGroupBandwidthHandler>());
+    requestHandlerMap.emplace(
+        REQ_RES_COMMUNICATION_OPERATOR_FLUCTUATION, std::make_unique<CommunicationOperatorFluctuationHandler>());
+    requestHandlerMap.emplace(
+        REQ_RES_COMMUNICATION_RANK_STATISTICS, std::make_unique<CommunicationRankStatisticsHandler>());
     requestHandlerMap.emplace(
         REQ_RES_COMMUNICATION_OPERATOR_DETAILS, std::make_unique<CommunicationOperatorDetailsHandler>());
     requestHandlerMap.emplace(REQ_RES_COMMUNICATION_BANDWIDTH, std::make_unique<BandwidthHandler>());

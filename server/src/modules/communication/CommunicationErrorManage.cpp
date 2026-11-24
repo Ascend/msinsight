@@ -36,6 +36,10 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_COMMUNICATION_DISTRIBUTION_FAILED, "Failed to query communication distribution data"},
     {ErrorCode::QUERY_MATRIX_SORT_OPERATOR_NAMES_FAILED, "Failed to query matrix sort operator names"},
     {ErrorCode::QUERY_OPERATOR_NAMES_FAILED, "Failed to query operator names"},
+    {ErrorCode::COMMUNICATION_STATISTICS_UNSUPPORTED,
+        "Required communication statistics tables or columns are missing"},
+    {ErrorCode::COMMUNICATION_STATISTICS_INVALID_DATA, "Invalid communication statistics or group mapping data"},
+    {ErrorCode::QUERY_COMMUNICATION_STATISTICS_FAILED, "Failed to query communication statistics"},
 };
 
 const std::string &GetErrorMessage(ErrorCode code) {
