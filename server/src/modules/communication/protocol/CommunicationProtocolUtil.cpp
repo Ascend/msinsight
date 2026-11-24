@@ -268,6 +268,10 @@ template <> std::optional<document_t> ToResponseJson<MatrixGroupResponse>(const 
         JsonUtil::AddMember(groupIdHashJson, "compare", groupInfo.groupIdHash.compare, allocator);
         JsonUtil::AddMember(groupIdHashJson, "baseline", groupInfo.groupIdHash.baseline, allocator);
         JsonUtil::AddMember(groupJson, "groupIdHash", groupIdHashJson, allocator);
+        json_t groupIdJson(kObjectType);
+        JsonUtil::AddMember(groupIdJson, "compare", groupInfo.groupId.compare, allocator);
+        JsonUtil::AddMember(groupIdJson, "baseline", groupInfo.groupId.baseline, allocator);
+        JsonUtil::AddMember(groupJson, "groupId", groupIdJson, allocator);
         data.PushBack(groupJson, allocator);
     }
     JsonUtil::AddMember(body, "data", data, allocator);

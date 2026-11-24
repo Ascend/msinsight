@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
+#include <sstream>
 #include "TableDefs.h"
 #include "TraceTime.h"
 #include "DbClusterDataBase.h"
@@ -26,6 +27,18 @@ namespace Dic {
 using namespace Server;
 namespace Module {
 namespace FullDb {
+namespace {
+bool IsTotalCommunicationOperator(const std::string &name) {
+    std::istringstream stream(name);
+    std::string first;
+    std::string second;
+    std::string third;
+    std::string extra;
+    return (stream >> first >> second >> third) && first == "Total" && second == "Op" && third == "Info" &&
+        !(stream >> extra);
+}
+}
+
 DbClusterDataBase::~DbClusterDataBase() {}
 
 bool DbClusterDataBase::CreateTable() {
@@ -103,8 +116,8 @@ bool DbClusterDataBase::GetGroups(std::vector<GroupInfoDo> &groupList) {
     if (!HasColumn(TABLE_COMM_GROUP, "pg_name")) {
         pgNameSelect = " '' as pg_name ";
     }
-    std::string sql =
-        "SELECT rank_set as rank, group_name as group_id_hash," + pgNameSelect + " FROM " + TABLE_COMM_GROUP;
+    std::string sql = "SELECT rank_set as rank, group_name as group_id_hash," + pgNameSelect +
+        (HasColumn(TABLE_COMM_GROUP, "group_id") ? ", group_id" : ", '' AS group_id") + " FROM " + TABLE_COMM_GROUP;
     return ExecuteGetGroups(groupList, sql);
 }
 
@@ -227,22 +240,26 @@ bool DbClusterDataBase::QueryOperatorsCount(
 
 bool DbClusterDataBase::QueryBandwidthData(
     Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody) {
+    if (IsTotalCommunicationOperator(param.operatorName) && CheckTableExist("TransitStatistic")) {
+        return QueryTransitBandwidth(param, resBody);
+    }
     if (!CheckTableExist(TABLE_COMM_ANALYZER_BANDWIDTH)) {
         resBody.items.clear();
         return true;
     }
-    std::string sql = "SELECT band_type, ROUND(transit_size, 4) as transit_size,"
-                      "ROUND(transit_time, 4) as transit_time,"
-                      "ROUND(bandwidth, 4) as bandwidth_size,"
-                      "ROUND(large_packet_ratio, 4)  as large_packet_ratio from "
+    std::string sql = "SELECT band_type, transit_size, transit_time, bandwidth, large_packet_ratio from "
                       "(SELECT*,ROW_NUMBER() OVER (PARTITION BY band_type) AS rn FROM (SELECT * "
                       "FROM " +
         TABLE_COMM_ANALYZER_BANDWIDTH +
         " t"
         " WHERE step = ? AND rank_id = ? AND group_name = ? AND hccl_op_name = ?))t "
         "WHERE rn = 1";
-    param.iterationId = "step" + param.iterationId;
-    return ExecuteQueryBandwidthData(param, resBody, sql);
+    auto queryParams = param;
+    queryParams.iterationId = param.iterationId.rfind("step", 0) == 0 ? param.iterationId : "step" + param.iterationId;
+    if (IsTotalCommunicationOperator(param.operatorName)) {
+        queryParams.operatorName = totalOpInfo;
+    }
+    return ExecuteQueryBandwidthData(queryParams, resBody, sql);
 }
 
 bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, const std::string &opName,
@@ -348,6 +365,9 @@ std::optional<std::string> DbClusterDataBase::QueryCommunicationRankId(
 
 bool DbClusterDataBase::QueryDistributionData(
     Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody) {
+    if (IsTotalCommunicationOperator(param.operatorName) && CheckTableExist("TransitStatistic")) {
+        return QueryTransitDistribution(param, resBody);
+    }
     if (!CheckTableExist(TABLE_COMM_ANALYZER_BANDWIDTH)) {
         resBody.distributionData.clear();
         return true;
@@ -359,17 +379,19 @@ bool DbClusterDataBase::QueryDistributionData(
         "AND group_name = ? "
         "AND hccl_op_name = ? "
         "AND band_type = ? ;";
-    param.iterationId = "step" + param.iterationId;
+    const std::string step = param.iterationId.rfind("step", 0) == 0 ? param.iterationId : "step" + param.iterationId;
+    const std::string operatorName =
+        IsTotalCommunicationOperator(param.operatorName) ? totalOpInfo : param.operatorName;
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         Server::ServerLog::Error("Failed to prepare a statement to query distributed data. error:", sqlite3_errmsg(db));
         return false;
     }
-    sqlite3_bind_text(stmt, index++, param.iterationId.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, index++, step.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, index++, param.rankId.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, index++, param.groupIdHash.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, index++, param.operatorName.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, index++, operatorName.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, index, param.transportType.c_str(), -1, SQLITE_STATIC);
     std::string distribution = "{";
     int num = 0;

@@ -162,7 +162,8 @@ bool VirtualClusterDatabase::ExecuteGetGroups(std::vector<GroupInfoDo> &groupLis
         rankSet = StringUtil::JoinNumberStrWithParenthesesByOrder(rankList);
         std::string groupIdHash = sqlite3_column_string(stmt, col++);
         std::string pgName = sqlite3_column_string(stmt, col++);
-        groupList.push_back({rankSet, groupIdHash, pgName});
+        const std::string groupId = sqlite3_column_count(stmt) > col ? sqlite3_column_string(stmt, col) : "";
+        groupList.push_back({rankSet, groupIdHash, pgName, groupId});
     }
     sqlite3_finalize(stmt);
     return true;

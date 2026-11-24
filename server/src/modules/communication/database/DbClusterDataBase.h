@@ -36,6 +36,14 @@ class DbClusterDataBase : public VirtualClusterDatabase {
   public:
     explicit DbClusterDataBase(std::recursive_mutex &sqlMutex) : VirtualClusterDatabase(sqlMutex) {};
     ~DbClusterDataBase() override;
+    Communication::StatisticsResult<Communication::GroupStatistic> QueryGroupRangeRatio(
+        const std::string &step) override;
+    Communication::StatisticsResult<Communication::GroupStatistic> QueryGroupBandwidth(
+        const std::string &step, const std::string &transportType) override;
+    Communication::StatisticsResult<Communication::OperatorFluctuation> QueryOperatorFluctuation(
+        const std::string &step, const std::string &groupName) override;
+    Communication::RankStatisticsResult QueryRankStatistics(const std::string &step, const std::string &groupName,
+        const Communication::RankStatisticsOptions &options = {}) override;
 
     bool CreateTable();
     bool DropTable();
@@ -96,6 +104,8 @@ class DbClusterDataBase : public VirtualClusterDatabase {
     std::vector<OpTypeStatistics> GetOpStatByStepId(const std::string &stepId) override;
 
   private:
+    bool QueryTransitBandwidth(const Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody);
+    bool QueryTransitDistribution(const Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody);
     std::string GetTimeMetricsSql();
     std::string GetOptionalBandwidthTableSql();
     std::string parseStatus = "UN_FINISH";

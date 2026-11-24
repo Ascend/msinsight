@@ -62,6 +62,7 @@ struct GroupInfoDo {
     std::string rankSet;
     std::string groupIdHash;
     std::string pgName;
+    std::string groupId;
 };
 
 struct OpTypeStatistics {

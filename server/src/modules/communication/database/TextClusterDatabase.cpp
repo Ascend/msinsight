@@ -604,7 +604,7 @@ std::vector<std::string> TextClusterDatabase::GetAllRankFromStepStatisticInfo() 
 }
 
 bool TextClusterDatabase::GetGroups(std::vector<GroupInfoDo> &groupList) {
-    std::string sql = "SELECT DISTINCT rank_set as rank, group_id_hash, pg_name FROM " + TABLE_GROUP_ID;
+    std::string sql = "SELECT DISTINCT rank_set as rank, group_id_hash, pg_name, group_id FROM " + TABLE_GROUP_ID;
     return ExecuteGetGroups(groupList, sql);
 }
 

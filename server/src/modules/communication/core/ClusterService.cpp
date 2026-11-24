@@ -321,12 +321,14 @@ std::vector<Protocol::GroupInfo> ClusterService::MergeGroupInfoWithPgName(
         auto compareIt = compareGroupMap.find(item);
         if (compareIt != compareGroupMap.end()) {
             groupInfo.groupIdHash.compare = compareIt->second.groupIdHash;
+            groupInfo.groupId.compare = compareIt->second.groupId;
             groupInfo.parallelStrategy = compareIt->second.pgName;
             groupInfo.group = compareIt->second.rankSet;
         }
         auto baselineIt = baselineGroupMap.find(item);
         if (baselineIt != baselineGroupMap.end()) {
             groupInfo.groupIdHash.baseline = baselineIt->second.groupIdHash;
+            groupInfo.groupId.baseline = baselineIt->second.groupId;
             groupInfo.parallelStrategy = baselineIt->second.pgName;
             groupInfo.group = baselineIt->second.rankSet;
         }
