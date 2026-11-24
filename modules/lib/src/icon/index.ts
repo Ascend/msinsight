@@ -16,3 +16,4 @@
  * -------------------------------------------------------------------------
  */
 export * from './Icon';
+export { ReactComponent as ReturnIcon } from './img/ipd_return.svg';

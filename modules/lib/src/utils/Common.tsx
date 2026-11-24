@@ -37,6 +37,7 @@ import { AlarmIcon, BulbIcon } from '../icon/Icon';
 import ResizeObserver from 'resize-observer-polyfill';
 import { getShortcutKey, isMac, KEYS } from './key';
 
+export { isArray } from './validation';
 export { customConsole } from './Console';
 export { Decimal } from './Decimal';
 export {
@@ -612,14 +613,6 @@ export const hexToRgb = (hex: string): [number, number, number] | null => {
     const b = parseInt(hex.slice(5, 7), 16);
 
     return [r, g, b];
-};
-
-export const isArray = (val: any): boolean => {
-    if (!Array.isArray) {
-        return Object.prototype.toString.call(val) === '[object Array]';
-    } else {
-        return Array.isArray(val);
-    }
 };
 
 export const getUpdateObject = (data: Record<string, any>, obj: Record<string, any>, ignoreNull: boolean = true): Record<string, any> => {

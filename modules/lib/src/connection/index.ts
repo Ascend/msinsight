@@ -17,7 +17,7 @@
  */
 import { customConsole as console } from '../utils/Console';
 import { RequestChannel, type FetchParams } from './RequestChannel';
-export { RequestChannel } from './RequestChannel';
+export { RequestChannel, throwIfAborted } from './RequestChannel';
 
 type ReservedEventHandler = 'request';
 type EventHanlder = string;

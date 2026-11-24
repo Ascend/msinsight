@@ -28,7 +28,11 @@ export class ClusterViewPreference {
     version: ClusterViewVersion = 'legacy';
     comparisonPending = false;
     constructor() {
-        try { if (localStorage.getItem(CLUSTER_VERSION_KEY) === 'modern') { this.version = 'modern'; } } catch { /* Storage may be unavailable in embedded hosts. */ }
+        try {
+            if (localStorage.getItem(CLUSTER_VERSION_KEY) === 'modern') {
+                this.version = 'modern';
+            }
+        } catch { /* Storage may be unavailable in embedded hosts. */ }
         makeAutoObservable(this);
     }
 
@@ -52,10 +56,10 @@ export const clusterView = new ClusterViewPreference();
 export const isClusterApplication = (name: string): boolean => name === 'Summary' || name === 'Communication';
 /** Summary uses its registered entry unless a deployment explicitly overrides it. */
 export function modernClusterSource(name: string): string | undefined {
-    if (!isModernClusterEnabled()) { return undefined; }
+    if (!isModernClusterEnabled() || !isClusterApplication(name)) { return undefined; }
+    const configured = modulesConfig.find(config => config.name === name)?.modernSrc;
+    if (name === 'Communication') { return configured; }
     const development = process.env.REACT_APP_ENV === 'development';
-    if (name === 'Communication') { return development ? 'http://localhost:3012/' : './plugins/Communication/index.html'; }
-    const configured = modulesConfig.find(config => config.name === 'Summary')?.modernSrc;
     const src = process.env.REACT_APP_SUMMARY_MODERN_SRC ?? configured;
     if (!src) { return undefined; }
     if (src.startsWith('./plugins/') && !src.includes('..')) { return src; }

@@ -203,6 +203,30 @@
       "tipTitle": "可按该通信算子尾部对齐",
       "tipDescription": "已在图中高亮该通信算子。你可以在当前高亮条形图上右键，选择按该算子尾部对齐。",
       "dismiss": "知道了"
+    },
+    "modern": {
+      "groupAnalysis": "通信域性能波动分析",
+      "rangeRatioAnalysis": "极差比分析",
+      "rangeRatio": "极差比",
+      "metricWithUnit": "{{metric}}（{{unit}}）",
+      "elapsedTime": "耗时",
+      "bandwidthType": "带宽类型",
+      "fluctuation": "算子性能波动分析",
+      "matrix": "通信矩阵图",
+      "ranks": "通信时间与带宽分析",
+      "selectData": "请选择集群数据",
+      "parsing": "数据解析中",
+      "clusterParsing": "正在解析集群数据",
+      "clusterParsingHint": "数据量较大时可能需要几分钟，解析完成后将自动展示",
+      "failed": "数据加载失败",
+      "statisticsUnsupported": "当前数据不支持该通信统计能力",
+      "statisticsInvalid": "通信统计数据异常",
+      "transfer": "传输分析",
+      "timelineUnavailable": "时间线数据尚未就绪",
+      "matrixNavigation": "按住 Ctrl + 滚轮/双指滑动缩放矩阵",
+      "slowRankAdvice": "在当前通信域内，存在较明显快慢卡问题。请关注与快卡通信时长差异较大的卡与通信算子，其差值可能存在一定优化空间。<strong>最快卡ID：{{fastRankId}}，最快卡耗时：{{fastTotalElapseTime}}ms</strong>",
+      "dataAnalysis": "数据分析：",
+      "recommendation": "解决建议："
     }
   }
 }

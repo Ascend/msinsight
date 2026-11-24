@@ -42,7 +42,15 @@ const jupyterlabProxy: boolean = PARAM_MAP.get('jupyterlabProxy') === 'true';
 export const LOCAL_HOST = 'localhost';
 export const PORT: number = port;
 export const JUPYTERLABPROXY: boolean = jupyterlabProxy;
-export const GLOBAL_HOST = { remote: LOCAL_HOST, port: PORT };
+
+/** Local Web development may connect to another backend without changing production or proxy routing. */
+export function getDevelopmentBackendHost(): string {
+    if (process.env.NODE_ENV !== 'development' || process.env.REACT_APP_IS_VSCODE === 'true' ||
+        JUPYTERLABPROXY || window.location.pathname.includes('/proxy/')) { return ''; }
+    return process.env.REACT_APP_BACKEND_HOST?.trim() ?? '';
+}
+
+export const GLOBAL_HOST = { remote: getDevelopmentBackendHost() || LOCAL_HOST, port: PORT };
 
 export interface DataRequest {
     command: string;

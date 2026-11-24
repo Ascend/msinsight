@@ -1,0 +1,41 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+const path = require('path');
+
+// Compile this application and existing project infrastructure only.
+module.exports = (() => {
+    const { configureConfig } = require(process.env.REACT_APP_IS_VSCODE === 'true' ? '../build-vscode-config' : '../build-config');
+    const applicationSrc = path.resolve(__dirname, 'src');
+    const libRoot = path.resolve(__dirname, '../lib');
+    const libSrc = path.join(libRoot, 'src');
+    const libAliases = Object.fromEntries(Object.entries(require('../lib/package.json').exports).map(([key, target]) => [key === '.' ? '@insight/lib$' : `@insight/lib/${key.slice(2)}$`, path.resolve(libRoot, target)]));
+    return {
+        devServer: { port: Number(process.env.PORT) || 3012, open: false },
+        webpack: {
+            alias: { '@': applicationSrc, ...libAliases },
+            configure: config => {
+                config.module.rules.push({ test: /\.glsl$/, type: 'asset/source' });
+                config.output.workerPublicPath = './';
+                config.output.chunkFilename = '[name].[contenthash:8].chunk.js';
+                const scope = config.resolve.plugins.find(plugin => plugin.constructor.name === 'ModuleScopePlugin');
+                if (scope) scope.appSrcs.push(libRoot);
+                return configureConfig(config, [libRoot, libSrc, require.resolve('echarts')]);
+            },
+        },
+    };
+})();

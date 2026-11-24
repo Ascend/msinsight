@@ -35,8 +35,17 @@ type Pending = { resolve: (reply: unknown) => void; reject: (error: unknown) => 
 // Share one sequence within this document; each new document starts at a random 52-bit ID.
 let nextId = Math.floor(Math.random() * 2 ** 52);
 
-function abortError(): DOMException {
-    return new DOMException('Request aborted', 'AbortError');
+function abortError(): Error {
+    if (typeof DOMException !== 'undefined') {
+        return new DOMException('Request aborted', 'AbortError');
+    }
+    const error = new Error('Request aborted');
+    error.name = 'AbortError';
+    return error;
+}
+
+export function throwIfAborted(signal?: AbortSignal): void {
+    if (signal?.aborted) { throw abortError(); }
 }
 
 /** Matches host replies for one client. Cancelling only releases the caller's wait. */
@@ -47,7 +56,7 @@ export class RequestChannel {
 
     fetch(params: FetchParams, signal?: AbortSignal): Promise<unknown> {
         return new Promise((resolve, reject) => {
-            if (signal?.aborted) { reject(abortError()); return; }
+            throwIfAborted(signal);
             const id = nextId++;
             const abort = (): void => fail(abortError());
             const cleanup = (): void => {

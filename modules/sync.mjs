@@ -5,6 +5,7 @@ import path from 'node:path';
 const SYNC_CONFIG = [
     { folder: 'reinforcement-learning', targetName: 'RL' },
     { folder: 'cluster', targetName: 'Cluster' },
+    { folder: 'communication', targetName: 'Communication' },
     { folder: 'summary', targetName: 'Overview' },
     { folder: 'compute', targetName: 'Compute' },
     { folder: 'memscope', targetName: 'MemScope' },
