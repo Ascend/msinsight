@@ -1,0 +1,39 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ */
+.operator-timeline-chart {
+    position: relative;
+    width: 100%;
+    border-radius: 10px;
+    outline: none;
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent, 0 0 0 3px transparent;
+    transition: box-shadow 160ms ease, background-color 160ms ease;
+}
+.operator-timeline-chart:focus {
+    background-color: rgba(82, 145, 255, 0.025);
+    box-shadow: inset 0 0 0 1px rgba(82, 145, 255, 0.6), 0 0 0 3px rgba(82, 145, 255, 0.08);
+}
+@media (prefers-reduced-motion: reduce) {
+    .operator-timeline-chart { transition: none; }
+}
+/* Match the existing ECharts thumbnail tooltip, including its fixed light surface. */
+.operator-timeline-tooltip { position: absolute; display: none; pointer-events: none; z-index: 3; max-width: 360px; white-space: nowrap;
+    background: #fff; color: #666; box-shadow: 1px 2px 10px rgba(0, 0, 0, .2); border-radius: var(--mi-border-radius-base);
+    border: 1px solid; padding: 10px; font-size: var(--mi-font-size-base); line-height: 21px; }
+.operator-timeline-tooltip strong { color: #000; }
+.operator-timeline-tooltip-dot { display: inline-block; margin-right: 4px; border-radius: 10px; width: 10px; height: 10px; }

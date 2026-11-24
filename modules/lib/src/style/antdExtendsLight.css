@@ -15,10 +15,6 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-.ant-tooltip {
-    max-width: fit-content;
-}
-
 .ant-breadcrumb {
     height: 36px;
     line-height: 36px;

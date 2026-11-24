@@ -44,16 +44,19 @@ it('uses registered modern entries rather than legacy pages when no override is 
 });
 
 it.each([
-    ['development', 'http://localhost:3013/'],
-    ['production', './plugins/Overview/index.html'],
-])('resolves the registered %s Summary entry and permits an explicit override', (environment, summary) => {
+    ['development', 'http://localhost:3013/', 'http://localhost:3012/'],
+    ['production', './plugins/Overview/index.html', './plugins/Communication/index.html'],
+])('resolves both registered %s entries and applies the override only to Summary', (environment, summary, communication) => {
     process.env.REACT_APP_ENV = environment;
     delete process.env.REACT_APP_SUMMARY_MODERN_SRC;
     jest.isolateModules(() => {
         const { modernClusterSource: resolve } = jest.requireActual<typeof import('./viewVersion')>('./viewVersion');
         expect(resolve('Summary')).toBe(summary);
+        expect(resolve('Communication')).toBe(communication);
         process.env.REACT_APP_SUMMARY_MODERN_SRC = './plugins/CustomSummary/index.html';
         expect(resolve('Summary')).toBe('./plugins/CustomSummary/index.html');
+        expect(resolve('Communication')).toBe(communication);
+        expect(resolve('Timeline')).toBeUndefined();
     });
 });
 

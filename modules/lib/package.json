@@ -9,6 +9,7 @@
     "./style": "./src/style/index.ts",
     "./i18n": "./src/i18n/index.ts",
     "./utils": "./src/utils/index.ts",
+    "./utils/validation": "./src/utils/validation.ts",
     "./icon": "./src/icon/index.ts",
     "./hooks": "./src/hooks/index.ts",
     "./components": "./src/components/index.ts",

@@ -16,14 +16,14 @@ Web 开发和生产构建在未保存版本偏好时均默认使用旧版页面�
 pnpm --filter @insight/framework start
 ```
 
-Summary 的新旧页面地址统一注册在 `moduleConfig.ts`，不需要额外的 `.env` 文件，Communication 沿用既有配置。Summary 默认使用下表入口，也可通过 `REACT_APP_SUMMARY_MODERN_SRC` 覆盖。开发地址只允许 `http://localhost:<port>/...` 或 `http://127.0.0.1:<port>/...`；生产地址必须位于 `./plugins/` 下。修改配置或环境变量后需重启开发服务或重新构建。
+Summary 和 Communication 的新旧页面地址统一注册在 `moduleConfig.ts`，新版默认使用下表入口。部署方可通过 `REACT_APP_SUMMARY_MODERN_SRC` 单独覆盖 Summary 入口。生产地址必须位于 `./plugins/` 下，开发环境还支持 `http://localhost:<port>/...` 和 `http://127.0.0.1:<port>/...`。修改配置或环境变量后需重启开发服务或重新构建。
 
 | 页面 | 开发入口 | 生产入口 |
 | --- | --- | --- |
 | Summary | `http://localhost:3013/` | `./plugins/Overview/index.html` |
 | Communication | `http://localhost:3012/` | `./plugins/Communication/index.html` |
 
-页签名称和 iframe 的 `name` 固定为 `Summary`、`Communication`，不随语言或版本变化。Summary 需要完成 workspace 注册、开发启动、构建及插件产物分发。启动 framework 不会自动启动页面服务或生成插件文件；缺少入口或加载失败会显示不可用状态，可统一切回旧版。
+页签名称和 iframe 的 `name` 固定为 `Summary`、`Communication`，不随语言或版本变化。本地联调时分别启动对应页面的开发服务。缺少入口或加载失败时，宿主显示不可用状态，可统一切回旧版。
 
 ## 消息封装与就绪顺序
 
@@ -78,8 +78,8 @@ connector.send({
 
 ## 联合验收
 
-- 开关缺省/关闭：DB 和 TEXT 均沿用旧入口，无切换按钮，无新版产物仍可使用。
-- 开关开启：DB 两页共同切换，TEXT 无切换按钮；旧版集群对比继续可用，新版对比入口提示回旧版。
+- Web 首次打开 DB 数据显示旧版，两个页签可共同切换，再次打开时恢复已保存的版本。
+- TEXT、未知格式及 VSCode 使用旧版并隐藏切换按钮。旧版支持集群对比，在新版触发集群对比时提示切回旧版。
 - 两页分别验证真实工程初始化、主题/语言、集群选择、解析更新、工程关闭与重置。
 - 快速切换版本、慢接口回包、页面重试和 Timeline 定位不污染新上下文；卡级 Timeline 对比保持可用。
 - 两个项目各自负责产物分发和真实数据验收。实际 VSCode 宿主、四个新通信接口及万卡性能需另行验证，Web 构建和单元测试不替代这些验收。

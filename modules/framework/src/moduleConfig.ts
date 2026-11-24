@@ -21,6 +21,7 @@ export interface ModuleConfig {
     name: string;
     requestName: Lowercase<string>;
     attributes: IframeHTMLAttributes<HTMLIFrameElement>;
+    /** 新版集群页面的 iframe 入口。 */
     modernSrc?: string;
     isDefault?: boolean;
     isCluster?: boolean;
@@ -93,6 +94,7 @@ export const modulesConfig: ModuleConfig[] = [
         attributes: {
             src: isDev ? 'http://localhost:3003/communication.html' : './plugins/Cluster/communication.html',
         },
+        modernSrc: isDev ? 'http://localhost:3012/' : './plugins/Communication/index.html',
         isCluster: true,
         isHybridParse: true,
     },

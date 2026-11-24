@@ -203,6 +203,30 @@
       "tipTitle": "Tail alignment is available for this communication operator",
       "tipDescription": "The operator has been highlighted in the chart. Right-click the highlighted bar and choose tail alignment.",
       "dismiss": "Got it"
+    },
+    "modern": {
+      "groupAnalysis": "Communication group performance",
+      "rangeRatioAnalysis": "Range ratio",
+      "rangeRatio": "Range ratio",
+      "metricWithUnit": "{{metric}} ({{unit}})",
+      "elapsedTime": "Elapsed time",
+      "bandwidthType": "Bandwidth type",
+      "fluctuation": "Operator performance fluctuation",
+      "matrix": "Communication matrix",
+      "ranks": "Communication time & bandwidth",
+      "selectData": "Select cluster data",
+      "parsing": "Parsing data",
+      "clusterParsing": "Parsing cluster data",
+      "clusterParsingHint": "Large datasets may take a few minutes. Results will appear automatically when parsing is complete.",
+      "failed": "Unable to load data",
+      "statisticsUnsupported": "The current data does not support these communication statistics",
+      "statisticsInvalid": "Invalid communication statistics data",
+      "transfer": "Transfer statistics",
+      "timelineUnavailable": "Timeline data is not ready",
+      "matrixNavigation": "Hold Ctrl and use the wheel/two-finger scroll to zoom the matrix",
+      "slowRankAdvice": "Noticeable fast-slow communication imbalance exists in the current domain. Pay attention to ranks and operators with large communication time gaps versus fast rank, as these may offer optimization opportunities. <strong>Fastest rank ID：{{fastRankId}}, Fastest rank elapsed time：{{fastTotalElapseTime}}ms</strong>",
+      "dataAnalysis": "Data analysis:",
+      "recommendation": "Recommendation:"
     }
   }
 }

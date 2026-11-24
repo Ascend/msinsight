@@ -4,6 +4,7 @@
  */
 
 import { Connection } from './connection';
+import { store } from '../../store';
 
 jest.mock('@/connection', () => ({ send: jest.fn() }), { virtual: true });
 jest.mock('@/utils/enum', () => ({ ProjectType: {} }), { virtual: true });
@@ -69,5 +70,72 @@ describe('websocket response dispatch', () => {
         connection.fetchDataOnMessage(respond('heartCheck', request.id));
         await expect(pending).resolves.toEqual({});
         expect(warnSpy).not.toHaveBeenCalled();
+    });
+});
+
+describe('development backend address', () => {
+    const environment = { ...process.env };
+    let socket: jest.SpyInstance;
+
+    beforeEach(() => {
+        process.env = { ...environment, NODE_ENV: 'development', REACT_APP_BACKEND_HOST: '192.0.2.44' };
+        delete process.env.REACT_APP_IS_VSCODE;
+        window.history.replaceState({}, '', '/?port=9100');
+        socket = jest.spyOn(window, 'WebSocket').mockImplementation(() => ({}) as WebSocket);
+        jest.spyOn(console, 'info').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        process.env = { ...environment };
+        window.history.replaceState({}, '', '/');
+        jest.restoreAllMocks();
+    });
+
+    it('routes the connection and iframe backend address to the configured development host', () => {
+        expect(new Connection({ remote: '192.0.2.44', port: 9100 })).toBeInstanceOf(Connection);
+        expect(socket).toHaveBeenCalledWith('ws://192.0.2.44:9100?port=9100');
+        expect(store.sessionStore.activeSession.toIframeUrl).toBe('ws://192.0.2.44:9100');
+        jest.isolateModules(() => {
+            const { GLOBAL_HOST } = jest.requireActual<typeof import('./defs')>('./defs');
+            expect(GLOBAL_HOST).toEqual({ remote: '192.0.2.44', port: 9100 });
+        });
+    });
+
+    it.each(['', '   '])('preserves page-host routing when the override is empty (%s)', host => {
+        process.env.REACT_APP_BACKEND_HOST = host;
+        expect(new Connection({ remote: 'localhost', port: 9100 })).toBeInstanceOf(Connection);
+        expect(socket).toHaveBeenCalledWith(`ws://${window.location.hostname}:9100?port=9100`);
+    });
+
+    it('ignores a development host in production builds', () => {
+        process.env = { ...process.env, NODE_ENV: 'production' };
+        expect(new Connection({ remote: 'localhost', port: 9100 })).toBeInstanceOf(Connection);
+        expect(socket).toHaveBeenCalledWith(`ws://${window.location.hostname}:9100?port=9100`);
+        jest.isolateModules(() => {
+            const { GLOBAL_HOST } = jest.requireActual<typeof import('./defs')>('./defs');
+            expect(GLOBAL_HOST.remote).toBe('localhost');
+        });
+    });
+
+    it('does not apply the host override to VSCode configuration', () => {
+        process.env.REACT_APP_IS_VSCODE = 'true';
+        jest.isolateModules(() => {
+            const { GLOBAL_HOST, getDevelopmentBackendHost } = jest.requireActual<typeof import('./defs')>('./defs');
+            expect(getDevelopmentBackendHost()).toBe('');
+            expect(GLOBAL_HOST.remote).toBe('localhost');
+        });
+    });
+
+    it('preserves proxy and JupyterLab URLs with a development override configured', () => {
+        window.history.replaceState({}, '', '/proxy/9000/index.html?port=9100');
+        expect(new Connection({ remote: 'localhost', port: 9100 })).toBeInstanceOf(Connection);
+        expect(socket).toHaveBeenLastCalledWith(`ws://${window.location.host}/proxy/9100/index.html?port=9100`);
+        window.history.replaceState({}, '', '/resources/profiler/frontend/index.html?port=9100&jupyterlabProxy=true');
+        expect(new Connection({ remote: 'localhost', port: 9100, jupyterlabProxy: true })).toBeInstanceOf(Connection);
+        expect(socket).toHaveBeenLastCalledWith(`ws://${window.location.host}/proxy/9100/resources/profiler/frontend/index.html?port=9100&jupyterlabProxy=true`);
+        jest.isolateModules(() => {
+            const { GLOBAL_HOST } = jest.requireActual<typeof import('./defs')>('./defs');
+            expect(GLOBAL_HOST.remote).toBe('localhost');
+        });
     });
 });

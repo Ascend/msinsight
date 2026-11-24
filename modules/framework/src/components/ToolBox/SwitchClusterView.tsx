@@ -18,7 +18,7 @@
 import React, { useRef } from 'react';
 import { observer } from 'mobx-react';
 import styled from '@emotion/styled';
-import { RollbackOutlined } from '@ant-design/icons';
+import { ReturnIcon } from '@insight/lib/icon';
 import { Button, Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import type { Session } from '@/entity/session';
@@ -32,6 +32,7 @@ const ToolButton = styled(Button)`
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 8px;
         width: auto;
         min-width: 0;
         height: 20px;
@@ -40,24 +41,19 @@ const ToolButton = styled(Button)`
         box-shadow: none;
         font-size: 12px;
         line-height: 20px;
-        color: ${({ theme }): string => theme.textColorPrimary};
+        color: inherit;
         background: transparent;
 
         &:hover, &:focus, &:active, &:disabled {
             background: transparent;
             box-shadow: none;
-            color: ${({ theme }): string => theme.textColorPrimary};
+            color: inherit;
         }
         &:disabled {
             color: ${({ theme }): string => theme.textColorDisabled};
         }
         > span {
             color: inherit;
-        }
-        .anticon, .anticon > svg {
-            width: 16px;
-            height: 16px;
-            font-size: 16px;
         }
         &:focus-visible {
             outline: 2px solid ${({ theme }): string => theme.primaryColor};
@@ -80,7 +76,7 @@ const SwitchClusterView = observer(({ session }: { session: Session }) => {
         }
     };
     return <Tooltip placement="bottom" title={modern ? label : comparing ? t('clusterView.exitCompare') : undefined}>
-        <ToolButton type="text" size="small" icon={<RollbackOutlined />} aria-label={label} disabled={!modern && comparing}
+        <ToolButton type="text" size="small" icon={<ReturnIcon aria-hidden="true" focusable="false" />} aria-label={label} disabled={!modern && comparing}
             onClick={switchVersion}>
             {modern ? null : label}
         </ToolButton>

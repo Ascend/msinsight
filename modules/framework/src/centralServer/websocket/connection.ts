@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type { ConnectHost, DataRequest, ModuleName, Notification, Request, Response, ResponseHandler } from './defs';
-import { CONTENT_LENGTH_PREFIX, isResponse, LOCAL_HOST, PORT } from './defs';
+import { CONTENT_LENGTH_PREFIX, getDevelopmentBackendHost, isResponse, LOCAL_HOST, PORT } from './defs';
 import connector from '@/connection';
 import { Modal } from 'antd';
 import { errorCenter, WsError, ErrorCode } from '@insight/lib/utils';
@@ -97,7 +97,7 @@ export class Connection {
                     session.toIframeUrl = `${protocol}${host}${window.location.pathname.replace(/\/resources\/profiler\/frontend\/.*/, `/proxy/${initHost.port}`)}`;
                 });
             } else if (!window.location.pathname.includes('/proxy/')) {
-                const hostname = window.location.hostname || LOCAL_HOST;
+                const hostname = getDevelopmentBackendHost() || window.location.hostname || LOCAL_HOST;
                 let pathname = window.location.pathname && window.location.pathname !== '/' ? window.location.pathname.replace(/\/resources\/profiler\/frontend\/index.html/, '') : '';
                 pathname = pathname.replace(/\/index.html/, '');
                 this._ws = new WebSocket(`${protocol}${hostname}${pathname}:${initHost.port}${window.location.search}`);
