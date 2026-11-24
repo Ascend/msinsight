@@ -40,6 +40,7 @@ describe('memory frame tree panel', () => {
         const request = jest.fn(createMockFrameTreePage);
         const view = render(show(request));
         await readyUnmerged(view);
+        expect(view.container.querySelector('.frame-tree-legend')).not.toHaveTextContent('frameTree.kind.unknown');
         const toggle = view.getByRole('checkbox', { name: 'frameTree.includeUnknown' }) as HTMLInputElement;
         expect(toggle.checked).toBe(true);
         expect(view.queryByTestId('frame-tree-icicle-static')).toBeNull();

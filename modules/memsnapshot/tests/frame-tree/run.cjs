@@ -578,6 +578,7 @@ async function main() {
                 const firstRow = manager.getByTestId('snapshot-event-marker-row').first();
                 assert.equal(await firstRow.getByRole('button').count(), 2, 'Each breakdown row offers visibility and deletion, without a locate action');
                 await firstRow.locator('input:not([type="color"])').fill('Checkpoint');
+                await firstRow.locator('input:not([type="color"])').press('Enter');
                 assert.equal(await axis.getByRole('button', { name: /Checkpoint/ }).count(), 1);
                 await firstRow.getByRole('button', { name: language === 'zhCN' ? '移除拆解：Checkpoint' : 'Remove breakdown: Checkpoint', exact: true }).click();
                 assert.equal(await page.getByTestId('snapshot-event-flag').count(), 3);

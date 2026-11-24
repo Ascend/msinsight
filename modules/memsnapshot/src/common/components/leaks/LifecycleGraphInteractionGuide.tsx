@@ -14,6 +14,7 @@ import {
     CloseOutlined,
     DragOutlined,
     ExpandAltOutlined,
+    FieldTimeOutlined,
     FlagOutlined,
     GroupOutlined,
     OneToOneOutlined,
@@ -205,6 +206,37 @@ const MarkerManagementArtwork = (): JSX.Element => <Artwork data-testid="lifecyc
     </svg>
 </Artwork>;
 
+const BreakdownManagementArtwork = (): JSX.Element => {
+    const { t } = useTranslation('leaks');
+    const events = [183240, 235113];
+    return <Artwork data-testid="lifecycleGuideBreakdownManagementVisual">
+        <svg viewBox="0 0 312 96" aria-hidden="true" focusable="false">
+            {events.map((event, index) => {
+                const y = 5 + index * 35;
+                return <g key={event}>
+                    <rect className="frame" x="28" y={y} width="256" height="29" rx="3" />
+                    <g className="primary-fill" transform={`translate(36 ${y + 9}) scale(.7)`}>
+                        <TimelineFlagIcon style={{ width: 17, height: 16 }} />
+                    </g>
+                    <text className="primary-fill" fontSize="10" fontWeight="600" x="57" y={y + 11}>
+                        {t('frameTree.marker', { event })}
+                    </text>
+                    <text className="secondary-text" x="57" y={y + 24}>{t('frameTree.event')} {event}</text>
+                    <rect className="muted" x="213" y={y + 9} width="18" height="12" rx="2" />
+                    <rect className="primary-fill" x="217" y={y + 12} width="10" height="6" rx="1" />
+                    <path className="muted" d={`M242 ${y + 15} C246 ${y + 10} 252 ${y + 10} 256 ${y + 15} C252 ${y + 20} 246 ${y + 20} 242 ${y + 15} Z`} />
+                    <circle className="muted" cx="249" cy={y + 15} r="2" />
+                    <path className="muted" d={`M268 ${y + 11} H278 M271 ${y + 9} H275 M270 ${y + 11} V${y + 20} H276 V${y + 11}`} />
+                </g>;
+            })}
+            <rect className="muted" x="28" y="80" width="128" height="14" rx="2" />
+            <path fill="none" stroke="#d4380d" d="M32 83 H39 M34 81 H37 M33 83 V91 H38 V83" />
+            <text fill="#d4380d" fontSize="9" x="43" y="90">{t('frameTree.clearMarkers')}</text>
+            <text className="secondary-text" x="284" y="91" textAnchor="end">{t('frameTree.markerCount', { count: events.length })}</text>
+        </svg>
+    </Artwork>;
+};
+
 const useGuidePosition = (anchorElement: HTMLElement | null): { top: number; right: number; maxHeight: number } => {
     const [position, setPosition] = React.useState({ top: 8, right: 48, maxHeight: 620 });
     React.useLayoutEffect(() => {
@@ -231,9 +263,11 @@ const useGuidePosition = (anchorElement: HTMLElement | null): { top: number; rig
 export const LifecycleGraphInteractionGuide = ({
     anchorElement,
     onClose,
+    showBreakdown = false,
 }: {
     anchorElement: HTMLElement | null;
     onClose: () => void;
+    showBreakdown?: boolean;
 }): JSX.Element => {
     const { t } = useTranslation('leaks');
     const position = useGuidePosition(anchorElement);
@@ -279,6 +313,13 @@ export const LifecycleGraphInteractionGuide = ({
                 <Description>{t('lifecycleGuideMarkerManagementDescription')}</Description>
                 <MarkerManagementArtwork />
             </Section>
+            {showBreakdown
+                ? <Section data-testid="lifecycleGuideSection">
+                    <Title><FieldTimeOutlined /><span>{t('frameTree.manageMarkers')}</span></Title>
+                    <Description>{t('frameTree.guideDescription')}</Description>
+                    <BreakdownManagementArtwork />
+                </Section>
+                : null}
         </Body>
     </Panel>, document.body);
 };

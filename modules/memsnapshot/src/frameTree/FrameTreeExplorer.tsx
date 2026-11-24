@@ -211,7 +211,6 @@ export function FrameTreeExplorer({ tree: sourceTree }: { tree: FrameTree }): JS
             </aside>
         </div>
         <div className="frame-tree-legend">
-            <span>{t('frameTree.kind.unknown')}</span>
             <span className="frame-tree-muted">{t('frameTree.chartHelp')}</span>
             {pythonOnly ? <span className="frame-tree-muted">{t('frameTree.pythonHelp')}</span> : null}
         </div>

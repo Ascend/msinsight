@@ -75,13 +75,15 @@ jest.mock('../common/shared/hooks/useLifecycleRange', () => ({
     }),
 }));
 jest.mock('../common/components/leaks/MemoryBlockDiagram', () => ({
-    MemoryBlockDiagram: ({ onSelectTimestamp, timeMarkers = [], onRemoveTimeMarker, onUpdateTimeMarker }: {
+    MemoryBlockDiagram: ({ onSelectTimestamp, timeMarkers = [], onRemoveTimeMarker, onUpdateTimeMarker, onClearTimeMarkers }: {
         onSelectTimestamp: (value: number) => void;
         timeMarkers?: Array<{ id: number; label: string; color?: string; hidden?: boolean }>;
         onRemoveTimeMarker: (id: number) => void;
         onUpdateTimeMarker: (id: number, updates: { label?: string; color?: string; hidden?: boolean }) => void;
+        onClearTimeMarkers: () => void;
     }) => <>
         <button onClick={(): void => onSelectTimestamp(135.8)}>Select event</button>
+        <button onClick={onClearTimeMarkers}>Clear events</button>
         {timeMarkers.map(marker => <span key={marker.id}>
             <span data-testid="marker-name" data-color={marker.color} data-hidden={marker.hidden === true}>{marker.label}</span>
             <button onClick={(): void => onRemoveTimeMarker(marker.id)}>Remove {marker.id}</button>
@@ -94,7 +96,8 @@ jest.mock('../components/FrameTreePanel', () => ({
     FrameTreePanel: (props: unknown) => <div data-testid="selection-output">{JSON.stringify(props)}</div>,
 }));
 
-const translations = createInstance();
+// react-i18next augments the CJS i18next type, while bundler resolution selects the ESM type.
+const translations = createInstance() as React.ComponentProps<typeof I18nextProvider>['i18n'];
 const showStack = (session: ReturnType<typeof createSession>): ReturnType<typeof render> =>
     render(<I18nextProvider i18n={translations}><MemoryStack session={session} /></I18nextProvider>);
 
@@ -106,6 +109,54 @@ describe('timeline selection context isolation', () => {
     });
     beforeEach(async () => { await translations.changeLanguage('enUS'); });
     afterEach(() => jest.useRealTimers());
+    it('restores window markers and active tabs without mixing pending responses or reviving cleared markers', async () => {
+        jest.useFakeTimers();
+        const pending: Array<(value: unknown) => void> = [];
+        (getSnapshotEvent as jest.Mock).mockImplementation(() => new Promise(resolve => pending.push(resolve)));
+        const session = createSession();
+        runInAction(() => {
+            session.deviceId = '0'; session.eventType = 'BLOCK'; session.fileHash = 'windows'; session.selectedSliceIndex = 0;
+        });
+        const view = showStack(session);
+        const select = async (): Promise<void> => {
+            fireEvent.click(view.getByRole('button', { name: 'Select event' }));
+            await act(async () => { jest.advanceTimersByTime(150); });
+        };
+        const switchWindow = (index: number): void => act(() => runInAction(() => { session.selectedSliceIndex = index; }));
+        await select();
+        fireEvent.click(view.getByRole('button', { name: 'Rename 1' }));
+        fireEvent.click(view.getByRole('button', { name: 'Appearance 1' }));
+        await select();
+        fireEvent.click(view.getByRole('tab', { name: 'Tab 1' }));
+        switchWindow(1);
+        expect(view.queryAllByRole('tab')).toHaveLength(0);
+        await select();
+        await act(async () => {
+            pending[2]({ events: [{ id: 130 }] });
+            pending[1]({ events: [{ id: 132 }] });
+            pending[0]({ events: [{ id: 130 }] });
+        });
+        expect(view.getByTestId('marker-name').textContent).toBe('Event 130');
+        switchWindow(0);
+        expect(view.getAllByRole('tab')).toHaveLength(2);
+        expect(view.getByRole('tab', { name: 'Tab 1' }).getAttribute('aria-selected')).toBe('true');
+        const marker = view.getAllByTestId('marker-name')[0];
+        expect(marker.textContent).toBe('Forward end');
+        expect(marker.getAttribute('data-hidden')).toBe('true');
+        expect(marker.getAttribute('data-color')).toBe('#2FA87C');
+        expect(JSON.parse(view.getByTestId('selection-output').textContent ?? '{}').context.eventId).toBe(130);
+        await select();
+        fireEvent.click(view.getByRole('button', { name: 'Clear events' }));
+        switchWindow(1);
+        await act(async () => { pending[3]({ events: [{ id: 134 }] }); });
+        expect(view.getAllByRole('tab')).toHaveLength(1);
+        expect(view.getByRole('tab', { name: 'Tab 3' }).getAttribute('aria-selected')).toBe('true');
+        switchWindow(0);
+        expect(view.queryAllByRole('tab')).toHaveLength(0);
+        act(() => runInAction(() => { session.fileHash = 'new-dataset'; }));
+        switchWindow(1);
+        expect(view.queryAllByRole('tab')).toHaveLength(0);
+    });
     it('retains custom names and marker appearance through language changes and pending event responses', async () => {
         jest.useFakeTimers();
         let finish: (value: unknown) => void = () => undefined;

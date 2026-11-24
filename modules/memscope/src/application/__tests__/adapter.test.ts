@@ -8,7 +8,7 @@ import { createAdapter } from '../adapter';
 
 jest.mock('../../common/leaksWorker/blockWorker/worker', () => ({ workerDestroy: jest.fn() }));
 
-it('clears application loading and dataset metadata when removing data', () => {
+it('clears dataset state while preserving the mounted viewport on removal', () => {
     const adapter = createAdapter();
     runInAction(() => {
         adapter.session.deviceIds = { 0: ['PTA'] };
@@ -17,6 +17,9 @@ it('clears application loading and dataset metadata when removing data', () => {
         adapter.session.loadingOverview = true;
         adapter.session.threadIds = [42];
         adapter.session.loadingFunc = true;
+        adapter.session.leaksWorkerInfo.renderOptions.viewport = { width: 1000, height: 480 };
+        adapter.session.leaksWorkerInfo.renderOptions.transform = { x: 20, y: 30, scaleX: 2, scaleY: 2 };
+        adapter.session.leaksWorkerInfo.sizeInfo.maxSize = 1024;
     });
     adapter.reset();
     expect(adapter.session.deviceIds).toEqual({});
@@ -25,4 +28,7 @@ it('clears application loading and dataset metadata when removing data', () => {
     expect(adapter.session.loadingOverview).toBe(false);
     expect(adapter.session.threadIds).toEqual([]);
     expect(adapter.session.loadingFunc).toBe(false);
+    expect(adapter.session.leaksWorkerInfo.renderOptions.viewport).toEqual({ width: 1000, height: 480 });
+    expect(adapter.session.leaksWorkerInfo.renderOptions.transform).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+    expect(adapter.session.leaksWorkerInfo.sizeInfo.maxSize).toBe(0);
 });

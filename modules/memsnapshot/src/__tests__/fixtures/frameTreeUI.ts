@@ -22,6 +22,7 @@ jest.mock('@insight/lib/components', () => {
     const ReactModule = require('react');
     return {
         Button: ({ children, ...props }: any) => ReactModule.createElement('button', props, children),
+        Tooltip: ({ children }: { children: React.ReactNode }) => children,
         Input: ({ allowClear, ...props }: any) => ReactModule.createElement('input', props),
         Checkbox: ({ children, checked, onChange, ...props }: any) => ReactModule.createElement('label', null,
             ReactModule.createElement('input', { ...props, type: 'checkbox', checked, onChange }), children),

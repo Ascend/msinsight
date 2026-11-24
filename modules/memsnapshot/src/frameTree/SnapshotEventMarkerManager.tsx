@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { useTheme } from '@emotion/react';
 import { CloseOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined } from '@ant-design/icons';
@@ -45,6 +45,26 @@ const Row = styled.div`
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
+const MarkerName = ({ name, onCommit }: { name: string; onCommit: (name: string) => void }): JSX.Element => {
+    const { t } = useTranslation('leaks');
+    const [draft, setDraft] = useState<string | null>(null);
+    return <input value={draft ?? name} maxLength={80} aria-label={t('frameTree.renameMarker', { name })}
+        title={t('frameTree.renameMarker', { name })} placeholder={t('frameTree.renameHint')}
+        onChange={(event): void => setDraft(event.target.value)}
+        onBlur={(): void => {
+            if (draft?.trim()) onCommit(draft.trim());
+            setDraft(null);
+        }}
+        onKeyDown={(event): void => {
+            if (event.key === 'Escape') {
+                event.stopPropagation();
+                setDraft(null);
+            } else if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                event.currentTarget.blur();
+            }
+        }} />;
+};
+
 export function SnapshotEventMarkerManager({ markers, onClose, onUpdate, onRemove, onClear }: {
     markers: readonly SnapshotEventMarker[];
     onClose: () => void;
@@ -57,9 +77,22 @@ export function SnapshotEventMarkerManager({ markers, onClose, onUpdate, onRemov
     const panel = useRef<HTMLDivElement>(null);
     const confirmation = useRef<ReturnType<typeof Modal.confirm>>();
     useEffect(() => {
+        confirmation.current?.update({
+            title: t('frameTree.clearMarkers'),
+            content: t('frameTree.clearMarkersConfirm'),
+            okText: t('clearAllMemoryMarkersConfirmButton'),
+            cancelText: t('clearAllMemoryMarkersCancelButton'),
+        });
+    }, [t]);
+    useEffect(() => {
         const outside = (event: MouseEvent): void => {
             if (!panel.current?.contains(event.target as Node) &&
-                !(event.target instanceof Element && event.target.closest('.ant-modal-root'))) onClose();
+                !(event.target instanceof Element && event.target.closest('.ant-modal-root'))) {
+                // Commit the focused draft before mousedown unmounts the manager.
+                const focused = document.activeElement;
+                if (focused instanceof HTMLElement && panel.current?.contains(focused)) focused.blur();
+                onClose();
+            }
         };
         const escape = (event: KeyboardEvent): void => { if (event.key === 'Escape') onClose(); };
         document.addEventListener('mousedown', outside);
@@ -85,9 +118,7 @@ export function SnapshotEventMarkerManager({ markers, onClose, onUpdate, onRemov
                         style={{ color: marker.color }}>
                         <TimelineFlagIcon />
                         <div style={{ minWidth: 0 }}>
-                            <input value={marker.label} maxLength={80} aria-label={t('frameTree.renameMarker', { name: marker.label })}
-                                title={t('frameTree.renameMarker', { name: marker.label })} placeholder={t('frameTree.renameHint')}
-                                onChange={(event): void => onUpdate(marker.id, { label: event.target.value })} />
+                            <MarkerName name={marker.label} onCommit={(label): void => onUpdate(marker.id, { label })} />
                             <p title={marker.error}>{marker.resolving
                                 ? t('frameTree.resolving')
                                 : marker.error ?? `${t('frameTree.event')} ${marker.eventId}`}</p>

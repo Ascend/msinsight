@@ -456,6 +456,7 @@ test.describe('MemSnapshot', () => {
         const markerNames = manager.locator('input:not([type="color"])');
         await expect(manager.getByTestId('snapshot-event-marker-row')).toHaveCount(2);
         await markerNames.first().fill('Checkpoint');
+        await markerNames.first().press('Enter');
         await expect(panel.getByRole('tab').first()).toContainText('Checkpoint');
         const firstRow = manager.getByTestId('snapshot-event-marker-row').first();
         const markerId = await frame.getByTestId('snapshot-event-flag').first().getAttribute('data-marker-id');
