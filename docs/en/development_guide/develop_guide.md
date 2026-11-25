@@ -1063,7 +1063,8 @@ bash cpp_coverage.sh
   4. Use lcov to filter out the `include/test/third_party` directory and generate coverage information.
   5. Use genhtml to generate an HTML report.
   6. Summarize coverage for each module under `server/src/modules/<module>`.
-  7. By default, submit the report to `msinsight-org/qa-test-assets` and post the summary as an MR comment. If the token is missing, this step is skipped. Set `COVERAGE_ASSET=off` or `COVERAGE_COMMENT=off` to disable report submission or commenting separately.
+  7. Check overall line coverage: if no line coverage data was collected, exit non-zero and skip archiving/commenting; if it is below **80%** (adjustable with `COVERAGE_MIN_LINE`), mark the summary as failed, archive/comment, and then exit non-zero (only line coverage is gated by the script).
+  8. If the line coverage gate passes, submit the report to `msinsight-org/qa-test-assets` and post the summary as an MR comment by default. If the token is missing, this step is skipped. Set `COVERAGE_ASSET=off` or `COVERAGE_COMMENT=off` to disable report submission or commenting separately.
 - Coverage report path: `build_llt/output/cpp_coverage/result/index.html`
 - Module summary: `build_llt/output/cpp_coverage/coverage_summary.md`
 - Archive path: `server/cpp-ut/coverage-reports/<YYYY-MM-DD>_pr<MR>_<short-commit>/`

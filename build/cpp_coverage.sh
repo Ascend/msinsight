@@ -76,13 +76,14 @@ coverage_cells() {
 
 INFO=${COV_DIR}/lcov_insight_test.info
 SUMMARY=${COV_DIR}/coverage_summary.md
+all_cells=$(coverage_cells "${INFO}")
 mkdir -p ${COV_DIR}/modules
 {
     echo "# insight_test 模块级覆盖率"
     echo ""
     echo "| 模块 | 行覆盖 | 行% | 函数覆盖 | 函数% | 分支覆盖 | 分支% | 报告 |"
     echo "| --- | --- | --- | --- | --- | --- | --- | --- |"
-    echo "| （全部产品代码） | $(coverage_cells "${INFO}") | [HTML](result/index.html) |"
+    echo "| （全部产品代码） | ${all_cells} | [HTML](result/index.html) |"
 } > "${SUMMARY}"
 
 modules_src="${TOP_DIR}/server/src/modules"
@@ -101,4 +102,37 @@ fi
 echo "report: ${COV_DIR}"
 cat "${SUMMARY}"
 
+min_line=${COVERAGE_MIN_LINE:-80}
+line_cells=${all_cells%% | *}
+line_hit=${line_cells%%/*}
+line_found=${line_cells##*/}
+case "${min_line}" in
+    ''|*[!0-9]*)
+        echo "ERROR: COVERAGE_MIN_LINE 必须是非负整数，当前为 '${min_line}'" >&2
+        exit 1
+        ;;
+esac
+case "${line_hit}:${line_found}" in
+    *[!0-9:]*|:*|*:)
+        echo "ERROR: 无法解析行覆盖数据：'${line_cells}'" >&2
+        exit 1
+        ;;
+esac
+if [ "${line_found}" -eq 0 ]; then
+    echo "ERROR: 未采集到可执行行覆盖数据（${INFO}），判定失败" >&2
+    exit 1
+fi
+coverage_gate_rc=0
+if [ $((line_hit * 100)) -lt $((min_line * line_found)) ]; then
+    line_pct=$(awk -v hit="${line_hit}" -v found="${line_found}" 'BEGIN { printf "%.3f", hit * 100 / found }')
+    echo "ERROR: 整仓行覆盖率 ${line_hit}/${line_found} = ${line_pct}% 低于 ${min_line}% 门槛" >&2
+    {
+        echo ""
+        echo "**行覆盖率门槛未达标：${line_hit}/${line_found} = ${line_pct}%（要求 ${min_line}%）**"
+    } >> "${SUMMARY}"
+    coverage_gate_rc=1
+fi
+
 bash "${CUR_DIR}/cpp_coverage_post.sh"
+
+exit ${coverage_gate_rc}

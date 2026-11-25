@@ -1083,7 +1083,8 @@ bash cpp_coverage.sh
   4. 使用 lcov 过滤 include/test/third_party 目录后生成覆盖率信息
   5. 使用 genhtml 生成 HTML 报告
   6. 按 `server/src/modules/<module>` 汇总各模块覆盖率
-  7. 默认把报告提交到 `msinsight-org/qa-test-assets`，并把汇总回帖到 MR 评论（缺令牌时跳过；`COVERAGE_ASSET=off` / `COVERAGE_COMMENT=off` 可分别关闭）
+  7. 检查整仓行覆盖率：未采集到行覆盖数据时以非 0 退出并跳过归档/回帖；低于 **80%**（可用 `COVERAGE_MIN_LINE` 调整门槛）时在汇总中标注未达标，归档/回帖后仍以非 0 退出（脚本当前只对行覆盖率设硬门槛）
+  8. 行覆盖达标时默认把报告提交到 `msinsight-org/qa-test-assets`，并把汇总回帖到 MR 评论（缺令牌时跳过；`COVERAGE_ASSET=off` / `COVERAGE_COMMENT=off` 可分别关闭）
 - 覆盖率报告路径：`build_llt/output/cpp_coverage/result/index.html`
 - 模块汇总：`build_llt/output/cpp_coverage/coverage_summary.md`
 - 归档路径：`server/cpp-ut/coverage-reports/<YYYY-MM-DD>_pr<MR>_<短提交>/`
