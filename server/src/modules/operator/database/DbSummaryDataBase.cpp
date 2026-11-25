@@ -1167,7 +1167,7 @@ void DbSummaryDataBase::GenerateMoreInfoTotalNumForOther(
     std::string &sql, OperatorGroupConverter::OperatorGroup opGroup) const {
     std::string condition = (opGroup == OperatorGroupConverter::OperatorGroup::OP_TYPE_GROUP)
         ? " type = ?"
-        : " name = ? AND inputShape = ?";
+        : " NAME.value = ? AND INPUTSHAPES.value = ?";
     sql = " SELECT COUNT(*) as nums FROM ("
           "     SELECT NAME.value AS name, INPUTSHAPES.value AS inputShape, TASKTYPE.value AS accCore, "
           "     OPTYPE.value AS type"
