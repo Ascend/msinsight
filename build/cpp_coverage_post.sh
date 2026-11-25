@@ -1,21 +1,15 @@
 #!/bin/bash
 # 把 cpp_coverage.sh 的覆盖率报告提交到 qa-test-assets，并把汇总回帖到 MR。
 # cpp_coverage.sh 在汇总完成后默认调用本脚本；也可单独执行。
-# -------------------------------------------------------------------------
-# This file is part of the MindStudio project.
 # Copyright (c) 2026 Huawei Technologies Co.,Ltd.
-#
-# MindStudio is licensed under Mulan PSL v2.
+# msinsight is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
-#
 #          http://license.coscl.org.cn/MulanPSL2
-#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-# -------------------------------------------------------------------------
 # 归档：msinsight-org/qa-test-assets 的 server/cpp-ut/coverage-reports/<日期>_pr<MR>_<短提交>/
 # 评论：读取 coverage_summary.md，缺 pr_id 或缺令牌即跳过，默认不影响作业结果。
 #   pr_id / GITCODE_PR_ID     目标 MR 序号
