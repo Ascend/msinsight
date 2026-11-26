@@ -1,8 +1,8 @@
 # 整体界面介绍
 
-![](./figures/source_tuning/timeline.png "timline")
+![](./figures/source_tuning/timeline.png "timeline")
 
-算子执行过程是一个多核并发的过程，所以在流水图中一级泳道按照AiCore进行分类，泳道名格式：core_id.coreTypeCoreId. coreType有两类：cube和vec。
+算子执行过程是一个多核并发的过程，所以在流水图中一级泳道按照AiCore进行分类，泳道名格式：core_id.coreTypeCoreId（例如：core0.veccore0、core0.cubecore0）。coreType有两类：cube和vec。
 
 ## 泳道介绍
 
@@ -14,7 +14,7 @@
 
 MTE1泳道：L1 --> L0A/ L0B
 
-MTE2泳道：GM --> L1、 GM--> L0A/L
+MTE2泳道：GM --> L1、 GM--> L0A/L0B
 
 MTE3泳道：UB--> GM
 

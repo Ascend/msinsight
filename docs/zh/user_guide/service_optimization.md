@@ -166,7 +166,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 |reply_token_size|reply_token_size|请求的输出长度。|
 |execution_time_ms|execution_time_ms|请求端到端耗时，单位ms。|
 |queue_wait_time_ms|queue_wait_time_ms|请求在整个推理过程中在队列中等待的时间，这里包括waiting状态和pending状态的时间，单位ms。|
-|first_token_latency|first_token_latency|首Token时延，单位ms。|
+|first_token_latency|first_token_latency|首Token延迟，单位ms。|
 |**forward_info**|**forward_info**|服务化推理模型前向执行过程的详细数据。|
 |name|name|标注forward事件，代表模型前向执行过程。|
 |relative_start_time(ms)|relative_start_time(ms)|每台机器上forward与第一个forward之间的时间。|

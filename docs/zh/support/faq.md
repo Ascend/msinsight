@@ -132,7 +132,7 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 
 **问题现象**
 
-在 Windows 系统上安装 MindStudio Insight 时，选择勾选“Run MindStudio Insight“自动打开MindStudio Insight的情况下，拖入文件显示禁用。
+在 Windows 系统上安装 MindStudio Insight 时，勾选“Run MindStudio Insight“自动打开MindStudio Insight的情况下，拖入文件显示禁用。
 
 **原因分析**
 
@@ -172,7 +172,7 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 
 **问题现象**
 
-在 Linux 系统上，使用“VNC 方式”启动 MindStudio Insight 时，启动VNC，出现“Oh no! Something has gone wrong.”报错弹窗，如[**图 1**  报错信息](#报错信息)所示。
+在 Linux 系统上，使用“VNC 方式”启动 MindStudio Insight 时，出现“Oh no! Something has gone wrong.”报错弹窗，如[**图 1**  报错信息](#报错信息)所示。
 
 **图 1**  报错信息<a id="报错信息"></a>
 ![](./figures/FAQ/error_message_1.png "报错信息")
@@ -327,10 +327,10 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 2. 点击编辑进行查看；
 
    ![alt text](./figures/FAQ/MindStudio_Insight_Disconnect/proxy-edit-interface.png)
-3. 查看上图代理白名单中是否有**<-loopback>**关键字，如果有的话删除后保存；
+3. 查看上图代理允许列表中是否有**<-loopback>**关键字，如果有的话删除后保存；
 
    ![alt text](./figures/FAQ/MindStudio_Insight_Disconnect/proxy-whitelist.png)
-4. 若去掉该白名单后影响本地 Web 的一些访问，可以增加关键字![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png)，然后重新打开 MindStudio Insight 使用；
+4. 若去掉该允许列表后影响本地 Web 的一些访问，可以增加关键字![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png)，然后重新打开 MindStudio Insight 使用；
 5. 若不存在该关键字且修改后无效，请联系 MindStudio Insight 工具接口人进一步定位。
 
 ## 17. Profiling DB 与 text 数据混合时如何只查看 text 数据？
