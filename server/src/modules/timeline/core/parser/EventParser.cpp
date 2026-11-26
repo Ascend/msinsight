@@ -43,6 +43,7 @@ void EventParser::InitEventHandle() {
     eventHandleMap.emplace("M", std::bind(&EventParser::MetaDataHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("X", std::bind(&EventParser::CompleteEventsHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("I", std::bind(&EventParser::CompleteEventsHandle, this, std::placeholders::_1));
+    eventHandleMap.emplace("i", std::bind(&EventParser::CompleteEventsHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("C", std::bind(&EventParser::CounterEventsHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("s", std::bind(&EventParser::FlowEventsHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("t", std::bind(&EventParser::FlowEventsHandle, this, std::placeholders::_1));
@@ -134,10 +135,6 @@ void EventParser::EventHandle(const json_t &json) {
             } else {
                 ignoreCount++;
             }
-            return;
-        }
-        if (type == "i") {
-            ignoreCount++;
             return;
         }
     }

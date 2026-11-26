@@ -85,6 +85,20 @@ TEST_F(EventParserTest, TestEventUtilParseGroupId) {
     EXPECT_EQ(slice.groupId, "groupA");
 }
 
+TEST_F(EventParserTest, TestEventUtilParseLowercaseInstantEvent) {
+    document_t json;
+    json.Parse(R"({"ph":"i","ts":1,"name":"RV_VLOOPv2","pid":1,"tid":2,"s":"t","args":{}})");
+    auto event = EventUtil::Instance().FromJson(json, "i");
+    ASSERT_NE(event, nullptr);
+    auto &slice = dynamic_cast<Trace::Slice &>(*event);
+    EXPECT_EQ(slice.type, "i");
+    EXPECT_EQ(slice.name, "RV_VLOOPv2");
+    EXPECT_EQ(slice.ts, 1000);
+    EXPECT_EQ(slice.dur, 0);
+    EXPECT_EQ(slice.pid, "1");
+    EXPECT_EQ(slice.tid, "2");
+}
+
 TEST_F(EventParserTest, TestEventUtilParseSimulationGroupId) {
     document_t json;
     json.Parse(R"({"ph":"SX","ts":1,"dur":2,"name":"slice","pid":"p","tid":"t","group_id":"groupA"})");
@@ -151,6 +165,43 @@ TEST_F(EventParserTest, TestSliceParse) {
     EXPECT_EQ(slicePOs[first].trackId, exceptTrackId);
     EXPECT_EQ(slicePOs[first].endTime, exceptTime + exceptDuration);
     EXPECT_EQ(slicePOs[first].args.empty(), false);
+}
+
+/**
+ * 全链路(EventParser::Parse -> EventHandle)验证小写 ph="i" 瞬时事件被解析为
+ * dur=0 的 Slice,并计入 parseCount 而非 ignoreCount:
+ * 命中 parseCount 才会写入 slice 表,若被 ignoreCount 忽略则 slice 表为空。
+ */
+TEST_F(EventParserTest, TestParseLowercaseInstantEventGeneratesSlice) {
+    const std::string jsonContent =
+        R"([{"name": "RV_VLOOPv2", "pid": 1, "tid": 2, "ts": "1718180920003154.317", "s": "t", "args": {}, "ph": "i"}])";
+    ParserStatusManager::Instance().SetParserStatus(fileId, ParserStatus::RUNNING);
+    EXPECT_CALL(*mockFileReader, ReadJsonArray(filePath, startPosition, endPosition)).WillOnce(Return(jsonContent));
+    sqlite3 *dbPtr = nullptr;
+    Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    mockDatabase->SetDbPtr(dbPtr);
+    mockDatabase->CreateTable();
+    EventParserMock eventParserMock(filePath, fileId, mockDatabase);
+    eventParserMock.SetFileReaderAndDatabase(std::move(mockFileReader));
+    EXPECT_TRUE(eventParserMock.Parse(startPosition, endPosition));
+    Dic::Module::Timeline::SliceTable sliceTable;
+    std::vector<SlicePO> slicePOs;
+    sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)
+        .Select(SliceColumn::DURATION, SliceColumn::NAME)
+        .Select(SliceColumn::TRACKID, SliceColumn::ENDTIME)
+        .ExcuteQuery(dbPtr, slicePOs);
+    const uint64_t expectSize = 1;
+    const uint64_t first = 0;
+    const uint64_t exceptTime = 1718180920003154317;
+    const uint64_t exceptDuration = 0;
+    const uint64_t exceptTrackId = 1;
+    const std::string name = "RV_VLOOPv2";
+    EXPECT_EQ(slicePOs.size(), expectSize);
+    EXPECT_EQ(slicePOs[first].name, name);
+    EXPECT_EQ(slicePOs[first].timestamp, exceptTime);
+    EXPECT_EQ(slicePOs[first].duration, exceptDuration);
+    EXPECT_EQ(slicePOs[first].trackId, exceptTrackId);
+    EXPECT_EQ(slicePOs[first].endTime, exceptTime + exceptDuration);
 }
 
 /**
@@ -1292,9 +1343,13 @@ TEST_F(EventParserTest, TestParseCpuTensorAllocatedMemoryInstant) {
 
     Dic::Module::Timeline::SliceTable otherSliceTable;
     std::vector<SlicePO> otherSlicePOs;
-    otherSliceTable.Select(SliceColumn::NAME).ExcuteQuery(dbPtr, otherSlicePOs);
-    ASSERT_EQ(otherSlicePOs.size(), 1);
-    EXPECT_EQ(otherSlicePOs[0].name, "Other Instant");
+    otherSliceTable.Select(SliceColumn::ID, SliceColumn::NAME)
+        .OrderBy(SliceColumn::ID, TableOrder::ASC)
+        .ExcuteQuery(dbPtr, otherSlicePOs);
+    // #466: 非 [memory] 的小写 ph="i" 瞬时事件现在也会被解析为 Slice，与大写 ph="I" 一致。
+    ASSERT_EQ(otherSlicePOs.size(), 2);
+    EXPECT_EQ(otherSlicePOs[0].name, "Iteration Start");
+    EXPECT_EQ(otherSlicePOs[1].name, "Other Instant");
 
     Dic::Module::Timeline::ThreadTable counterThreadTable;
     std::vector<ThreadPO> counterThreadPOs;
