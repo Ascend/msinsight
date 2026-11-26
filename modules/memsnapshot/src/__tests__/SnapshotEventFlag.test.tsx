@@ -109,6 +109,20 @@ it('projects scaled marker surfaces and keyboard activation through the current 
     expect(select).toHaveBeenCalledTimes(2);
 });
 
+it('selects the maximum event from the last pixel without snapping a zoomed viewport to an offscreen maximum', () => {
+    const session = sessionForAxis();
+    runInAction(() => { session.leaksWorkerInfo.renderOptions.transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 }; });
+    const select = jest.fn();
+    const view = render(<ThemeProvider theme={theme}><SnapshotEventFlag session={session} onSelect={select} /></ThemeProvider>);
+    const axis = view.getByRole('button', { name: 'frameTree.selectEventFromAxis' });
+    jest.spyOn(axis, 'getBoundingClientRect').mockReturnValue(bounds(500));
+    fireEvent.click(axis, { clientX: 499, detail: 1 });
+    expect(select).toHaveBeenLastCalledWith(200);
+    act(() => runInAction(() => { session.leaksWorkerInfo.renderOptions.transform = { x: -200, y: 0, scaleX: 2, scaleY: 1 }; }));
+    fireEvent.click(axis, { clientX: 499, detail: 1 });
+    expect(select).toHaveBeenLastCalledWith(159.9);
+});
+
 it('deletes only the targeted marker without selecting a point or activating a tab', () => {
     const select = jest.fn();
     const locate = jest.fn();

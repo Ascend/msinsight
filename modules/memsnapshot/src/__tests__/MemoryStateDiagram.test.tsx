@@ -48,6 +48,7 @@ jest.mock('@ant-design/icons', () => ({
     BorderOutlined: () => null,
     LineChartOutlined: () => null,
     FlagOutlined: () => null,
+    FieldTimeOutlined: () => null,
     ArrowDownOutlined: () => null,
     ArrowUpOutlined: () => null,
     CloseCircleFilled: () => null,

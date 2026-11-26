@@ -44,9 +44,19 @@ beforeAll(async () => {
 });
 
 it('shows a bilingual breakdown illustration only when time markers are supported', async () => {
-    const toolbar = (supported: boolean): JSX.Element => wrap(<LifecycleGraphToolbar zoomMode="proportional"
+    const changeLayer = jest.fn();
+    const toolbar = (supported: boolean, timeMarkers = true): JSX.Element => wrap(<LifecycleGraphToolbar zoomMode="proportional"
+        layerVisibility={{ blocks: true, overview: true, markers: true, timeMarkers }} onLayerVisibilityChange={changeLayer}
         onZoomModeChange={jest.fn()} onReset={jest.fn()} onTimeMarkerManagementOpen={supported ? jest.fn() : undefined} />);
     const view = render(toolbar(true));
+    fireEvent.click(screen.getByRole('button', { name: en.leaks.graphLayers }));
+    const layer = within(screen.getByTestId('lifecycleGraphLayerPanel'))
+        .getByRole('button', { name: new RegExp(en.leaks.frameTree.manageMarkers) });
+    expect(layer).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(layer);
+    expect(changeLayer).toHaveBeenCalledWith('timeMarkers');
+    view.rerender(toolbar(true, false));
+    expect(layer).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(screen.getByRole('button', { name: en.leaks.lifecycleGraphGuideTitle }));
     const guide = screen.getByRole('dialog', { name: en.leaks.lifecycleGraphGuideTitle });
     const artwork = within(guide).getByTestId('lifecycleGuideBreakdownManagementVisual');
@@ -59,6 +69,8 @@ it('shows a bilingual breakdown illustration only when time markers are supporte
     }
     view.rerender(toolbar(false));
     expect(within(guide).queryByTestId('lifecycleGuideBreakdownManagementVisual')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: zh.leaks.graphLayers }));
+    expect(within(screen.getByTestId('lifecycleGraphLayerPanel')).queryByText(zh.leaks.frameTree.manageMarkers)).toBeNull();
 });
 
 it('keeps source-path hover and focus help without adding metric or ratio tooltips', async () => {

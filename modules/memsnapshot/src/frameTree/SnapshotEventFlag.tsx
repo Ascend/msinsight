@@ -136,6 +136,11 @@ export const SnapshotEventFlag = observer(({ session, markers = [], onSelect, on
         const rect = surface.getBoundingClientRect();
         if (rect.width <= 0) return null;
         const screenX = Math.min(Math.max(clientX - rect.left, 0), rect.width) * viewport.width / rect.width;
+        const maxX = eventCoordinateToX(projection.maxEventId, projection);
+        // The last event sits on the border; keep its final CSS pixel clickable.
+        if (maxX !== null && Math.abs(screenX - maxX) <= viewport.width / rect.width) {
+            return { coordinate: projection.maxEventId, x: maxX };
+        }
         const coordinate = screenXToEventCoordinate(screenX, projection);
         return coordinate === null ? null : { coordinate, x: screenX };
     };

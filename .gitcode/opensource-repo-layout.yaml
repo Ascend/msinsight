@@ -1,0 +1,7 @@
+project: Ascend/msinsight
+version: "1.0"
+
+directories:
+  # Vendored Jupyter Lumino code (BSD-3-Clause).
+  - path: "./plugins/jupyterlab/src/utils/lumino/"
+    type: upstream

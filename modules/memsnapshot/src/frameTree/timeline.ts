@@ -49,7 +49,8 @@ export function eventCoordinateToX(eventId: number, projection: EventProjection)
     if (!validProjection(projection) || !Number.isSafeInteger(eventId) ||
         eventId < projection.minEventId || eventId > projection.maxEventId) return null;
     const x = (eventId - projection.minEventId) * projection.zoomX * projection.scaleX + projection.transformX;
-    return x >= 0 && x <= projection.width ? x : null;
+    const epsilon = Number.EPSILON * Math.max(1, projection.width, Math.abs(projection.transformX)) * 4;
+    return x >= -epsilon && x <= projection.width + epsilon ? Math.min(Math.max(x, 0), projection.width) : null;
 }
 
 export async function resolveFrameTreeEvent(coordinate: number, deviceId: string, sliceIndex: number): Promise<number | null> {
