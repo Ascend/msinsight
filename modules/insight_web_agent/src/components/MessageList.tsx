@@ -481,6 +481,37 @@ const Container = styled.div`
         overflow-wrap: anywhere;
     }
 
+    /* Keep headings readable inside the narrow chat panel: the browser defaults make
+       h1 twice the body size while h5/h6 shrink below it. Grid gap (8px) does not
+       collapse with margins, so the heading margins below add up to 20/16/12px above. */
+    .rich-text :where(h1, h2, h3, h4, h5, h6) {
+        margin: 0;
+        font-weight: 600;
+        line-height: 1.4;
+    }
+
+    .rich-text h1 {
+        margin-top: 12px;
+        font-size: 18px;
+    }
+
+    .rich-text h2 {
+        margin-top: 8px;
+        font-size: 16px;
+    }
+
+    .rich-text h3 {
+        margin-top: 4px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .rich-text :is(h4, h5, h6) {
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 14px;
+        font-weight: 500;
+    }
+
     .rich-text ul {
         padding-left: 18px;
     }
