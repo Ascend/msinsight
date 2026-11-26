@@ -32,7 +32,9 @@
     "rag:coverage": "node scripts/check-rag-coverage.mjs",
     "rag:preview:scan": "node scripts/scan-rag-preview.mjs --root dist-server",
     "rag:smoke:required": "node scripts/run-required-rag-smoke.mjs",
-    "build": "cross-env DISABLE_ESLINT_PLUGIN=true craco build"
+    "build": "cross-env DISABLE_ESLINT_PLUGIN=true craco build",
+    "test": "cross-env CI=true craco test --watchAll=false --runInBand",
+    "test:dev": "craco test"
   },
   "jest": {
     "moduleNameMapper": {

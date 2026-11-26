@@ -37,12 +37,14 @@ HTTP 状态码、错误码、`saved` 等业务字段保持不变。前端不拼�
 在 `modules/insight_web_agent` 目录运行：
 
 ```sh
-CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --runTestsByPath src/test/components/welcomeDotsEffect.test.ts src/test/components/WelcomeDots.test.tsx src/test/components/WelcomePanel.test.tsx src/test/components/ChatPanel.test.tsx
-CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --runTestsByPath src/test/hooks/useChatState.sessions.test.tsx
+pnpm run test --runTestsByPath src/test/components/welcomeDotsEffect.test.ts src/test/components/WelcomeDots.test.tsx src/test/components/WelcomePanel.test.tsx src/test/components/ChatPanel.test.tsx
+pnpm run test --runTestsByPath src/test/hooks/useChatState.sessions.test.tsx
 node --test server/test/services/sessionBatchExport.test.mjs server/test/services/sessionExportSource.test.mjs server/test/services/sessionRename.test.mjs server/test/native-agent/nativeSessionExport.test.mjs server/test/controllers/sessionBatchExportController.test.mjs
-CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --no-cache --runTestsByPath src/test/components/SessionBatchExportDialog.test.tsx src/test/components/SessionSidebar.test.tsx src/test/components/SessionHistoryPopover.test.tsx src/test/api.sessionExport.test.ts src/test/api.sessionRename.test.ts src/test/sessionExportDownload.test.ts
+pnpm run test --no-cache --runTestsByPath src/test/components/SessionBatchExportDialog.test.tsx src/test/components/SessionSidebar.test.tsx src/test/components/SessionHistoryPopover.test.tsx src/test/api.sessionExport.test.ts src/test/api.sessionRename.test.ts src/test/sessionExportDownload.test.ts
 node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json --jsx react-jsx
 ```
+
+Markdown/KaTeX 相关用例依赖 `craco.config.js` 中配置的 Jest resolver 与 `transformIgnorePatterns`，请统一通过 `pnpm run test`（内部执行 `craco test`）；`react-scripts test` 无法解析 pnpm 的 ESM 依赖，会报 `Cannot find module 'entities/decode'` 或 ESM 语法错误。
 
 独立类型检查显式指定与 CRA 一致的 automatic JSX runtime：当前基础 `tsconfig.json` 的 `jsx: react` 与 `jsxImportSource` 组合会触发 TS5089；上述命令不改写源配置。构建或复用共享依赖时，缓存与构建输出应放在当前工作树，不能写入共享 `node_modules`。
 
@@ -68,5 +70,5 @@ node ../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json --jsx react-js
 
 ```sh
 node --test server/test/services/artifactService.test.mjs server/test/native-agent/capabilityTools.test.mjs
-CI=true node ../node_modules/react-scripts/bin/react-scripts.js test --watchAll=false --runInBand --runTestsByPath src/test/components/ReportWorkspace.test.tsx
+pnpm run test --runTestsByPath src/test/components/ReportWorkspace.test.tsx
 ```

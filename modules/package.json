@@ -29,6 +29,7 @@
         "echarts": "5.5.1",
         "highlight.js": "11.9.0",
         "i18next": "24.2.2",
+        "katex": "0.16.47",
         "lodash": "4.17.21",
         "mobx": "6.10.0",
         "mobx-react": "9.0.0",
@@ -36,7 +37,9 @@
         "react-dom": "18.1.0",
         "react-i18next": "13.2.2",
         "react-markdown": "10.1.0",
+        "rehype-katex": "7.0.1",
         "remark-gfm": "4.0.1",
+        "remark-math": "6.0.0",
         "yaml": "2.9.0"
     },
     "devDependencies": {
@@ -68,11 +71,13 @@
  	    "html-webpack-inline-source-plugin": "^0.0.10",
         "html-webpack-plugin": "^5.5.3",
         "react-scripts": "5.0.1",
+        "remark-parse": "11.0.0",
         "resize-observer-polyfill": "1.5.1",
         "typescript": "5.5.4",
  	    "typescript-plugin-css-modules": "3.4.0",
  	    "mini-css-extract-plugin": "^2.9.4",
  	    "style-loader": "^3.3.3",
- 	    "css-loader": "^6.8.1"
+ 	    "css-loader": "^6.8.1",
+        "unified": "11.0.5"
     }
 }

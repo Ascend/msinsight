@@ -18,8 +18,6 @@
 import styled from '@emotion/styled';
 import { Image } from 'antd';
 import type { TFunction } from 'i18next';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -29,22 +27,8 @@ import { ReportCard } from './ReportWorkspace';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import { ActionBlock } from './ActionBlock';
 import { parseActionMarkup } from './actionMarkup';
+import { MarkdownRenderer } from './markdown/MarkdownRenderer';
 import './messageImagePreview.css';
-
-const markdownComponents = {
-    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element => {
-        return (
-            <a
-                {...props}
-                href={href}
-                rel="noopener noreferrer"
-                target="_blank"
-            >
-                {children}
-            </a>
-        );
-    },
-};
 
 const Container = styled.div`
     display: flex;
@@ -1039,7 +1023,7 @@ const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolea
         return <>{segments.map((segment) => {
             if (segment.type === 'action') return <ActionBlock action={segment.action} key={segment.key} />;
             if (segment.type === 'literal') return <pre className="action-literal" key={segment.key}>{segment.text}</pre>;
-            return <div className="rich-text" key={segment.key}><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{segment.text}</ReactMarkdown></div>;
+            return <div className="rich-text" key={segment.key}><MarkdownRenderer streaming={streaming} text={segment.text} /></div>;
         })}</>;
     }
     return <ToolCalls toolCalls={[block.toolCall]} />;
@@ -1171,7 +1155,7 @@ const TimelineNode = ({
                     {duration ? <span className="timeline-duration">{duration}</span> : null}
                 </div>
                 <div className="timeline-body rich-text thinking-content">
-                    <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{entry.text}</ReactMarkdown>
+                    <MarkdownRenderer streaming={active} text={entry.text} />
                 </div>
             </div>
         );
