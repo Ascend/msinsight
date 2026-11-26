@@ -175,7 +175,7 @@ MindStudio Insight 仅支持导入本地磁盘目录，而网络磁盘未映射�
 在 Linux 系统上，使用“VNC 方式”启动 MindStudio Insight 时，出现“Oh no! Something has gone wrong.”报错弹窗，如[**图 1**  报错信息](#报错信息)所示。
 
 **图 1** 报错信息<a id="报错信息"></a>
-![](./figures/FAQ/error_message_1.png "报错信息")
+![VNC 方式启动 MindStudio Insight 时弹出的“Oh no! Something has gone wrong.”报错弹窗](./figures/FAQ/error_message_1.png "报错信息")
 
 **原因分析**
 

@@ -40,7 +40,7 @@ $ pip install jupyterlab==4.0.11
 > $ jupyter lab --version
 > ```
 >
-> ![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/jupyter-version-check.png)
+> ![终端执行jupyter lab --version命令后的版本号回显，用于确认已安装的jupyterlab版本](figures/Jupyter_Plugin_Installation_Guide/jupyter-version-check.png)
 
 <h3 id="3.2">3.2 安装包准备</h3>
 
@@ -59,7 +59,7 @@ $ pip install mindstudio_insight_jupyterlab-{version}-py3-none-{platform}.whl # 
 > $ jupyter server extension list
 > ```
 >
-> ![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/server-extension-list.png)
+> ![终端执行jupyter server extension list后的扩展列表回显，显示mindstudio_insight_jupyterlab插件已启用](figures/Jupyter_Plugin_Installation_Guide/server-extension-list.png)
 > 如果安装后未启动，可使用下面命令启动：
 >
 > ```bash
@@ -76,7 +76,7 @@ $ vi /usr/local/lib/python3.11/site-packages/mindstudio_insight_jupyterlab/handl
 
 修改 66 行和 89 行的 ip 为 `"0.0.0.0"`
 
-![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/modify-ip-address.png)
+![handlers.py第66行和第89行代码截图，将其中ip参数修改为0.0.0.0](figures/Jupyter_Plugin_Installation_Guide/modify-ip-address.png)
 
 <h5 id="3.4.2">3.4.2 启动jupyter</h5>
 
@@ -84,15 +84,15 @@ $ vi /usr/local/lib/python3.11/site-packages/mindstudio_insight_jupyterlab/handl
 $ jupyter lab --allow-root --port 9010 --ip 0.0.0.0
 ```
 
-![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/start-jupyter-lab.png)
+![执行jupyter lab启动命令后的终端回显，显示服务已启动并给出访问端口](figures/Jupyter_Plugin_Installation_Guide/start-jupyter-lab.png)
 
 复制回显中提供的url+token到本地浏览器中访问即可
 
-![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/browser-access-url.png)
+![浏览器地址栅输入回显中的url加token访问Jupyter界面的效果，进入插件主页](figures/Jupyter_Plugin_Installation_Guide/browser-access-url.png)
 
 导入 Profiling 数据开始分析
 
-![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/import-profiling-data.png)
+![JupyterLab界面中导入Profiling数据的操作入口，选择数据后进入性能分析视图](figures/Jupyter_Plugin_Installation_Guide/import-profiling-data.png)
 
 <h2 id="reference">Reference</h2>
 [1] MindStudio Insight. MindStudio insight官方指导. 2025.04. Wiki.  [https://www.hiascend.com/forum/thread-0255181207629753032-1-1.html](https://www.hiascend.com/forum/thread-0255181207629753032-1-1.html)

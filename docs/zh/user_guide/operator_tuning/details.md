@@ -9,8 +9,8 @@
 详情（Details）界面包含如下六个区域：
 
 - 区域一：基础信息（Base Info），如[**图 1** 基础信息](#基础信息)所示。
-- 区域二：核间负载分析（Core Occupancy），如[**图 2**  核间负载分析](#核间负载分析)所示。
-- 区域三：Roofline瓶颈分析（Roofline），如[**图 3**  内存单元](#内存单元)所示。
+- 区域二：核间负载分析（Core Occupancy），如[**图 2** 核间负载分析](#核间负载分析)所示。
+- 区域三：Roofline瓶颈分析（Roofline），如[**图 3** 内存单元](#内存单元)所示。
 - 区域四：计算工作负载分析（Compute Workload Analysis），如[**图 7**  计算工作负载分析](#计算工作负载分析)所示。
 - 区域五：Top Warp Stall Reason，如[**图 8**  Top Warp Stall Reason](#TopWarpStallReason)所示。
 - 区域六：内存负载分析（Memory Workload Analysis），如[**图 9**  内存负载分析](#内存负载分析)所示。
@@ -20,7 +20,7 @@
 区域一是基础信息（Base Info），可查看算子基础信息，包含名称、时长、类型等内容，详细说明如[**表 1** 基础信息字段说明](#基础信息字段说明)所示。
 
 **图 1** 基础信息<a id="基础信息"></a>
-![](../figures/operator_tuning/basic_info_1.png "基础信息")
+![基础信息（Base Info）区域界面，以表格展示算子名称、时长、类型等基础字段](../figures/operator_tuning/basic_info_1.png)
 
 **表 1** 基础信息字段说明<a id="基础信息字段说明"></a>
 
@@ -55,12 +55,12 @@
 
 **核间负载分析（Core Occupancy）**
 
-区域二是核间负载分析（Core Occupancy），分别通过时钟周期数量、核总吞吐量、Cache命中率展示核间负载并进行分析，如[**图 2**  核间负载分析](#核间负载分析)所示。
+区域二是核间负载分析（Core Occupancy），分别通过时钟周期数量、核总吞吐量、Cache命中率展示核间负载并进行分析，如[**图 2** 核间负载分析](#核间负载分析)所示。
 
 可分别选择时钟周期（Cycles）、吞吐量（Throughput）或Cache命中率\(%\)（Cache Hit Rate\(%\)）显示Core的占用率，并展示分析结果，便于开发者定位分析异常点。
 
-**图 2**  核间负载分析<a id="核间负载分析"></a>
-![](../figures/operator_tuning/inter_core_load_analysis_1.png "核间负载分析")
+**图 2** 核间负载分析<a id="核间负载分析"></a>
+![核间负载分析（Core Occupancy）界面，以柱状图展示各Core的时钟周期、吞吐量与Cache命中率占用情况](../figures/operator_tuning/inter_core_load_analysis_1.png)
 
 > [!NOTE]
 >
@@ -80,17 +80,17 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 
 - 当硬件产品为Ascend 950PR&950DT系列产品、Atlas A3系列产品、Atlas A2系列产品时，Roofline性能模型分析包含内存单元、内存通路以及搬运单元页签。
 
-    **内存单元**：显示HBM/L2和Memory Unit模型图，如[**图 3** 内存单元](#内存单元)所示，参数解释如[**表 4**  内存单元参数说明](#内存单元参数说明)所示。
+    **内存单元**：显示HBM/L2和Memory Unit模型图，如[**图 3** 内存单元](#内存单元)所示，参数解释如[**表 4** 内存单元参数说明](#内存单元参数说明)所示。
 
     **图 3** 内存单元<a id="内存单元"></a>
-    ![](../figures/operator_tuning/memory_unit_1.png "内存单元")
+    ![Roofline内存单元页签的HBM/L2与Memory Unit模型图，标注各内存单元的读写通路](../figures/operator_tuning/memory_unit_1.png)
 
     **表 4** 内存单元参数说明<a id="内存单元参数说明"></a>
 
     |参数|说明|
     |--|--|
     |HBM Read + Write|高带宽存储器单元的读与写。|
-    |L2 Read + Write|L2的读与写。|
+    |L2 Read + Write|L2内存单元的读与写。|
     |L1 Read + Write|L1内存单元的读与写。|
     |Write to L1|写至L1内存单元。|
     |Read from L1|从L1内存单元的读。|
@@ -106,7 +106,7 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     **内存通路**：显示内存搬运通路图，如[**图 4** 内存通路](#内存通路)所示，参数解释如[**表 5**  内存通路参数说明](#内存通路参数说明)所示。
 
     **图 4** 内存通路<a id="内存通路"></a>
-    ![](../figures/operator_tuning/memory_pathway_1.png "内存通路")
+    ![Roofline内存通路页签的内存搬运通路图，标注GM、L1、L0A/L0B/L0C与UB之间的数据流向](../figures/operator_tuning/memory_pathway_1.png)
 
     **表 5** 内存通路参数说明<a id="内存通路参数说明"></a>
 
@@ -123,7 +123,7 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     **搬运单元**：显示Pipeline模型图，如[**图 5** 搬运单元](#搬运单元)所示，参数解释如[**表 6**  搬运单元参数说明](#搬运单元参数说明)所示。
 
     **图 5** 搬运单元<a id="搬运单元"></a>
-    ![](../figures/operator_tuning/transfer_unit_1.png "搬运单元")
+    ![Roofline搬运单元页签的Pipeline模型图，展示MTE1、MTE2、MTE3与FIXP通路的流转关系](../figures/operator_tuning/transfer_unit_1.png)
 
     **表 6** 搬运单元参数说明<a id="搬运单元参数说明"></a>
 
@@ -139,7 +139,7 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 - 当硬件产品为Atlas推理系列产品时，仅存在内存单元内容，如[**图 6** 内存单元模型图](#内存单元模型图)所示，参数解释如[**表 7**  内存单元参数说明](#内存单元参数说明-1)所示。
 
     **图 6** 内存单元模型图<a id="内存单元模型图"></a>
-    ![](../figures/operator_tuning/memory_unit_model_diagram_1.png "内存单元模型图")
+    ![Atlas推理系列产品的内存单元模型图，标注L1、L0A/L0B/L0C与UB的读写通路](../figures/operator_tuning/memory_unit_model_diagram_1.png)
 
     **表 7** 内存单元参数说明<a id="内存单元参数说明-1"></a>
 
@@ -159,10 +159,10 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 
 **计算工作负载分析（Compute Workload Analysis）**
 
-区域四是计算工作负载分析（Compute Workload Analysis），以柱状图和数据窗格呈现方式查看相应信息，便于开发人员分析。如[**图 7**  计算工作负载分析](#计算工作负载分析)所示，参数解释如[**表 8**  计算工作负载分析参数说明](#计算工作负载分析参数说明)所示，柱状图和数据窗格的参数是依据实际采集的数据进行展示。图标![](../figures/operator_tuning/zh-cn_image_0000002532040351.png)中的内容为各个Block的计算负载分析结果。
+区域四是计算工作负载分析（Compute Workload Analysis），以柱状图和数据窗格呈现方式查看相应信息，便于开发人员分析。如[**图 7** 计算工作负载分析](#计算工作负载分析)所示，参数解释如[**表 8**  计算工作负载分析参数说明](#计算工作负载分析参数说明)所示，柱状图和数据窗格的参数是依据实际采集的数据进行展示。图标![](../figures/operator_tuning/zh-cn_image_0000002532040351.png)中的内容为各个Block的计算工作负载分析结果。
 
 **图 7**  计算工作负载分析<a id="计算工作负载分析"></a>
-![](../figures/operator_tuning/compute_workload_analysis_1.png "计算工作负载分析")
+![计算工作负载分析（Compute Workload Analysis）界面，以柱状图和数据窗格展示各Block的计算负载](../figures/operator_tuning/compute_workload_analysis_1.png)
 
 **表 8** 计算工作负载分析参数说明<a id="计算工作负载分析参数说明"></a>
 
@@ -178,14 +178,14 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 |AICORE|AICORE|AiCore类型的指令名称。当算子类型为AiCore时，显示此参数。|
 |指令数|Instructions|算子指令数量。|
 |时长(μs)|Duration(μs)|算子指令耗时。|
-|数据搬运量(byte)|Data Volume(Byte)|算子指令数据量。|
+|数据搬运量（Byte）|Data Volume(Byte)|算子指令数据量。|
 
 **Top Warp Stall Reason**
 
-区域五是Top Warp Stall Reason图，主要展示指令在执行过程中，由于资源冲突、数据依赖等原因而产生的等待次数，包含active，如[**图 8**  Top Warp Stall Reason](#TopWarpStallReason)所示，参数解释见[**表 9**  Top Warp Stall Reason参数说明](#TopWarpStallReason参数说明)。
+区域五是Top Warp Stall Reason图，主要展示指令在执行过程中，由于资源冲突、数据依赖等原因而产生的等待次数，包含active，如[**图 8** Top Warp Stall Reason](#TopWarpStallReason)所示，参数解释见[**表 9** Top Warp Stall Reason参数说明](#TopWarpStallReason参数说明)。
 
-**图 8**  Top Warp Stall Reason<a id="TopWarpStallReason"></a>
-![](../figures/operator_tuning/top_warp_stall_reason_1.png "Top Warp Stall Reason")
+**图 8** Top Warp Stall Reason<a id="TopWarpStallReason"></a>
+![Top Warp Stall Reason界面，以柱状图展示各类阻塞原因对应的指令等待次数](../figures/operator_tuning/top_warp_stall_reason_1.png)
 
 **表 9** Top Warp Stall Reason参数说明<a id="TopWarpStallReason参数说明"></a>
 
@@ -203,10 +203,10 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 
 **内存负载分析（Memory Workload Analysis）**
 
-区域六是内存负载分析（Memory Workload Analysis），以内存热力图和数据窗格呈现方式查看相应信息，如[**图 9**  内存负载分析](#内存负载分析)所示，参数配置如[**表 10**  参数配置说明](#参数配置说明)所示，内存热力图和数据窗格的参数是依据实际采集的数据进行展示。热力图右侧的“峰值\(%\)”为箭头颜色，值为峰值带宽占比（最大带宽占比）。图标![](../figures/operator_tuning/zh-cn_image_0000002532040351.png)中的内容为各个Block的内存负载分析结果。
+区域六是内存负载分析（Memory Workload Analysis），以内存热力图和数据窗格呈现方式查看相应信息，如[**图 9** 内存负载分析](#内存负载分析)所示，参数配置如[**表 10** 参数配置说明](#参数配置说明)所示，内存热力图和数据窗格的参数是依据实际采集的数据进行展示。热力图右侧的“峰值\(%\)”为箭头颜色，值为峰值带宽占比（最大带宽占比）。图标![表示数据窗格区域的图标](../figures/operator_tuning/zh-cn_image_0000002532040351.png)中的内容为各个Block的内存负载分析结果。
 
-**图 9**  内存负载分析<a id="内存负载分析"></a>
-![](../figures/operator_tuning/memory_load_analysis_1.png "内存负载分析")
+**图 9** 内存负载分析<a id="内存负载分析"></a>
+![内存负载分析（Memory Workload Analysis）界面，以内存热力图和数据窗格展示各Block的内存负载](../figures/operator_tuning/memory_load_analysis_1.png)
 
 **表 10** 参数配置说明<a id="参数配置说明"></a>
 
@@ -232,7 +232,7 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     |L1|L1|L1储存单元。|
     |Pipe|Pipe|计算通路。|
     |UB|UB|UB储存单元。|
-    |Vector|Vector|vector计算单元。|
+    |Vector|Vector|Vector计算单元。|
     |请求数|Requests|操作数量。|
     |吞吐量(GB/s)|Throughput(GB/s)|吞吐量，表示通路每秒的传输数据量，单位为GB/s。|
 
@@ -335,14 +335,14 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 在“Pipe Utilization”柱状图区域，鼠标滚动至对应指令柱状图上，会显示真实Cycles信息。如[**图 10** 查看Cycles](#查看Cycles)所示。
 
 **图 10** 查看Cycles<a id="查看Cycles"></a>
-![](../figures/operator_tuning/view_cycles_1.png "查看Cycles")
+![在Pipe Utilization柱状图区域将鼠标悬停于指令柱状图上，浮层显示该指令的真实Cycles信息](../figures/operator_tuning/view_cycles_1.png)
 
 **在Roofline模型性能图中查看算子性能**
 
-在“Roofline瓶颈分析”区域的内存单元、内存通路或搬运单元的任意一个视图中，选择视图中对应的参数点，可悬浮显示该内存单元实际的性能信息，如[**图 11** 显示算子性能信息](#显示算子性能信息)所示，参数解释如[**表 15**  性能信息参数说明](#性能信息参数说明)所示。
+在“Roofline瓶颈分析”区域的内存单元、内存通路或搬运单元的任意一个视图中，选择视图中对应的参数点，可悬浮显示该内存单元实际的性能信息，如[**图 11** 显示算子性能信息](#显示算子性能信息)所示，参数解释如[**表 15** 性能信息参数说明](#性能信息参数说明)所示。
 
 **图 11** 显示算子性能信息<a id="显示算子性能信息"></a>
-![](../figures/operator_tuning/show_operator_performance_info_1.png "显示算子性能信息")
+![在Roofline内存单元、内存通路或搬运单元视图中选中参数点，悬浮显示该内存单元的实际性能信息](../figures/operator_tuning/show_operator_performance_info_1.png)
 
 **表 15** 性能信息参数说明<a id="性能信息参数说明"></a>
 
@@ -365,9 +365,9 @@ MindStudio Insight支持两算子间详情对比，可帮助开发者直观明�
 - 计算工作负载分析（Compute Workload Analysis）：以柱状图和数据窗格呈现方式查看相应信息，柱状图中蓝色为对比数据，绿色为基线数据，数据窗格显示算子间的对比差异，单击“详情”列中“查看更多”，可展示基线数据和对比数据的详情，如[**图 12** 计算工作负载分析对比](#计算工作负载分析对比)所示。
 
     **图 12** 计算工作负载分析对比<a id="计算工作负载分析对比"></a>
-    ![](../figures/operator_tuning/compute_workload_analysis_comparison_1.png "计算工作负载分析对比")
+    ![算子对比模式下的计算工作负载分析界面，柱状图中蓝色为对比数据、绿色为基线数据，数据窗格展示对比差异](../figures/operator_tuning/compute_workload_analysis_comparison_1.png)
 
 - 内存负载分析（Memory Workload Analysis）：以内存热力图和数据窗格呈现方式查看相应信息，热力图中括号里的数据为基线数据，括号外的数据为对比数据，数据窗格显示算子间的对比差异，单击“详情”列中“查看更多”，可展示基线数据和对比数据的详情，如[**图 13** 内存负载分析对比](#内存负载分析对比)所示。
 
     **图 13** 内存负载分析对比<a id="内存负载分析对比"></a>
-    ![](../figures/operator_tuning/memory_load_analysis_comparison_1.png "内存负载分析对比")
+    ![算子对比模式下的内存负载分析界面，热力图括号内为基线数据、括号外为对比数据，数据窗格展示对比差异](../figures/operator_tuning/memory_load_analysis_comparison_1.png)

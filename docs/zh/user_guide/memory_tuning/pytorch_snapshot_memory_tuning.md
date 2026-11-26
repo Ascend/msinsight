@@ -2,7 +2,7 @@
 
 ## 简介
 
-MindStudio Insight工具以图形化形式呈现device侧内存详细分配情况，目前支持两种内存数据源：MemScope 数据源以及 PyTorch Snapshot 数据源。本文主要介绍PyTorch Snapshot 数据源，MemScope 数据源请参见《[MindStudio Insight内存调优（MemScope）](./memscope_memory_tuning.md)》。
+MindStudio Insight工具以图形化形式呈现Device侧内存详细分配情况，目前支持两种内存数据源：MemScope 数据源以及 PyTorch Snapshot 数据源。本文主要介绍PyTorch Snapshot 数据源，MemScope 数据源请参见《[MindStudio Insight内存调优（MemScope）](./memscope_memory_tuning.md)》。
 
 ### PyTorch Snapshot 数据源
 
@@ -65,7 +65,7 @@ PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记�
 
   - 内存碎片化：模型训练过程中，算子预留与算子分配曲线出现较大Gap。
 
-  - 内存峰值优化：模型训练过程中，针对内存峰值，需要拆解分析，确定是哪些算子/tensor导致的内存峰值，并分析是否可以通过调整tensor申请顺序、算子执行顺序等方式，来削减内存峰值。
+  - 内存峰值优化：模型训练过程中，针对内存峰值，需要拆解分析，确定是哪些算子/Tensor导致的内存峰值，并分析是否可以通过调整tensor申请顺序、算子执行顺序等方式，来削减内存峰值。
 
 > [!NOTE]
 >
@@ -96,19 +96,19 @@ PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记�
 
   **图 1** 内存快照内存块生命周期图<a id="内存快照内存块生命周期图"></a>
 
-  ![](../figures/memory_tuning/memory_pytorch_snapshot_memory_block_timeline_graph_1.png "内存快照内存块生命周期图")
+  ![内存快照界面区域一布局：上方分窗栏，下方reserved与内存申请释放折线图及内存块色块图](../figures/memory_tuning/memory_pytorch_snapshot_memory_block_timeline_graph_1.png "内存快照内存块生命周期图")
 
 - 区域二：如[**图 2** 内存快照内存池状态图](#内存快照内存池状态图)所示。内存池状态图，当鼠标置于“内存块生命周期图”中，会显示一条时间线，在“内存块生命周期图”区域，单击时间线，会展示对应时间点的内存池状态图，具体使用说明请参见[内存池状态图展示](#内存池状态图展示)。
 
   **图 2** 内存快照内存池状态图<a id="内存快照内存池状态图"></a>
 
-  ![](../figures/memory_tuning/memory_pytorch_snapshot_memory_pool_state_diagram_1.png "内存快照内存池状态图")
+  ![内存池状态图：单击生命周期图时间线后展示该时刻内存段与内存块的占用分布及事件总览](../figures/memory_tuning/memory_pytorch_snapshot_memory_pool_state_diagram_1.png "内存快照内存池状态图")
 
 - 区域三：如[**图 3** 内存快照详情数据](#内存快照详情数据)所示。内存快照详情表，分为“内存块视图”和“内存事件视图”，可选择相应视图查看详情表，具体使用说明请参见[内存快照详情展示](#内存快照详情展示)。
 
   **图 3** 内存快照详情数据<a id="内存快照详情数据"></a>
 
-  ![](../figures/memory_tuning/memory_pytorch_snapshot_detail_1.png "内存快照详情数据")
+  ![内存快照详情表：可切换内存块视图与内存事件视图查看字段级内存详情](../figures/memory_tuning/memory_pytorch_snapshot_detail_1.png "内存快照详情数据")
 
 #### 使用说明
 
@@ -118,7 +118,7 @@ PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记�
 
 **图 4** 分窗栏选择<a id="分窗栏选择"></a>
 
-![](../figures/memory_tuning/windows_select_1.png "分窗栏选择")
+![分窗栏点击选择不同分窗后，内存块生命周期图、内存池状态图与详情表同步刷新为该分窗数据](../figures/memory_tuning/windows_select_1.png "分窗栏选择")
 
 **内存块生命周期图支持查看指定时间范围内数据**
 
@@ -126,7 +126,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
 **图 5** 内存快照趋势图缩放条<a id="内存快照趋势图缩放条"></a>
 
-![](../figures/memory_tuning/trend_zoom_select_2.png "内存快照趋势图缩放条")
+![趋势图缩放条：背景为Operator Allocated内存使用趋势曲线，可拖拽控制键选定时间范围](../figures/memory_tuning/trend_zoom_select_2.png "内存快照趋势图缩放条")
 
 **趋势图缩放条支持趋势图可视化以及时间域选择多样化操作**
 
@@ -151,7 +151,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
 **图 6** 差值比对<a id="差值比对"></a>
 
-![](../figures/memory_tuning/comparative_difference_1.png "差值比对")
+![差值比对：右侧标记轴展示多个内存块Flag标记及相邻两个标记之间的内存差值](../figures/memory_tuning/comparative_difference_1.png "差值比对")
 
 **生命周期图工具条使用说明**
 
@@ -166,7 +166,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
 **图 7** 生命周期图工具条指引<a id="生命周期图工具条指引"></a>
 
-![](../figures/memory_tuning/timeline_graph_tools_1.png "生命周期图工具条指引")
+![界面右侧工具栏入口示意，标注缩放、平移、重置、图层管理与差值标记等工具条功能](../figures/memory_tuning/timeline_graph_tools_1.png "生命周期图工具条指引")
 
 <a id="内存池状态图展示"></a>
 
@@ -180,7 +180,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
 **图 8** 内存池状态图<a id="内存池状态图"></a>
 
-![](../figures/memory_tuning/memory_pytorch_snapshot_pool_status_1.png "内存池状态图")
+![单击内存色块后展示的时间点事件总览与内存池状态图，支持地址搜索与事件类型筛选](../figures/memory_tuning/memory_pytorch_snapshot_pool_status_1.png "内存池状态图")
 
 <a id="内存快照详情展示"></a>
 
@@ -191,23 +191,23 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 > [!NOTE]
 >
 > - 系统默认隐藏内存详情展示。如需查看，需要点击上拉按键，将内存详情信息上拉展示。如无需查看内存详情信息，点击下拉按键，隐藏内存详情信息。
-> - “内存块视图”中的“内存大小（KB）”和“分配事件需求大小（KB）”字段，“内存事件视图”中的“内存大小（KB）”、“总二次分配内存（KB）”、“总活跃内存（KB）”和“总预留内存（KB）”字段，单击![](../figures/memory_tuning/zh-cn_image_0000002532040401.png)，可输入最小值和最大值进行区间筛选。
+> - “内存块视图”中的“内存大小（KB）”和“分配事件需求大小（KB）”字段，“内存事件视图”中的“内存大小（KB）”、“总二次分配内存（KB）”、“总活跃内存（KB）”和“总预留内存（KB）”字段，单击![区间筛选按钮图标，单击后可在字段列输入最小值和最大值进行区间筛选](../figures/memory_tuning/zh-cn_image_0000002532040401.png)，可输入最小值和最大值进行区间筛选。
 
-- 内存块视图：展示缩放条选中区间内存块的详细信息，如[**图 9** 快照内存块视图](#快照内存块视图)所示，字段解释如[**表 1**  快照内存块视图字段说明](#快照内存块视图字段说明)所示。鼠标悬浮在视图中，右上角会浮现![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，单击复制表中当前所展示的内容。
+- 内存块视图：展示缩放条选中区间内存块的详细信息，如[**图 9** 快照内存块视图](#快照内存块视图)所示，字段解释如[**表 1** 快照内存块视图字段说明](#快照内存块视图字段说明)所示。鼠标悬浮在视图中，右上角会浮现![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，单击复制表中当前所展示的内容。
 
     **图 9** 快照内存块视图<a id="快照内存块视图"></a>
 
-    ![](../figures/memory_tuning/memory_pytorch_snapshot_block_view_1.png "快照内存块视图")
+    ![快照内存块视图：以表格展示缩放条选中区间内各内存块的ID、申请大小、状态与事件ID](../figures/memory_tuning/memory_pytorch_snapshot_block_view_1.png "快照内存块视图")
 
     **表 1** 快照内存块视图字段说明<a id="快照内存块视图字段说明"></a>
 
     |字段名称|可选/必选|释义|类型|示例值|额外说明|
     |--|--|--|--|--|--|
     |ID|必选|内存块ID，唯一标识内存块。|整数|0|可通过点击ID跳转至内存块生命周期图对应的内存块并高亮。<ul><li>值为负数代表该内存块申请事件在内存快照采集生命周期中未被记录（负数大小无实际含义）</li><br><li>值为非负数时代表内存块申请事件ID。</li></ul>|
-    |Requested Size(KB)|必选|内存块申请大小，单位为 KB。|浮点数|12.5|分配事件需求的内存大小。PTA会基于申请大小进行padding和对齐，所以分配大小可能会大于申请大小。|
-    |Size(KB)|必选|内存事件操作的内存大小，单位为 KB 。|浮点数|12.5|实际分配给内存块的内存大小，单位为 KB。其值大于或等于申请大小。|
+    |Requested Size(KB)|必选|内存块申请大小，单位为KB。|浮点数|12.5|分配事件需求的内存大小。PTA会基于申请大小进行padding和对齐，所以分配大小可能会大于申请大小。|
+    |Size(KB)|必选|内存事件操作的内存大小，单位为KB。|浮点数|12.5|实际分配给内存块的内存大小。其值大于或等于申请大小。|
     |Address|必选|内存事件地址。|0x十六进制地址|0x7f9f00000000|内存块在内存中的地址。|
-    |State|必选|内存块状态。|枚举中的一个，详情参考说明。|`active_allocated`|内存块的当前状态，包括：<br><ul><li>`active_allocated`：内存块已被分配且正在被使用，不可以被复用。</li><br><li>`active_pending_free`：内存块已被释放请求，但（可能因跨流依赖）尚未完成释放，仍然不可以被复用。</li><br><li>`inactive`：未被分配状态的内存块（或内存块已被释放完成），可以被复用。</li></ul>|
+    |State|必选|内存块状态。|枚举中的一个，详情参考说明。|`active_allocated`|内存块的当前状态，包括：<br><ul><li>`active_allocated`：内存块已被分配且正在被使用，不可以被复用。</li><br><li>`active_pending_free`：内存块已被请求释放，但（可能因跨流依赖）尚未完成释放，仍然不可以被复用。</li><br><li>`inactive`：未被分配状态的内存块（或内存块已被释放完成），可以被复用。</li></ul>|
     |Alloc Event ID|可选|内存块申请事件ID。|整数|1|内存块申请事件ID，唯一标识内存块的申请事件。**值为-1代表该内存块的申请事件在内存快照采集生命周期中未被记录**。可点击内存块申请事件ID跳转至内存池状态图对应的事件并高亮。|
     |Free Event ID|可选|内存块释放完成事件ID。|整数|2|内存块释放完成事件ID，唯一标识内存块的释放事件。**值为-1代表该内存块的释放完成事件在内存快照采集生命周期中未被记录**。可点击内存块释放完成事件ID跳转至内存池状态图对应的事件并高亮。|
 
@@ -215,27 +215,27 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     - 未勾选该功能，展示所有申请释放区间与缩放条选中区间有交集的内存块详情，具体示意图如[**图 10** 自动筛选区间未释放展示逻辑示意图](#自动筛选区间未释放展示逻辑示意图)中“开启前”所示，实际效果图如[**图 11** 未勾选自动筛选区间未释放内存块视图](#未勾选自动筛选区间未释放内存块视图)。
 
-    - 勾选该功能，展示所有在缩放条选中区间内存块申请但未释放的内存块详情；用于识别潜在的泄漏 tensor 占用内存块，具体示意图如[**图 10** 自动筛选区间未释放展示逻辑示意图](#自动筛选区间未释放展示逻辑示意图)中“开启后”所示，实际效果图如[**图 12** 勾选自动筛选区间未释放内存块视图](#勾选自动筛选区间未释放内存块视图)。
+    - 勾选该功能，展示所有在缩放条选中区间内申请但未释放的内存块详情；用于识别被潜在泄漏 tensor 占用的内存块，具体示意图如[**图 10** 自动筛选区间未释放展示逻辑示意图](#自动筛选区间未释放展示逻辑示意图)中“开启后”所示，实际效果图如[**图 12** 勾选自动筛选区间未释放内存块视图](#勾选自动筛选区间未释放内存块视图)。
 
       **图 10** 自动筛选区间未释放展示逻辑示意图<a id="自动筛选区间未释放展示逻辑示意图"></a>
 
-      ![](../figures/memory_tuning/potential_leak_tensor_filter_rule.png "自动筛选区间未释放展示逻辑示意图")
+      ![自动筛选区间未释放逻辑示意图：开启前展示与选中区间有交集的内存块，开启后仅展示区间内申请未释放的内存块](../figures/memory_tuning/potential_leak_tensor_filter_rule.png "自动筛选区间未释放展示逻辑示意图")
 
       **图 11** 未勾选自动筛选区间未释放内存块视图<a id="未勾选自动筛选区间未释放内存块视图"></a>
 
-      ![](../figures/memory_tuning/memory_pytorch_snapshot_block_view_unselected_2.png "未勾选筛选内存块视图")
+      ![未勾选自动筛选区间未释放时的内存块视图，展示与缩放条选中区间有交集的内存块列表](../figures/memory_tuning/memory_pytorch_snapshot_block_view_unselected_2.png "未勾选筛选内存块视图")
 
       **图 12** 勾选自动筛选区间未释放内存块视图<a id="勾选自动筛选区间未释放内存块视图"></a>
 
-      ![](../figures/memory_tuning/memory_pytorch_snapshot_block_view_selected_2.png "勾选自动筛选区间未释放内存块视图")
+      ![勾选自动筛选区间未释放后的内存块视图，仅展示区间内申请而未释放的内存块，即潜在泄漏tensor](../figures/memory_tuning/memory_pytorch_snapshot_block_view_selected_2.png "勾选自动筛选区间未释放内存块视图")
 
-- 内存事件视图：展示缩放条选中区域内存事件的详细信息，如[**图 13** 快照内存事件视图](#快照内存事件视图)所示，字段解释如[**表 2**  快照内存事件视图字段说明](#快照内存事件视图字段说明)所示。鼠标悬浮在视图中，右上角会浮现![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，单击复制表中当前所展示的内容。
+- 内存事件视图：展示缩放条选中区域内存事件的详细信息，如[**图 13** 快照内存事件视图](#快照内存事件视图)所示，字段解释如[**表 2**  快照内存事件视图字段说明](#快照内存事件视图字段说明)所示。鼠标悬浮在视图中，右上角会浮现![内存事件视图右上角的复制按钮图标，单击可复制表中当前展示的内容](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，单击复制表中当前所展示的内容。
 
     当在“内存块生命周期图”中选择不同“设备ID”时，内存事件视图的展示信息也会随之更新；当框选“内存块生命周期图”中部分区域展示时，内存事件视图的信息也会随之更新，展示的是框选时间范围内的所有内存事件。
 
     **图 13** 快照内存事件视图<a id="快照内存事件视图"></a>
 
-    ![](../figures/memory_tuning/memory_pytorch_snapshot_event_view_1.png "快照内存事件视图")
+    ![快照内存事件视图：按事件ID、Action、地址、大小与Allocated/Active/Reserved展示内存事件明细](../figures/memory_tuning/memory_pytorch_snapshot_event_view_1.png "快照内存事件视图")
 
     **表 2** 快照内存事件视图字段说明<a id="快照内存事件视图字段说明"></a>
 
@@ -262,7 +262,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     **图 14** 事件类型选中详情<a id="事件类型选中详情"></a>
 
-    ![](../figures/memory_tuning/memory_pytorch_snapshot_select_detail_1.png "事件类型选中详情")
+    ![事件类型选中详情：左侧展示基础事件信息，右侧可切换事件类型查看具体事件字段](../figures/memory_tuning/memory_pytorch_snapshot_select_detail_1.png "事件类型选中详情")
 
     **表 3** 事件类型选中详情字段说明<a id="事件类型选中详情字段说明"></a>
 
@@ -282,7 +282,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     **图 15** Block类型选中详情<a id="Block类型选中详情"></a>
 
-    ![](../figures/memory_tuning/memory_pytorch_snapshot_select_detail_block_1.png "Block类型选中详情")
+    ![Block类型选中详情：展示选中内存块的ID、申请大小、块大小与地址等字段](../figures/memory_tuning/memory_pytorch_snapshot_select_detail_block_1.png "Block类型选中详情")
 
     **表 4** Block类型选中详情字段说明<a id="Block类型选中详情字段说明"></a>
 
@@ -297,7 +297,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     **图 16** segment类型选中详情<a id="segment类型选中详情"></a>
 
-    ![](../figures/memory_tuning/memory_pytorch_snapshot_select_detail_segment_1.png "segment类型选中详情")
+    ![segment类型选中详情：展示内存段的地址、流ID、段大小、已分配大小与间隙统计](../figures/memory_tuning/memory_pytorch_snapshot_select_detail_segment_1.png "segment类型选中详情")
 
     **表 5** segment类型选中详情字段说明<a id="segment类型选中详情字段说明"></a>
 

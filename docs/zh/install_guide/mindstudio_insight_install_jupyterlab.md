@@ -1,5 +1,7 @@
 # 安装指南：JupyterLab插件
 
+本文档介绍在Linux环境下通过JupyterLab插件安装MindStudio Insight的操作方法，涵盖环境准备、插件包安装、启用与默认目录配置，适用于需要在JupyterLab环境中查看大模型训练与推理数据的用户。
+
 ## 安装MindStudio Insight
 
 <a id="安装操作jupyterlab插件"></a>
@@ -74,7 +76,7 @@
 
     回显中包含如下内容，表示安装成功。
 
-    ```ColdFusion
+    ```output
     mindstudio_insight_jupyterlab v{version} enabled  X (python, mindstudio_insight_jupyterlab)
     ```
 
@@ -102,7 +104,7 @@
 
     **图 1** JupyterLab环境首页<a id="JupyterLab环境首页"></a>
 
-    ![](./figures/install_guide/jupyterlab_homepage_1.png "JupyterLab环境首页")
+    ![浏览器打开的JupyterLab环境首页，页面中单击MindStudio Insight图标即可打开工具](./figures/install_guide/jupyterlab_homepage_1.png)
 
 4. 如果打开JupyterLab环境首页后，未发现MindStudio Insight图标，可执行以下命令，查看MindStudio Insight插件是否开启。
 
@@ -112,7 +114,7 @@
 
     - 回显如下，表示已开启。
 
-        ```ColdFusion
+        ```text
         mindstudio_insight_jupyterlab enabled
             - Validating mindstudio_insight_jupyterlab...
               mindstudio_insight_jupyterlab  OK
@@ -198,7 +200,7 @@
 
         **图 2** JupyterLab配置默认目录<a id="JupyterLab配置默认目录"></a>
 
-        ![](./figures/install_guide/jupyterlab_default_path_1.png "JupyterLab配置默认目录")
+        ![配置完成后导入数据界面的文件选择框，默认目录已自动定位到/home路径](./figures/install_guide/jupyterlab_default_path_1.png)
 
     - 在JupyterLab环境首页，可多次单击MindStudio Insight图标，打开多个MindStudio Insight页签，且可同时使用。
 

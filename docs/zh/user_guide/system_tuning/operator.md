@@ -1,5 +1,7 @@
 # 算子（Operator）<a id="operator"></a>
 
+本文档介绍算子（Operator）界面，涵盖参数配置栏、耗时百分比饼状图与耗时统计详情数据表三个区域，以及计算算子、通信算子各分组方式的字段说明，适用于使用MindStudio Insight分析算子耗时以定位性能瓶颈的开发者。
+
 ## 功能说明
 
 算子（Operator）视图旨在通过分析计算算子和通信算子耗时的数据，帮助开发者快速定位性能瓶颈。
@@ -10,7 +12,7 @@
 
 **图 1** 算子界面<a id="算子界面"></a>
 
-![](../figures/system_tuning/operator_interface_1.png "算子界面")
+![算子界面整体布局，自上至下依次为参数配置栏、耗时百分比饼状图、耗时统计及详情数据表三个区域](../figures/system_tuning/operator_interface_1.png "算子界面")
 
 - 区域一：参数配置栏，参数详细说明如[**表 1** 参数配置](#参数配置)所示。
 
@@ -37,7 +39,7 @@
 
 **图 2** 计算算子<a id="计算算子"></a>
 
-![](../figures/system_tuning/compute_operator_2.png "计算算子")
+![分组方式选择计算算子时的算子详情表，按算子名称列出类型、加速器核、时长与等待时间等字段](../figures/system_tuning/compute_operator_2.png "计算算子")
 
 **表 2** 计算算子字段说明<a id="计算算子字段说明"></a>
 
@@ -67,7 +69,7 @@
 
 **图 3** 计算算子类型<a id="计算算子类型"></a>
 
-![](../figures/system_tuning/compute_operator_type_1.png "计算算子类型")
+![分组方式选择计算算子类型时的统计详情表，按类型汇总数量、总耗时、平均耗时与最大最小耗时](../figures/system_tuning/compute_operator_type_1.png "计算算子类型")
 
 **表 3** 计算算子类型字段说明<a id="计算算子类型字段说明"></a>
 
@@ -88,7 +90,7 @@
 
 **图 4** 计算算子名称和输入shape<a id="计算算子名称和输入shape"></a>
 
-![](../figures/system_tuning/compute_operator_name_and_input_shape_1.png "计算算子名称和输入shape")
+![分组方式选择计算算子名称和输入shape时的统计表，按算子名称与输入Shape汇总耗时数据](../figures/system_tuning/compute_operator_name_and_input_shape_1.png "计算算子名称和输入shape")
 
 **表 4** 计算算子名称和输入shape字段说明<a id="计算算子名称和输入shape字段说明"></a>
 
@@ -110,7 +112,7 @@
 
 **图 5** 通信算子<a id="通信算子"></a>
 
-![](../figures/system_tuning/communication_operator_1.png "通信算子")
+![分组方式选择通信算子时的算子详情表，列出通信算子名称、类型、开始时间、时长与等待时间](../figures/system_tuning/communication_operator_1.png "通信算子")
 
 **表 5** 通信算子字段说明<a id="通信算子字段说明"></a>
 
@@ -124,11 +126,11 @@
 
 **通信算子类型（Communication Operator Type）**
 
-当“分组方式”选择“通信算子类型”时显示该页面，可以看到不同通信算子类型算子的耗时占比和详细数据，以快速找到特定类型的通信算子性能问题，如[**图 6** 通信算子类型](#通信算子类型)所示，“算子详情”中的字段解释如[**表 6** 通信算子类型字段说明](#通信算子类型字段说明)所示，单击字段后方的![](../figures/system_tuning/zh-cn_image_0000002531920231.png)，可对相关字段进行模糊搜索。
+当“分组方式”选择“通信算子类型”时显示该页面，可以看到不同通信算子类型算子的耗时占比和详细数据，以快速找到特定类型的通信算子性能问题，如[**图 6** 通信算子类型](#通信算子类型)所示，“算子详情”中的字段解释如[**表 6** 通信算子类型字段说明](#通信算子类型字段说明)所示，单击字段后方的![算子详情表中字段后方的模糊搜索图标，单击后可按关键字筛选该字段记录](../figures/system_tuning/zh-cn_image_0000002531920231.png)，可对相关字段进行模糊搜索。
 
 **图 6** 通信算子类型<a id="通信算子类型"></a>
 
-![](../figures/system_tuning/communication_operator_type_1.png "通信算子类型")
+![分组方式选择通信算子类型时的统计详情表，按类型汇总通信算子数量、总耗时与平均耗时](../figures/system_tuning/communication_operator_type_1.png "通信算子类型")
 
 **表 6** 通信算子类型字段说明<a id="通信算子类型字段说明"></a>
 
@@ -152,4 +154,4 @@ MindStudio Insight支持卡间算子性能对比，可帮助开发者直观、�
 
 **图 7** 算子对比<a id="算子对比"></a>
 
-![](../figures/system_tuning/operator_comparison_1.png "算子对比")
+![卡间对比模式下分组方式为计算算子类型的两卡差值详情表，展开后可查看基线与对比数据](../figures/system_tuning/operator_comparison_1.png "算子对比")

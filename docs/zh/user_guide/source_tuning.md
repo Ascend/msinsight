@@ -1,6 +1,6 @@
-# 整体界面介绍
+# 流水图调优指导
 
-![](./figures/source_tuning/timeline.png "timeline")
+![算子流水图整体界面：纵向按AI Core划分泳道，横向时间轴展示各核MTE2/MTE3/Vector/Cube流水与重叠情况](./figures/source_tuning/timeline.png "timeline")
 
 算子执行过程是一个多核并发的过程，所以在流水图中一级泳道按照AiCore进行分类，泳道名格式：core_id.coreTypeCoreId。coreType有两类：cube和vec。
 
@@ -12,13 +12,13 @@
 
 计算时需要把数据搬入，计算完成后，再搬出，数据搬运流反映了数据搬入搬出的流水情况。
 
-MTE1泳道：L1 --> L0A/ L0B
+MTE1泳道：L1 --> L0A/L0B
 
-MTE2泳道：GM --> L1、GM--> L0A/L
+MTE2泳道：GM --> L1、GM --> L0A/L0B
 
 MTE3泳道：UB--> GM
 
-FixPipe泳道：L0->GM/L1
+FixPipe泳道：L0C --> GM/L1
 
 > 存储单元介绍可以参考：[存储单元-搬运单元介绍](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/programming_guide/advanced_programming/hardware_implementation/basic_architecture.md#%E5%AD%98%E5%82%A8%E5%8D%95%E5%85%83%E5%92%8C%E6%90%AC%E8%BF%90%E5%8D%95%E5%85%83)
 
@@ -40,21 +40,21 @@ CUBE泳道：cube核上执行的指令
 
 CACHE_MISS泳道：标志了cache_miss事件的发生
 
-# 调优原则
+## 调优原则
 
 AscendC是SPMD模型，即多个核心上运行同一份kernel，用block_idx处理不同的数据分片。因此流水掩盖在AscendC调优上非常重要。
 
 流水图调优目标不是让某个流水最短，而是让计算流少等，搬运流少堵塞，多核负载均衡。理想状态是计算流和搬运流尽量充分掩盖。
 
-# **瓶颈识别**
+## 瓶颈识别
 
 **负载不均衡**
 
-多个核的pipe流水在时间长度上严重不同，说明各个核上的负载不均衡。
+多个核的pipe流水在时间长度上差异很大，说明各个核上的负载不均衡。
 
 **MTE2瓶颈**：CopyIn瓶颈
 
-MTE2主要负责将数据从GM、L2中搬入L1、L0A/L0B，UB中，如果流水图中MTE2长，计算流中空泡多，说明数据供给赶不上。
+MTE2主要负责将数据从GM、L2中搬入L1、L0A/L0B、UB中，如果流水图中MTE2长，计算流中空泡多，说明数据供给赶不上。
 
 ```mermaid
 flowchart TD
@@ -78,7 +78,7 @@ flowchart TD
 
 **MTE3或FIXP很长**：CopyOut瓶颈
 
-MTE3 主要负责UB --> GM，FIXP负责L0C --> GM/L1 这些长说明输出写回，格式转换，量化后处理或小块写太重。
+MTE3 主要负责UB --> GM，FIXP负责L0C --> GM/L1 这些长说明输出写回，格式转换、量化后处理或小块写太重。
 
 调优方向：
 
@@ -86,7 +86,7 @@ MTE3 主要负责UB --> GM，FIXP负责L0C --> GM/L1 这些长说明输出写回
 - 输出写回保持连续和对齐，避免按列、小 stride、碎片化写。
 - 减少中间结果写回 GM，能在 UB/L1/L0C 内完成就不要落外存。
 - Matmul split-K 会增加 partial sum 写回和归约，只有 M/N 并行不足时再考虑。
-- 如果 MTE3 长但 Vector/Cube 很短，说明算子 memory-bound，继续优化计算指令意义不大，应先减写流量。
+- 如果 MTE3 长但 Vector/Cube 很短，说明算子 memory-bound，继续优化计算指令意义不大，应先减少写流量。
 
 **计算流很长且搬运流被完全掩盖**
 

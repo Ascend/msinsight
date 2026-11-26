@@ -25,14 +25,14 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 | 首次导入系统性能数据 | [数据说明](#数据说明) → [导入数据](../basic_operations.md#导入数据) → [时间线（Timeline）](timeline.md#timeline)        |
 | 单卡训练/推理性能慢 | [时间线（Timeline）](timeline.md#timeline) → [算子（Operator）](operator.md#operator) → [内存（Memory）](memory.md#memory)         |
 | 集群通信慢或存在快慢卡 | [概览（Summary）](summary.md#summary) → [通信（Communication）](communication.md#communication) → [时间线（Timeline）](timeline.md#timeline) |
-| 怀疑 Host 侧下发瓶颈 | [时间线（Timeline）](timeline.md#timeline) → [Host Bound问题分析案例](host_bound_case.md#host-bound-analysis-case)             |
+| 怀疑Host侧下发瓶颈 | [时间线（Timeline）](timeline.md#timeline) → [Host Bound问题分析案例](host_bound_case.md#host-bound-analysis-case)             |
 | 强化学习任务空泡或阶段耗时异常 | [强化学习（RL）](rl.md#rl)                                                                        |
 
 **概述**
 
-性能数据文件的采集方式请分别参见《性能调优工具指南》中的“PyTorch训练场景性能分析快速入门”、“TensorFlow训练场景性能分析快速入门”和“msprof采集通用命令”章节内容，以及《[MindSpore教程](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html)》中的“调试调优 \>  [Ascend性能调优](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/debug/profiler.html)”章节内容。
+性能数据文件的采集方式请分别参见《性能调优工具指南》中的“PyTorch训练场景性能分析快速入门”、“TensorFlow训练场景性能分析快速入门”和“msprof采集通用命令”章节内容，以及《[MindSpore教程](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html)》中的“调试调优 \> [Ascend性能调优](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/debug/profiler.html)”章节内容。
 
-性能数据分为单卡场景和集群场景，具体请参见[**表 1**  性能数据场景说明](#性能数据场景说明)。
+性能数据分为单卡场景和集群场景，具体请参见[**表 1** 性能数据场景说明](#性能数据场景说明)。
 
 **表 1** 性能数据场景说明<a id="性能数据场景说明"></a>
 
@@ -157,7 +157,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 
 **单卡场景**
 
-在单卡场景下，性能数据可分为三大类型，如下所示：
+在单卡场景下，性能数据可分为四大类型，如下所示：
 
 - PyTorch训练/推理数据：支持导入以“ascend\_pt”结尾的性能数据目录，性能数据文件详情请参见[**表 6** PyTorch训练/推理性能数据文件](#PyTorch训练/推理性能数据文件)。
 
@@ -245,7 +245,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
     |场景|卡数量|导入数据|界面展示|
     |--|--|--|--|
     |小集群|不超过32卡。|可导入采集到的全部原始数据。|时间线（Timeline）<br>内存（Memory）<br>算子（Operator）<br>概览（Summary）<br>通信（Communication）|
-    |大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 18** cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
+    |大集群|超过32卡、千卡、万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 18** cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
 
     如果在大集群场景下，直接导入性能调优工具采集的全部原始数据，解析耗时较长，不建议直接导入。
 
@@ -389,7 +389,7 @@ step_trace_time.csv文件记录迭代中计算和通信的时间统计，字段�
 |Communication(Not Overlapped and Exclude Receive)|排除接收的非重叠通信时间|
 |Preparing|准备时间|
 
-**表 15** operator_memory.csv字段定义**<a id="operator_memorycsv字段定义"></a>
+**表 15** operator_memory.csv字段定义<a id="operator_memorycsv字段定义"></a>
 
 operator_memory.csv文件记录算子内存申请情况，字段定义如下：
 
@@ -460,6 +460,6 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 |cluster_communication.json|数据解析模式为communication_time或all时生成，主要为通信耗时数据。|
 |cluster_analysis.db|解析analysis.db或ascend_pytorch_profiler_{*rank_id*}.db生成的文件。|
 
-- 集群精简数据，是基于ascend\_pytorch\_profiler\_\{_rank\_id_\}.db文件，提取通信类大算子数据，计算类关键函数和框架关键函数，将数据精简，节约内存，快速进行全局分析，导入集群精简数据后，MindStudio Insight工具只显示时间线（Timeline）界面。
+- 集群精简数据，是基于ascend\_pytorch\_profiler\_\{_rank\_id_\}.db文件，提取通信类大算子数据、计算类关键函数和框架关键函数，将数据精简，节约内存，快速进行全局分析，导入集群精简数据后，MindStudio Insight工具只显示时间线（Timeline）界面。
 
     集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考《[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)》，设置`-m filter_db`可参考《[recipe结果和cluster\_analysis.db交付件表结构说明](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)》中的“filter\_db”内容，集群数据精简功能只支持统一db场景。

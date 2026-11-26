@@ -651,7 +651,7 @@ MindStudio Insight在时间线（Timeline）界面支持算子、API等名称的
     > [!NOTE]
     >
     > - CPU、Memory、Network相关利用率数据，也就是数值类型事件，在时间线（Timeline）中以柱状图形式呈现，暂不支持预览功能，如[**图 7** 时间线（Timeline）界面预览](#时间线（Timeline）界面预览)中的3所示。
-    > - 点击泳道上方工具栏的![](../figures/system_tuning/expand_all_lanes_1.png)，可展开所有泳道；点击![](../figures/system_tuning/collapse_all_lanes_1.png)，可收起所有泳道。
+    > - 点击泳道上方工具栏的![泳道上方工具栏中的展开所有泳道按钮图标](../figures/system_tuning/expand_all_lanes_1.png)，可展开所有泳道；点击![泳道上方工具栏中的收起所有泳道按钮图标](../figures/system_tuning/collapse_all_lanes_1.png)，可收起所有泳道。
 
 **支持集群场景展示**
 
@@ -1462,7 +1462,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
 
   **图 16** AI Core频率统计<a id="AICore频率统计"></a>
 
-  ![](../figures/system_tuning/ai_core_frequency_1.png "AI Core频率统计")
+  ![AI Core频率统计界面，展示AI硬件的峰谷值频率与平均频率](../figures/system_tuning/ai_core_frequency_1.png)
 
   **表 14** AI Core频率统计字段说明<a id="AICore频率统计字段说明"></a>
 

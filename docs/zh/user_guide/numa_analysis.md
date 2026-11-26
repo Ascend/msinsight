@@ -51,7 +51,7 @@ NUMA高层架构图界面主要包含系统指标、拓扑图操作区、NUMA拓
 
 **图 1** NUMA高层架构图
 
-![](./figures/numa_analysis/numa_overview_1.png "NUMA高层架构图")
+![NUMA高层架构图界面：顶部为系统指标与指标时间范围，中部为Socket、NUMA节点和DRAM拓扑，右侧为详细信息面板](./figures/numa_analysis/numa_overview_1.png "NUMA高层架构图")
 
 - 区域一：系统指标与指标时间范围。展示当前数据的Socket数量、NUMA域数量和统计时间范围，并汇总展示全局NUMA指标。
 - 区域二：拓扑图操作区。支持放大、缩小、重置缩放，以及开启或关闭连线指标展示。
@@ -71,7 +71,7 @@ NUMA高层架构图界面主要包含系统指标、拓扑图操作区、NUMA拓
 >
 > 如果已在时间线（Timeline）中选择分析时间范围分析，NUMA高层架构图会优先展示该时间范围内的统计结果；如果未选择分析时间范围，则展示数据中的完整时间范围统计结果。
 
-![](./figures/numa_analysis/numa_time_range.png "NUMA时间范围分析")
+![NUMA高层架构图页面顶部的指标时间范围显示，与Timeline所选分析时间范围联动](./figures/numa_analysis/numa_time_range.png "NUMA时间范围分析")
 
 ## 指标说明
 
@@ -108,7 +108,7 @@ NUMA Platform Metric泳道按Platform Metrics、Socket和NUMA Node分层展示NU
 
 **图 2** NUMA Platform Metric泳道
 
-![](./figures/numa_analysis/platform_metrics.png "NUMA Platform Metric泳道")
+![NUMA Platform Metric泳道按Platform Metrics、Socket、NUMA Node分层展示的指标随时间变化趋势曲线](./figures/numa_analysis/platform_metrics.png "NUMA Platform Metric泳道")
 
 展开“Platform Metrics”节点，可查看系统级汇总指标；继续展开Socket和NUMA Node节点，可查看对应硬件层级的指标。各层级实际展示的泳道由采集数据决定。
 
@@ -126,7 +126,7 @@ NUMA Platform Metric泳道按Platform Metrics、Socket和NUMA Node分层展示NU
 
 **图 3** Thread State泳道
 
-![](./figures/numa_analysis/thread_state.png "Thread State泳道")
+![Thread State泳道按线程堆叠展示Active、Sync Wait、Preemption、Unknown四种状态占比](./figures/numa_analysis/thread_state.png "Thread State泳道")
 
 Thread State泳道按线程展示采集周期内不同运行状态所占的比例。每个数据点对应一个聚合时间段，堆叠图中四种状态的占比之和为100%。各状态说明如表 4 所示。
 
@@ -158,7 +158,7 @@ Thread State泳道按线程展示采集周期内不同运行状态所占的比�
 
 **图 4** LLC Cache泳道
 
-![](./figures/numa_analysis/llc_cache.png "LLC Cache泳道")
+![LLC Cache泳道按线程用柱形展示聚合时间段内的LLC命中与未命中次数，绿色为命中、红色为未命中](./figures/numa_analysis/llc_cache.png "LLC Cache泳道")
 
 LLC Cache泳道位于对应的Thread节点下，按线程展示采集周期内末级缓存（Last Level Cache，LLC）的命中与未命中次数。每根柱对应一个聚合时间段，柱形总高度表示命中次数与未命中次数之和，底部红色区域表示未命中，顶部绿色区域表示命中。各指标说明如表 5 所示。
 
@@ -205,7 +205,7 @@ LLC Cache泳道位于对应的Thread节点下，按线程展示采集周期内�
 
 ### Socket连线指标不可用
 
-如果页面提示“Protocol Adapter 未启用或不受支持（A2）”，表示当前数据中缺少可用于计算Socket间方向流量的Outgoing/Incoming信息。此时NUMA节点、DRAM和其他已采集指标仍可继续查看。
+如果页面提示“Protocol Adapter未启用或不受支持（A2）”，表示当前数据中缺少可用于计算Socket间方向流量的Outgoing/Incoming信息。此时NUMA节点、DRAM和其他已采集指标仍可继续查看。
 
 ### 指标值为什么不是瞬时带宽
 

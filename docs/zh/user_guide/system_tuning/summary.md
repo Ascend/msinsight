@@ -18,7 +18,7 @@
 
 **图 1** 概览界面<a id="概览界面"></a>
 
-![](../figures/system_tuning/overview_interface_1.png "概览界面")
+![概览界面整体布局，上方为基本信息区域，中部为并行策略分析图表，下方为MoE大模型专家负载均衡分析区域](../figures/system_tuning/overview_interface_1.png "概览界面")
 
 **基本信息（Base Info）**
 
@@ -26,7 +26,7 @@
 
 **并行策略分析（Parallel Strategy Analysis）**
 
-区域二是并行策略分析（Parallel Strategy Analysis），包括并行策略概览、计算/通信概览、计算详情（Rank  _ID_）、通信详情（Rank  _ID_）以及流水线并行图。
+区域二是并行策略分析（Parallel Strategy Analysis），包括并行策略概览、计算/通信概览、计算详情（Rank _ID_）、通信详情（Rank  _ID_）以及流水线并行图。
 
 - 并行策略概览包括并行策略设置、并行策略图展示和专家建议，如[**图 2** 并行策略概览](#并行策略概览)所示，并行策略参数解释如[**表 1** 并行策略参数说明](#并行策略参数说明)所示。当设置好并行策略后，可分别选择“DP + PP”、“DP + PP + CP”、“DP + PP + TP”或“DP + PP + CP + TP”并行维度展示并行策略图，选择图中目标编号，可悬浮显示该目标编号的详情信息，进行查看；也可单击鼠标右键弹出菜单，单击“复制属性”，复制当前目标编号的详情信息，粘贴至本地进行查看分析。
 
@@ -34,7 +34,7 @@
 
     **图 2** 并行策略概览<a id="并行策略概览"></a>
 
-    ![](../figures/system_tuning/parallel_strategy_overview_1.png "并行策略概览")
+    ![并行策略概览：上部为并行策略参数设置区，中部为并行策略图与目标编号的悬浮详情，下部为专家建议](../figures/system_tuning/parallel_strategy_overview_1.png "并行策略概览")
 
     **表 1** 并行策略参数说明<a id="并行策略参数说明"></a>
 
@@ -42,11 +42,11 @@
     |--|--|--|
     |算法|Algorithm|- Megatron-LM(tp-cp-ep-dp-pp)：此排布方式来自于Megatron-Core，排布的顺序是TP > CP > DP > PP，EP横跨DP之上且不参与或不影响排布编号（即要求DP能够被EP整除），PP位于DP之后，多为跨节点通信，对通信带宽要求低。<br> - Megatron-LM(tp-cp-pp-ep-dp)：此排布方式也来自于Megatron-Core，排布的顺序是TP > CP > PP > DP，比较少见，用于PP对带宽要求相对比较高的场景。<br> - MindSpeed(tp-cp-ep-dp-pp)：此排布方式来自于MindSpeed-Core，排布的顺序是TP > CP > DP > PP，EP横跨CP + DP之上且不参与或不影响排布编号（即要求CP x DP能够被EP整除）。<br> - MindIE-LLM(tp-dp-ep-pp-moetp)：此排布方式来自于MindIE-LLM（DeepSeek V3也使用类似排布），非MoE层采用TP > DP > PP顺序排布，MoE层采用MOE_TP > EP > PP顺序排布，当MOE_TP=1时，形成横跨PP相同Stage的大规模专家并行方案。<br> - vLLM(tp-pp-dp-ep)：此排布方式来自于vLLM，排布顺序是TP > PP > DP，EP横跨TP+DP之上且不参与或不影响排布序号（即要求TP×DP能被EP整除），形成大规模专家并行方案（即要求EP能被TP整除），当选择vLLM(tp-pp-dp-ep)算法时，PP大小 x TP大小 x DP大小 ≥ 导入的卡数量。|
     |PP大小|PP Size|流水线并行大小。可自行配置，取值范围：1~10000。<br> 流水线并行（Pipeline Parallel）通过将模型的不同层次分布在不同的卡上执行，在一个卡执行当前批次数据时，另一个卡可以处理下一个批次的数据。|
-    |TP大小|TP Size|张量并行大小。可自行配置，取值范围：1~10000。<br> 张量并行（Tensor Parallel）是一种将模型参数划分成多个部分，并分布到不同卡上进行计算。|
+    |TP大小|TP Size|张量并行大小。可自行配置，取值范围：1~10000。<br> 张量并行（Tensor Parallel）是一种将模型参数划分成多个部分，并分布到不同卡上进行计算的技术。|
     |CP大小|CP Size|上下文并行大小。可自行配置，取值范围：1~10000。<br> 上下文并行（Context Parallel）将训练样本按序列长度和维度划分为不同批次，分配到不同卡上进行计算。CP分割网络输入和所有激活值，是改进版的序列并行（Sequence Parallelism，SP）。|
     |DP大小|DP Size|数据并行大小。可自行配置，取值范围：1~10000。<br> 数据并行（Data Parallel）将训练集分成多个批次，分配到不同卡上进行计算。|
     |EP大小|EP Size|专家并行大小。可自行配置，取值范围：1~10000。<br> 专家并行（Expert Parallel）是一种专门为MoE模型（Mixture of Experts）设计的并行方法。它将专家分配到不同的计算设备上，每个设备负责处理一部分训练样本，并且每个设备上可以包含一个或多个专家。<br> - 当选择Megatron-LM算法时，EP大小应小于等于DP大小，且DP可被EP整除。<br> - 当选择MindSpeed算法时，DP X CP应能被EP整除。|
-    |MoE-TP大小|MoE-TP Size|仅当算法选择“MindIE-LLM(tp-dp-ep-pp-moetp)”时，才存在此参数。<br> 推理并行策略中，MoE层的张量并行大小，区别于非MoE层的TP。可自行配置，取值范围：1~10000。且需满足以下取值规则：<br> - PP大小 x TP大小 x DP大小 = 导入的卡数量 <br> - TP大小 x DP大小 = MoE-TP大小 x EP大小|
+    |MoE-TP大小|MoE-TP Size|仅当算法选择“MindIE-LLM(tp-dp-ep-pp-moetp)”时，才存在此参数。<br> 推理并行策略中，MoE层的张量并行大小，区别于非MoE层的TP。可自行配置，取值范围：1~10000，且需满足以下取值规则：<br> - PP大小 x TP大小 x DP大小 = 导入的卡数量 <br> - TP大小 x DP大小 = MoE-TP大小 x EP大小|
     |性能指标|Performance Metric|可按照性能指标展示并行策略图，可选的性能指标参数根据选择的域维度而变化。<br> 当选择“无”时，表示不展示性能指标，即并行策略图上的卡片信息为默认状态。<br> 当选择其余参数时，会在选框后显示该参数的“筛选范围 (μs)”和色条，筛选范围值为该参数值的最小值和最大值，且并行策略图上的卡片会按照对应值被渲染填色，可直观地查看各卡性能情况。|
     |目标编号|Target Index|在所选维度下，输入目标编号，可准确定位到所需的序号上。|
     |专家建议|Advice|通过MindStudio Insight工具的内置专家分析功能，对数据进行分析，并给出相应建议，列出应关注的Top3分组以及慢卡信息，帮助开发者识别性能问题。|
@@ -57,7 +57,7 @@
 
     **图 3** 计算/通信概览<a id="计算/通信概览"></a>
 
-    ![](../figures/system_tuning/compute_communication_overview_1.png "计算-通信概览")
+    ![计算/通信概览：柱状图对比各卡计算与通信算子耗时，折线图展示耗时占比并附专家建议](../figures/system_tuning/compute_communication_overview_1.png "计算-通信概览")
 
     **表 2** 计算/通信概览参数说明<a id="计算/通信概览参数说明"></a>
 
@@ -65,17 +65,17 @@
   |--|--|--|
   |迭代ID|Step|迭代ID，下拉框支持选择某一个迭代或者所有迭代。|
   |通信域|Rank Group|节点ID，下拉框支持选择一个、多个或者所有节点。|
-  |排序方式|Order By|根据不同维度选择排序方式。<br> - DP + PP + CP + TP维度和DP + PP + TP维度<br> 卡序号（Rank ID）：卡序号。<br> 计算时间（未被覆盖）（Computing(Not Overlapped)）：计算时间（未被覆盖） = 计算时间 – 计算通信间覆盖时间。<br> 计算通信间覆盖时间（Computing_Communication Overlapped）：被计算覆盖的通信时长。<br> 通信时间（未被覆盖）（Communication(Not Overlapped)）：通信时间（未被覆盖） = 通信时间 – 计算通信间覆盖时间。<br> 空闲时间（Free）：Device侧既不在通信也不在计算的时间。此处的Free不计入预处理时间。<br> 预处理时间（Preparing）：迭代开始到首个计算或通信算子运行的时间，在做数据加载拷贝等操作。在时间线（Timeline）的Overlap Analysis泳道中，也被视为Free。<br> 计算占比（Computing Ratio）：计算时间占总时间的占比，总时间 = 计算时间（未被覆盖） + 计算通信间覆盖时间 + 通信时间（未被覆盖） + 空闲时间 + 预处理时间。<br> 通信占比（Communication Ratio）：通信时间占总时间的占比。<br> - DP + PP + CP维度：排序方式分别为卡序号、最大计算时间、最大通信时间、最大空闲时间、最大总时间（计算、通信（未被覆盖）、空闲时间的总和）。各参数的“最大”是指每个TP通信域内取最大值。<br> - DP + PP维度：排序方式分别为卡序号、最大计算时间、最大通信时间、最大空闲时间、最大总时间（计算、通信（未被覆盖）、空闲时间的总和）、最大通信时间（未被覆盖）。各参数的“最大”是指对每个DP + PP + CP维度通信域内取最大值。|
+  |排序方式|Order By|根据不同维度选择排序方式。<br> - DP + PP + CP + TP维度和DP + PP + TP维度<br> 卡序号（Rank ID）：卡序号。<br> 计算时间（未被覆盖）（Computing(Not Overlapped)）：计算时间（未被覆盖） = 计算时间 – 计算通信间覆盖时间。<br> 计算通信间覆盖时间（Computing_Communication Overlapped）：被计算覆盖的通信时长。<br> 通信时间（未被覆盖）（Communication(Not Overlapped)）：通信时间（未被覆盖） = 通信时间 – 计算通信间覆盖时间。<br> 空闲时间（Free）：Device侧既不在通信也不在计算的时间。此处的Free不计入预处理时间。<br> 预处理时间（Preparing）：迭代开始到首个计算或通信算子运行的时间，在该时间段内进行数据加载、拷贝等操作。在时间线（Timeline）的Overlap Analysis泳道中，也被视为Free。<br> 计算占比（Computing Ratio）：计算时间占总时间的占比，总时间 = 计算时间（未被覆盖） + 计算通信间覆盖时间 + 通信时间（未被覆盖） + 空闲时间 + 预处理时间。<br> 通信占比（Communication Ratio）：通信时间占总时间的占比。<br> - DP + PP + CP维度：排序方式分别为卡序号、最大计算时间、最大通信时间、最大空闲时间、最大总时间（计算、通信（未被覆盖）、空闲时间的总和）。各参数的“最大”是指每个TP通信域内取最大值。<br> - DP + PP维度：排序方式分别为卡序号、最大计算时间、最大通信时间、最大空闲时间、最大总时间（计算、通信（未被覆盖）、空闲时间的总和）、最大通信时间（未被覆盖）。各参数的“最大”是指对每个DP + PP + CP维度通信域内取最大值。|
   |前|Top|可通过配置Top参数值选择展示“排序方式”的TopN条数据。|
   |Time(μs)|Time(μs)|左侧纵坐标表示时长，单位μs。计算方式如下：<br> 总时间 = 计算时间（未被覆盖） + 计算通信间覆盖时间 + 通信时间（未被覆盖）+ 空闲时间 + 预处理时间，其中Preparing为数据预处理时间。|
   |Ratio|Ratio|右侧纵坐标表示耗时占比，包括以下占比信息：<br> - 总计算比例（Computing Ratio）：总计算耗时占比 = 总计算时间 / 总时间。<br> - 通信比例（Communication Ratio）：通信耗时占比 = 未被覆盖的通信时长 / 总时间。|
   |专家建议|Advice|慢卡分析定位与建议，对各并行维度下的通信时间进行解析分析，帮助开发者逐步定位慢卡。|
 
-- 计算详情（Rank  _ID_）（Computing Detail（Rank  _ID_）），当选择“DP + PP + CP + TP”和“DP + PP + TP”并行维度时，单击计算/通信概览区域中某个节点的柱状图时，将展示该节点加速器核的总耗时和利用率，单击对应的“详情”后展示计算算子的详细信息，如[**图 4** 计算算子详细信息](#计算算子详细信息)所示，字段解释如[**表 3** 计算详情字段说明](#计算详情字段说明)所示。还可单击表格右上角![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。
+- 计算详情（Rank _ID_）（Computing Detail（Rank  _ID_）），当选择“DP + PP + CP + TP”和“DP + PP + TP”并行维度时，单击计算/通信概览区域中某个节点的柱状图时，将展示该节点加速器核的总耗时和利用率，单击对应的“详情”后展示计算算子的详细信息，如[**图 4** 计算算子详细信息](#计算算子详细信息)所示，字段解释如[**表 3** 计算详情字段说明](#计算详情字段说明)所示。还可单击表格右上角![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。
 
     **图 4** 计算算子详细信息<a id="计算算子详细信息"></a>
 
-    ![](../figures/system_tuning/compute_operator_details_1.png "计算算子详细信息")
+    ![计算算子详细信息表格：列出算子名称、类型、开始时间、时长、等待时间、Block数量及输入输出Shapes与格式](../figures/system_tuning/compute_operator_details_1.png "计算算子详细信息")
 
     **表 3** 计算详情字段说明<a id="计算详情字段说明"></a>
 
@@ -96,11 +96,11 @@
   |输出数据类型|Output Data Types|算子输出数据类型。|
   |输出格式|Output Formats|算子输出数据格式。|
 
-- 通信详情（Rank  _ID_）（Communication Detail（Rank  _ID_）），当选择“DP + PP + CP + TP”和“DP + PP + TP”并行维度时，单击计算/通信概览区域中某个节点的柱状图时，将展示该节点通信算子的总耗时（包含未被覆盖的通信时长和被覆盖的通信时长），单击对应的“详情”后展示通信算子的详细信息，如[**图 5** 通信算子详细信息](#通信算子详细信息)所示，字段解释如[**表 4** 通信详情字段说明](#通信详情字段说明)所示。还可单击表格右上角![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。
+- 通信详情（Rank _ID_）（Communication Detail（Rank  _ID_）），当选择“DP + PP + CP + TP”和“DP + PP + TP”并行维度时，单击计算/通信概览区域中某个节点的柱状图时，将展示该节点通信算子的总耗时（包含未被覆盖的通信时长和被覆盖的通信时长），单击对应的“详情”后展示通信算子的详细信息，如[**图 5** 通信算子详细信息](#通信算子详细信息)所示，字段解释如[**表 4** 通信详情字段说明](#通信详情字段说明)所示。还可单击表格右上角![复制](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。
 
     **图 5** 通信算子详细信息<a id="通信算子详细信息"></a>
 
-    ![](../figures/system_tuning/communication_operator_detailed_info_1.png "通信算子详细信息")
+    ![通信算子详细信息表格：列出算子名称、类型、开始时间、时长、等待时间及通信时长未重叠与重叠部分](../figures/system_tuning/communication_operator_detailed_info_1.png "通信算子详细信息")
 
     **表 4** 通信详情字段说明<a id="通信详情字段说明"></a>
 
@@ -121,7 +121,7 @@
 
     **图 6** 流水并行图<a id="流水并行图"></a>
 
-    ![](../figures/system_tuning/pipeline_parallel_diagram_1.png "流水并行图")
+    ![流水并行图：以滑动框展示各卡流水阶段的排布，可拖动滑动框缩放并左右移动查看阶段衔接](../figures/system_tuning/pipeline_parallel_diagram_1.png "流水并行图")
 
 **MoE大模型专家负载均衡分析（MoE Expert Load Balancing Analysis）**
 
@@ -129,13 +129,13 @@
 
 参数配置栏的“数据类型”可选择“Profiling”或“Dump”，两种数据类型是针对MoE模型不同维度的统计信息。
 
-当选择“Profiling”时，展示专家分布热点图，其是基于Profiling的热点图，统计的每一个MoE层中GroupedMatmul算子的耗时情况，GroupedMatmul算子是MoE模型计算的核心，其效率会决定专家的响应速度。
+当选择“Profiling”时，展示专家分布热点图，其是基于Profiling的热点图，统计的是每一个MoE层中GroupedMatmul算子的耗时情况，GroupedMatmul算子是MoE模型计算的核心，其效率会决定专家的响应速度。
 
 当选择“Dump”时，展示MoE模型专家负载均衡热力图，其是基于Dump的热力图，统计的每个MoE层中每一个专家处理的token数量。可选择“Dump-均衡前”或“Dump-均衡后”，单击![](../figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 7** MoE大模型专家负载均衡分析](#MoE大模型专家负载均衡分析)所示，参数解释如[**表 5** MoE大模型专家负载均衡分析参数说明](#MoE大模型专家负载均衡分析参数说明)所示。“Dump-均衡前”和“Dump-均衡后”的数据文件采集方式可参见《MindIE LLM开发指南》的“特性介绍 \> [负载均衡](https://www.hiascend.com/document/detail/zh/mindie/latest/mindiellm/llmdev/user_guide/feature/expert_parallelism_load_balancer.md)”章节。
 
 **图 7** MoE大模型专家负载均衡分析<a id="MoE大模型专家负载均衡分析"></a>
 
-![](../figures/system_tuning/moe_large_model_expert_load_balancing_analysis_1.png "MoE大模型专家负载均衡分析")
+![MoE大模型专家负载均衡热力图：纵坐标为模型各层，横坐标为专家序号，颜色反映每个专家处理的token数量](../figures/system_tuning/moe_large_model_expert_load_balancing_analysis_1.png "MoE大模型专家负载均衡分析")
 
 **表 5** MoE大模型专家负载均衡分析参数说明<a id="MoE大模型专家负载均衡分析参数说明"></a>
 
@@ -166,7 +166,7 @@
 
 **图 8** 数据并行策略<a id="数据并行策略"></a>
 
-![](../figures/system_tuning/data_parallel_strategy_1.png "数据并行策略")
+![按PP大小4、TP大小4、CP大小4、DP大小8、EP大小4生成后的并行策略展示图，按数据并行维度划分卡片](../figures/system_tuning/data_parallel_strategy_1.png "数据并行策略")
 
 **支持页面信息联动**
 
@@ -176,11 +176,11 @@
 
     也可在“DP + PP + TP”或“DP + PP + CP + TP”维度下，单击目标编号，出现连线，使用鼠标右键单击任一连线，选择“查看通信耗时分析”，跳转至通信界面，展示目标编号所属通信域的详情。
 
-    在“DP + PP + CP + TP”并行维度下，单击策略图中序号0相关的张量并行连线，计算/通信概览、计算详情（Rank  _ID_）和通信详情（Rank  _ID_）随之变化，计算/通信概览展示与序号0相关的通信域为“\(0,1,2,3\)”的信息详情，计算详情（Rank  _ID_）与通信详情（Rank  _ID_）分别展示对应卡的计算详情和通信详情，单击计算/通信概览区域中任意卡的柱状图时，计算详情和通信详情会展示相应卡的详情信息。
+    在“DP + PP + CP + TP”并行维度下，单击策略图中序号0相关的张量并行连线，计算/通信概览、计算详情（Rank _ID_）和通信详情（Rank  _ID_）随之变化，计算/通信概览展示与序号0相关的通信域为“\(0,1,2,3\)”的信息详情，计算详情（Rank  _ID_）与通信详情（Rank  _ID_）分别展示对应卡的计算详情和通信详情，单击计算/通信概览区域中任意卡的柱状图时，计算详情和通信详情会展示相应卡的详情信息。
 
     **图 9** 联动功能<a id="联动功能"></a>
 
-    ![](../figures/system_tuning/linkage_functionality_1.png "联动功能")
+    ![连线联动效果：单击策略图中目标编号后出现并行连线，单击连线切换下方计算/通信概览随之更新为对应通信域数据](../figures/system_tuning/linkage_functionality_1.png "联动功能")
 
 - 框选联动
 
@@ -190,7 +190,7 @@
 
     **图 10** 框选联动<a id="框选联动"></a>
 
-    ![](../figures/system_tuning/selection_linkage_1.png "框选联动")
+    ![框选联动效果：按勾选的并行选项显示划分选框，单击选框后下方计算/通信概览同步更新](../figures/system_tuning/selection_linkage_1.png "框选联动")
 
 **支持展示不同维度的并行策略**
 
@@ -211,7 +211,7 @@
 
     **图 11** DP + PP维度<a id="DP-+-PP维度"></a>
 
-    ![](../figures/system_tuning/dp_pp_dimension_1.png "DP-+-PP维度")
+    ![DP + PP维度并行策略图：勾选流水线并行与数据并行后按选框划分卡片，并与计算/通信概览柱状图联动](../figures/system_tuning/dp_pp_dimension_1.png "DP-+-PP维度")
 
 - DP + PP + CP维度
 
@@ -221,7 +221,7 @@
 
     **图 12** DP + PP + CP维度<a id="DP-+-PP-+-CP维度"></a>
 
-    ![](../figures/system_tuning/dp_pp_cp_dimension_1.png "DP-+-PP-+-CP维度")
+    ![DP + PP + CP维度并行策略图：勾选流水线并行、上下文并行与数据并行后按选框划分卡片并联动柱状图](../figures/system_tuning/dp_pp_cp_dimension_1.png "DP-+-PP-+-CP维度")
 
 - DP + PP + TP维度
 
@@ -231,7 +231,7 @@
 
     **图 13** DP + PP + TP维度<a id="DP-+-PP-+-TP维度"></a>
 
-    ![](../figures/system_tuning/dp_pp_tp_dimension_1.png "DP-+-PP-+-TP维度")
+    ![DP + PP + TP维度并行策略图：勾选流水线并行、张量并行、数据并行与专家并行后划分卡片并可联动柱状图](../figures/system_tuning/dp_pp_tp_dimension_1.png "DP-+-PP-+-TP维度")
 
 - DP + PP + CP + TP维度
 
@@ -241,7 +241,7 @@
 
     **图 14** DP + PP + CP + TP维度<a id="DP-+-PP-+-CP-+-TP维度"></a>
 
-    ![](../figures/system_tuning/dp_pp_cp_tp_dimension_1.png "DP-+-PP-+-CP-+-TP维度")
+    ![DP + PP + CP + TP维度并行策略图：勾选流水线并行、张量并行、上下文并行与数据并行后划分卡片并联动柱状图](../figures/system_tuning/dp_pp_cp_tp_dimension_1.png "DP-+-PP-+-CP-+-TP维度")
 
 **支持集群数据对比**
 
@@ -255,7 +255,7 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 **图 15** 概览界面对比模式<a id="概览界面对比模式"></a>
 
-![](../figures/system_tuning/overview_interface_comparison_mode_1.png "概览界面对比模式")
+![概览界面对比模式：基本信息区域并列展示对比数据与基线数据，计算/通信概览柱状图标注两者差值](../figures/system_tuning/overview_interface_comparison_mode_1.png "概览界面对比模式")
 
 **支持展示专家分布热点图和负载均衡热力图**
 
@@ -267,7 +267,7 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 - 专家负载均衡热力图
 
-    当需要导入负载均衡dump前和dump后的数据时，在参数配置栏的“数据类型”选择“Dump-均衡前”或“Dump-均衡后”，单击![](../figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 16** MoE模型专家负载均衡分析](#MoE模型专家负载均衡分析)所示，文件导入成功后，参数会自动填入默认值。
+    当需要导入负载均衡dump前和dump后的数据时，在参数配置栏的“数据类型”选择“Dump-均衡前”或“Dump-均衡后”，单击![导入](../figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 16** MoE模型专家负载均衡分析](#MoE模型专家负载均衡分析)所示，文件导入成功后，参数会自动填入默认值。
 
 其中纵坐标表示模型总层数（MoE层 + 非MoE层），横坐标表示专家序号，当选择图表中的某一个单元格时，会展示该单元格的详情，包括专家索引、ID、层数、Rank ID和访问量。
 
@@ -275,4 +275,4 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 **图 16** MoE模型专家负载均衡分析<a id="MoE模型专家负载均衡分析"></a>
 
-![](../figures/system_tuning/moe_model_expert_load_balancing_analysis_1.png "MoE模型专家负载均衡分析")
+![导入Dump文件后生成的MoE模型专家负载均衡热力图，纵坐标为模型总层数，横坐标为专家序号](../figures/system_tuning/moe_model_expert_load_balancing_analysis_1.png "MoE模型专家负载均衡分析")

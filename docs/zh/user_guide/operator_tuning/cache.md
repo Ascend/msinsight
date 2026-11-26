@@ -11,7 +11,7 @@
 选择单个内存单元，可显示该内存单元的详情，包括缓存行索引、事件次数和事件占比。
 
 **图 1** 缓存界面<a id="缓存界面"></a>
-![](../figures/operator_tuning/cache_interface_1.png "缓存界面")
+![缓存（Cache）界面截图，展示L2 Cache命中与未命中事件图，可单击放大并查看内存单元详情](../figures/operator_tuning/cache_interface_1.png)
 
 ## 使用说明
 
@@ -20,4 +20,4 @@
 在缓存（Cache）界面，选择命中和未命中事件图，单击放大，在放大的事件图中右键单击所选内存单元，选择“显示指令”，可跳转至源码（Source）界面，并高亮显示与之相关的指令行，如[**图 2** 跳转指令表](#跳转指令表)所示。
 
 **图 2** 跳转指令表<a id="跳转指令表"></a>
-![](../figures/operator_tuning/jump_to_instruction_table_1.png "跳转指令表")
+![在放大的事件图中右键单击内存单元选择“显示指令”，跳转至源码（Source）界面并高亮相关指令行](../figures/operator_tuning/jump_to_instruction_table_1.png)
