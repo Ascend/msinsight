@@ -1,5 +1,7 @@
 # 安装指南：Docker镜像
 
+本文档介绍通过Docker镜像安装MindStudio Insight的方法，涵盖镜像的在线拉取与离线加载、使用Streamer脚本或Docker命令运行镜像，以及镜像的升级和卸载，适用于需要在Linux服务器上部署MindStudio Insight的用户。
+
 ## 安装MindStudio Insight
 
 <a id="安装操作镜像"></a>

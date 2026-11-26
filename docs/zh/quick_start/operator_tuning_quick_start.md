@@ -1,6 +1,6 @@
 # 快速入门（算子调优篇）
 
-MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 工具采集的、运行在昇腾 AI 处理器上的算子性能数据。用户可根据展现的算子关键性能指标，快速定位算子的软、硬件性能瓶颈，进行算子性能调优。
+MindStudio Insight支持导入[msOpProf](https://gitcode.com/Ascend/msopprof)工具采集的、运行在昇腾 AI 处理器上的算子性能数据。用户可根据展现的算子关键性能指标，快速定位算子的软、硬件性能瓶颈，进行算子性能调优。
 
 本文以 `matmul_leakyrelu` 算子为例，演示如何从上板数据发现性能异常，再通过仿真数据定位到可能需要优化的用户代码行。
 
@@ -8,25 +8,25 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 ### 1.1 适用范围
 
-本文适用于希望快速体验 MindStudio Insight 算子调优能力的开发者，重点演示以下流程：
+本文适用于希望快速体验MindStudio Insight算子调优能力的开发者，重点演示以下流程：
 
-1. 导入 msOpProf 采集的算子上板数据，查看算子整体耗时和流水占比。
-2. 导入 msOpProf 仿真数据，查看 Timeline（时间线）和 Source（源码）信息。
+1. 导入msOpProf采集的算子上板数据，查看算子整体耗时和流水占比。
+2. 导入msOpProf仿真数据，查看 Timeline（时间线）和 Source（源码）信息。
 3. 根据热点行为定位可能导致性能瓶颈的用户代码位置。
 
 > [!NOTE]
 >
-> 本文使用已准备好的样例数据演示分析路径，不展开 msOpProf 数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md) 中的数据说明和 msOpProf工具文档。
+> 本文使用已准备好的样例数据演示分析路径，不展开msOpProf数据采集命令。若需要采集真实算子数据，请参考 [MindStudio Insight 算子调优](../user_guide/operator_tuning/operator_tuning_overview.md) 中的数据说明和 msOpProf工具文档。
 
 ### 1.2 开始前检查
 
 | 检查项 | 要求 |
 | --- | --- |
-| 工具安装 | 已完成 MindStudio Insight 安装，安装方法请参见 [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_overview.md)。 |
+| 工具安装 | 已完成MindStudio Insight安装，安装方法请参见 [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_overview.md)。 |
 | 版本配套 | MindStudio Insight、CANN 与采集工具版本需匹配，版本关系请参见 [版本发布说明](https://gitcode.com/Ascend/msinsight/releases)。 |
 | 样例数据 | 已下载本文提供的算子样例数据，并能在本地访问。 |
 | 数据来源 | 样例数据由 [msOpProf](https://gitcode.com/Ascend/msopprof) 采集，包含上板数据和仿真数据。 |
-| 适用场景 | 适用于 Ascend 算子性能分析入门，尤其适合学习 Details、Timeline、Source 页签之间的定位关系。 |
+| 适用场景 | 适用于Ascend算子性能分析入门，尤其适合学习 Details、Timeline、Source 页签之间的定位关系。 |
 
 ### 1.3 样例数据
 

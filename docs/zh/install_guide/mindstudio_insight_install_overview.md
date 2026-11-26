@@ -1,5 +1,7 @@
 # 安装说明与准备软件包
 
+本文档介绍MindStudio Insight的安装方式与软件包准备，涵盖Windows、Linux、macOS系统的安装、JupyterLab插件与Docker镜像的使用，以及软件包下载与软件完整性校验，适用于需要安装和使用MindStudio Insight的开发者。
+
 ## 安装说明
 
 MindStudio Insight是面向开发者的可视化调优工具，能够将性能数据以时序图、热力图等一些简单易懂的图表呈现，帮助开发者快速识别性能瓶颈，快速完成性能优化。本文主要介绍MindStudio Insight的安装方式。
@@ -11,7 +13,7 @@ MindStudio Insight可在如下场景使用，具体软件包下载可参见“[�
 - 支持在macOS系统上安装使用，具体可参见《[安装指南-macOS系统](./mindstudio_insight_install_macos.md)》；<br>
 - 支持通过安装JupyterLab插件方式使用，具体可参见《[安装指南-JupyterLab插件](./mindstudio_insight_install_jupyterlab.md)》；<br>
 - 支持通过部署Docker镜像直接访问使用，具体可参见《[安装指南-Docker镜像](./mindstudio_insight_install_docker.md)》；<br>
-- 支持插件开发功能，为开发者提供自主开发能力，开发者可自主开发插件包，并安装插件包，实现自主开发功能使用，具体可参见《[安装指南-插件开发](./mindstudio_insight_install_plugin_dev.md)》。
+- 支持插件开发功能，为开发者提供自主开发能力，开发者可自主开发插件包，并安装插件包，实现自主开发功能的使用，具体可参见《[安装指南-插件开发](./mindstudio_insight_install_plugin_dev.md)》。
 
 ## 准备软件包
 
@@ -43,21 +45,21 @@ MindStudio Insight可在如下场景使用，具体软件包下载可参见“[�
 
 具体校验方法如下：
 
-1. 在本地获取软件包的sha256校验码
+1. 在本地获取软件包的SHA256校验码
 
-    Windows系统，使用如下命令获取对应软件包的sha256校验码。
+    Windows系统，使用如下命令获取对应软件包的SHA256校验码。
 
     ```powershell
     certutil -hashfile 软件包名 SHA256
     ```
 
-    macOS系统，使用如下命令获取对应软件包的sha256校验码。
+    macOS系统，使用如下命令获取对应软件包的SHA256校验码。
 
     ```shell
     shasum -a 256 软件包名
     ```
 
-    Linux系统，使用如下命令获取对应软件包的sha256校验码。
+    Linux系统，使用如下命令获取对应软件包的SHA256校验码。
 
     ```bash
     sha256sum 软件包名

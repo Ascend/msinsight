@@ -2,7 +2,7 @@
 
 ## 概述
 
-在昇腾全栈开发活动中，内存问题较为常见，但是由于内存问题的软件栈层次复杂（包括但不限于操作系统的驱动和运行时库、CANN、MindSpore/PyTorch\_NPU、模型训练和模型推理等），导致内存问题的定位和解决往往较为困难。目前典型的内存问题分类可参见[**表 1** 内存问题分类](#内存问题分类)。
+在昇腾全栈开发活动中，内存问题较为常见，但是由于内存问题的软件栈层次复杂（包括但不限于操作系统的驱动和运行时库、CANN、MindSpore/PyTorch\_NPU、模型训练和模型推理等），内存问题的定位和解决往往较为困难。目前典型的内存问题分类可参见[**表 1** 内存问题分类](#内存问题分类)。
 
 本文介绍通过MindStudio Insight工具定位内存问题的方法。
 
@@ -31,7 +31,7 @@
 
 **准备数据**
 
-以下采集的数据为内存泄漏的数据。
+以下为采集的内存泄漏数据。
 
 1. 使用msMemScope工具执行如下命令，在每个Step中申请一个大小为4 x 10MB的Tensor，并追加到全局变量leak\_mem\_list列表中（不会随train\_one\_step释放），采集3个Step的Python Trace数据。
 
@@ -99,28 +99,28 @@
 
     **图 1** 未释放的内存块<a id="未释放的内存块"></a>
 
-    ![](../figures/memory_tuning/unreleased_memory_blocks_1.png "未释放的内存块")
+    ![内存块生命周期图Step 2区域放大视图，可见Step 2结束时仍存在一个未释放的内存块](../figures/memory_tuning/unreleased_memory_blocks_1.png "未释放的内存块")
 
-3. 查看“调用栈火焰图”，发现该内存块来自于一个Tensor对象，在前向传播开始前即已申请，如[**图 2** Tensor对象](#Tensor对象)所示。
+3. 查看“调用栈火焰图”，发现该内存块来自一个Tensor对象，在前向传播开始前即已申请，如[**图 2** Tensor对象](#Tensor对象)所示。
 
     **图 2** Tensor对象<a id="Tensor对象"></a>
 
-    ![](../figures/memory_tuning/tensor_object_1.png "Tensor对象")
+    ![调用栈火焰图中该内存块的申请调用栈，显示其来自前向传播开始前申请的Tensor对象](../figures/memory_tuning/tensor_object_1.png "Tensor对象")
 
 4. 对照leaks\_mem标记的代码段，查看“内存详情拆解图”，发现leaks\_mem标记的代码段存在明显的增长，从Step 1开始leaks\_mem标签内存占用首次出现为40MB，如[**图 3** 查看Step 1的内存占用](#查看Step-1的内存占用)所示。
 
     **图 3** 查看Step 1的内存占用<a id="查看Step-1的内存占用"></a>
 
-    ![](../figures/memory_tuning/view_step1_memory_usage_1.png "查看Step-1的内存占用")
+    ![内存详情拆解图中leaks_mem标签代码段的内存占用，Step 1开始首次出现并明显增长](../figures/memory_tuning/view_step1_memory_usage_1.png "查看Step-1的内存占用")
 
     如[**图 4** 查看Step 2的内存占用](#查看Step-2的内存占用)所示，Step 2中leaks\_mem标签内存占用从40MB增长到了80MB。
 
     **图 4** 查看Step 2的内存占用<a id="查看Step-2的内存占用"></a>
 
-    ![](../figures/memory_tuning/view_step2_memory_usage_1.png "查看Step-2的内存占用")
+    ![同一内存详情拆解图的Step 2内存占用，leaks_mem标签代码段占用较Step 1继续增长](../figures/memory_tuning/view_step2_memory_usage_1.png "查看Step-2的内存占用")
 
     如[**图 5** 查看Step 3的内存占用](#查看Step-3的内存占用)所示，Step 3中leaks\_mem标签内存占用从80MB增长到了120MB。
 
     **图 5** 查看Step 3的内存占用<a id="查看Step-3的内存占用"></a>
 
-    ![](../figures/memory_tuning/view_step3_memory_usage_1.png "查看Step-3的内存占用")
+    ![同一内存详情拆解图的Step 3内存占用，leaks_mem标签代码段占用持续增长，印证内存泄漏](../figures/memory_tuning/view_step3_memory_usage_1.png "查看Step-3的内存占用")

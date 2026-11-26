@@ -1,5 +1,7 @@
 # 安装指南-插件开发
 
+本文档介绍MindStudio Insight插件开发与插件包安装方法，涵盖插件包格式要求、config.json配置格式与插件安装命令，适用于自主开发并安装插件的开发者。
+
 ## 安装MindStudio Insight
 
 <a id="安装操作插件开发"></a>

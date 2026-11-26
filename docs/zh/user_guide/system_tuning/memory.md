@@ -1,5 +1,7 @@
 # 内存（Memory）<a id="memory"></a>
 
+本文档介绍内存（Memory）界面的功能与使用方法，包括动态图和静态图场景下参数配置栏、算子内存折线图、内存申请/释放详情表的说明，以及切换卡序号、切换展示维度、折线图放大还原、搜索算子、高亮显示和卡间性能对比等操作，适用于需要分析内存采集信息、定位内存消耗大算子的用户。
+
 ## 功能说明
 
 内存（Memory）界面提供了采集过程中内存信息的可视化呈现。用户可以通过内存折线图对整体内存趋势一目了然，也可以框选放大折线图中峰值区域并结合算子内存信息精准定位到内存消耗大的算子。
@@ -16,7 +18,7 @@
 
 **图 1** 动态图内存界面<a id="动态图内存界面"></a>
 
-![](../figures/system_tuning/dynamic_graph_memory_interface_1.png "动态图内存界面")
+![动态图场景下的内存界面全貌，含参数配置栏、算子内存折线图和内存申请/释放详情表三个区域](../figures/system_tuning/dynamic_graph_memory_interface_1.png "动态图内存界面")
 
 - 区域一：参数配置栏。
     - 卡序号（Rank ID）：通过切换选项来查看不同卡的内存信息，切换之后整体界面即时刷新。
@@ -38,7 +40,7 @@
 
 **图 2** 静态图内存界面<a id="静态图内存界面"></a>
 
-![](../figures/system_tuning/static_graph_memory_interface_1.png "静态图内存界面")
+![静态图场景下的内存界面全貌，含参数配置栏、动态与静态算子内存折线图和内存申请/释放详情表](../figures/system_tuning/static_graph_memory_interface_1.png "静态图内存界面")
 
 - 区域一：参数配置栏，通过切换“卡序号”和“分组方式”的选项来查看不同卡的内存信息，切换之后整体界面即时刷新。
 - 区域二：算子内存折线图，由动态折线图和静态折线图组成，但静态折线图仅在MindSpore数据场景下存在。
@@ -55,7 +57,7 @@
         - 大小（Size）：按节点索引（Index）动态申请的内存大小。
         - 总大小（Total Size）：自动预设的内存最大值。
 
-- 区域三：内存申请/释放详情表，详细展示了静态图中每个算子的内存信息，表格支持搜索、排序、分页和跳转功能。单击每列的表头，可根据当前列的升序、降序和默认排序呈现数据；还可单击表格右上角![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。
+- 区域三：内存申请/释放详情表，详细展示了静态图中每个算子的内存信息，表格支持搜索、排序、分页和跳转功能。单击每列的表头，可根据当前列的升序、降序和默认排序呈现数据；还可单击表格右上角![静态图内存申请/释放详情表右上角的复制按钮，单击可复制表格当前展示内容](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。
 
 ## 使用说明
 
@@ -65,7 +67,7 @@ MindStudio Insight支持通过切换卡序号来查看不同卡的内存信息�
 
 **图 3** 切换卡序号<a id="切换卡序号"></a>
 
-![](../figures/system_tuning/switch_card_index_1.png "切换卡序号")
+![在界面上方卡序号输入框的下拉框中选择需要查看的卡，切换后展示对应卡的内存信息](../figures/system_tuning/switch_card_index_1.png "切换卡序号")
 
 **支持切换展示维度**
 
@@ -77,7 +79,7 @@ MindStudio Insight支持通过切换分组方式来查看不同维度的算子�
 
 **图 4** 切换维度<a id="切换维度"></a>
 
-![](../figures/system_tuning/switch_dimension_1.png "切换维度")
+![在界面上方分组方式输入框的下拉框中选择全局、流或组件维度，查看对应维度的算子内存折线图](../figures/system_tuning/switch_dimension_1.png "切换维度")
 
 **支持内存折线图局部放大和还原**
 
@@ -87,14 +89,14 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 
 **图 5** 选中放大区域<a id="选中放大区域"></a>
 
-![](../figures/system_tuning/selected_zoom_region_1.png "选中放大区域")
+![在算子内存折线图中按住鼠标左键框选放大区域的效果，框选部分被放大并显示隐藏点位](../figures/system_tuning/selected_zoom_region_1.png "选中放大区域")
 
 > [!NOTE]
 >
-> - 单击折线图右上角![](../figures/system_tuning/zh-cn_image_0000002500040358.png)按钮，使其为置灰状态，则折线图将锁定，不再支持鼠标左键框选放大功能；再次单击此按钮，或者单击鼠标右键即可恢复。放大功能默认开启。
-> - 单击折线图右上方![](../figures/system_tuning/zh-cn_image_0000002532040259.png)按钮，折线图将会恢复最初状态。
-> - 单击折线图右上方![](../figures/system_tuning/back.png)按钮，折线图将会回到上一步操作。
-> - 单击折线图右上方![](../figures/system_tuning/go_to_timeline.png)按钮，将会跳转到对应时间域的时间线页签。
+> - 单击折线图右上角![折线图右上角的锁定按钮，单击置灰后锁定折线图，不再支持鼠标左键框选放大](../figures/system_tuning/zh-cn_image_0000002500040358.png)按钮，使其为置灰状态，则折线图将锁定，不再支持鼠标左键框选放大功能；再次单击此按钮，或者单击鼠标右键即可恢复。放大功能默认开启。
+> - 单击折线图右上方![折线图右上方的恢复按钮，单击后折线图恢复到最初的整体展示状态](../figures/system_tuning/zh-cn_image_0000002532040259.png)按钮，折线图将会恢复最初状态。
+> - 单击折线图右上方![折线图右上方的回退按钮，单击后折线图回到上一步操作](../figures/system_tuning/back.png)按钮，折线图将会回到上一步操作。
+> - 单击折线图右上方![折线图右上方的跳转按钮，单击后跳转到对应时间域的时间线页签](../figures/system_tuning/go_to_timeline.png)按钮，将会跳转到对应时间域的时间线页签。
 
 **支持搜索算子**
 
@@ -107,13 +109,13 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 
 - 动态图场景
 
-    在表格的表头，单击参数名称后的![](../figures/system_tuning/zh-cn_image_0000002531920231.png)，可搜索相关信息。“名称”列支持模糊输入算子名称，进行搜索；“大小”、“时长”等其它参数支持区间搜索，如[**图 6** 搜索算子](#搜索算子-1)所示，参数说明如[**表 1** 动态图字段说明](#动态图字段说明)所示。
+    在表格的表头，单击参数名称后的![动态图算子内存申请/释放详情表表头参数名称后的搜索按钮，单击可展开搜索条件](../figures/system_tuning/zh-cn_image_0000002531920231.png)，可搜索相关信息。“名称”列支持模糊输入算子名称，进行搜索；“大小”、“时长”等其它参数支持区间搜索，如[**图 6** 搜索算子](#搜索算子-1)所示，参数说明如[**表 1** 动态图字段说明](#动态图字段说明)所示。
 
     如果在表格上方勾选了“只显示在选中区间内分配或释放的”选项，那么查询到的算子即是在折线图中框选区域内分配或释放的算子。
 
     **图 6** 搜索算子<a id="搜索算子-1"></a>
 
-    ![](../figures/system_tuning/search_operators_1_1.png "搜索算子-1")
+    ![动态图场景下按算子名称模糊搜索、按大小和时长区间搜索的筛选结果界面](../figures/system_tuning/search_operators_1_1.png "搜索算子-1")
 
     **表 1** 动态图字段说明<a id="动态图字段说明"></a>
 
@@ -141,7 +143,7 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 
     **图 7** 静态图搜索算子<a id="静态图搜索算子"></a>
 
-    ![](../figures/system_tuning/static_graph_search_operators_1.png "静态图搜索算子")
+    ![静态图场景下在筛选条件栏输入算子名称与内存大小区间后单击查询的搜索结果界面](../figures/system_tuning/static_graph_search_operators_1.png "静态图搜索算子")
 
     **表 2** 静态图字段说明<a id="静态图字段说明"></a>
 
@@ -158,7 +160,7 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 
     **图 8** 组件级内存申请/释放详情<a id="组件级内存申请/释放详情"></a>
 
-    ![](../figures/system_tuning/component_level_memory_allocation_deallocation_details_1.png "组件级内存申请-释放详情")
+    ![分组方式选择组件时的内存申请/释放详情表，展示组件、保留内存峰值和时间戳字段](../figures/system_tuning/component_level_memory_allocation_deallocation_details_1.png "组件级内存申请/释放详情")
 
     **表 3** 字段说明<a id="字段说明"></a>
 
@@ -176,7 +178,7 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 
 **图 9** 算子高亮显示<a id="算子高亮显示"></a>
 
-![](../figures/system_tuning/highlight_operators_1.png "算子高亮显示")
+![鼠标移入表格某条数据时，折线图上对应算子点位高亮显示的效果](../figures/system_tuning/highlight_operators_1.png "算子高亮显示")
 
 **支持卡间性能对比**
 
@@ -188,4 +190,4 @@ MindStudio Insight支持卡间内存性能对比，设置对比数据请参见[�
 
 **图 10** 性能对比<a id="性能对比"></a>
 
-![](../figures/system_tuning/performance_comparison_1.png "性能对比")
+![卡间性能对比模式下的内存界面，折线图与详情表同时展示两卡内存数据差异](../figures/system_tuning/performance_comparison_1.png "性能对比")

@@ -1,5 +1,7 @@
 # 安装指南：Linux系统
 
+本文档介绍Linux系统下MindStudio Insight的安装与卸载方法，涵盖X11和VNC两种转发方式的依赖安装、VNC Server设置及端口转发配置，适用于需要在Linux服务器上安装使用MindStudio Insight的开发者。
+
 ## 安装MindStudio Insight
 
 <a id="安装操作linux"></a>
@@ -18,7 +20,7 @@
 
 - 转发方式
 
-    当本地无Linux服务器时，可通过连接远端的Linux服务器，使用X11、VNC、XRDP等方式将远端Linux服务器中的桌面或软件界面转发到本地显示，例如，本地Windows桌面显示Linux服务器上的应用程序界面。MindStudio Insight可通过转发能力，在Linux服务器上实现界面转发，便于开发者使用。不过与本地方式相比，转发方式受网络性能影响，可能存在网络延时，会造成工具安装使用过程中出现卡顿问题。
+    当本地无Linux服务器时，可通过连接远端的Linux服务器，使用X11、VNC、xRDP等方式将远端Linux服务器中的桌面或软件界面转发到本地显示，例如，本地Windows桌面显示Linux服务器上的应用程序界面。MindStudio Insight可通过转发能力，在Linux服务器上实现界面转发，便于开发者使用。不过与本地方式相比，转发方式受网络性能影响，可能存在网络延迟，会造成工具安装使用过程中出现卡顿问题。
 
 本文档主要介绍X11和VNC两种转发方式，开发者可根据实际情况选择其中一种转发方式，可参见[**表 1**  转发方式说明](#转发方式说明)进行选择。通过转发方式安装使用MindStudio Insight，首先需要安装转发方式和软件依赖，安装操作请参见[安装依赖](#安装依赖)章节。
 
@@ -43,11 +45,11 @@
 |--|--|
 |硬件|- 内存：最小4GB，推荐8GB及以上<br> - 磁盘空间：最小6GB|
 |系统要求|- glibc版本应大于或等于2.27<br> - 操作系统自带GUI桌面或具有X11或VNC转发功能|
-|支持的操作系统|以apt作为包管理软件类型的操作系统：<br> - Ubuntu 18.04-x86_64/aarch64<br> - Ubuntu 20.04-x86_64/aarch64<br> - Ubuntu 22.04-x86_64/aarch64<br> - CentOS 8.2-x86_64/aarch64<br> - Debian 10.0<br> - Debian 10.8<br> 以yum/dnf作为包管理软件类型的操作系统：<br> - EulerOS 2.8-aarch64<br> - EulerOS 2.12-aarch64<br> - OpenEuler 20.03-x86_64/aarch64<br> - OpenEuler 22.03 LTS-x86_64/aarch64<br> - OpenEuler 22.03 LTS<br> - OpenEuler 22.03 LTS SP4<br> - HCE 2.0<br> - CUlinux 3.0<br> - Kylin V10 SP3<br> - EulerOS 2.13-aarch64<br> - HCE 2.0.2503-x86<br> - Tlinux 3.1-内核版本5.4<br> - BClinux 21.10 U4<br> - TencentOS Server 4.4-x86|
+|支持的操作系统|以apt作为包管理软件类型的操作系统：<br> - Ubuntu 18.04-x86_64/aarch64<br> - Ubuntu 20.04-x86_64/aarch64<br> - Ubuntu 22.04-x86_64/aarch64<br> - CentOS 8.2-x86_64/aarch64<br> - Debian 10.0<br> - Debian 10.8<br> 以yum/dnf作为包管理软件类型的操作系统：<br> - EulerOS 2.8-aarch64<br> - EulerOS 2.12-aarch64<br> - openEuler 20.03-x86_64/aarch64<br> - openEuler 22.03 LTS-x86_64/aarch64<br> - openEuler 22.03 LTS<br> - openEuler 22.03 LTS SP4<br> - HCE 2.0<br> - CULinux 3.0<br> - Kylin V10 SP3<br> - EulerOS 2.13-aarch64<br> - HCE 2.0.2503-x86<br> - Tlinux 3.1-内核版本5.4<br> - BClinux 21.10 U4<br> - TencentOS Server 4.4-x86|
 
 > [!NOTE]
 >
-> 在直通虚拟机velinux 5.15系统上安装和使用MindStudio Insight工具时，推荐使用JupyterLab插件的安装方式使用MindStudio Insight工具，JupyterLab插件安装请参见[安装操作（JupyterLab插件）](./mindstudio_insight_install_jupyterlab.md#安装操作jupyterlab插件)章节进行操作。
+> 在直通虚拟机veLinux 5.15系统上安装和使用MindStudio Insight工具时，推荐使用JupyterLab插件的安装方式使用MindStudio Insight工具，JupyterLab插件安装请参见[安装操作（JupyterLab插件）](./mindstudio_insight_install_jupyterlab.md#安装操作jupyterlab插件)章节进行操作。
 
 <a id="安装依赖"></a>
 
@@ -63,7 +65,7 @@
 | --- | --- |
 | libwebkit2gtk-4.0-dev | Ubuntu系统中，MindStudio Insight显示运行依赖的库文件，必选。 |
 | gtk3-devel webkit2gtk4.1-devel | CentOS系统中，MindStudio Insight显示运行依赖的库文件，必选。 |
-| gtk3-devel webkit2gtk3-devel | EulerOS和OpenEuler系统中，MindStudio Insight显示运行依赖的库文件，必选。 |
+| gtk3-devel webkit2gtk3-devel | EulerOS和openEuler系统中，MindStudio Insight显示运行依赖的库文件，必选。 |
 | xterm | MindStudio Insight通过X11转发的依赖文件。当选择X11转发方式时，所有系统必选。 |
 | x11-apps | Ubuntu系统中，MindStudio Insight通过X11转发的依赖文件。当选择X11转发方式时，必选。 |
 | xorg-x11-xauth | CentOS、EulerOS和OpenEuler系统中，MindStudio Insight通过X11转发的依赖文件。当选择X11转发方式时，必选。 |
@@ -123,7 +125,7 @@
         sudo apt install -y libwebkit2gtk-4.0-dev
         ```
 
-    - CentOS/EulerOS/OpenEuler等以yum/dnf作为包管理软件类型的操作系统
+    - CentOS/EulerOS/openEuler等以yum/dnf作为包管理软件类型的操作系统
 
         1. 执行以下命令，查询webkit2gtk库文件。
 
@@ -155,7 +157,7 @@
 
         > [!NOTE]
         >
-        > EulerOS 2.12操作系统是基于OpenEuler 22.03 LTS SP1开发，需要先配置OpenEuler 22.03 LTS SP1的源，再执行安装命令。配置OpenEuler的源具体操作请参见[OpenEuler软件源配置](https://mirrors.huaweicloud.com/mirrorDetail/5ebe3408c8ac54047fe607f0?mirrorName=openeuler&catalog=os)。
+        > EulerOS 2.12操作系统是基于openEuler 22.03 LTS SP1开发，需要先配置OpenEuler 22.03 LTS SP1的源，再执行安装命令。配置OpenEuler的源具体操作请参见[OpenEuler软件源配置](https://mirrors.huaweicloud.com/mirrorDetail/5ebe3408c8ac54047fe607f0?mirrorName=openeuler&catalog=os)。
 
 2. 使用root用户，执行以下命令，安装MindStudio Insight通过VNC转发的桌面依赖。
 
@@ -223,13 +225,13 @@
 
 3. 输入密码后，回显如下：<a id="3"></a>
 
-    ```ColdFusion
+    ```output
     Would you like to enter a view-only password (y/n)?
     ```
 
     按照提示输入n，回显如下，创建启动脚本、默认配置等，首行中的`x`值根据实际情况显示，表示显示序号。
 
-    ```ColdFusion
+    ```output
     New 'localhost.localdomain:x' desktop is localhost.localdomain:x
     Creating default startup script /home/xxx/.vnc/xstartup
     Creating default config /home/xxx/.vnc/config
@@ -280,13 +282,13 @@ vncserver -localhost -geometry 1920x1080
 
     **图 1** 新建SSH配置
 
-    ![](./figures/install_guide/create_new_ssh_config_1.png "新建SSH配置")
+    ![MobaSSHTunnel中New SSH Tunnel新建SSH配置窗口，需设置隧道名称与本地端口转发类型](./figures/install_guide/create_new_ssh_config_1.png "新建SSH配置")
 
 3. 选择“Local port forwarding”，按照[**表 5** 配置Local port forwarding页面信息](#配置Local_port_forwarding页面信息)配置页面信息。
 
     **图 2** Local port forwarding
 
-    ![](./figures/install_guide/Local-port-forwarding.png "Local-port-forwarding")
+    ![MobaXterm的Local port forwarding配置页面，需填写Remote server、Remote port与SSH server等参数](./figures/install_guide/Local-port-forwarding.png "Local-port-forwarding")
 
     **表 5** 配置Local port forwarding页面信息<a id="配置Local_port_forwarding页面信息"></a>
 
@@ -300,7 +302,7 @@ vncserver -localhost -geometry 1920x1080
     |Forwarded port|端口转发到本地Windows对应的端口，可以与Remote port一致。|5901|
 
 4. 单击“Save”，完成SSH配置。
-5. 在MobaSSHTunnel弹窗中，选择已配置好的SSH Tunnel，单击![](./figures/install_guide/zh-cn_image_0000002517624245.png)，即可开启端口转发。
+5. 在MobaSSHTunnel弹窗中，选择已配置好的SSH Tunnel，单击![MobaSSHTunnel弹窗中的SSH Tunnel启动图标，单击后开启端口转发](./figures/install_guide/zh-cn_image_0000002517624245.png)，即可开启端口转发。
 
     如果SSH配置中的“SSH login”参数，填写的是用户名，首次启动SSH Tunnel的时候会弹出一个对话框，输入用户对应的密码即可启动SSH Tunnel。
 
@@ -316,13 +318,13 @@ vncserver -localhost -geometry 1920x1080
 
     **图 3** 配置VNC
 
-    ![](./figures/install_guide/configure_vnc_1.png "配置VNC")
+    ![MobaXterm新建VNC会话的Session settings页面，需填写Remote hostname or IP address与Port](./figures/install_guide/configure_vnc_1.png "配置VNC")
 
 3. 配置完成后，单击“OK”，在弹窗中输入VNC的密码后，将桌面转发至本地进行后续操作。
 
     **图 4** 桌面
 
-    ![](./figures/install_guide/desktop_1.png "桌面")
+    ![VNC连接成功后转发至本地的远端Linux桌面画面，可在此基础上继续操作MindStudio Insight](./figures/install_guide/desktop_1.png "桌面")
 
 <a id="安装x11转发方式"></a>
 
@@ -367,7 +369,7 @@ vncserver -localhost -geometry 1920x1080
 
             回显信息如下：
 
-            ```ColdFusion
+            ```output
             = Name 和 Summary 匹配：webkit2gtk =====================================================================================
             webkit2gtk3-devel.aarch64 : Development files for webkit2gtk3
             webkit2gtk3-help.noarch : Documentation files for webkit2gtk3
@@ -431,7 +433,7 @@ vncserver -localhost -geometry 1920x1080
 
 > [!NOTE]
 >
-> - 如果在EulerOS系统上运行MindStudio Insight，单击界面左上方工具栏中的![](./figures/install_guide/zh-cn_image_0000002485304398.png)，无法弹出导入选择框，解决方法可参见[EulerOS等系统上运行MindStudio Insight工具无法弹出数据导入选择框](../support/faq.md#faq-euleros-import-dialog)。
+> - 如果在EulerOS系统上运行MindStudio Insight，单击界面左上方工具栏中的![MindStudio Insight界面左上方工具栏中的数据导入图标，正常情况下单击可弹出导入选择框](./figures/install_guide/zh-cn_image_0000002485304398.png)，无法弹出导入选择框，解决方法可参见[EulerOS等系统上运行MindStudio Insight工具无法弹出数据导入选择框](../support/faq.md#faq-euleros-import-dialog)。
 > - 在X11转发方式下运行MindStudio Insight时，如果出现输入框信息粘贴不符合预期，造成输入信息错误的情况，具体解决方法可参见[通过X11转发方式运行MindStudio Insight工具时，输入框信息粘贴有误](../support/faq.md#faq-x11-paste-error)。
 
 ## 升级MindStudio Insight

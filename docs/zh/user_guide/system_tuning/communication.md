@@ -55,24 +55,24 @@
 |通信时长|Visualized Communication Time|可视化通信时长图。|
 |Time(ms)|Time(ms)|通信时长图表中的左侧纵坐标表示时长，单位ms。|
 |Ratio|Ratio|通信时长图表中的右侧纵坐标表示耗时占比。|
-|通信时长数据分析|Data Analysis of Communication Time|算子的通信时长数据分析。鼠标移入表格中，单击![](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。|
+|通信时长数据分析|Data Analysis of Communication Time|算子的通信时长数据分析。鼠标移入表格中，单击![通信时长数据分析表格的复制按钮图标，单击可将表格当前内容一键复制](../figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，一键复制表中当前所展示的内容，并粘贴至Excel表格中进行分析。|
 |卡序号|Rank ID|卡序号。|
-|总时间(ms)|Elapsed Time(ms)|通信算子所有事件总耗时。|
-|传输时间(ms)|Transit Time(ms)|通信时长。表示通信算子的通信耗时，统计SDMA链路（server内通信）和RDMA链路（server间通信）的通信算子总耗时。如果通信耗时过长，可能是某条链路存在问题。|
-|同步时间(ms)|Synchronization Time(ms)|同步时长。卡间第一次通信前节点之间进行同步需要的时长，用来区分等待时间过长是慢节点还是慢链路造成的。|
-|等待时间(ms)|Wait Time(ms)|等待时长。节点之间通信前首先需要进行同步，确保通信的两个节点同步完成，再进行通信。|
+|总时间（ms）|Elapsed Time(ms)|通信算子所有事件总耗时。|
+|传输时间（ms）|Transit Time(ms)|通信时长。表示通信算子的通信耗时，统计SDMA链路（server内通信）和RDMA链路（server间通信）的通信算子总耗时。如果通信耗时过长，可能是某条链路存在问题。|
+|同步时间（ms）|Synchronization Time(ms)|同步时长。卡间第一次通信前节点之间进行同步需要的时长，用来区分等待时间过长是慢节点还是慢链路造成的。|
+|等待时间（ms）|Wait Time(ms)|等待时长。节点之间通信前首先需要进行同步，确保通信的两个节点同步完成，再进行通信。|
 |同步时间占比|Synchronization Time Ratio|同步时长占比。同步时长占比（Synchronization Time Ratio） = 同步时长（Synchronization Time） / (同步时长（Synchronization Time） + 通信时长（Transit Time）)，通信前的同步时长占比越大说明通信效率越低，可能存在慢卡的情况。|
 |等待时间占比|Wait Time Ratio|通信算子的等待时长占比。等待时长占比（Wait Time Ratio） = 等待时长（Wait Time）/ (等待时长（Wait Time） + 通信时长（Transit Time）)，等待时长占比越大代表该节点的等待时长占总通信耗时越长，通信效率越低。|
-|空闲时间(ms)|Idle Time(ms)|通信算子下发耗时。通信算子下发耗时（Idle Time）= 算子的通信总耗时（Elapsed Time）- 通信时长（Transit Time）- 等待时长（Wait Time）。|
-|SDMA带宽(GB)|SDMA BW(GB)|SDMA带宽。|
-|RDMA带宽(GB)|RDMA BW(GB)|RDMA带宽。|
+|空闲时间（ms）|Idle Time(ms)|通信算子下发耗时。通信算子下发耗时（Idle Time）= 算子的通信总耗时（Elapsed Time）- 通信时长（Transit Time）- 等待时长（Wait Time）。|
+|SDMA带宽（GB）|SDMA BW(GB)|SDMA带宽。|
+|RDMA带宽（GB）|RDMA BW(GB)|RDMA带宽。|
 |带宽分析|Bandwidth Analysis|带宽分析。单击对应的“查看更多”后可查看对应节点指定算子的带宽详情，如[**图 3** 带宽分析](#带宽分析)所示。|
 |通信算子详情|Communication Operators Details|通信算子的详情，当“算子名称”选择“Total Op info”时可见。单击对应的查看更多后可查看对应节点通信算子的链路详情，如[**图 4** 通信算子详情](#通信算子详情)所示。|
 |专家建议|Advice|对导入的数据进行分析并给出合理的专家建议。分别从带宽、字节对齐、通信重传，以及通信小包维度进行分析，并给出合理建议和优化策略，如[**图 5** 专家建议](#专家建议)所示。|
 
 **图 3** 带宽分析<a id="带宽分析"></a>
 
-![](../figures/system_tuning/bandwidth_analysis_1.png "带宽分析")
+![带宽分析页面：以全网链路为粒度列出包数量、包大小、链路方式、传输大小、传输时长、带宽及大通信包占比](../figures/system_tuning/bandwidth_analysis_1.png "带宽分析")
 
 带宽分析页面是以全网链路为粒度展示通信性能，包括通信时长、通信量、带宽以及链路类型等，图中各字段解释如[**表 3** 带宽分析字段说明](#带宽分析字段说明)所示。
 
@@ -83,17 +83,17 @@
 |包数量|Packet Number|通信包数量。|
 |包大小（MB）|Packet Size(MB)|通信包大小。|
 |链路方式|Transport Type|链路方式。|
-|SDMA|SDMA|SDMA链路（节点内Device间通信链路），包括HCCS、PCIE和SIO三种类型。|
+|SDMA|SDMA|SDMA链路（节点内Device间通信链路），包括HCCS、PCIe和SIO三种类型。|
 |RDMA|RDMA|RDMA链路（跨节点Device间通信链路）。|
 |UB|UB|UB链路（超节点内Device间通信链路）。|
 |传输大小（MB）|Transit Size(MB)|一次通信包的大小。|
-|传输时长(ms)|Transit Time(ms)|一次通信的时长。|
-|带宽(GB/s)|Bandwidth(GB/s)|带宽。带宽一般为通信量除以通信时间。经验带宽参考值分别为RDMA_Bandwidth = 12.5，HCCS_Bandwidth = 18，PCIe_Bandwidth = 20。|
+|传输时长（ms）|Transit Time(ms)|一次通信的时长。|
+|带宽（GB/s）|Bandwidth(GB/s)|带宽。带宽一般为通信量除以通信时间。经验带宽参考值分别为RDMA_Bandwidth = 12.5，HCCS_Bandwidth = 18，PCIe_Bandwidth = 20。|
 |大通信包占比|Large Packet Ratio|大通信包占比。通信包的大小足以使得通信链路能达到经验带宽的包的比率。|
 
 **图 4** 通信算子详情<a id="通信算子详情"></a>
 
-![](../figures/system_tuning/communication_operator_details_1.png "通信算子详情")
+![通信算子详情表：以算子粒度列出总时间、传输时间、同步与等待时间占比、SDMA与RDMA带宽及跳转操作入口](../figures/system_tuning/communication_operator_details_1.png "通信算子详情")
 
 以算子粒度展示通信性能，包括该通信算子的通信时长、等待时长以及同步时长等，图中各字段解释可参考[**表 4** 通信算子详情字段说明](#通信算子详情字段说明)。
 
@@ -145,7 +145,7 @@
 
 **图 5** 专家建议<a id="专家建议"></a>
 
-![](../figures/system_tuning/expert_recommendation_1.png "专家建议")
+![专家建议面板：按总览、SDMA和RDMA维度给出带宽说明，并给出字节对齐、通信重传与通信小包分析建议](../figures/system_tuning/expert_recommendation_1.png "专家建议")
 
 ## 使用说明
 
@@ -157,7 +157,7 @@
 
         **图 6** 通信算子缩略图<a id="通信算子缩略图"></a>
 
-        ![](../figures/system_tuning/communication_operator_thumbnail_1.png "通信算子缩略图")
+        ![通信算子缩略图：单击单个算子后悬浮显示其所属卡序号、算子名称、开始时间和总耗时](../figures/system_tuning/communication_operator_thumbnail_1.png "通信算子缩略图")
 
         **表 6** 算子悬浮显示字段说明<a id="算子悬浮显示字段说明"></a>
 
@@ -185,7 +185,7 @@
 |上 / 下方向键|按完整 Rank 行上下移动。|
 |Esc|退出图表键盘操作。|
 
-缩放以绘图区内的鼠标位置为中心；鼠标不在绘图区时，以视窗中心缩放。支持长按连续操作。时间轴每次按 1.2 倍缩放，平移步长为当前可见范围的 10%。单击右上方的重置缩放图标，可恢复完整时间范围和全部 Rank；全量视图下该图标置灰。
+缩放以绘图区内的鼠标位置为中心；鼠标不在绘图区时，以视窗中心缩放。支持长按连续操作。时间轴每次按1.2倍缩放，平移步长为当前可见范围的10%。单击右上方的重置缩放图标，可恢复完整时间范围和全部Rank；全量视图下该图标置灰。
 
 **支持通信算子联动**
 
@@ -195,7 +195,7 @@
 
 **图 7** 跳转至时间线视图<a id="跳转至时间线视图"></a>
 
-![](../figures/system_tuning/jump_to_timeline_view_1.png "跳转至时间线视图")
+![通信算子缩略图中右键单击单个算子，弹出菜单中选择“跳转至时间线视图”的操作入口](../figures/system_tuning/jump_to_timeline_view_1.png "跳转至时间线视图")
 
 在时间线（Timeline）界面，选择单个通信算子，单击鼠标右键，单击“在通信中查找”，可跳转至通信（Communication）界面的通信算子缩略图，筛选框会自动匹配该算子对应的信息，如[**图 8** 跳转至通信算子缩略图](#跳转至通信算子缩略图)所示。
 
@@ -205,7 +205,7 @@
 
 **图 8** 跳转至通信算子缩略图<a id="跳转至通信算子缩略图"></a>
 
-![](../figures/system_tuning/jump_to_communication_operator_thumbnail_1.png "跳转至通信算子缩略图")
+![时间线视图中右键单击通信算子选择“在通信中查找”，跳转后通信界面筛选框自动匹配该算子信息](../figures/system_tuning/jump_to_communication_operator_thumbnail_1.png "跳转至通信算子缩略图")
 
 **支持通信算子一键对齐**
 
@@ -217,7 +217,7 @@
 
 **图 9** 算子对齐<a id="算子对齐"></a>
 
-![](../figures/system_tuning/operator_alignment_1.png "算子对齐")
+![通信算子缩略图中右键选择“根据选中算子对齐”后，同通信域内同名算子按尾部时间对齐的效果](../figures/system_tuning/operator_alignment_1.png "算子对齐")
 
 **支持筛选数据可视范围**
 
@@ -225,7 +225,7 @@
 
 **图 10** 筛选范围<a id="筛选范围"></a>
 
-![](../figures/system_tuning/filter_range_1.png "筛选范围")
+![通信矩阵界面“筛选范围”输入框填写可视范围并单击“确认”后，模型图按所选范围刷新](../figures/system_tuning/filter_range_1.png "筛选范围")
 
 **支持快速分析并定位异常通信算子**<a id="支持快速分析并定位异常通信算子"></a>
 
@@ -235,7 +235,7 @@
 
 **图 11** 慢卡列表<a id="慢卡列表"></a>
 
-![](../figures/system_tuning/slow_card_list_1.png "慢卡列表")
+![通信算子缩略图下方展示排名Top3慢卡列表及其Top3异常算子，含耗时差值与耗时字段](../figures/system_tuning/slow_card_list_1.png "慢卡列表")
 
 > [!NOTE]
 >
@@ -268,7 +268,7 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
     **图 12** 通信矩阵对比模式<a id="通信矩阵对比模式"></a>
 
-    ![](../figures/system_tuning/communication_matrix_comparison_mode_1.png "通信矩阵对比模式")
+    ![对比模式下的通信矩阵热力图，窗格显示对比数据与基线数据的差异值，选中模型框可查看双方详情](../figures/system_tuning/communication_matrix_comparison_mode_1.png "通信矩阵对比模式")
 
 - 通信耗时分析（Communication Duration Analysis）
 
@@ -278,10 +278,10 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
     **图 13** 通信界面对比模式<a id="通信界面对比模式"></a>
 
-    ![](../figures/system_tuning/communication_interface_comparison_mode_1.png "通信界面对比模式")
+    ![对比模式下通信界面显示对比迭代ID与基线迭代ID，缩略图中选中算子显示基线与对比数据各自的详情、柱状图中选中柱显示两者差值](../figures/system_tuning/communication_interface_comparison_mode_1.png "通信界面对比模式")
 
     在“通信时长数据分析”区域，无“带宽分析”参数，显示对比数据和基线数据的差值，单击“通信算子详情”列的“查看更多”，显示对比数据和基线数据的详细信息，如[**图 14** 通信时长数据分析对比详情](#通信时长数据分析对比详情)所示。
 
     **图 14** 通信时长数据分析对比详情<a id="通信时长数据分析对比详情"></a>
 
-    ![](../figures/system_tuning/communication_duration_data_analysis_comparison_details_1.png "通信时长数据分析对比详情")
+    ![对比模式下通信时长数据分析区域无带宽分析参数，显示对比数据与基线数据的差值，可查看更多详情](../figures/system_tuning/communication_duration_data_analysis_comparison_details_1.png "通信时长数据分析对比详情")

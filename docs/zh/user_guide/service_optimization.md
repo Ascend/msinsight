@@ -48,7 +48,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 时间线（Timeline）界面包含工具栏（区域一）、图形化展示（区域二）和数据窗格（区域三）三个部分，如[**图 1** 时间线界面](#时间线界面)所示。
 
 **图 1** 时间线界面<a id="时间线界面"> </a>
-![](./figures/service_optimization/timeline_interface_11_1.png "时间线界面-11")
+![时间线界面整体布局：左侧工具栏与图形化泳道、下方数据窗格的三区域划分](./figures/service_optimization/timeline_interface_11_1.png "时间线界面-11")
 
 - 区域一：工具栏，包含常用快捷按钮，从左至右依次为标记列表、过滤（支持按卡或按泳道过滤展示）、搜索、连线事件、重置缩放（页面复原）和时间轴缩小放大按钮。
 - 区域二：图形化展示，左侧显示服务化采集的性能数据，一层级为进程，二层级为请求的各个关键阶段信息，具体泳道信息请参见[泳道信息](#泳道信息)。右侧为时间线视图，逐行对时间线进行图形化展现，包括各关键阶段执行序列和执行时长。
@@ -81,7 +81,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 |preprocessBatch|IBIS数据下发中给batch添加参数的时间，单位ns。|
 |SerializeExecuteMessage|IBIS数据下发中序列化时间，单位ns。|
 |setInferBuffer|IBIS数据下发中设置buffer时间，单位ns。|
-|grpcWriteToSlave|IBIS数据下发中gRPC写，单位ns。|
+|grpcWriteToSlave|IBIS数据下发中gRPC写时间，单位ns。|
 |deserializeExecuteRequestsForInfer|IBIS数据下发中反序列化时间，单位ns。|
 |convertTensorBatchToBackend|IBIS数据下发中request转化时间，单位ns。|
 |getInputMetadata|IBIS数据下发中获取metadata时间，单位ns。|
@@ -115,7 +115,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 当选中单个关键阶段色块时，可在下方“选中详情”页签中显示该关键阶段的详情信息，当“选中详情”中存在res\_list信息时，单击表格中rid列表的任意一行，会在“选中详情”的右侧区域显示对应rid的request详细信息，request详情根据实际采集的信息动态显示，如[**图 2** 选中详情](#选中详情-12)所示，字段解释如[**表 3** 选中详情字段解释](#选中详情字段解释)所示。
 
 **图 2** 选中详情<a id="选中详情-12"></a>
-![](./figures/service_optimization/selected_details_12_1.png "选中详情-12")
+![选中详情页签展示单个关键阶段详情：字段列表与右侧rid对应的request信息](./figures/service_optimization/selected_details_12_1.png "选中详情-12")
 
 **表 3** 选中详情字段解释<a id="选中详情字段解释"></a>
 
@@ -133,10 +133,10 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 
 服务化数据包括kvcache\_usage、batch\_info、request\_data和forward\_info等页签，如[**图 3** 系统视图](#系统视图)所示。
 
-选择任一服务化数据，右侧区域会显示对应的详细信息，字段解释如[**表 4** 服务化视图字段说明](#服务化视图字段说明)所示，且各字段支持搜索，在字段名称后单击![](./figures/service_optimization/zh-cn_image_0000002500200444.png)，可搜索所需信息。
+选择任一服务化数据，右侧区域会显示对应的详细信息，字段解释如[**表 4** 服务化视图字段说明](#服务化视图字段说明)所示，且各字段支持搜索，在字段名称后单击![字段名称后的搜索按钮图标，单击可按字段名搜索所需信息](./figures/service_optimization/zh-cn_image_0000002500200444.png)，可搜索所需信息。
 
 **图 3** 系统视图<a id="系统视图"></a>
-![](./figures/service_optimization/system_view_1.png "系统视图")
+![系统视图页签：卡序号选框与服务化数据页签列表，右侧为对应字段详情表格](./figures/service_optimization/system_view_1.png "系统视图")
 
 **表 4** 服务化视图字段说明<a id="服务化视图字段说明"></a>
 
@@ -159,7 +159,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 |dp*_rid|dp*_rid|DP域包含的请求ID，*表示DP域ID，取值为[0, n-1]。|
 |dp*_size|dp*_size|DP域的batchsize，*表示DP域ID，取值为[0, n-1]。|
 |dp*_forward_ms|dp*_forward_ms|DP域中执行时长最长的forward的执行时间，单位ms，*表示DP域ID，取值为[0, n-1]。|
-|**request_data**|**request_data**|服务化推理请求为粒度的详细数据，包括TTFT，请求的输入输出长度信息。|
+|**request_data**|**request_data**|服务化推理请求为粒度的详细数据，包括TTFT、请求的输入输出长度信息。|
 |http_rid|http_rid|HTTP请求ID。|
 |start_time_ms|start_time_ms|请求到达的时间，单位ms。|
 |recv_token_size|recv_token_size|请求的输入长度。|
@@ -188,25 +188,25 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 在时间线（Timeline）界面，选择任一泳道的任意一个色块，单击鼠标右键，选择“生成该色块执行时间折线图”或“生成该色块空泡折线图”，跳转至折线图（Curve）界面，生成该色块所在泳道的对应折线图和数据详情，显示平均持续时间和持续时间，如[**图 4** 生成色块折线图](#生成色块折线图)所示。
 
 **图 4** 生成色块折线图<a id="生成色块折线图"> </a>
-![](./figures/service_optimization/generate_heatmap_line_chart_1.png "生成色块折线图")
+![生成色块折线图后的折线图界面：该泳道平均持续时间与持续时间数据详情](./figures/service_optimization/generate_heatmap_line_chart_1.png "生成色块折线图")
 
 如果在折线图中发现异常，需要定位异常点，可区域放大选择需查看的异常点，在折线图下方数据详情表格中找到对应数据，在数据所在行单击鼠标右键，选择“跳转至时间线视图”，可跳转至时间线（Timeline）界面，定位至具体的色块上，如[**图 5** 跳转至时间线视图](#跳转至时间线视图-13)所示。
 
 **图 5** 跳转至时间线视图<a id="跳转至时间线视图-13"> </a>
-![](./figures/service_optimization/jump_to_timeline_view_13_1.png "跳转至时间线视图-13")
+![跳转至时间线视图后定位到的具体色块在对应泳道上的位置展示](./figures/service_optimization/jump_to_timeline_view_13_1.png "跳转至时间线视图-13")
 
 ## 折线图（Curve）
 
 ### 功能说明
 
-支持以折线图和数据详情表的形式展示具体数据变化，便于直观的分析。仅当导入profiler.db文件时，展示折线图（Curve）界面。
+支持以折线图和数据详情表的形式展示具体数据变化，便于直观地分析。仅当导入profiler.db文件时，展示折线图（Curve）界面。
 
 ### 界面介绍
 
 折线图（Curve）界面由参数配置栏（区域一）、折线数据（区域二）和表格数据详情（区域三）三个部分组成，如[**图 6** 折线图界面](#折线图界面)所示。
 
 **图 6** 折线图界面<a id="折线图界面"> </a>
-![](./figures/service_optimization/line_chart_interface_1.png "折线图界面")
+![折线图界面三区域布局：参数配置栏、折线图数据与SQLite数据详情表格](./figures/service_optimization/line_chart_interface_1.png "折线图界面")
 
 - 区域一：参数配置栏，包含卡序号和分组方式。
 - 区域二：折线数据，以折线图形式展示数据的变化情况。
@@ -223,10 +223,10 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
 在折线图中也可单击正上方的图例，选择隐藏所需的折线，隐藏后，该折线在图中不展示，对应图例置灰，再次单击置灰图例，可将其重新展示。
 
 **图 7** 选中放大区域<a id="选中放大区域-14"> </a>
-![](./figures/service_optimization/selected_zoom_region_14_1.png "选中放大区域-14")
+![折线图中框选放大的区域，放大后展示框选范围内被隐藏的数据点](./figures/service_optimization/selected_zoom_region_14_1.png "选中放大区域-14")
 
 > [!NOTE]
 >
-> - 单击折线图右上角![](./figures/service_optimization/zh-cn_image_0000002500040464.png)按钮，使其为置灰状态，则折线图将锁定，不再支持鼠标左键框选放大功能；再次单击此按钮，或者单击鼠标右键即可恢复。放大功能默认开启。
-> - 单击折线图右上角![](./figures/service_optimization/zh-cn_image_0000002500200460.png)按钮，折线图将会撤销一次放大操作。
-> - 单击折线图右上方![](./figures/service_optimization/zh-cn_image_0000002532040385.png)按钮，折线图将会恢复最初状态。
+> - 单击折线图右上角![折线图右上角放大锁定按钮图标，单击置灰后锁定框选放大功能](./figures/service_optimization/zh-cn_image_0000002500040464.png)按钮，使其为置灰状态，则折线图将锁定，不再支持鼠标左键框选放大功能；再次单击此按钮，或者单击鼠标右键即可恢复。放大功能默认开启。
+> - 单击折线图右上角![折线图右上角撤销放大按钮图标，单击撤销一次框选放大操作](./figures/service_optimization/zh-cn_image_0000002500200460.png)按钮，折线图将会撤销一次放大操作。
+> - 单击折线图右上方![折线图右上方的恢复初始状态按钮图标，单击使折线图恢复最初展示](./figures/service_optimization/zh-cn_image_0000002532040385.png)按钮，折线图将会恢复最初状态。

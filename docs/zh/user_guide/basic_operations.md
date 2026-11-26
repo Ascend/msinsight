@@ -13,12 +13,12 @@ MindStudio Insight工具为可视化调优工具，首先需完成工具基础�
 **设置主题**
 
 1. 打开MindStudio Insight工具。
-2. 单击界面右上方![](./figures/basic_operations/zh-cn_image_0000002532040191.png)，切换主题，可切换为亮色或者暗色主题。
+2. 单击界面右上方![工具界面右上方的主题切换按钮图标，单击后可在亮色与暗色主题间切换](./figures/basic_operations/zh-cn_image_0000002532040191.png)，切换主题，可切换为亮色或者暗色主题。
 
 **设置语言**
 
 1. 打开MindStudio Insight工具。
-2. 单击界面右上方![](./figures/basic_operations/zh-cn_image_0000002531920169.png)，切换MindStudio Insight工具的中英文。
+2. 单击界面右上方![工具界面右上方的语言切换按钮图标，单击后可在中文与英文界面间切换](./figures/basic_operations/zh-cn_image_0000002531920169.png)，切换MindStudio Insight工具的中英文。
 
 ## 导入数据
 
@@ -38,15 +38,15 @@ MindStudio Insight工具支持三种数据导入方式，本节主要介绍数�
     2. 在弹窗中选择性能数据文件或目录，然后单击“确认”进行导入，如[**图 1** 选择路径](#选择路径)所示。
 
         **图 1** 选择路径<a id="选择路径"> </a>
-        ![](./figures/basic_operations/select_path_1.png "选择路径")
+        ![导入数据弹窗中选择性能数据文件或目录的路径选择界面，选中后单击确认完成导入](./figures/basic_operations/select_path_1.png "选择路径")
 
 - 方式二：输入性能数据路径
     1. 打开MindStudio Insight工具，单击界面左上方“导入数据”。
-    2. 在弹窗中的输入框直接输入需要导入的性能数据所在正确路径，然后按键盘上的“ENTER”键，在下方自动定位至该目录。
+    2. 在弹窗中的输入框直接输入需要导入的性能数据所在的正确路径，然后按键盘上的“Enter”键，在下方自动定位至该目录。
     3. 单击“确认”进行导入，如[**图 2** 输入正确路径](#输入正确路径)所示。
 
         **图 2** 输入正确路径<a id="输入正确路径"> </a>
-        ![](./figures/basic_operations/enter_correct_path_1.png "输入正确路径")
+        ![导入数据弹窗中输入框输入性能数据路径后单击“确认”导入的界面](./figures/basic_operations/enter_correct_path_1.png "输入正确路径")
 
 - 方式三：拖拽性能文件至MindStudio Insight工具界面
 
@@ -69,7 +69,7 @@ MindStudio Insight工具支持三种数据导入方式，本节主要介绍数�
 
 ## 管理数据
 
-MindStudio Insight工具导入数据后，在数据管理器下会将当次导入的数据生成一个工程，该工程下显示当次导入数据的详情。MindStudio Insight具有数据记忆、数据管理以及数据对比功能。
+MindStudio Insight工具导入数据后，在数据管理器下会将当次导入的数据生成一个工程，该工程下显示当次导入数据的详情。MindStudio Insight工具具有数据记忆、数据管理以及数据对比功能。
 
 **数据记忆**
 
@@ -85,10 +85,10 @@ MindStudio Insight工具导入数据后，在数据管理器下会将当次导�
 |--|--|
 |创建数据工程|单击界面左上方“导入数据”，成功导入后，在数据管理器列表中自动创建一个数据工程。|
 |修改数据工程名称|在数据管理器列表中，选择所需工程，在工程名称上双击鼠标左键，输入新的名称，即可修改工程名。|
-|删除单个数据工程|单击工程行后面的![](./figures/basic_operations/zh-cn_image_0000002531941261.png)，删除该工程。|
-|删除多个数据工程|单击导入数据左侧的![](./figures/basic_operations/zh-cn_image_0000002500061370.png)，勾选需要删除的工程，默认勾选全部工程，单击数据管理器列表中全部按钮所在行的![](./figures/basic_operations/zh-cn_image_0000002500221370.png)，删除所选工程。|
-|工程内导入数据|单击工程行后面的![](./figures/basic_operations/zh-cn_image_0000002532061303.png)，在该工程下导入数据。|
-|工程内删除数据|单击工程内所选数据行后面的![](./figures/basic_operations/zh-cn_image_0000002531941263.png)，删除该工程内所选数据。|
+|删除单个数据工程|单击工程行后面的![数据管理器列表中工程行后面的删除图标按钮，单击后删除该数据工程](./figures/basic_operations/zh-cn_image_0000002531941261.png)，删除该工程。|
+|删除多个数据工程|单击导入数据左侧的![导入数据按钮左侧的多选图标，单击后进入工程勾选状态并默认勾选全部工程](./figures/basic_operations/zh-cn_image_0000002500061370.png)，勾选需要删除的工程，默认勾选全部工程，单击数据管理器列表中全部按钮所在行的![数据管理器列表中全部按钮所在行的删除图标，单击后删除已勾选的工程](./figures/basic_operations/zh-cn_image_0000002500221370.png)，删除所选工程。|
+|工程内导入数据|单击工程行后面的![数据管理器列表中工程行末尾的导入图标，在该工程下继续导入数据](./figures/basic_operations/zh-cn_image_0000002532061303.png)，在该工程下导入数据。|
+|工程内删除数据|单击工程内所选数据行后面的![工程内所选数据行后面的删除图标按钮，单击后删除该工程内所选数据](./figures/basic_operations/zh-cn_image_0000002531941263.png)，删除该工程内所选数据。|
 |查看数据路径|在数据管理器列表中，选择所需工程或数据，单击鼠标右键，选择在文件资源管理器中打开，即可跳转至对应的数据文件路径。|
 
 > [!NOTE]
@@ -105,14 +105,14 @@ MindStudio Insight工具支持单卡数据间的性能对比，也支持集群�
         设置完成后，当前卡目录会标识颜色。在当前卡再次单击鼠标右键，选择“取消设置基线数据”，可直接取消当前卡的基线状态；也可重新选择任意一张卡目录，单击鼠标右键，选择“设置为基线数据”，则会重新将当前所选卡作为基线数据。
 
         **图 1** 设置基线数据<a id="设置基线数据"> </a>
-        ![](./figures/basic_operations/set_baseline_data_1.png "设置基线数据")
+        ![卡目录右键菜单中选择设置为基线数据的操作入口，设置完成后基线卡目录标识颜色](./figures/basic_operations/set_baseline_data_1.png "设置基线数据")
 
     2. 选择需要作为对比卡的卡目录，单击鼠标右键，选择“设置为对比数据”，设置所选卡为对比卡，如[**图 2** 设置对比数据](#设置对比数据)所示。
 
         设置完成后，对比卡目录会标识颜色，且区别于基线数据目录的颜色。对比数据只能选择当前打开的工程下的卡目录作为对比卡。在当前对比卡上再次单击鼠标右键，选择“取消设置对比数据”，可直接取消当前对比卡的对比状态；也可重新选择任意一张卡目录，单击鼠标右键，选择“设置为对比数据”，则会重新设置对比数据。
 
         **图 2** 设置对比数据<a id="设置对比数据"> </a>
-        ![](./figures/basic_operations/set_comparison_data_1.png "设置对比数据")
+        ![卡目录右键菜单中选择设置为对比数据的操作入口，设置完成后对比卡目录标识颜色](./figures/basic_operations/set_comparison_data_1.png "设置对比数据")
 
     3. 基线数据和对比数据设置成功后，可前往时间线（Timeline）、内存（Memory）以及算子（Operator）界面查看数据对比详情。
 
@@ -129,7 +129,7 @@ MindStudio Insight工具支持单卡数据间的性能对比，也支持集群�
         > 当在某一个工程中导入的集群数据目录为“cluster\_analysis\_output”时，也可选择该工程下的此数据设置为基线数据。
 
         **图 3** 设置基线数据<a id="设置基线数据2"> </a>
-        ![](./figures/basic_operations/set_baseline_data_0_1.png "设置基线数据-0")
+        ![集群目录右键菜单中选择设置为基线数据的操作入口，设置完成后集群目录标识颜色](./figures/basic_operations/set_baseline_data_0_1.png "设置基线数据-0")
 
     3. 基线数据设置成功后，可前往概览（Summary）和通信（Communication）界面查看数据对比详情。
 
@@ -153,7 +153,7 @@ MindStudio Insight工具支持单卡数据间的性能对比，也支持集群�
 
 - 界面操作
 
-    在MindStudio Insight工具界面中，单击右上方![](./figures/basic_operations/zh-cn_image_0000002531920179.png)，选择“在资源管理器中显示日志”，即可进入日志存放目录进行查看。
+    在MindStudio Insight工具界面中，单击右上方![工具界面右上方的菜单入口图标，选择在资源管理器中显示日志可打开存放目录](./figures/basic_operations/zh-cn_image_0000002531920179.png)，选择“在资源管理器中显示日志”，即可进入日志存放目录进行查看。
 
     > [!NOTE]
     >
@@ -177,7 +177,7 @@ MindStudio Insight工具的日志清理方式包括自动清理和手动清理�
 
 ## 常用快捷键
 
-本节介绍MindStudio Insight工具的常用快捷键。也可在MindStudio Insight工具界面中，单击右上方![](./figures/basic_operations/zh-cn_image_0000002500056862.png)，选择“键盘快捷键”，查看快捷键信息。
+本节介绍MindStudio Insight工具的常用快捷键。也可在MindStudio Insight工具界面中，单击右上方![工具界面右上方的帮助菜单图标，展开后可选键盘快捷键、帮助文档与求助反馈](./figures/basic_operations/zh-cn_image_0000002500056862.png)，选择“键盘快捷键”，查看快捷键信息。
 
 **表 1** 常用快捷键
 
@@ -206,8 +206,8 @@ MindStudio Insight工具的日志清理方式包括自动清理和手动清理�
 
 ## 帮助文档
 
-本节介绍MindStudio Insight工具的文档查看功能。若遇到问题，可优先在MindStudio Insight工具界面中，单击右上方![](./figures/basic_operations/zh-cn_image_0000002500056862.png)，选择“帮助文档”查看本工具的资料文档。若仍然无法解决问题，可单击“[求助与反馈](#求助与反馈)”，前往社区提交issue寻求帮助。
+本节介绍MindStudio Insight工具的文档查看功能。若遇到问题，可优先在MindStudio Insight工具界面中，单击右上方![工具界面右上方的帮助菜单图标，展开后可选键盘快捷键、帮助文档与求助反馈](./figures/basic_operations/zh-cn_image_0000002500056862.png)，选择“帮助文档”查看本工具的资料文档。若仍然无法解决问题，可单击“[求助与反馈](#求助与反馈)”，前往社区提交issue寻求帮助。
 
 ## 求助与反馈
 
-本节介绍MindStudio Insight工具的求助与反馈功能。如果您有解决不了的问题、建设性意见或者建议，可通过MindStudio Insight工具界面，单击右上方![](./figures/basic_operations/zh-cn_image_0000002500056862.png)，选择“求助与反馈”前往社区寻求帮助或者提交反馈。
+本节介绍MindStudio Insight工具的求助与反馈功能。如果您有解决不了的问题、建设性意见或者建议，可通过MindStudio Insight工具界面，单击右上方![工具界面右上方的帮助菜单图标，展开后可选键盘快捷键、帮助文档与求助反馈](./figures/basic_operations/zh-cn_image_0000002500056862.png)，选择“求助与反馈”前往社区寻求帮助或者提交反馈。

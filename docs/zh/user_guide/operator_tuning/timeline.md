@@ -13,7 +13,7 @@
 时间线（Timeline）界面包含工具栏（区域一）、图形化展示（区域二）和数据窗格（区域三）三个部分，如[**图 1** 时间线界面](#时间线界面)所示。
 
 **图 1** 时间线界面<a id="时间线界面"></a>
-![](../figures/operator_tuning/timeline_interface_1.png "时间线界面")
+![时间线界面布局：上方工具栏、中部图形化时间线视图与下方数据窗格三个区域](../figures/operator_tuning/timeline_interface_1.png)
 
 - 区域一：工具栏，包含常用快捷按钮，从左至右依次为标记列表、过滤（支持按卡或按泳道过滤展示）、搜索、连线事件、重置缩放（页面复原）和时间轴缩小放大按钮。
 - 区域二：图形化展示，左侧显示各Core的分层信息，一层级为Core，二层级为Pipe。右侧为时间线视图，逐行对时间线进行图形化展现，包括各指令执行序列和执行时长。具体泳道信息请参见[泳道信息](#泳道信息)。
@@ -32,7 +32,7 @@
 |MTE2|数据搬运流水，数据搬运方向为：{DDR/GM, L2} ->{L1, L0A/B, UB}。|
 |VECTOR|向量运算单元。|
 |MTE3|数据搬运流水，数据搬运方向为：UB -> {DDR/GM, L2, L1}、L1->{DDR/L2}。|
-|CACHEMISS|未命中ICACHE。|
+|CACHEMISS|未命中ICache。|
 |USEMASK|自定义打点范围。|
 |MTE Throughput|内存吞吐率信息。<br> - GM_TO_L1：GM往L1搬运的数据吞吐率。<br> - GM_TO_TOTAL：GM输出总数据吞吐率。<br> - GM_TO_UB：GM往UB搬运的数据吞吐率。<br> - L1_TO_GM：L1往GM搬运的数据吞吐率。<br> - TOTAL_TO_GM：GM输入总数据吞吐率。<br> - UB_TO_GM：UB往GM搬运的数据吞吐率。|
 
@@ -51,7 +51,7 @@
 5. 悬浮工具栏可以通过按键隐藏和展示。
 
     **图 2** 悬浮工具栏<a id="悬浮工具栏"></a>
-    ![](../figures/system_tuning/floating_toolbar_1.png "悬浮工具栏")
+    ![时间线界面上方的悬浮工具栏，含默认模式、拖拽模式、泳道高度自适应与隐藏展示按钮](../figures/system_tuning/floating_toolbar_1.png)
 
 **支持界面缩放**
 
@@ -60,8 +60,8 @@
 - 单击时间线（Timeline）界面树状图或者图形化窗格任意位置，可以使用键盘中的W（放大）和S（缩小）键进行操作，支持放大的最大精度为1ns。
 - 单击时间线（Timeline）界面树状图或者图形化窗格任意位置，使用键盘中的A（左移）、D（右移）键，或者方向键左键（左移）、右键（右移）进行左右移动，也可使用方向键上键（上移）、下键（下移）进行上下移动。
 - 在图形化窗格中，使用键盘中的Alt键加鼠标左键可以使选中区域实现局部放大。
-- 单击界面左上方工具栏中的![](../figures/operator_tuning/zh-cn_image_0000002532040307.png)（放大）和![](../figures/operator_tuning/zh-cn_image_0000002531920277.png)（缩小）实现缩放。
-- 单击界面左上方工具栏中的![](../figures/operator_tuning/zh-cn_image_0000002500040396.png)可以一键恢复图形化窗格显示全部时间线视图。
+- 单击界面左上方工具栏中的![工具栏上的放大按钮图标，单击后放大时间线视图](../figures/operator_tuning/zh-cn_image_0000002532040307.png)（放大）和![工具栏上的缩小按钮图标，单击后缩小时间线视图](../figures/operator_tuning/zh-cn_image_0000002531920277.png)（缩小）实现缩放。
+- 单击界面左上方工具栏中的![工具栏上的一键恢复按钮图标，用于重置缩放并显示全部时间线视图](../figures/operator_tuning/zh-cn_image_0000002500040396.png)可以一键恢复图形化窗格显示全部时间线视图。
 - 将鼠标放置在时间线（Timeline）界面树状图或者图形化窗格任意位置，可以使用键盘中的Ctrl键加鼠标滚轮实现缩放操作。
 - 在图形化窗格中，使用键盘中的Ctrl键加鼠标左键可以实现左右拖拽泳道图表。
 
@@ -87,28 +87,28 @@ MindStudio Insight在时间线（Timeline）界面支持指令搜索。
 - 单击界面左上方工具栏中的![](../figures/operator_tuning/zh-cn_image_0000002500200380.png)，在弹出输入框中输入需要搜索的指令，然后按回车键，则会匹配对应的指令，搜索结果匹配指令总数，如[**图 3** 搜索指令总数](#搜索指令总数)所示，搜索到与名称中包含“mov”相关的指令总数为11754。
 
     **图 3** 搜索指令总数<a id="搜索指令总数"></a>
-    ![](../figures/operator_tuning/total_searched_instructions_1.png "搜索指令总数")
+    ![输入mov并回车搜索后，搜索框下方显示匹配到的指令总数](../figures/operator_tuning/total_searched_instructions_1.png)
 
-- 单击界面左上方工具栏中的![](../figures/operator_tuning/zh-cn_image_0000002500200380.png)，可在搜索弹出输入框左侧分别单击![](../figures/operator_tuning/zh-cn_image_0000002500200386.png)和![](../figures/operator_tuning/zh-cn_image_0000002532040315.png)，开启大小写匹配和全词匹配功能，如[**图 4** 大小写匹配和全词匹配](#大小写匹配和全词匹配)所示。
+- 单击界面左上方工具栏中的![工具栏上的搜索按钮图标，单击后弹出指令搜索输入框](../figures/operator_tuning/zh-cn_image_0000002500200380.png)，可在搜索弹出输入框左侧分别单击![搜索输入框左侧的大小写匹配开关图标，单击开启大小写匹配](../figures/operator_tuning/zh-cn_image_0000002500200386.png)和![搜索输入框左侧的全词匹配开关图标，单击开启全词匹配](../figures/operator_tuning/zh-cn_image_0000002532040315.png)，开启大小写匹配和全词匹配功能，如[**图 4** 大小写匹配和全词匹配](#大小写匹配和全词匹配)所示。
 
-    单击![](../figures/operator_tuning/zh-cn_image_0000002500200386.png)开启大小写匹配，输入需要搜索的信息，按回车键，则会匹配名称中包含搜索项的指令。
+    单击![搜索输入框左侧的大小写匹配开关图标，单击开启大小写匹配](../figures/operator_tuning/zh-cn_image_0000002500200386.png)开启大小写匹配，输入需要搜索的信息，按回车键，则会匹配名称中包含搜索项的指令。
 
-    单击![](../figures/operator_tuning/zh-cn_image_0000002532040315.png)开启全词匹配，输入需要搜索的信息，按回车键，则会匹配名称为搜索项的指令，但是会忽略大小写。
+    单击![搜索输入框左侧的全词匹配开关图标，单击开启全词匹配](../figures/operator_tuning/zh-cn_image_0000002532040315.png)开启全词匹配，输入需要搜索的信息，按回车键，则会匹配名称为搜索项的指令，但是会忽略大小写。
 
-    当同时选中![](../figures/operator_tuning/zh-cn_image_0000002500200386.png)和![](../figures/operator_tuning/zh-cn_image_0000002532040315.png)时，开启大小写匹配和全词匹配功能，在输入框中输入需要搜索的指令名称，按回车键，则会精确匹配名称为搜索项的指令。
+    当同时选中![搜索输入框左侧的大小写匹配开关图标，单击开启大小写匹配](../figures/operator_tuning/zh-cn_image_0000002500200386.png)和![](../figures/operator_tuning/zh-cn_image_0000002532040315.png)时，开启大小写匹配和全词匹配功能，在输入框中输入需要搜索的指令名称，按回车键，则会精确匹配名称为搜索项的指令。
 
     **图 4** 大小写匹配和全词匹配<a id="大小写匹配和全词匹配"></a>
-    ![](../figures/operator_tuning/case_and_whole_word_matching_1.png "大小写匹配和全词匹配")
+    ![同时开启大小写匹配和全词匹配后，搜索输入框与两个开关的界面状态](../figures/operator_tuning/case_and_whole_word_matching_1.png)
 
 - 单击搜索框后方的切换按钮，可以查看上一个或者下一个匹配的指令，也可以在输入框后方输入具体的数字搜索其对应的指令，该指令将会被选中并显示在界面中部，如[**图 5** 定位指令](#定位指令)所示。
 
     **图 5** 定位指令<a id="定位指令"></a>
-    ![](../figures/operator_tuning/locate_instruction_1.png "定位指令")
+    ![在搜索框输入序号后，对应指令被选中并定位显示在界面中部](../figures/operator_tuning/locate_instruction_1.png)
 
-- 单击搜索框后方的“在查找窗口打开”，可跳转至界面下方的“查找”页签，展示所有搜索指令列表，如[**图 6** 在查找窗口打开](#在查找窗口打开-2)所示，字段解释如[**表 2**  字段说明](#字段说明)所示。单击“点击跳转Timeline”列的“点击”可跳转到指令在时间线视图上的具体位置。
+- 单击搜索框后方的“在查找窗口打开”，可跳转至界面下方的“查找”页签，展示所有搜索指令列表，如[**图 6** 在查找窗口打开](#在查找窗口打开-2)所示，字段解释如[**表 2** 字段说明](#字段说明)所示。单击“点击跳转Timeline”列的“点击”可跳转到指令在时间线视图上的具体位置。
 
     **图 6** 在查找窗口打开<a id="在查找窗口打开-2"></a>
-    ![](../figures/operator_tuning/open_in_search_window_2_1.png "在查找窗口打开-2")
+    ![查找页签中展示的搜索结果列表，含指令名称、开始时间与时长等字段](../figures/operator_tuning/open_in_search_window_2_1.png)
 
     **表 2** 字段说明<a id="字段说明"></a>
 
@@ -126,34 +126,34 @@ MindStudio Insight在时间线（Timeline）界面支持指令搜索。
 
 - 区域标记
 
-  在时间线（Timeline）界面选中某个区域后，单击![](../figures/operator_tuning/2023-08-10_175758-3.png)或敲击键盘K键将选中区域进行标记并保存，如[**图 7** 区域标记](#区域标记-4)所示。
+  在时间线（Timeline）界面选中某个区域后，单击![工具栏上的区域标记按钮图标，单击或按K键标记选中区域](../figures/operator_tuning/2023-08-10_175758-3.png)或敲击键盘K键将选中区域进行标记并保存，如[**图 7** 区域标记](#区域标记-4)所示。
 
   **图 7** 区域标记<a id="区域标记-4"></a>
-  ![](../figures/operator_tuning/region_marker_4_1.png "区域标记-4")
+  ![在时间线视图选中区域并标记后，时间轴上呈现起止位置的区域标记](../figures/operator_tuning/region_marker_4_1.png)
 
   左键双击任一标记，可以设置该标记对的属性，支持修改标记对名称、颜色以及删除该标记对，如[**图 8** 修改标记对属性](#修改标记对属性-5)所示。
 
   **图 8** 修改标记对属性<a id="修改标记对属性-5"></a>
-  ![](../figures/operator_tuning/modify_marker_pair_attributes_5_1.png "修改标记对属性-5")
+  ![双击区域标记弹出的属性设置框，可修改标记对名称、颜色或删除标记对](../figures/operator_tuning/modify_marker_pair_attributes_5_1.png)
 
 - 单点标记
 
   在最上方空泳道的任意位置，单击鼠标左键或敲击键盘K键，将生成一个单点标记，如[**图 9** 单点标记](#单点标记-6)所示。左键双击标记，可以设置该标记的属性，支持修改标记的名称、颜色以及删除该标记。
 
   **图 9** 单点标记<a id="单点标记-6"></a>
-  ![](../figures/operator_tuning/single_point_marker_6_1.png "单点标记-6")
+  ![在最上方空泳道单击鼠标左键或按K键后生成的单点标记](../figures/operator_tuning/single_point_marker_6_1.png)
 
 - 标记管理
 
-  单击左上方工具栏中的![](../figures/operator_tuning/zh-cn_image_0000002532040329.png)，将显示所有标记信息，如[**图 10** 查看标记信息](#查看标记信息-7)所示。
+  单击左上方工具栏中的![工具栏上的标记管理按钮图标，单击后显示所有标记信息](../figures/operator_tuning/zh-cn_image_0000002532040329.png)，将显示所有标记信息，如[**图 10** 查看标记信息](#查看标记信息-7)所示。
 
   **图 10** 查看标记信息<a id="查看标记信息-7"></a>
-  ![](../figures/operator_tuning/view_marker_info_7_1.png "查看标记信息-7")
+  ![标记管理弹窗中列出全部标记及其名称、颜色与操作图标](../figures/operator_tuning/view_marker_info_7_1.png)
 
-  - 单击某个标记对应的![](../figures/operator_tuning/zh-cn_image_0000002500040418.png)图标可删除标记。
+  - 单击某个标记对应的![标记列表中用于删除单个标记的删除图标](../figures/operator_tuning/zh-cn_image_0000002500040418.png)图标可删除标记。
   - 单击弹窗下方的“清空全部”可删除所有标记。
   - 单击区域标记，界面下方的“选中详情”页签会显示该区域的耗时信息详情。
-  - 如果某一标记不在当前可视化界面，单击该标记对应的![](../figures/operator_tuning/2023-08-22_182542.png)图标将直接跳转至标记界面，便于查看。
+  - 如果某一标记不在当前可视化界面，单击该标记对应的![标记列表中用于跳转至标记所在界面的跳转图标](../figures/operator_tuning/2023-08-22_182542.png)图标将直接跳转至标记界面，便于查看。
   - 单击某个标记对应的颜色图标可进行颜色设置，便于对标记进行分类管理。
 
 **指令间同步连线功能**
@@ -161,28 +161,28 @@ MindStudio Insight在时间线（Timeline）界面支持指令搜索。
 - MindStudio Insight支持指令间同步连线关系（SET\_FLAG到WAIT\_FLAG）展示，单击有连线的指令，即可显示该指令关联的连线，即使折叠连线起点或者终点的Pipe，连线也不会消失，如[**图 11** 指令间连线](#指令间连线)所示。
 
     **图 11** 指令间连线<a id="指令间连线"></a>
-    ![](../figures/operator_tuning/instruction_interconnections_1.png "指令间连线")
+    ![单击有连线的指令后，时间线上显示该指令的SET_FLAG到WAIT_FLAG同步连线](../figures/operator_tuning/instruction_interconnections_1.png)
 
-- MindStudio Insight支持全量连线的功能，单击界面左上方工具栏中的![](../figures/operator_tuning/zh-cn_image_0000002531920295.png)，在弹框中选择一个或多个连线类型，则在时间线视图中展示对应Pipe间的所有连线，如[**图 12** 全量连线](#全量连线-8)所示。
+- MindStudio Insight支持全量连线的功能，单击界面左上方工具栏中的![工具栏上的全量连线按钮图标，单击后在弹框中选择连线类型](../figures/operator_tuning/zh-cn_image_0000002531920295.png)，在弹框中选择一个或多个连线类型，则在时间线视图中展示对应Pipe间的所有连线，如[**图 12** 全量连线](#全量连线-8)所示。
 
     > [!NOTE]
     >
     > 最多支持选择10个连线类型。
 
     **图 12** 全量连线<a id="全量连线-8"></a>
-    ![](../figures/operator_tuning/full_connection_8_1.png "全量连线-8")
+    ![选择多个连线类型后，时间线视图展示各Pipe之间的全部连线](../figures/operator_tuning/full_connection_8_1.png)
 
 - 支持隐藏SET\_FLAG和WAIT\_FLAG指令。
 
     在算子展示区域，右键弹出菜单，选择“隐藏SET/WAIT事件”，可隐藏SET\_FLAG和WAIT\_FLAG指令，连线同时消失，如[**图 13** 隐藏SET/WAIT事件](#隐藏SET-WAIT事件)所示。
 
     **图 13** 隐藏SET/WAIT事件<a id="隐藏SET-WAIT事件"></a>
-    ![](../figures/operator_tuning/hide_set_wait_events_1.png "隐藏SET-WAIT事件")
+    ![右键菜单选择隐藏SET/WAIT事件后，SET_FLAG与WAIT_FLAG指令及连线一并隐藏](../figures/operator_tuning/hide_set_wait_events_1.png)
 
     隐藏SET/WAIT事件后，再次右键弹出菜单，单击“显示SET/WAIT事件”，被隐藏的SET\_FLAG和WAIT\_FLAG指令随之出现，根据连线功能操作，可正常显示指令连线，如[**图 14** 显示SET/WAIT事件](#显示SET-WAIT事件)所示。
 
     **图 14** 显示SET/WAIT事件<a id="显示SET-WAIT事件"></a>
-    ![](../figures/operator_tuning/show_set_wait_events_1.png "显示SET-WAIT事件")
+    ![再次选择显示SET/WAIT事件后，被隐藏的SET_FLAG与WAIT_FLAG指令及连线重新出现](../figures/operator_tuning/show_set_wait_events_1.png)
 
 ### 页面调优展示
 
@@ -198,14 +198,14 @@ MindStudio Insight在时间线（Timeline）界面支持指令搜索。
 
 MindStudio Insight支持指令统计信息和单个指令详情信息查看。
 
-- 使用鼠标左键可在单个Pipe级泳道，或跨多个Core泳道框选部分指令，框选部分区域指令后，可在下方选中列表显示指令的统计信息，如[**图 15** 选中列表](#选中列表-9)所示，字段解释如[**表 3**  选中列表字段说明](#选中列表字段说明)。
+- 使用鼠标左键可在单个Pipe级泳道，或跨多个Core泳道框选部分指令，框选部分区域指令后，可在下方选中列表显示指令的统计信息，如[**图 15** 选中列表](#选中列表-9)所示，字段解释如[**表 3** 选中列表字段说明](#选中列表字段说明)。
 
-    当鼠标移入“选中列表”页签，单击![](../figures/operator_tuning/zh-cn_image_0000002531920297.png)按钮，可复制当前“选中列表”中所展示的内容，并粘贴至Excel表格中进行分析。
+    当鼠标移入“选中列表”页签，单击![选中列表页签上的复制图标，可将当前统计信息复制到Excel表格](../figures/operator_tuning/zh-cn_image_0000002531920297.png)按钮，可复制当前“选中列表”中所展示的内容，并粘贴至Excel表格中进行分析。
 
     单击“选中列表”列中的某个指令，在右侧“More”列表中将会显示此区域中与该指令同名的所有指令，单击“More”列表中某一行，则在时间线视图中定位出该指令的具体位置，并同时跳转至“选中详情”页面，可查看该指令的详情信息。
 
     **图 15** 选中列表<a id="选中列表-9"></a>
-    ![](../figures/operator_tuning/selected_list_9_1.png "选中列表-9")
+    ![框选区域后下方选中列表页签显示的指令统计字段，含名称、持续时间与发生次数](../figures/operator_tuning/selected_list_9_1.png)
 
     **表 3** 选中列表字段说明<a id="选中列表字段说明"></a>
 
@@ -221,12 +221,12 @@ MindStudio Insight支持指令统计信息和单个指令详情信息查看。
     |开始时间|Start Time|在图形化窗格中的时间戳。|
     |时长(ms)|Duration(ms)|执行耗时。|
 
-- 当选中单个指令时，可在下方选中详情显示该指令的详情信息，如[**图 16** 选中详情](#选中详情-10)所示，字段解释如[**表 4**  选中详情字段说明](#选中详情字段说明)所示。
+- 当选中单个指令时，可在下方选中详情显示该指令的详情信息，如[**图 16** 选中详情](#选中详情-10)所示，字段解释如[**表 4** 选中详情字段说明](#选中详情字段说明)所示。
 
     选中单个指令，使用M键，可框选该指令所属的时间线（Timeline）区域，再次按下M键，可取消框选。
 
     **图 16** 选中详情<a id="选中详情-10"></a>
-    ![](../figures/operator_tuning/selected_details_10_1.png "选中详情-10")
+    ![选中单个指令后下方选中详情页签显示的该指令耗时与参数信息](../figures/operator_tuning/selected_details_10_1.png)
 
     **表 4** 选中详情字段说明<a id="选中详情字段说明"></a>
 
@@ -236,4 +236,4 @@ MindStudio Insight支持指令统计信息和单个指令详情信息查看。
     |开始|Start|起始时间。|
     |开始（原始时间戳）|Start(Raw Timestamp)|数据采集到的原始开始时间。|
     |持续时间|Wall Duration|总耗时。|
-    |参数|Args|算子的相关参数信息，包括以下信息：<br> - code：代码调用栈。<br> - detail：指令源码。<br> - pc_addr：pc地址。|
+    |参数|Args|算子的相关参数信息，包括以下信息：<br> - code：代码调用栈。<br> - detail：指令源码。<br> - pc_addr：PC地址。|
