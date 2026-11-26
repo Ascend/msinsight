@@ -36,7 +36,7 @@ jest.mock('../common/components/leaks/LifecycleGraphToolbar', () => ({
     LifecycleGraphToolbar: ({ zoomMode, onZoomModeChange, onLayerVisibilityChange }: {
         zoomMode: 'proportional' | 'horizontal';
         onZoomModeChange: (mode: 'proportional' | 'horizontal') => void;
-        onLayerVisibilityChange: (layer: 'blocks' | 'overview' | 'markers') => void;
+        onLayerVisibilityChange: (layer: 'blocks' | 'overview' | 'markers' | 'timeMarkers') => void;
     }) => {
         const ReactModule = require('react');
         return ReactModule.createElement('div', { 'data-testid': 'mock-lifecycle-toolbar', 'data-zoom-mode': zoomMode },
@@ -51,6 +51,10 @@ jest.mock('../common/components/leaks/LifecycleGraphToolbar', () => ({
             ReactModule.createElement('button', {
                 'data-testid': 'toggle-marker-layer',
                 onClick: () => onLayerVisibilityChange('markers'),
+            }),
+            ReactModule.createElement('button', {
+                'data-testid': 'toggle-time-marker-layer',
+                onClick: () => onLayerVisibilityChange('timeMarkers'),
             }),
             ReactModule.createElement('button', {
                 'data-testid': 'toggle-zoom-mode',
@@ -112,7 +116,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         const first = jest.fn();
         const next = jest.fn();
         const markers = [{ id: 1, coordinate: 135, eventId: 135, label: 'Time 1' }];
-        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={first} timeMarkers={markers} /></ThemeProvider>);
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} enhancedControls onSelectTimestamp={first} timeMarkers={markers} /></ThemeProvider>);
         const canvas = view.container.querySelector('canvas') as HTMLCanvasElement;
         jest.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
             left: 0, top: 0, right: 1000, bottom: 480, width: 1000, height: 480, x: 0, y: 0, toJSON: () => ({}),
@@ -142,7 +146,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(first).toHaveBeenCalledWith(135);
         expect(view.getByTestId('snapshot-event-flag').style.left).toBe('500px');
         expect(view.getAllByTestId('snapshot-event-flag')).toHaveLength(1);
-        view.rerender(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} onSelectTimestamp={next} timeMarkers={markers} /></ThemeProvider>);
+        view.rerender(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} enhancedControls onSelectTimestamp={next} timeMarkers={markers} /></ThemeProvider>);
         fireEvent.click(view.getByRole('button', { name: 'frameTree.selectEventFromAxis' }), { clientX: 500, detail: 1 });
         expect(next).toHaveBeenCalledWith(135);
         expect(first).toHaveBeenCalledTimes(1);
@@ -153,6 +157,13 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         });
         fireEvent(window, new Event('resize'));
         expect(session.leaksWorkerInfo.renderOptions.viewport).toEqual({ width: 1000, height: 480 });
+        fireEvent.click(view.getByTestId('toggle-time-marker-layer'));
+        expect(view.queryByRole('button', { name: 'frameTree.selectEventFromAxis' })).toBeNull();
+        expect(view.queryByTestId('snapshot-event-flag')).toBeNull();
+        expect(view.getByTestId('marker-overlay')).toBeTruthy();
+        fireEvent.click(view.getByTestId('toggle-time-marker-layer'));
+        expect(view.getByRole('button', { name: 'frameTree.selectEventFromAxis' })).toBeTruthy();
+        expect(view.getByTestId('snapshot-event-flag').style.left).toBe('500px');
     });
 
     it('restores a hidden Block Flag without losing its presentation', () => {

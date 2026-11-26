@@ -168,7 +168,7 @@ const Divider = styled.div`
 
 export const LifecycleGraphToolbar = ({
     zoomMode,
-    layerVisibility = { blocks: true, overview: true, markers: true },
+    layerVisibility = { blocks: true, overview: true, markers: true, timeMarkers: true },
     onZoomModeChange,
     onReset,
     onLayerVisibilityChange = (): void => undefined,
@@ -220,6 +220,7 @@ export const LifecycleGraphToolbar = ({
                 visibility={layerVisibility}
                 onChange={onLayerVisibilityChange}
                 onClose={(): void => setActivePanel(null)}
+                showBreakdown={onTimeMarkerManagementOpen !== undefined}
             />
             : <></>}
         {activePanel === 'guide'

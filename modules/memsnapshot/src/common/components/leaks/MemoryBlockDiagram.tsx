@@ -89,6 +89,7 @@ const DEFAULT_LAYER_VISIBILITY: LifecycleGraphLayerVisibility = {
     blocks: true,
     overview: true,
     markers: true,
+    timeMarkers: true,
 };
 type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 
@@ -352,6 +353,9 @@ export const MemoryBlockDiagram = observer(({
         if (layer === 'markers' && !next.markers) {
             closeMarkerManagement();
             workerSetMarkerHoverHighlight({ active: false });
+        }
+        if (layer === 'timeMarkers' && !next.timeMarkers) {
+            closeTimeMarkerManagement();
         }
     };
 
@@ -912,7 +916,7 @@ export const MemoryBlockDiagram = observer(({
                     </AllocationLineLegend>
                     : <></>}
                 <MarkLineBlock session={session} />
-                {onSelectTimestamp !== undefined || timeMarkers.length > 0
+                {layerVisibility.timeMarkers && (onSelectTimestamp !== undefined || timeMarkers.length > 0)
                     ? <SnapshotEventFlag key={lifecycleGraphDataContextKey} session={session} markers={timeMarkers}
                         onSelect={onSelectTimestamp} onActivate={onLocateTimeMarker} onRemove={onRemoveTimeMarker} />
                     : null}

@@ -26,6 +26,9 @@ it('uses the real event-axis projection rather than pixels or relative indices',
     expect(eventCoordinateToX(90, projection)).toBeNull();
     expect(screenXToEventCoordinate(-1, projection)).toBeNull();
     expect(eventCoordinateToX(135, { ...projection, zoomX: 0 })).toBeNull();
+    expect(eventCoordinateToX(15, {
+        minEventId: 0, maxEventId: 15, width: 1000, zoomX: 1000 / 15, scaleX: 1, transformX: 0,
+    })).toBe(1000);
 });
 it('resolves the nearest preceding actual event through the existing event query', async () => {
     (getSnapshotEvent as jest.Mock).mockResolvedValue({ total: 1, events: [{ id: 132 }] });

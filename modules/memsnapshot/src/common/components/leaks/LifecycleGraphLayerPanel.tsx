@@ -14,6 +14,7 @@ import {
     CloseOutlined,
     EyeInvisibleOutlined,
     EyeOutlined,
+    FieldTimeOutlined,
     FlagOutlined,
     LineChartOutlined,
 } from '@ant-design/icons';
@@ -23,6 +24,7 @@ export interface LifecycleGraphLayerVisibility {
     blocks: boolean;
     overview: boolean;
     markers: boolean;
+    timeMarkers: boolean;
 }
 
 export type LifecycleGraphLayer = keyof LifecycleGraphLayerVisibility;
@@ -109,16 +111,19 @@ const LAYERS: Array<{ id: LifecycleGraphLayer; label: string; icon: JSX.Element 
     { id: 'blocks', label: 'memoryBlockLayer', icon: <BorderOutlined /> },
     { id: 'overview', label: 'memoryOverviewLayer', icon: <LineChartOutlined /> },
     { id: 'markers', label: 'memoryMarkerLayer', icon: <FlagOutlined /> },
+    { id: 'timeMarkers', label: 'frameTree.manageMarkers', icon: <FieldTimeOutlined /> },
 ];
 
 export const LifecycleGraphLayerPanel = ({
     visibility,
     onChange,
     onClose,
+    showBreakdown = false,
 }: {
     visibility: LifecycleGraphLayerVisibility;
     onChange: (layer: LifecycleGraphLayer) => void;
     onClose: () => void;
+    showBreakdown?: boolean;
 }): JSX.Element => {
     const { t } = useTranslation('leaks');
     return <Panel role="group" aria-label={t('graphLayers')} data-testid="lifecycleGraphLayerPanel">
@@ -128,7 +133,7 @@ export const LifecycleGraphLayerPanel = ({
                 <CloseOutlined />
             </IconButton>
         </Header>
-        {LAYERS.map(layer => <LayerButton
+        {LAYERS.filter(layer => layer.id !== 'timeMarkers' || showBreakdown).map(layer => <LayerButton
             key={layer.id}
             type="button"
             aria-pressed={visibility[layer.id]}
