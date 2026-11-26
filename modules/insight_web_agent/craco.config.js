@@ -18,6 +18,17 @@
 const path = require('path');
 const ModuleScopePlugin = require('react-dev-utils/ModuleScopePlugin');
 
+// CRA's Jest runner needs to transpile the ESM Markdown pipeline, including pnpm's virtual store.
+const markdownEsm = [
+    '@ungap/structured-clone', 'react-markdown', 'unified', 'hastscript', 'markdown-table',
+    '(?:remark|rehype|hast|mdast|micromark|unist|vfile)(?:-[^/\\\\]+)?',
+    'character-entities(?:-[^/\\\\]+)?', 'character-reference-invalid', 'decode-named-character-reference',
+    '(?:comma|space)-separated-tokens', 'property-information', 'html-url-attributes', 'estree-util-is-identifier-name',
+    'is-(?:alphabetical|alphanumerical|decimal|hexadecimal|plain-obj)',
+    '(?:parse|stringify)-entities', 'entities', 'parse5', 'web-namespaces', 'escape-string-regexp',
+    'bail', 'ccount', 'devlop', 'longest-streak', 'trim-lines', 'trough', 'zwitch',
+].join('|').replace('@ungap/structured-clone', String.raw`@ungap[/\\]structured-clone`);
+
 module.exports = {
     devServer: {
         port: 3011,
@@ -41,11 +52,18 @@ module.exports = {
         },
     },
     jest: {
-        configure: {
+        configure: (jestConfig) => ({
+            ...jestConfig,
+            resolver: require.resolve('./scripts/jest-markdown-resolver.cjs'),
+            transformIgnorePatterns: [
+                String.raw`[/\\]node_modules[/\\](?!(?:\.pnpm|${markdownEsm})[/\\]).+\.(?:js|jsx|mjs|cjs|ts|tsx)$`,
+                '^.+\\.module\\.(css|sass|scss)$',
+            ],
             moduleNameMapper: {
+                ...jestConfig.moduleNameMapper,
                 '^@insight/lib$': '<rootDir>/../lib/src',
                 '^@insight/lib/(.*)$': '<rootDir>/../lib/src/$1',
             },
-        },
+        }),
     },
 };
