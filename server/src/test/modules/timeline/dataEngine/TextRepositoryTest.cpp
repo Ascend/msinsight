@@ -189,6 +189,148 @@ TEST_F(TextRepositoryTest, FullRangeQueryWithTimestampOffsetDoesNotOverflow) {
     EXPECT_EQ(flowPoints[0].flowId, "flow_1");
 }
 
+TEST_F(TextRepositoryTest, SimpleRowsPreserveOrderGroupsNullCategoriesAndExistingPrefix) {
+    ASSERT_TRUE(testDatabase.ExecSql("DELETE FROM slice;"
+                                     "INSERT INTO slice(id,timestamp,end_time,depth,track_id,cat,group_id) VALUES "
+                                     "(8,10,20,6,100,'','last group'),(3,10,18,2,100,NULL,NULL),"
+                                     "(1,0,9,0,100,NULL,'group''s'),(2,5,15,8,100,'python_function','stack'),"
+                                     "(9,2,3,1,101,'','other track');"));
+    TextRepository repository;
+    SliceQuery query;
+    query.rankId = TEST_RANK_ID;
+    query.trackId = GROUP_TRACK_ID;
+    query.endTime = 1; // Ordinary TEXT cache loading still reads the complete track.
+    std::vector<SliceDomain> rows{SliceDomain{999, 0, 0, 42, "prefix"}};
+    repository.QuerySimpleSliceWithOutNameByTrackId(query, rows);
+    ASSERT_EQ(rows.size(), 4);
+    EXPECT_EQ(rows[0].id, 999);
+    EXPECT_EQ(rows[0].groupId, "prefix");
+    EXPECT_EQ(rows[1].id, 1);
+    EXPECT_EQ(rows[1].groupId, "group's");
+    EXPECT_EQ(rows[2].id, 3);
+    EXPECT_EQ(rows[2].depth, 2);
+    EXPECT_TRUE(rows[2].groupId.empty());
+    EXPECT_EQ(rows[3].id, 8);
+    EXPECT_EQ(rows[3].timestamp, 10);
+    EXPECT_EQ(rows[3].endTime, 20);
+    EXPECT_EQ(rows[3].depth, 6);
+}
+
+TEST_F(TextRepositoryTest, CategoryRowsUseInclusiveIntersectionAndSaturatingOffset) {
+    ASSERT_TRUE(
+        testDatabase.ExecSql("DELETE FROM slice;"
+                             "INSERT INTO slice(id,timestamp,end_time,depth,track_id,cat,group_id) VALUES "
+                             "(3,100,200,13,101,'python_function','stack group'),"
+                             "(4,0,150,4,101,'python_function','long boundary'),"
+                             "(5,250,300,5,101,'python_function','right boundary'),"
+                             "(6,251,300,6,101,'python_function','outside right'),"
+                             "(7,149,149,7,101,'python_function','outside left'),"
+                             "(8,160,170,8,101,'','ordinary'),(9,200,210,9,100,'python_function','other track');"));
+    TextRepository repository;
+    SliceQuery query;
+    query.rankId = TEST_RANK_ID;
+    query.trackId = PLANE_TRACK_ID;
+    query.cat = "python_function";
+    query.startTime = 100;
+    query.endTime = 200;
+    query.minTimestamp = 50;
+    std::vector<SliceDomain> rows{SliceDomain{999, 0, 0, 42, "prefix"}};
+    ASSERT_TRUE(repository.QuerySliceByCatAndTimeRange(query, rows));
+    ASSERT_EQ(rows.size(), 4);
+    EXPECT_EQ(rows[0].id, 999);
+    EXPECT_EQ(rows[1].id, 4);
+    EXPECT_EQ(rows[1].endTime, 150);
+    EXPECT_EQ(rows[2].id, 3);
+    EXPECT_EQ(rows[2].depth, 13);
+    EXPECT_EQ(rows[2].groupId, "stack group");
+    EXPECT_EQ(rows[3].id, 5);
+    EXPECT_EQ(rows[3].timestamp, 250);
+    query.startTime = 0;
+    query.endTime = std::numeric_limits<uint64_t>::max();
+    rows.clear();
+    ASSERT_TRUE(repository.QuerySliceByCatAndTimeRange(query, rows));
+    ASSERT_EQ(rows.size(), 5);
+    EXPECT_EQ(rows[0].id, 4);
+    EXPECT_EQ(rows[4].id, 6);
+}
+
+TEST_F(TextRepositoryTest, CategoryIdsKeepNumericOrderParameterBindingAndCallerPrefix) {
+    ASSERT_TRUE(testDatabase.ExecSql("INSERT INTO slice(id,timestamp,end_time,depth,track_id,cat,group_id) VALUES "
+                                     "(10,1,2,0,101,'python_function',''),(7,0,1,0,101,'py''thon',''),"
+                                     "(4,1000,1001,0,101,'py''thon','');"));
+    TextRepository repository;
+    SliceQuery query;
+    query.rankId = TEST_RANK_ID;
+    query.trackId = PLANE_TRACK_ID;
+    query.cat = "py'thon";
+    std::vector<uint64_t> ids{999};
+    repository.QuerySliceIdsByCat(query, ids);
+    EXPECT_EQ(ids, (std::vector<uint64_t>{999, 4, 7}));
+    query.cat = "python_function";
+    ids.clear();
+    repository.QuerySliceIdsByCat(query, ids);
+    EXPECT_EQ(ids, (std::vector<uint64_t>{3, 10}));
+}
+
+TEST_F(TextRepositoryTest, SimpleRowsKeepNullNegativeAndBinaryStringConversions) {
+    ASSERT_TRUE(testDatabase.ExecSql("DELETE FROM slice;"
+                                     "INSERT INTO slice(id,timestamp,end_time,depth,track_id,cat,group_id) VALUES "
+                                     "(-5,-10,-2,-3,100,NULL,NULL),(2,0,NULL,NULL,100,'',''),"
+                                     "(9223372036854775807,0,9223372036854775807,19,100,'',CAST(X'670072' AS TEXT));"));
+    TextRepository repository;
+    SliceQuery query;
+    query.rankId = TEST_RANK_ID;
+    query.trackId = GROUP_TRACK_ID;
+    std::vector<SliceDomain> rows;
+    repository.QuerySimpleSliceWithOutNameByTrackId(query, rows);
+    ASSERT_EQ(rows.size(), 3);
+    EXPECT_EQ(rows[0].id, 0);
+    EXPECT_EQ(rows[0].timestamp, 0);
+    EXPECT_EQ(rows[0].endTime, 0);
+    EXPECT_EQ(rows[0].depth, 0);
+    EXPECT_EQ(rows[1].id, 2);
+    EXPECT_EQ(rows[1].endTime, 0);
+    EXPECT_EQ(rows[1].depth, 0);
+    EXPECT_EQ(rows[2].id, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
+    EXPECT_EQ(rows[2].endTime, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
+    EXPECT_EQ(rows[2].groupId, std::string("g\0r", 3));
+    query.cat = "";
+    std::vector<uint64_t> ids{999};
+    repository.QuerySliceIdsByCat(query, ids);
+    EXPECT_EQ(ids, (std::vector<uint64_t>{999, 2, static_cast<uint64_t>(std::numeric_limits<int64_t>::max())}));
+}
+
+TEST_F(TextRepositoryTest, FailedOrMissingTrackReadDoesNotLeakQueryState) {
+    TextRepository repository;
+    SliceQuery query;
+    query.rankId = TEST_RANK_ID;
+    query.trackId = 9999;
+    std::vector<SliceDomain> rows{SliceDomain{999, 0, 0, 42, "prefix"}};
+    repository.QuerySimpleSliceWithOutNameByTrackId(query, rows);
+    EXPECT_FALSE(repository.QuerySliceByCatAndTimeRange(query, rows));
+    ASSERT_EQ(rows.size(), 1);
+    EXPECT_EQ(rows[0].id, 999);
+    std::vector<uint64_t> ids{999};
+    repository.QuerySliceIdsByCat(query, ids);
+    EXPECT_EQ(ids, (std::vector<uint64_t>{999}));
+    query.trackId = GROUP_TRACK_ID;
+    query.cat = "python_function";
+    query.startTime = 900;
+    query.endTime = 1000;
+    ASSERT_TRUE(testDatabase.ExecSql("ALTER TABLE slice RENAME TO hidden_slice;"));
+    repository.QuerySliceByCatAndTimeRange(query, rows);
+    repository.QuerySliceIdsByCat(query, ids);
+    ASSERT_TRUE(testDatabase.ExecSql("ALTER TABLE hidden_slice RENAME TO slice;"));
+    repository.QuerySimpleSliceWithOutNameByTrackId(query, rows);
+    ASSERT_EQ(rows.size(), 2);
+    EXPECT_EQ(rows[0].id, 999);
+    EXPECT_EQ(rows[1].id, 1);
+    EXPECT_EQ(rows[1].depth, 7);
+    query.trackId = PLANE_TRACK_ID;
+    repository.QuerySliceIdsByCat(query, ids);
+    EXPECT_EQ(ids, (std::vector<uint64_t>{999, 3}));
+}
+
 TEST_F(TextRepositoryTest, QueryFlowPointByCategoryDefersPersistedDepthResolution) {
     ASSERT_TRUE(testDatabase.ExecSql(
         "INSERT INTO slice(id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id, "

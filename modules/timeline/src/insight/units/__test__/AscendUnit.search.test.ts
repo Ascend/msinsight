@@ -30,6 +30,7 @@ import type { OffsetSide } from '../offset';
 import { renderRadiusBorder } from '../../../components/details/utils';
 import { actionJumpToLinkSlice } from '../../../actions/actionJumpToLinkSlice';
 import jumpToUnitOperator from '../../../utils/jumpToUnitOperator';
+import type { ThreadTraceResponse } from '../../../cache/threadTraceCache';
 import {
     drawForegroundTargetLayer,
     drawSearchResultLayers,
@@ -667,6 +668,13 @@ describe.each([
 
 describe('ThreadUnit trace layout', () => {
     const dataSource: DataSource = { remote: 'local', port: 9000, projectName: 'test', dataPath: [], projectPath: [], children: [] };
+    const createOfflineTrace = (metadata: ThreadMetaData): { unit: InsightUnit; session: Session; chart: ChartDesc<'stackStatus'> } => {
+        const unit = new ThreadUnit(metadata);
+        unit.phase = 'download';
+        const session = new Session({ units: [unit] });
+        session.phase = 'download';
+        return { unit, session, chart: unit.chart as ChartDesc<'stackStatus'> };
+    };
     const createSession = (autoAdjustUnitHeight = false): Session => {
         const session = {
             units: [],
@@ -681,6 +689,156 @@ describe('ThreadUnit trace layout', () => {
         };
         return session as unknown as Session;
     };
+
+    it.each([['TEXT', '2', true], ['PYTORCH_API_PYTHON_STACK', 'python_stack:text:2', true],
+        ['PYTORCH_API', '2', false], ['PYTORCH_API_PYTHON_STACK', 'python_stack:2', false],
+    ])('isolates TEXT reuse from native policy (%s, %s)', async (metaType, threadId, reuse) => {
+        const metadata = { ...MERGED_METADATA, threadId, threadIdList: undefined, dataSource, metaType } as ThreadMetaData;
+        const { unit, session, chart } = createOfflineTrace(metadata);
+        session.setDomainWithoutHistory({ domainStart: 0, domainEnd: 1000 });
+        const trace = createStackStatusData({ id: 'stable', startTime: 100, duration: 80, depth: 0 });
+        const request = jest.fn().mockResolvedValue({ data: [[trace]], maxDepth: 1, currentMaxDepth: 1 });
+        window.request = request;
+
+        const first = await chart.mapFunc(session, metadata, unit);
+        const remounted = await chart.mapFunc(session, metadata, unit);
+        expect(remounted).toEqual(first);
+        expect(remounted[0][0]).toEqual(expect.objectContaining({ id: 'stable', startTime: 100, duration: 80, depth: 0 }));
+        expect(request).toHaveBeenCalledTimes(reuse ? 1 : 2);
+
+        session.setDomainWithoutHistory({ domainStart: 100, domainEnd: 1100 });
+        await chart.mapFunc(session, metadata, unit);
+        expect(request).toHaveBeenCalledTimes(reuse ? 2 : 3);
+        session.setDomainWithoutHistory({ domainStart: 0, domainEnd: 1000 });
+        expect(await chart.mapFunc(session, metadata, unit)).toEqual(first);
+        expect(request).toHaveBeenCalledTimes(reuse ? 2 : 4);
+    });
+
+    it.each(['recording', 'parsing', 'pending', 'unit-loading'])('does not cache mutable %s data', async (state) => {
+        const metadata = { ...MERGED_METADATA, metaType: 'TEXT', threadId: '2', threadIdList: undefined, dataSource } as ThreadMetaData;
+        const { unit, session, chart } = createOfflineTrace(metadata);
+        unit.phase = state === 'unit-loading' ? 'loading' : 'download';
+        session.phase = state === 'recording' ? 'recording' : 'download';
+        session.isParserLoading = state === 'parsing';
+        session.isPending = state === 'pending';
+        const data = [[createStackStatusData({ id: 'first' })]];
+        const request = jest.fn().mockResolvedValueOnce({ data, maxDepth: 1, currentMaxDepth: 1 })
+            .mockResolvedValue({ data: [[{ ...data[0][0], id: 'second' }]], maxDepth: 1, currentMaxDepth: 1 });
+        window.request = request;
+        await chart.mapFunc(session, metadata, unit);
+        expect((await chart.mapFunc(session, metadata, unit))[0][0].id).toBe('second');
+        expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['older-first', 'newer-first'])('isolates obsolete height/flags and loading ownership (%s)', async (order) => {
+        const metadata = { ...MERGED_METADATA, metaType: 'TEXT', threadId: '2', threadIdList: undefined, dataSource } as ThreadMetaData;
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const pending: Array<(data: ThreadTraceResponse) => void> = [];
+        window.request = jest.fn(() => new Promise(resolve => pending.push(resolve)));
+        let current = true;
+        const session = createSession();
+        const old = chart.mapFunc(session, metadata, unit, undefined, { isCurrent: () => current });
+        current = false;
+        session.domainRange = { domainStart: 100, domainEnd: 200 };
+        const fresh = chart.mapFunc(session, metadata, unit, undefined, { isCurrent: () => true });
+        const oldData = { data: [[{ ...createStackStatusData({ id: 'old' }), endTime: 20, dbPath: '', threadId: '2', id: 'old' }]], maxDepth: 80, currentMaxDepth: 1, havePythonFunction: false };
+        const newData = { data: [[{ ...createStackStatusData({ id: 'new' }), endTime: 20, dbPath: '', threadId: '2', id: 'new' }]], maxDepth: 8, currentMaxDepth: 1, havePythonFunction: true };
+        if (order === 'older-first') {
+            pending[0](oldData);
+            await old;
+            expect(unit.isTraceLoading).toBe(true);
+            pending[1](newData);
+        } else {
+            pending[1](newData);
+            await fresh;
+            expect(unit.isTraceLoading).toBe(false);
+            pending[0](oldData);
+        }
+        expect((await fresh)[0][0].id).toBe('new');
+        expect(await old).toEqual([]);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(8);
+        expect(unit.havePythonFunction).toBe(true);
+        expect(unit.isTraceLoading).toBe(false);
+    });
+
+    it('does not mutate shared source responses when laying out explicit merged lanes', async () => {
+        const metadata = {
+            ...MERGED_METADATA,
+            dataSource,
+            threadSourceList: ['first.db', 'second.db'].map((dbPath, index) => ({
+                cardId: 'card', dbPath, processId: 'process', threadId: String(index), threadName: 'Stream', metaType: 'TEXT',
+            })),
+        } as ThreadMetaData;
+        const { unit, session, chart } = createOfflineTrace(metadata);
+        const slice = Object.freeze(createStackStatusData({ id: 'frozen', startTime: 10, duration: 20, depth: 0 }));
+        const raw = Object.freeze({ data: Object.freeze([Object.freeze([slice])]), maxDepth: 1, currentMaxDepth: 1 });
+        const request = jest.fn().mockResolvedValue(raw);
+        window.request = request;
+        const first = await chart.mapFunc(session, metadata, unit);
+        expect(first.map(row => row.map(item => item.depth))).toEqual([[0], [1]]);
+        expect(await chart.mapFunc(session, metadata, unit)).toEqual(first);
+        expect(slice.depth).toBe(0);
+        expect(request).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['TEXT', 'PYTORCH_API'])('gates mixed sources individually, not by outer %s metadata', async metaType => {
+        const metadata = {
+            ...MERGED_METADATA,
+            dataSource,
+            metaType,
+            threadSourceList: [
+                { cardId: 'c', dbPath: 'json.db', processId: 'p', threadId: 'python_stack:text:2', metaType: 'PYTORCH_API_PYTHON_STACK' },
+                { cardId: 'c', dbPath: 'native.db', processId: 'p', threadId: '2', metaType: 'PYTORCH_API' },
+            ],
+        } as ThreadMetaData;
+        const { unit, session, chart } = createOfflineTrace(metadata);
+        window.request = jest.fn().mockResolvedValue({ data: [], maxDepth: 0, currentMaxDepth: 0 });
+        await chart.mapFunc(session, metadata, unit);
+        await chart.mapFunc(session, metadata, unit);
+        expect((window.request as jest.Mock).mock.calls.map(call => call[0]).sort((a, b) => a.localeCompare(b))).toEqual(['json.db', 'native.db', 'native.db']);
+    });
+
+    it('does not clear hidden depth when an obsolete TEXT request finishes without a response', async () => {
+        const metadata = { ...MERGED_METADATA, metaType: 'TEXT', threadId: '2', threadIdList: undefined, dataSource } as ThreadMetaData;
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        let current = true;
+        let finish!: (response: ThreadTraceResponse | undefined) => void;
+        window.request = jest.fn(() => new Promise(resolve => { finish = resolve; }));
+        const pending = chart.mapFunc(createSession(), metadata, unit, undefined, { isCurrent: () => current });
+        current = false;
+        chart.hiddenDepth = 7;
+        finish(undefined);
+        expect(await pending).toEqual([]);
+        expect(chart.hiddenDepth).toBe(7);
+    });
+
+    it('shares TEXT in-flight work across main/pinned units, retries failure and reloads after clear', async () => {
+        const metadata = { ...MERGED_METADATA, metaType: 'TEXT', threadId: '2', threadIdList: undefined, dataSource } as ThreadMetaData;
+        const units = [new ThreadUnit(metadata), new ThreadUnit(metadata)];
+        units.forEach(unit => { unit.phase = 'download'; });
+        const session = new Session({ units });
+        session.phase = 'download';
+        let finish!: (response: ThreadTraceResponse) => void;
+        window.request = jest.fn().mockRejectedValueOnce(new Error('retry')).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }))
+            .mockResolvedValue({ data: [], maxDepth: 0, currentMaxDepth: 0 });
+        const load = (unit: InsightUnit): Promise<StackStatusData[][]> => (unit.chart as ChartDesc<'stackStatus'>).mapFunc(session, metadata, unit);
+        expect(await load(units[0])).toEqual([]);
+        const main = load(units[0]);
+        const pinned = load(units[1]);
+        await Promise.resolve();
+        expect(window.request).toHaveBeenCalledTimes(2);
+        expect(units.every(unit => unit.isTraceLoading)).toBe(true);
+        finish({ data: [], maxDepth: 0, currentMaxDepth: 0 });
+        expect(await main).toEqual(await pinned);
+        expect(units.every(unit => !unit.isTraceLoading)).toBe(true);
+        await load(units[0]);
+        expect(window.request).toHaveBeenCalledTimes(2);
+        session.simpleCache.clear();
+        await load(units[0]);
+        expect(window.request).toHaveBeenCalledTimes(3);
+    });
 
     it.each([
         ['PYTORCH_API_PYTHON_STACK', 'python_stack:text:123', false, 8],

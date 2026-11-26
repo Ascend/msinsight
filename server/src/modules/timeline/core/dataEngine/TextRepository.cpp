@@ -18,6 +18,7 @@
 #include <algorithm>
 #include "ProcessTable.h"
 #include "SliceTable.h"
+#include "SliceReadTable.h"
 #include "FlowTable.h"
 #include "ThreadTable.h"
 #include "KernelDetailTable.h"
@@ -54,24 +55,14 @@ void TextRepository::QuerySimpleSliceWithOutNameByTrackId(
     if (!isSuccess) {
         return;
     }
-    SliceTable sliceTable;
-    std::vector<SlicePO> tempSlicePOVec;
+    SliceDomainTable sliceTable;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
         .Select(SliceColumn::GROUPID, SliceColumn::DEPTH)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
         .IsNullOrNotEq(SliceColumn::CAT, std::string("python_function"))
         .OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
         .OrderBy(SliceColumn::ID, TableOrder::ASC)
-        .ExcuteQuery(trackInfo.cardId, tempSlicePOVec);
-    for (const auto &item : tempSlicePOVec) {
-        SliceDomain cachelice;
-        cachelice.id = item.id;
-        cachelice.timestamp = item.timestamp;
-        cachelice.endTime = item.endTime;
-        cachelice.depth = item.depth;
-        cachelice.groupId = item.groupId;
-        sliceVec.emplace_back(cachelice);
-    }
+        .ExcuteQuery(trackInfo.cardId, sliceVec);
 }
 
 void TextRepository::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) {
@@ -80,16 +71,12 @@ void TextRepository::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vecto
     if (!isSuccess) {
         return;
     }
-    SliceTable sliceTable;
-    std::vector<SlicePO> slicePOVec;
+    SliceIdTable sliceTable;
     sliceTable.Select(SliceColumn::ID)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
         .Eq(SliceColumn::CAT, sliceQuery.cat)
         .OrderBy(SliceColumn::ID, TableOrder::ASC)
-        .ExcuteQuery(trackInfo.cardId, slicePOVec);
-    for (const auto &item : slicePOVec) {
-        sliceIds.emplace_back(item.id);
-    }
+        .ExcuteQuery(trackInfo.cardId, sliceIds);
 }
 
 bool TextRepository::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
@@ -98,8 +85,7 @@ bool TextRepository::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, s
     if (!isSuccess) {
         return false;
     }
-    SliceTable sliceTable;
-    std::vector<SlicePO> slicePOVec;
+    SliceDomainTable sliceTable;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
         .Select(SliceColumn::GROUPID, SliceColumn::DEPTH)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
@@ -108,16 +94,7 @@ bool TextRepository::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, s
         .GreaterEq(SliceColumn::ENDTIME, AddTimestampOffset(sliceQuery.startTime, sliceQuery.minTimestamp))
         .OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
         .OrderBy(SliceColumn::ID, TableOrder::ASC)
-        .ExcuteQuery(trackInfo.cardId, slicePOVec);
-    for (const auto &item : slicePOVec) {
-        SliceDomain cacheSlice;
-        cacheSlice.id = item.id;
-        cacheSlice.timestamp = item.timestamp;
-        cacheSlice.endTime = item.endTime;
-        cacheSlice.depth = item.depth;
-        cacheSlice.groupId = item.groupId;
-        sliceVec.emplace_back(cacheSlice);
-    }
+        .ExcuteQuery(trackInfo.cardId, sliceVec);
     return true;
 }
 
