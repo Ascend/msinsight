@@ -178,7 +178,7 @@ const WindowProgressPercent = styled.span`
 const ParseLoadingMask = styled.div`
     position: absolute;
     inset: 16px;
-    z-index: 10;
+    z-index: 14;
     display: flex;
     align-items: center;
     justify-content: center;
