@@ -26,6 +26,7 @@ import { useTheme } from '@emotion/react';
 import { getTimeOffset } from '../../insight/units/utils';
 import type { ThreadTraceRequest } from '../../entity/data';
 import { getUnitUniqueId } from '../../utils';
+import { hasTextTraceSource } from '../../cache/threadTraceCache';
 
 export interface Pos {
     x: number;
@@ -104,32 +105,45 @@ export const useData = <T extends ArrayChartType>({
     const requestedWidth = useRef(0);
     const theme = useTheme();
     const timestampOffset = getTimeOffset(session, metadata as ThreadTraceRequest);
+    const textTrace = unit.name === 'Thread' && hasTextTraceSource(metadata);
+    const traceRevision = textTrace ? session.simpleCache?.threadTraceRevision : undefined;
     useEffect(() => {
+        let active = true;
+        const offlineViewport = session.phase === 'download' && !session.isParserLoading && !session.isPending && unit.phase === 'download';
+        const isCurrent = (): boolean => {
+            if (!textTrace) { return requestedWidth.current === width; }
+            if (!active) { return false; }
+            if (session.simpleCache?.threadTraceRevision !== traceRevision) { return false; }
+            if (!refetchOnDomainChange || !offlineViewport) { return true; }
+            const range = session.domainRange;
+            return range.domainStart === domainStart && range.domainEnd === domainEnd;
+        };
         if (width === 0) {
             setDatasState([]);
             return;
         }
         requestedWidth.current = width;
-        mapFunc(session, metadata, unit, theme).then(data => {
+        const result = textTrace ? mapFunc(session, metadata, unit, theme, { isCurrent }) : mapFunc(session, metadata, unit, theme);
+        result.then(data => {
+            // Unmount, source changes and same-width viewport changes also supersede a result.
+            if (textTrace && !isCurrent()) { return; }
             // 展开泳道时须泳道的所有子项的算子查询结束才触发session.shouldRefetchLines变更。（场景：先按类型连线，再展开从未展开过的泳道）
             onAutoFetchLines(session, unit);
-            if (requestedWidth.current !== width) {
-                // drop the data if width has been changed since when request was made
-                return;
-            }
+            if (!isCurrent()) { return; }
             // the data should be sorted by startTime(min -> max).
             setDatasState(processor?.(data, width, dataDomainStart, dataDomainEnd) ?? data);
         }).catch(() => {
             logger('hooks useData', 'mapFunc occurred an exception.');
         }).finally(() => {
-            runInAction(() => { unit.phase = 'download'; });
+            if (!textTrace || isCurrent()) { runInAction(() => { unit.phase = 'download'; }); }
         });
+        return () => { active = false; };
     }, [session.phase, dataDomainStart, dataDomainEnd, endTimeAll, width,
         timestampOffset,
         session.unitsConfig.filterConfig.pythonFunction,
         session.autoAdjustUnitHeight,
         session.areFlagEventsHidden,
-        session.alignRender]);
+        session.alignRender, textTrace, textTrace ? session : undefined, textTrace ? unit : undefined, textTrace ? metadata : undefined, traceRevision]);
     return dataState;
 };
 

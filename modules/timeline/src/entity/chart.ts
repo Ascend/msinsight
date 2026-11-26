@@ -100,8 +100,12 @@ export type ChartProps<T extends ChartType> = ChartConfig<T> & {
     decorator?: ChartDecorator<T>;
 };
 
+export interface ChartRequestContext {
+    isCurrent: () => boolean;
+}
+
 export interface MapFunc<T extends ChartType> {
-    (session: Session, metadata?: unknown, unit?: InsightUnit, theme?: Theme): Promise<ChartData<T>>;
+    (session: Session, metadata?: unknown, unit?: InsightUnit, theme?: Theme, request?: ChartRequestContext): Promise<ChartData<T>>;
 }
 
 export interface RenderTooltip<T extends ChartType> {

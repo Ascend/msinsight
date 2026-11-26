@@ -55,8 +55,10 @@ import { runInAction } from 'mobx';
 import { cardOffsetConfig } from './config/offsetConfig';
 import { isPinned, isSonPinned } from '../../components/ChartContainer/unitPin';
 import type { Theme } from '@emotion/react';
+import { hasTextTraceSource, isTextTrace } from '../../cache/threadTraceCache';
 import type {
     ChartHandle,
+    ChartRequestContext,
     ChartType,
     Scale,
     StackStatusConfig,
@@ -606,6 +608,9 @@ export const ThreadingLlcCacheUnit = unit<CounterMetaData>({
     renderInfo: () => 'LLC Cache',
 });
 
+// Virtual remounts may overlap with an earlier request for the same unit.
+const latestTraceRequests = new WeakMap<InsightUnit, object>();
+
 export const ThreadUnit = unit<ThreadMetaData>({
     name: 'Thread',
     pinType: 'copied',
@@ -620,12 +625,25 @@ export const ThreadUnit = unit<ThreadMetaData>({
     chart: chart({
         type: 'stackStatus',
         height: UnitHeight.COLL,
-        mapFunc: async (session: Session, metaData: unknown, thisUnit?: InsightUnit) => {
+        mapFunc: async (session: Session, metaData: unknown, thisUnit?: InsightUnit, _theme?: Theme, request?: ChartRequestContext) => {
             if (thisUnit === undefined) { return []; }
             const threadMetaData = metaData as ThreadMetaData;
+            const textTrace = hasTextTraceSource(threadMetaData);
+            const isCurrent = (): boolean => !textTrace || request?.isCurrent() !== false;
+            if (!isCurrent()) { return []; }
             // 查询泳道chart参数加上时间偏移
             const timestampOffset = getTimeOffset(session, threadMetaData);
             const requestParams = getThreadTracesRequestParams(session, threadMetaData, timestampOffset);
+            const token = {};
+            if (textTrace) { latestTraceRequests.set(thisUnit, token); }
+            const fetchTraces = (source: DataSource, params: Record<string, unknown>): Promise<any> => {
+                // Parsing/recording results must never become stable cache entries.
+                if (isTextTrace(params) && session.phase === 'download' && !session.isParserLoading && !session.isPending &&
+                    thisUnit.phase === 'download' && session.simpleCache?.fetchThreadTraces !== undefined) {
+                    return session.simpleCache.fetchThreadTraces(source, params);
+                }
+                return window.request(source, { command: 'unit/threadTraces', params }, { silent: true });
+            };
             try {
                 thisUnit.isTraceLoading = true;
                 const sources = threadMetaData.threadSourceList ?? [{
@@ -639,33 +657,26 @@ export const ThreadUnit = unit<ThreadMetaData>({
                 const requests: any[] = await Promise.all(sources.map(async source => {
                     try {
                         if (threadMetaData.threadSourceList === undefined) {
-                            return await window.request(
-                                threadMetaData.dataSource,
-                                { command: 'unit/threadTraces', params: requestParams }, { silent: true },
-                            );
+                            return await fetchTraces(threadMetaData.dataSource, requestParams);
                         }
-                        return await window.request(
+                        return await fetchTraces(
                             (source.dbPath === '' ? threadMetaData.dataSource : source.dbPath) as DataSource,
                             {
-                                command: 'unit/threadTraces',
-                                params: {
-                                    ...requestParams,
-                                    cardId: source.cardId,
-                                    dbPath: source.dbPath,
-                                    processId: source.processId,
-                                    threadId: source.threadId,
-                                    threadIdList: undefined,
-                                    metaType: source.metaType ?? threadMetaData.metaType,
-                                },
-                            }, { silent: true },
+                                ...requestParams,
+                                cardId: source.cardId,
+                                dbPath: source.dbPath,
+                                processId: source.processId,
+                                threadId: source.threadId,
+                                threadIdList: undefined,
+                                metaType: source.metaType ?? threadMetaData.metaType,
+                            },
                         );
                     } catch (error) {
                         logger('ThreadUnit', `Failed to load merged stream ${source.threadId} from ${source.dbPath}: ${String(error)}`, 'warn');
                         return undefined;
                     }
-                })).finally(() => {
-                    thisUnit.isTraceLoading = false;
-                });
+                })).finally(() => { if (!textTrace) { thisUnit.isTraceLoading = false; } });
+                if (!isCurrent()) { return []; }
                 const validRequests = requests.map((request, index) => ({ request, index }))
                     .filter((item): item is { request: any; index: number } => item.request !== undefined);
                 if (validRequests.length === 0) {
@@ -729,8 +740,15 @@ export const ThreadUnit = unit<ThreadMetaData>({
                     } as StackStatusData;
                 }));
             } catch (e) {
-                (thisUnit.chart as ChartDesc<'stackStatus'>).hiddenDepth = 0;
+                if (isCurrent()) {
+                    (thisUnit.chart as ChartDesc<'stackStatus'>).hiddenDepth = 0;
+                }
                 return [];
+            } finally {
+                if (textTrace && latestTraceRequests.get(thisUnit) === token) {
+                    latestTraceRequests.delete(thisUnit);
+                    thisUnit.isTraceLoading = false;
+                }
             }
         },
         decorator: (session: Session, metaData: unknown) => {

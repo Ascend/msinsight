@@ -18,6 +18,8 @@
 import type { ThreadTrace, CounterData, CounterMetaData, CounterRequest, ProcessData, ProcessRequest } from '../entity/data';
 import { binarySearchFirstBig, binarySearchLastSmall } from './strategies/utils';
 import { customConsole as console } from '@insight/lib/utils';
+import { observable, runInAction } from 'mobx';
+import { isTextTrace, ThreadTraceCache, threadTraceRequestKey, type ThreadTraceResponse } from './threadTraceCache';
 
 type Method = 'unit/threadTraces' | 'unit/counter' | 'unit/threadTracesSummary'; // store methodKey
 type Handler = (params: Record<string, unknown>, metaData?: unknown) => Promise<ThreadTrace[][] | number[][] | ProcessData[] | undefined>;
@@ -34,6 +36,10 @@ export class SimpleCache {
     timePerPx: number = -1;
 
     private readonly rawCounterRequests = new Map<string, Promise<CounterData[]>>();
+    private readonly threadTraces = new ThreadTraceCache();
+    private readonly threadTraceVersion = observable.box(0);
+
+    get threadTraceRevision(): number { return this.threadTraceVersion.get(); }
 
     private readonly methodSemaphores = new Map<Method, MethodSemaphore>();
 
@@ -118,7 +124,20 @@ export class SimpleCache {
         return request;
     };
 
+    fetchThreadTraces(source: DataSource, params: Record<string, unknown>): Promise<ThreadTraceResponse | undefined> {
+        if (!isTextTrace(params)) { return window.request(source, { command: 'unit/threadTraces', params }, { silent: true }); }
+        return this.threadTraces.fetch(threadTraceRequestKey(source, params), () => window.request(source, {
+            command: 'unit/threadTraces', params,
+        }, { silent: true }));
+    }
+
+    clearThreadTraces(): void {
+        this.threadTraces.clear();
+        runInAction(() => { this.threadTraceVersion.set(this.threadTraceVersion.get() + 1); });
+    }
+
     clear(): void {
+        this.clearThreadTraces();
         this.data.forEach((value) => {
             value?.clear();
         });

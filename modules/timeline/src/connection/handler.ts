@@ -151,6 +151,8 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
         const session = sessionStore.activeSession;
         // 如果没有活跃的会话，直接返回
         if (!session) { return; }
+        // Reparse/append may change payloads even when request parameters are unchanged.
+        session.simpleCache?.clearThreadTraces?.();
         // 第一次 parse/success 返回时，更新 isRL 字段
         session.rankCardInfoMap.size === 0 && connector.send({ event: 'updateSession', body: { isRL: data.isRl } });
         const isFtrace = unitData.isFtrace === true;
@@ -336,6 +338,7 @@ const resetImportedDataTypeState = (session: Session, result: ImportResult, isNe
 
 const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSource: DataSource, isNeedResetRankId: boolean): void => {
     if (!session) { return; }
+    session.simpleCache?.clearThreadTraces?.();
     if (result.reset as boolean) { resetPage({ dataSource }); }
     resetImportedDataTypeState(session, result, isNeedResetRankId);
     // Cached units can be reused below, but their old registrations do not
@@ -496,6 +499,7 @@ export const parseUnitCompletedHandler: NotificationHandler = action((data: Reco
             });
             break;
         case 'OVERLAP_ANALYSIS':
+            session.simpleCache?.clearThreadTraces?.();
             session.asyncDataLoadingList[dbId].OVERLAP_ANALYSIS = true;
             // The same source can complete again while its previous completion flag is still true.
             session.asyncDataLoadingList[dbId].OVERLAP_ANALYSIS_VERSION =
@@ -574,6 +578,7 @@ export const baselineAddHandler: NotificationHandler = async (data): Promise<voi
         const { sessionStore } = store;
         const session = sessionStore.activeSession;
         runInAction(() => {
+            session?.simpleCache?.clearThreadTraces?.();
             createBaselineCard(session, baseLineInfo, dataSource);
         });
     } catch (error) {
@@ -783,6 +788,7 @@ const remoteDeleteRequest = async (session: Session, dataSource: DataSource, rem
     }, [[] as string[], [] as string[]]);
     const result = await window.request(dataSource, { command: 'remote/delete', params: { rankId: removeCardIds, dbPaths: removeCardDbPaths } });
     if (result?.startTimeUpdated as boolean) {
+        session.simpleCache?.clearThreadTraces?.();
         session.remoteAttrs.set(dataSource.remote, { maxTimeStamp: result.maxTimeStamp });
 
         let remoteMaxTimeStamps = 0;
