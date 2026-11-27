@@ -15,13 +15,19 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-export const appendChunk = ({ eventBus, state }, sessionId, role, type, delta) => {
-    const message = ensureMessage({ eventBus, state }, sessionId, role);
-    if (!message) return;
+import { filterHistoryText, isHiddenResource } from "./historyContentFilter.mjs";
+import { ensureHistoryMessage } from "./historyMessageService.mjs";
+
+export const appendChunk = (serviceContext, sessionId, role, type, delta) => {
+    const { eventBus, historyBlockId } = serviceContext;
+    const message = ensureMessage(serviceContext, sessionId, role);
+    if (!message) {
+        return;
+    }
     const block = message.content.at(-1);
-    if (!block || block.type !== type) {
+    if (!block || block.type !== type || (historyBlockId && block.id !== historyBlockId)) {
         const nextBlock = {
-            id: crypto.randomUUID(),
+            id: historyBlockId ?? crypto.randomUUID(),
             type,
             text: delta,
             startedAt: Date.now(),
@@ -58,10 +64,15 @@ export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
     eventBus.broadcast({ type: "message_activity", sessionId, id: message.id, activity });
 };
 
-export const upsertToolCall = ({ eventBus, state }, sessionId, toolCall) => {
-    if (!toolCall?.toolCallId) return;
-    const message = ensureMessage({ eventBus, state }, sessionId, "assistant");
-    if (!message) return;
+export const upsertToolCall = (serviceContext, sessionId, toolCall) => {
+    const { eventBus } = serviceContext;
+    if (!toolCall?.toolCallId) {
+        return;
+    }
+    const message = ensureMessage(serviceContext, sessionId, "assistant");
+    if (!message) {
+        return;
+    }
     const block = message.content.find((item) => item.type === "tool" && item.toolCall.toolCallId === toolCall.toolCallId);
     const nextToolCall = {
         ...(block?.toolCall ?? { name: "Tool", status: "in_progress", startedAt: Date.now() }),
@@ -78,12 +89,17 @@ export const upsertToolCall = ({ eventBus, state }, sessionId, toolCall) => {
     eventBus.broadcast({ type: "message_tool_call", sessionId, id: message.id, toolCall: nextToolCall });
 };
 
-const ensureMessage = ({ eventBus, state }, sessionId, role) => {
+const ensureMessage = ({ eventBus, state, historyMessageId }, sessionId, role) => {
     const context = state.sessionContexts.get(sessionId);
-    if (!context) return undefined;
+    if (!context) {
+        return undefined;
+    }
+    if (context.collectingHistory) {
+        return ensureHistoryMessage(context.messages, role, historyMessageId);
+    }
     let message = context.messages[context.messages.length - 1];
-    if (!message || message.role !== role) {
-        message = { id: crypto.randomUUID(), role, content: [] };
+    if (!message || message.role !== role || (historyMessageId && message.id !== historyMessageId)) {
+        message = { id: historyMessageId ?? crypto.randomUUID(), role, content: [] };
         context.messages.push(message);
         eventBus.broadcast({ type: "message_added", sessionId, message });
     }
@@ -95,7 +111,9 @@ const definedToolCallFields = (toolCall) => Object.fromEntries(
 );
 
 export const appendContentBlock = (serviceContext, sessionId, role, block, type = "text") => {
-    if (shouldSkipAgentContent(block)) return;
+    if (isHiddenResource(block)) {
+        return;
+    }
     if (block?.type === "image") {
         if (typeof block.data !== "string" || !block.data.trim() ||
             typeof block.mimeType !== "string" || !block.mimeType.startsWith("image/")) return;
@@ -113,8 +131,14 @@ export const appendContentBlock = (serviceContext, sessionId, role, block, type 
         return;
     }
 
-    const text = textFromContentBlock(block);
-    if (text) appendChunk(serviceContext, sessionId, role, type, text);
+    const source = textFromContentBlock(block);
+    const collectingHistory = serviceContext.state.sessionContexts.get(sessionId)?.collectingHistory;
+    const textual = typeof block === "string" || block?.type === "text";
+    const text = collectingHistory || !textual ? source : filterHistoryText(source, serviceContext.hiddenPromptTexts);
+    if (text) {
+        const historyBlockId = collectingHistory && typeof block?.id === "string" && block.id ? block.id : undefined;
+        appendChunk({ ...serviceContext, historyBlockId }, sessionId, role, type, text);
+    }
 };
 
 const textFromContentBlock = (block) => {
@@ -126,16 +150,6 @@ const textFromContentBlock = (block) => {
     if (block.type === "resource" && typeof block.resource?.text === "string") return block.resource.text;
     return "";
 };
-
-const shouldSkipAgentContent = (block) => {
-    if (!block) return false;
-    if (block.type === "resource") return String(block.resource?.uri ?? "").startsWith("insight-");
-    if (block.type === "text") return textHeadEchoesSystemContext(block.text);
-    return false;
-};
-
-const SYSTEM_CONTEXT_URI_PATTERN = /insight-(?:hidden-context|system-prompt):\/\/project/;
-const textHeadEchoesSystemContext = (text) => SYSTEM_CONTEXT_URI_PATTERN.test(String(text ?? "").slice(0, 200));
 
 export const setLocalTitle = (state, sessionId, title) => {
     if (!sessionId || !title || state.customTitles?.has(sessionId)) return;

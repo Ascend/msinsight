@@ -26,7 +26,7 @@ import { formatToolError, isToolDiagnosticId, normalizeToolError } from "../util
 
 export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, getPromptConfigurationError, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
-    const serviceContext = { eventBus, state };
+    const serviceContext = { eventBus, state, hiddenPromptTexts: [memoryTuningPrompt, slowCardAnalysisPrompt] };
 
     const initialize = async ({ targetAdapter = adapter, broadcast = true, refreshSessions = true } = {}) => {
         try {
@@ -264,9 +264,16 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
 
         const sessionContext = getSessionContext(state, sessionId);
         if (!sessionContext.pendingPrompt && !sessionContext.replayingHistory) return;
-        // 静默恢复只写入服务端历史；会话选项仍通过上面的 config_option_update 正常发布。
-        const contentContext = sessionContext.refreshingConfigOnly
-            ? { state, eventBus: { broadcast: () => {} } } : serviceContext;
+        // Replay fragments are private until session/load completes and history is filtered.
+        // Configuration updates above remain independent of history presentation.
+        const sourceMessageId = update.messageId ?? update.message_id;
+        const contentContext = {
+            ...serviceContext,
+            eventBus: sessionContext.refreshingConfigOnly || sessionContext.collectingHistory
+                ? { broadcast: () => {} } : eventBus,
+            historyMessageId: sessionContext.collectingHistory && typeof sourceMessageId === "string" && sourceMessageId
+                ? sourceMessageId : undefined,
+        };
 
         if (kind === "tool_call" || kind === "tool_call_update") {
             const source = update.toolCall ?? update.tool_call ?? update;
@@ -285,7 +292,9 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         }
 
         if (kind === "agent_status_update") {
-            setAgentActivity(contentContext, sessionId, normalizeAgentActivity(update.activity));
+            if (!sessionContext.collectingHistory) {
+                setAgentActivity(contentContext, sessionId, normalizeAgentActivity(update.activity));
+            }
             return;
         }
 

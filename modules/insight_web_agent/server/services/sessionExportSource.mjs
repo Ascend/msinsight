@@ -18,6 +18,8 @@
 import { randomUUID } from "node:crypto";
 import { createAcpAdapter } from "../infrastructure/acpAdapter.mjs";
 import { normalizeAgentCapabilities } from "./capabilityService.mjs";
+import { filterHistoryMessages, isHiddenResource } from "./historyContentFilter.mjs";
+import { ensureHistoryMessage } from "./historyMessageService.mjs";
 
 const error = (code, message) => Object.assign(new Error(message), { code });
 const hasCapability = (value) => value !== undefined && value !== null && value !== false;
@@ -29,6 +31,7 @@ const status = (value) => value === undefined ? undefined : ["completed", "succe
 export const createSessionExportSource = async ({
     agentServer, cwd, requestTimeoutMs = 30_000, signal,
     maxHistoryBytes = 8 * 1024 * 1024,
+    hiddenPromptTexts = [],
     createAdapter = createAcpAdapter,
 }) => {
     // Keep stderr drained: the adapter logs byte counts only, never agent output.
@@ -90,12 +93,12 @@ export const createSessionExportSource = async ({
                         const result = await adapter.request("_msinsight/session/export", { sessionId });
                         if (!Array.isArray(result?.messages)) throw error("session_export_history_invalid", "Agent returned malformed read-only history");
                         if (Buffer.byteLength(JSON.stringify(result.messages), "utf8") > maxHistoryBytes) throw error("session_export_history_limit", "Session history size limit reached");
-                        return structuredClone(result.messages);
+                        return filterHistoryMessages(structuredClone(result.messages), hiddenPromptTexts);
                     }
                     // session/resume is not a substitute: it need not replay any history.
                     await adapter.request("session/load", { sessionId, cwd, additionalDirectories: [], mcpServers: [] });
                     if (current.overflow) throw error("session_export_history_limit", "Session history size limit reached");
-                    return current.messages;
+                    return filterHistoryMessages(current.messages, hiddenPromptTexts);
                 } catch (failure) {
                     if (/session.*(?:busy|running prompt)|running prompt/i.test(failure?.message ?? "")) throw error("session_export_busy", "Session has a running prompt");
                     throw failure;
@@ -115,7 +118,7 @@ const collectUpdate = (collector, update) => {
         const source = update.toolCall ?? update.tool_call ?? update;
         const toolCallId = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
         if (!toolCallId) return;
-        const message = ensureMessage(collector, "assistant");
+        const message = ensureHistoryMessage(collector.messages, "assistant", update.messageId ?? update.message_id);
         const block = message.content.find((part) => part.type === "tool" && part.toolCall.toolCallId === toolCallId);
         const fields = {
             ...source,
@@ -139,9 +142,10 @@ const collectUpdate = (collector, update) => {
         const block = typeof value === "string" ? { type: "text", text: value } : value;
         if (!block || typeof block !== "object") continue;
         // Hidden Host prompts are not conversation history.
-        if (block.type === "resource" && String(block.resource?.uri ?? "").startsWith("insight-")) continue;
-        if (block.type === "text" && /insight-(?:hidden-context|system-prompt):\/\/project/.test(String(block.text ?? "").slice(0, 200))) continue;
-        const message = ensureMessage(collector, role, update.messageId ?? update.message_id);
+        if (isHiddenResource(block)) {
+            continue;
+        }
+        const message = ensureHistoryMessage(collector.messages, role, update.messageId ?? update.message_id);
         const type = kind === "agent_thought_chunk" ? "thinking" : block.type;
         const previous = message.content.at(-1);
         if (["text", "thinking"].includes(type) && typeof block.text === "string" && previous?.type === type && (!block.id || block.id === previous.id)) {
@@ -152,12 +156,4 @@ const collectUpdate = (collector, update) => {
             message.content.push({ ...structuredClone(block), id: block.id ?? randomUUID(), type });
         }
     }
-};
-const ensureMessage = (collector, role, id) => {
-    let message = collector.messages.at(-1);
-    if (!message || message.role !== role || (id && message.id !== id)) {
-        message = { id: id ?? randomUUID(), role, content: [] };
-        collector.messages.push(message);
-    }
-    return message;
 };
