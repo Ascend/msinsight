@@ -21,6 +21,7 @@ import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setCo
 import { errorCause, errorResult } from "./errorResult.mjs";
 import { buildSessionExport, writeSessionExport } from "./sessionExport.mjs";
 import { validSessionTitle } from "./sessionTitleStore.mjs";
+import { filterHistoryMessages } from "./historyContentFilter.mjs";
 
 export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration, permissionService, titleStore }) => {
     let mutationQueue = Promise.resolve();
@@ -200,8 +201,12 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         console.log(`Loading session context: sessionId=${targetSessionId}`);
         const hadExistingContext = state.sessionContexts.has(targetSessionId);
         const context = getOrCreateSessionContext(targetSessionId);
+        if (context.collectingHistory) {
+            return errorResult("session_busy", "Session history is already being loaded", 409);
+        }
         context.messages = [];
         context.replayingHistory = true;
+        context.collectingHistory = true;
         // 配置回读仍恢复 Agent 的会话历史，但不向任意浏览器重播为新消息。
         context.refreshingConfigOnly = refreshConfigOnly;
         state.sessionContexts.set(targetSessionId, context);
@@ -209,6 +214,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         let response;
         try {
             response = await openExistingSession(targetSessionId);
+            context.messages = filterHistoryMessages(context.messages, [config.memoryTuningPrompt, config.slowCardAnalysisPrompt]);
         } catch (error) {
             const cause = errorCause(error);
             context.messages = [];
@@ -230,6 +236,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             );
         } finally {
             context.replayingHistory = false;
+            context.collectingHistory = false;
             context.refreshingConfigOnly = false;
         }
         const configOptions = response?.configOptions ?? [];
@@ -271,6 +278,9 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         }
 
         const existing = state.sessionContexts.get(targetSessionId);
+        if (existing?.collectingHistory) {
+            return errorResult("session_busy", "The session cannot be exported while its history is loading", 409);
+        }
         let messages;
         if (existing) {
             // 内存中已有该会话上下文（含新建空会话）时直接导出，不再 load，避免切换当前对话或对不支持 load 的 Agent 报错。

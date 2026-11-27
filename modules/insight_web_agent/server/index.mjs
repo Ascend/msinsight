@@ -520,6 +520,7 @@ const sessionBatchExportService = createSessionBatchExportService({
     openSource: async (agentServer, { signal } = {}) => {
         const source = await createSessionExportSource({
             signal,
+            hiddenPromptTexts: [config.memoryTuningPrompt, config.slowCardAnalysisPrompt],
             agentServer: withHostEnv(agentServer),
             cwd: sharedWorkspacePath,
             requestTimeoutMs: config.requestTimeoutMs,

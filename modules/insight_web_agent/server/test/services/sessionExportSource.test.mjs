@@ -31,6 +31,7 @@ const fixture = (options = {}) => {
     const source = () => createSessionExportSource({
         agentServer: { name: options.native ? "msinsight-native" : "owner", command: "unused", args: [], env: { SECRET: "private" } },
         cwd: "/export-cwd", requestTimeoutMs: 1234, maxHistoryBytes: options.maxHistoryBytes,
+        hiddenPromptTexts: options.hiddenPromptTexts,
         createAdapter: (config) => {
             adapterOptions = config;
             return {
@@ -131,7 +132,7 @@ test("isolated collector retains normalized block fields and complete tool outpu
         emit(sessionId, { sessionUpdate: "agent_thought_chunk", content: { id: "thought", type: "text", text: "reason" } });
         emit(sessionId, { sessionUpdate: "tool_call", toolCallId: "tool-1", title: "Read", status: "pending", rawInput: { path: "/x" }, locations: [{ path: "/x", line: 2 }] });
         emit(sessionId, { sessionUpdate: "tool_call_update", toolCallId: "tool-1", status: "completed", rawOutput: longOutput, durationMs: 45 });
-        emit(sessionId, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "answer" } });
+        emit(sessionId, { sessionUpdate: "agent_message_chunk", messageId: "answer", content: { type: "text", text: "answer" } });
         return {};
     } });
     const source = await f.source();
@@ -145,6 +146,7 @@ test("isolated collector retains normalized block fields and complete tool outpu
     assert.deepEqual(history[0].content[1].annotations, { priority: 1 });
     assert.equal(history[0].content[2].resource.text, "resource body");
     assert.equal(history[1].content[0].type, "thinking");
+    assert.equal(history[1].id, "answer");
     assert.equal(history[1].content[1].toolCall.output, longOutput);
     assert.equal(history[1].content[1].toolCall.status, "completed");
     assert.equal(history[1].content[1].toolCall.durationMs, 45);
@@ -152,6 +154,40 @@ test("isolated collector retains normalized block fields and complete tool outpu
     assert.equal(history[1].content[2].text, "answer");
     assert.equal(/do not collect|hidden|apiKey/.test(JSON.stringify(history)), false);
 });
+
+for (const native of [false, true]) {
+    test(`export filters fragmented preset/JSON and preserves visible input: native=${native}`, async () => {
+        const preset = "Private instructions";
+        const sourceText = `<context ref="insight-assistant-preset://project"/>\n${preset}\n`
+            + '<context ref="insight-hidden-context://project"/>\n{"data":{"secret":"hidden"}}\nVisible question';
+        const blocks = [];
+        for (let index = 0; index < sourceText.length; index += 7) {
+            blocks.push({ id: `block-${index}`, type: "text", text: sourceText.slice(index, index + 7) });
+        }
+        const original = [{ role: "user", content: blocks }];
+        const before = structuredClone(original);
+        const f = fixture({ native, hiddenPromptTexts: [preset], request: async (method, params, emit) => {
+            if (native) {
+                assert.equal(method, "_msinsight/session/export");
+                return { messages: original };
+            }
+            assert.equal(method, "session/load");
+            for (const block of blocks) {
+                emit(params.sessionId, { sessionUpdate: "user_message_chunk", content: block });
+            }
+            return {};
+        } });
+        const source = await f.source();
+        try {
+            const messages = await source.load("s");
+            assert.equal(messages.length, 1);
+            assert.equal(messages[0].content.map((block) => block.text).join(""), "Visible question");
+            assert.deepEqual(original, before);
+        } finally {
+            await source.close();
+        }
+    });
+}
 
 test("Native uses only advertised read-only RPC and returns exact UI messages without replay", async () => {
     const messages = [{ id: "assistant", role: "assistant", completionStatus: "cancelled", completedAt: 123, content: [{ id: "tool", type: "tool", toolCall: { toolCallId: "tc", output: "complete", custom: true } }, { id: "img", type: "image", mimeType: "image/webp", data: "abc" }] }];
