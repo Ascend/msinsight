@@ -17,6 +17,7 @@
  */
 import {
     createContext,
+    useCallback,
     useContext,
     useEffect,
     useMemo,
@@ -35,6 +36,8 @@ import { deliverReceipt, prepareReceipt, type ReceiptBody } from '../bridge/fron
 import { subscribeEvents } from '../eventStream';
 import { shouldPersistSessionExport } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ContextUsage, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, RagStatus, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+
+const EMPTY_NOTICES: ConversationNotice[] = [];
 
 interface ChatStateValue {
     ragStatus?: RagStatus;
@@ -581,7 +584,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
-    const updateSessionRecord = (sessionId: string, updater: (record: SessionRecord) => SessionRecord): void => {
+    const updateSessionRecord = useCallback((sessionId: string, updater: (record: SessionRecord) => SessionRecord): void => {
         setState((current) => {
             const record = updater(getSessionRecord(current, sessionId));
             const sessionRecords = { ...current.sessionRecords, [sessionId]: record };
@@ -591,7 +594,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 sessions: mergeSessionStatuses(current.sessions, sessionRecords),
             };
         });
-    };
+    }, []);
 
     useEffect(() => {
         const loadInitialData = async (): Promise<void> => {
@@ -1022,7 +1025,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
-    const respondToPermission = async (sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> => {
+    const respondToPermission = useCallback(async (sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> => {
         updateSessionRecord(sessionId, (record) => ({
             ...record,
             messages: record.messages.map((item) => item.permission?.requestId === requestId
@@ -1040,7 +1043,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     : item),
             }));
         }
-    };
+    }, [updateSessionRecord]);
 
     /** 功能：配置重载后回读会话选项，保留消息及各会话独立的模型、模式选择。 */
     const refreshSessionConfigOptions = async (agentName: string): Promise<void> => {
@@ -1212,7 +1215,7 @@ const activeMessages = (state: ChatState): ChatMessage[] => {
 
 const activeNotices = (state: ChatState): ConversationNotice[] => {
     if (state.isDraftSession || !state.activeSessionId) return state.draftNotices;
-    return getSessionRecord(state, state.activeSessionId).notices ?? [];
+    return getSessionRecord(state, state.activeSessionId).notices ?? EMPTY_NOTICES;
 };
 
 export const createModelSwitchNotice = (model: string, messages: ChatMessage[]): ConversationNotice => ({
