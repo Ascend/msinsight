@@ -18,7 +18,7 @@
 import styled from '@emotion/styled';
 import { Image } from 'antd';
 import type { TFunction } from 'i18next';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessage, ConversationNotice, MessageContentBlock, PermissionDecision, ToolCallItem } from '../types';
@@ -778,7 +778,9 @@ interface MessageListProps {
     onPermissionDecision: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }
 
-export const MessageList = ({ messages, notices = [], pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
+const EMPTY_NOTICES: ConversationNotice[] = [];
+
+const MessageListInner = ({ messages, notices = EMPTY_NOTICES, pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const now = useToolClock(pendingPrompt);
     if (!messages.length) {
@@ -850,6 +852,10 @@ export const MessageList = ({ messages, notices = [], pendingPrompt, onPermissio
         </Container>
     );
 };
+
+// Typing updates the composer draft in ChatStateProvider; keep the (potentially large)
+// message list memoized so keystrokes do not re-render every Markdown block.
+export const MessageList = memo(MessageListInner);
 
 const ModelSwitchNoticeShell = styled.div`
     width: 100%;
@@ -996,7 +1002,15 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
     );
 };
 
-const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element | null => {
+const ContentBlock = memo(function ContentBlock({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element | null {
+    const segments = useMemo(
+        () => (block.type === 'text'
+            ? (allowActions
+                ? parseActionMarkup(block.text, { streaming, keyPrefix: block.id })
+                : [{ key: block.id, type: 'markdown' as const, text: block.text }])
+            : []),
+        [allowActions, block, streaming],
+    );
     if (block.type === 'thinking') return null;
     if (block.type === 'image') {
         return <div className="attachment">
@@ -1017,9 +1031,6 @@ const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolea
         </div>;
     }
     if (block.type === 'text') {
-        const segments = allowActions
-            ? parseActionMarkup(block.text, { streaming, keyPrefix: block.id })
-            : [{ key: block.id, type: 'markdown' as const, text: block.text }];
         return <>{segments.map((segment) => {
             if (segment.type === 'action') return <ActionBlock action={segment.action} key={segment.key} />;
             if (segment.type === 'literal') return <pre className="action-literal" key={segment.key}>{segment.text}</pre>;
@@ -1027,7 +1038,7 @@ const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolea
         })}</>;
     }
     return <ToolCalls toolCalls={[block.toolCall]} />;
-};
+});
 
 const AssistantContent = ({
     index,
