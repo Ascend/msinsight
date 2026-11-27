@@ -19,6 +19,7 @@
 #ifndef PROFILER_SERVER_EVENT_DEF_H
 #define PROFILER_SERVER_EVENT_DEF_H
 
+#include <cstdint>
 #include <string>
 #include <optional>
 #include <map>

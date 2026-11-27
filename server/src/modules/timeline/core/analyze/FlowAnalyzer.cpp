@@ -36,7 +36,8 @@ std::vector<SliceDomain> GetTextFlowSliceVec(const FlowQuery &flowQuery, FlowRep
     sliceQuery.startTime = flowQuery.startTime;
     sliceQuery.endTime = flowQuery.endTime;
     sliceQuery.minTimestamp = flowQuery.minTimestamp;
-    std::vector<SliceDomain> sliceVec = instance.GetSliceDomainVec(trackKey, flowQuery.fileId, sliceQuery);
+    uint64_t generation;
+    std::vector<SliceDomain> sliceVec = instance.GetSliceDomainVec(trackKey, flowQuery.fileId, sliceQuery, &generation);
     if (std::empty(sliceVec)) {
         const auto sliceRepo = dynamic_cast<IBaseSliceRepo *>(&repository);
         if (sliceRepo == nullptr) {
@@ -44,7 +45,7 @@ std::vector<SliceDomain> GetTextFlowSliceVec(const FlowQuery &flowQuery, FlowRep
         }
         SliceQuery pagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
         sliceRepo->QuerySimpleSliceWithOutNameByTrackId(pagedQuery, sliceVec);
-        instance.UpdateSliceCache(trackKey, sliceVec, pagedQuery);
+        instance.UpdateSliceCache(trackKey, sliceVec, pagedQuery, generation);
     }
 
     const auto pythonRepo = dynamic_cast<IPythonFuncSlice *>(&repository);

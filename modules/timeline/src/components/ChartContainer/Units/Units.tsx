@@ -44,6 +44,7 @@ import { getRootUnit } from '../../../utils';
 import { MetaDataBase, ThreadMetaData } from '../../../entity/data';
 import { checkIsSliceMode, PAGE_PADDING } from '../../charts/ChartInteractor/draw';
 import { MouseButton } from '../../charts/ChartInteractor/actions';
+import { buildUnitOffsets, computeVisibleRange } from './unitLayout';
 
 const Lane = styled.div<{ laneHeight: number; className: string; top: number; zIndex: number; isDragging: boolean }>`
     position: ${(props): string => props.isDragging ? 'fixed' : 'relative'};
@@ -67,7 +68,6 @@ const Lane = styled.div<{ laneHeight: number; className: string; top: number; zI
     }
 `;
 
-const VIRTUAL_SCROLL_THRESHOLD = 30;
 const MOUSE_STOPPED_THRESHOLD = 50;
 const UNIT_SELECTED = 'unit-selected';
 const UNIT_VISIBLE = 'unit-visible';
@@ -290,20 +290,7 @@ export const Unit = React.forwardRef((props: UnitProps, ref: React.ForwardedRef<
 Unit.displayName = 'Unit';
 
 export const computeVisibleUnitRange = (units: InsightUnit[], viewportHeight: number, scrollTop: number): [ number, number ] => {
-    let start = 0;
-    let end = 0;
-    let yOffset = 0;
-    for (let i = 0; i < units.length; i++) {
-        if (yOffset + VIRTUAL_SCROLL_THRESHOLD > viewportHeight + scrollTop) {
-            break;
-        }
-        if (yOffset + units[i].height() + VIRTUAL_SCROLL_THRESHOLD < scrollTop) {
-            start++;
-        }
-        yOffset += units[i].height() + 1;
-        end++;
-    }
-    return [start, end + 1];
+    return computeVisibleRange(buildUnitOffsets(units), viewportHeight, scrollTop);
 };
 
 export function getClassNameByMetadata(unit: InsightUnit): string {
@@ -353,11 +340,11 @@ interface MetaDataWithCardId extends MetaDataBase {
 
 const computeOnScreenExpandedCardIdSet = (flattenUnits: InsightUnit[], first: number, last: number): Set<string> => {
     return new Set(
-        flattenUnits
-            .filter((unit, i) => {
+        flattenUnits.slice(first, last)
+            .filter((unit) => {
                 const id = (unit?.metadata as MetaDataWithCardId)?.cardId;
                 const isExpanded = unit.isExpanded;
-                return first <= i && i < last && id !== undefined && !id.endsWith('Host') && isExpanded;
+                return id !== undefined && !id.endsWith('Host') && isExpanded;
             }).map(unit => (unit?.metadata as MetaDataWithCardId)?.cardId),
     );
 };
@@ -366,24 +353,18 @@ const FlattenUnits = observer(({ session, height, hasPinButton, laneInfoWidth, e
     const [scrollTop, setScrollTop] = React.useState(0);
     // 监听滚动事件，计算虚拟滚动的泳道
     useEventBus(eventType, (value) => setScrollTop(value as number));
-    const flattenUnitsAll = computed(() => orderOptions.preOrderFlatten(getRootUnit(session.units), 0, orderOptions.options)).get();
-    const flattenUnits = computed(() => flattenUnitsAll.filter(unit => unit.isUnitVisible && !unit.isMerged)).get();
-    const [first, last] = React.useMemo(() => computeVisibleUnitRange(flattenUnits, height, scrollTop),
-        [session.pinnedUnits, flattenUnits, height, scrollTop],
-    );
-    const headOffset = React.useMemo(
-        () => flattenUnits.filter((_, i) => i < first).reduce((prev, cur) => prev + cur.height() + 1, 0),
-        [flattenUnits, first],
-    );
-    const visibleUnitsHeight = React.useMemo(
-        () => flattenUnits.filter((_, i) => first <= i && i < last).reduce((prev, cur) => prev + cur.height() + 1, 0),
-        [flattenUnits, first, last],
-    );
-    const tailOffset = React.useMemo(
-        () => flattenUnits.filter((_, i) => i >= last).reduce((prev, cur) => prev + cur.height() + 1, 0),
-        [flattenUnits, last],
-    );
-    const totalHeight = React.useMemo(() => headOffset + visibleUnitsHeight + tailOffset, [headOffset, visibleUnitsHeight, tailOffset]);
+    // Keep the computed observed across scroll renders. Pin symbols are not observable,
+    // so replacing the pinned list must also invalidate the unpinned layout.
+    const layout = React.useMemo(() => computed(() => {
+        const units = orderOptions.preOrderFlatten(getRootUnit(session.units), 0, orderOptions.options)
+            .filter(unit => unit.isUnitVisible && !unit.isMerged);
+        return { units, offsets: buildUnitOffsets(units) };
+    }), [session, session.pinnedUnits]);
+    const { units: flattenUnits, offsets } = layout.get();
+    const [first, last] = computeVisibleRange(offsets, height, scrollTop);
+    const headOffset = offsets[first];
+    const totalHeight = offsets[flattenUnits.length];
+    const tailOffset = totalHeight - offsets[Math.min(last, flattenUnits.length)];
     const expandedCardIdSet = computeOnScreenExpandedCardIdSet(flattenUnits, first, last);
     const [lastMouseMoveTime, setLastMouseMoveTime] = useState<Date>(new Date());
     const autoScrollIntervals = useRef<NodeJS.Timeout[]>([]);
@@ -668,7 +649,7 @@ const FlattenUnits = observer(({ session, height, hasPinButton, laneInfoWidth, e
         onMouseUp={handleMouseUp}
     >
         <div className={INVISIBLE_UNITS_PLACEHOLDER} style={{ height: headOffset }} />
-        {flattenUnits.filter((_, i) => first <= i && i < last).map((unit) => {
+        {flattenUnits.slice(first, last).map((unit) => {
             if (!isPinned(unit) || unit.pinType === 'copied') {
                 const unitKey = getAutoKey(unit);
                 return <Unit

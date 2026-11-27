@@ -28,10 +28,11 @@ import styled from '@emotion/styled';
 import type { Session } from '../../entity/session';
 import { getAutoKey } from '../../utils/dataAutoKey';
 // same level infer
-import { Unit, Scroller, computeVisibleUnitRange } from './Units';
+import { Unit, Scroller } from './Units';
 import { isAncestorPinned, isPinned, isSonPinned } from './unitPin';
 import { EventType, useEventBus } from '../../utils/eventBus';
 import { PINNED_UNIT_WRAPPER_SCROLLER_ID } from './Units/Units';
+import { buildUnitOffsets, computeVisibleRange } from './Units/unitLayout';
 
 // 拖拽时当鼠标距离相邻泳道边界达到阈值时触发相邻泳道移动
 const UNIT_MOVE_THRESHOLD = 10;
@@ -63,25 +64,15 @@ const FlattenUnits = observer(({ session, height, laneInfoWidth, eventType }:
     const [scrollTop, setScrollTop] = React.useState(0);
     const [nextUnitTop, setNextUnitTop] = React.useState(0);
     useEventBus(eventType, (value) => setScrollTop(value as number));
-    const flattenUnits = computed(() => preOrderPinnedFlatten(session.pinnedUnits, 0, orderOptions.options)).get();
-
-    const [first, last] = React.useMemo(
-        () => computeVisibleUnitRange(flattenUnits, height, scrollTop),
-        [session.pinnedUnits, flattenUnits, height, scrollTop],
-    );
-    const headOffset = React.useMemo(
-        () => flattenUnits.filter((_, i) => i < first).reduce((prev, cur) => prev + cur.height() + 1, 0),
-        [flattenUnits, first],
-    );
-    const visibleUnitsHeight = React.useMemo(
-        () => flattenUnits.filter((_, i) => first <= i && i < last).reduce((prev, cur) => prev + cur.height() + 1, 0),
-        [flattenUnits, first, last],
-    );
-    const tailOffset = React.useMemo(
-        () => flattenUnits.filter((_, i) => i >= last).reduce((prev, cur) => prev + cur.height() + 1, 0),
-        [flattenUnits, last],
-    );
-    const totalHeight = React.useMemo(() => headOffset + visibleUnitsHeight + tailOffset, [headOffset, visibleUnitsHeight, tailOffset]);
+    const layout = React.useMemo(() => computed(() => {
+        const units = preOrderPinnedFlatten(session.pinnedUnits, 0, orderOptions.options);
+        return { units, offsets: buildUnitOffsets(units) };
+    }), [session]);
+    const { units: flattenUnits, offsets } = layout.get();
+    const [first, last] = computeVisibleRange(offsets, height, scrollTop);
+    const headOffset = offsets[first];
+    const totalHeight = offsets[flattenUnits.length];
+    const tailOffset = totalHeight - offsets[Math.min(last, flattenUnits.length)];
 
     const wrapRef = useRef<HTMLDivElement>(null);
     const draggingUnitKeyRef = useRef<string>('');

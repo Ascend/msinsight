@@ -124,6 +124,27 @@ describe('useData', () => {
         expect(unit.phase).toBe('loading');
     });
 
+    it.each(['download', 'recording'])('rejects an old TEXT width response in %s phase', async (phase) => {
+        const session = createSession();
+        session.phase = phase as Session['phase'];
+        const unit = createUnit();
+        const pending: Array<(data: StatusData[]) => void> = [];
+        const mapFunc = jest.fn(() => new Promise<StatusData[]>(resolve => pending.push(resolve)));
+        const processor = jest.fn((data: StatusData[]) => data);
+        const { result, rerender } = renderHook(({ width }) => useData<'status'>({
+            session, unit, metadata: unit.metadata, mapFunc, width, processor,
+        }), { initialProps: { width: 100 } });
+        rerender({ width: 200 });
+        const newer = [{ startTime: 30, duration: 5, name: 'new width', type: 'operator' }] as StatusData[];
+        await act(async () => { pending[1](newer); });
+        unit.phase = 'loading';
+        await act(async () => { pending[0]([{ name: 'old width' } as StatusData]); });
+        expect(result.current).toEqual(newer);
+        expect(processor).toHaveBeenCalledTimes(1);
+        expect(processor).toHaveBeenCalledWith(newer, 200, 0, 100);
+        expect(unit.phase).toBe('loading');
+    });
+
     it('does not process an unmounted chart response or mark its lane downloaded', async () => {
         const { unit, pending, processor, unmount } = renderPendingThread({}, { phase: 'loading' });
         unmount();

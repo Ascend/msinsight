@@ -67,7 +67,10 @@ class SliceAnalyzer {
     static void AddData(
         std::map<std::string, uint64_t> &selfTimeKeyValue, const std::string &name, uint64_t tmpSelfTime);
     static std::set<std::pair<uint64_t, uint32_t>> ComputeResultIds(uint64_t startTime, uint64_t endTime,
-        std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
+        const std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
+        const std::vector<uint64_t> &pythonFunctionIds);
+    static std::set<std::pair<uint64_t, uint32_t>> ComputeSmallScreenIdsReadOnly(uint64_t startTime, uint64_t endTime,
+        const std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
         const std::vector<uint64_t> &pythonFunctionIds);
     static void CalculateSelfTime(
         std::vector<CompeteSliceDomain> &rows, std::map<std::string, uint64_t> &selfTimeKeyValue);
