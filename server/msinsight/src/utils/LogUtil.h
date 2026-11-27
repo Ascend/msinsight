@@ -72,13 +72,22 @@ class LogPrefix {
 
 class LogUtil {
   public:
+    struct FileOperations {
+        decltype(&FileUtil::OpenRead) openRead = &FileUtil::OpenRead;
+        decltype(&FileUtil::OpenWrite) openWrite = &FileUtil::OpenWrite;
+    };
+
     LogUtil(const LogOutType &type, const std::string &filePath, const std::string &wsPort)
         : originFilePath(filePath), outType(type), wsPort(wsPort) {
         Initialize();
     }
 
     LogUtil(const LogOutType &type, const std::string &filePath, const std::string &wsPort, int maxSize)
-        : maxSize(maxSize), originFilePath(filePath), outType(type), wsPort(wsPort) {
+        : LogUtil(type, filePath, wsPort, maxSize, FileOperations{}) {}
+
+    LogUtil(const LogOutType &type, const std::string &filePath, const std::string &wsPort, int maxSize,
+        FileOperations operations)
+        : maxSize(maxSize), originFilePath(filePath), outType(type), wsPort(wsPort), fileOperations(operations) {
         Initialize();
     }
 
@@ -166,6 +175,7 @@ class LogUtil {
     }
 
   private:
+    friend class LogUtilTestAccess;
     void Initialize() {
         // read the last write log file and the count
         while (outType != LogOutType::TERMINAL && CheckRotating()) {
@@ -300,8 +310,8 @@ class LogUtil {
         return str;
     }
 
-    static inline int GetFileSize(const std::string &path) {
-        std::ifstream fr = FileUtil::OpenRead(path, std::ios::in | std::ios::binary);
+    inline int GetFileSize(const std::string &path) {
+        std::ifstream fr = fileOperations.openRead(path, std::ios::in | std::ios::binary);
         int result = 0;
         if (fr.is_open()) {
             fr.seekg(0, std::ifstream::end);
@@ -323,16 +333,16 @@ class LogUtil {
         filePath.insert(filePath.find_last_of('.'), "_" + wsPort + "_" + std::to_string(++count));
         if (isAppend) {
             currentSize = GetFileSize(filePath);
-            ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::app);
+            ofs = fileOperations.openWrite(filePath, std::ios::out | std::ios::app);
         } else {
-            ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::trunc);
+            ofs = fileOperations.openWrite(filePath, std::ios::out | std::ios::trunc);
             currentSize = 0;
         }
 #if defined(__linux__) || defined(__APPLE__)
         ofs.close(); // 关闭文件以设置权限
         mode_t mode = 0640; // 业务数据权限要求设置为0640 （rw-r-----）
         FileUtil::ModifyFilePermissions(filePath, mode);
-        ofs = FileUtil::OpenWrite(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
+        ofs = fileOperations.openWrite(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
 #endif
     }
 
@@ -342,26 +352,45 @@ class LogUtil {
     }
 
     /**
-     * @brief force flush the log content to disk
+     * @brief Flush buffered output; reuse healthy Windows stream handles.
      */
     inline void Flush() {
+#if defined(__linux__) || defined(__APPLE__)
+        // Preserve POSIX reopen behavior (including external unlink/rotation) until validated there.
         if (!wsPort.empty() && wsPort != "-1" && ofs.is_open()) {
             ofs.close();
             currentSize = GetFileSize(filePath);
-            ofs = FileUtil::OpenWrite(filePath, std::ios::out | std::ios::app);
+            ofs = fileOperations.openWrite(filePath, std::ios::out | std::ios::app);
         }
+#else
+        if (!ofs.is_open()) {
+            return;
+        }
+        ofs.flush();
+        if (!ofs.good()) {
+            // Retain recovery after an I/O error; normal records must not reopen/read the file.
+            ofs.close();
+            ofs.clear();
+            currentSize = GetFileSize(filePath);
+            ofs = fileOperations.openWrite(filePath, std::ios::out | std::ios::app);
+        }
+#endif
     }
 
     inline void Append(const std::string &str) {
         if (ofs.is_open()) {
             ofs << str << std::endl;
             ofs.flush();
-            if (str.length() >= INT_MAX) {
+            if (!ofs.good()) {
                 return;
             }
-            int strLen = static_cast<int>(str.length());
-            if (currentSize <= INT_MAX - strLen) {
-                currentSize += strLen;
+            const std::streamoff position = ofs.tellp();
+            if (position < 0) {
+                ofs.clear();
+                currentSize = GetFileSize(filePath);
+            } else {
+                // tellp observes actual bytes, including UTF-8 payloads and platform line endings.
+                currentSize = position >= INT_MAX ? INT_MAX : static_cast<int>(position);
             }
         }
     }
@@ -396,6 +425,7 @@ class LogUtil {
     LogOutType outType = LogOutType::BOTH;
     LogLevel level = LogLevel::L_INFO;
     std::string wsPort;
+    FileOperations fileOperations;
     std::map<LogLevel, std::ostream *> outMap = {{LogLevel::L_INFO, &std::cout}, {LogLevel::L_WARN, &std::cout},
         {LogLevel::L_DEBUG, &std::cout}, {LogLevel::L_ERROR, &std::cerr}, {LogLevel::L_FATAL, &std::cerr}};
 };

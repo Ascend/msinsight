@@ -25,6 +25,37 @@
 using namespace Dic::Module::Timeline;
 class FlowAnalyzerTest : public ::testing::Test {};
 
+TEST_F(FlowAnalyzerTest, ClearDuringColdFlowReadDoesNotRepublishObsoleteRows) {
+    class RepositoryMock : public TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &, std::vector<SliceDomain> &slices) override {
+            if (++loads == 1) {
+                SliceCacheManager::Instance().Clear();
+            }
+            slices = {SliceDomain{static_cast<uint64_t>(loads), 10, 100, 3, ""}};
+        }
+        void QueryFlowPointByTimeRange(const FlowQuery &, std::vector<FlowPoint> &points) override {
+            points = {FlowPoint{.flowId = "flow", .trackId = 77, .timestamp = 10, .type = Dic::Protocol::LINE_START}};
+        }
+        bool QuerySliceByCatAndTimeRange(const SliceQuery &, std::vector<SliceDomain> &) override { return true; }
+        int loads = 0;
+    };
+    CacheManager::Instance().ClearAll();
+    FlowAnalyzer analyzer;
+    auto repository = std::make_unique<RepositoryMock>();
+    auto *counter = repository.get();
+    analyzer.SetRepository(std::move(repository));
+    FlowQuery query;
+    query.fileId = "flow-cold-clear";
+    query.trackId = 77;
+    query.endTime = 100;
+    EXPECT_EQ(analyzer.ComputeOnSliceFlowPointBySliceId(query, "1"), std::unordered_set<std::string>{"flow"});
+    EXPECT_EQ(SliceCacheManager::Instance().GetSliceSnapshot("77", query.fileId, {}), nullptr);
+    EXPECT_EQ(analyzer.ComputeOnSliceFlowPointBySliceId(query, "2"), std::unordered_set<std::string>{"flow"});
+    EXPECT_EQ(counter->loads, 2);
+    CacheManager::Instance().ClearAll();
+}
+
 TEST_F(FlowAnalyzerTest, PythonStackFlowLoadsPersistedSliceDepthWithoutDepthIndex) {
     class RepositoryMock : public TextRepository {
       public:

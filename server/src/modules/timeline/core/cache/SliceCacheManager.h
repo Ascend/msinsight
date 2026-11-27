@@ -24,7 +24,11 @@
 #include <list>
 #include <vector>
 #include <mutex>
+#include <memory>
+#include <iterator>
+#include <utility>
 #include "DomainObject.h"
+#include "DominQuery.h"
 #include "SpinLockGuard.h"
 
 namespace Dic::Module::Timeline {
@@ -33,6 +37,7 @@ static constexpr uint64_t MINUTE_NS = 60ULL * 1000ULL * 1000ULL * 1000ULL;
 
 class SliceCacheManager {
   public:
+    using Snapshot = std::shared_ptr<const std::vector<SliceDomain>>;
     static SliceCacheManager &Instance() {
         static SliceCacheManager sliceCacheManager;
         return sliceCacheManager;
@@ -56,25 +61,34 @@ class SliceCacheManager {
      * @param fileId
      * @return 返回的vector是先按timestamp升序，再按照id升序
      */
-    std::vector<SliceDomain> GetSliceDomainVec(
-        const std::string &trackId, const std::string &rankId, const SliceQuery &sliceQuery) {
+    std::vector<SliceDomain> GetSliceDomainVec(const std::string &trackId, const std::string &rankId,
+        const SliceQuery &sliceQuery, uint64_t *generation = nullptr) {
+        auto snapshot = GetSliceSnapshot(trackId, rankId, sliceQuery, generation);
+        // Legacy callers may sort/filter their result. Keep their independent writable copy, outside the lock.
+        return snapshot == nullptr ? std::vector<SliceDomain>{} : *snapshot;
+    }
+
+    Snapshot GetSliceSnapshot(const std::string &trackId, const std::string &rankId, const SliceQuery &sliceQuery,
+        uint64_t *generation = nullptr) {
         SpinLockGuard lock(mutex);
+        if (generation != nullptr) {
+            *generation = cacheGeneration;
+        }
         std::string key = rankId + "@" + trackId;
-        std::vector<SliceDomain> emptyValue;
         auto it = cache.find(key);
         if (it == cache.end()) {
-            return emptyValue;
+            return nullptr;
         }
         // 全量DB场景下, 若前端传入区间未命中缓存区间范围，同样需要返回空值，更新缓存
         auto durIt = cacheDuration.find(key);
         if (durIt == cacheDuration.end()) {
-            return emptyValue;
+            return nullptr;
         }
         // Text场景下，默认startTime与endTime都为0，不进入该if分支，直接返回全量缓存
         if (sliceQuery.startTime != sliceQuery.endTime) {
             auto [start, end] = durIt->second;
             if (start > sliceQuery.startTime || end < sliceQuery.endTime) {
-                return emptyValue;
+                return nullptr;
             }
         }
         Touch(it);
@@ -88,34 +102,36 @@ class SliceCacheManager {
      */
     void UpdateSliceCache(
         const std::string &trackId, const std::vector<SliceDomain> &value, const SliceQuery &slicePagedQuery) {
-        SpinLockGuard lock(mutex);
         if (std::empty(value)) {
             return;
         }
-        std::string key = slicePagedQuery.GetDataSourceId() + "@" + trackId;
-        auto it = cache.find(key);
-        if (it == cache.end()) {
-            while (curCapacity >= allCapacity) {
-                // 此处上下文逻辑可以保证curCapacity大于cache[used.back()].first.size()
-                std::string evictKey = used.back();
-                curCapacity -= cache[evictKey].first.size();
-                cache.erase(evictKey);
-                cacheDuration.erase(evictKey);
-                used.pop_back();
-            }
-            used.push_front(key);
-            cache[key] = {value, used.begin()};
-            curCapacity += value.size();
-            // 添加算子缓存时间区间
-            cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
-            return;
+        uint64_t generation;
+        {
+            SpinLockGuard lock(mutex);
+            generation = cacheGeneration;
         }
-        // 对于key命中cache的情况，仅当slicePagedQuery中有内容时，更新cacheDuration[key]
-        if (slicePagedQuery.endTime != 0) {
-            cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
+        UpdateSliceCache(trackId, value, slicePagedQuery, generation);
+    }
+
+    // Cold readers must pass the generation captured before querying, not the publication-time generation.
+    void UpdateSliceCache(const std::string &trackId, const std::vector<SliceDomain> &value,
+        const SliceQuery &slicePagedQuery, uint64_t generation) {
+        auto snapshot = std::make_shared<const std::vector<SliceDomain>>(value);
+        PutSliceSnapshot(trackId, std::move(snapshot), slicePagedQuery, generation);
+    }
+
+    // Take ownership of a cold query result. Return it to this request even if Clear invalidated publication.
+    Snapshot PublishSliceCache(const std::string &trackId, std::vector<SliceDomain> &&value,
+        const SliceQuery &slicePagedQuery, uint64_t generation) {
+        // The former copy-based cache retained size(), not geometric spare capacity. Keep that memory behavior.
+        if (value.capacity() > value.size()) {
+            std::vector<SliceDomain> compact(
+                std::make_move_iterator(value.begin()), std::make_move_iterator(value.end()));
+            value.swap(compact);
         }
-        Touch(it);
-        cache[key] = {value, used.begin()};
+        auto snapshot = std::make_shared<const std::vector<SliceDomain>>(std::move(value));
+        PutSliceSnapshot(trackId, snapshot, slicePagedQuery, generation);
+        return snapshot;
     }
 
     static SliceQuery GetSlicePagedQuery(const SliceQuery &sliceQuery) {
@@ -205,21 +221,28 @@ class SliceCacheManager {
     }
 
     void Clear() {
-        SpinLockGuard lock(mutex);
-        cache.clear();
-        cacheDuration.clear();
-        pythonCacheDuration.clear();
-        used.clear();
-        trackIdAndPythonFunctionMap.clear();
-        pythonFunctionIDCache.clear();
-        pythonFunctionIdUsed.clear();
+        CacheMap retired;
+        VisitOrderList retiredUsed;
+        {
+            SpinLockGuard lock(mutex);
+            cache.swap(retired);
+            used.swap(retiredUsed);
+            cacheDuration.clear();
+            pythonCacheDuration.clear();
+            trackIdAndPythonFunctionMap.clear();
+            pythonFunctionIDCache.clear();
+            pythonFunctionIdUsed.clear();
+            curCapacity = 0;
+            ++cacheGeneration;
+        }
+        // Destroy unpinned pages after releasing the cache lock. Existing readers own their snapshots.
     }
 
   private:
-    SliceCacheManager() = default;
+    explicit SliceCacheManager(uint64_t capacity = 100000000) : allCapacity(capacity) {}
     ~SliceCacheManager() = default;
     using VisitOrderList = std::list<std::string>;
-    using CacheValue = std::pair<std::vector<SliceDomain>, VisitOrderList::iterator>;
+    using CacheValue = std::pair<Snapshot, VisitOrderList::iterator>;
     using PythonFunctionIDCache = std::pair<std::vector<uint64_t>, VisitOrderList::iterator>;
     using CacheMap = std::unordered_map<std::string, CacheValue>;
     using PythonFunctionMap = std::unordered_map<std::string, PythonFunctionIDCache>;
@@ -234,9 +257,59 @@ class SliceCacheManager {
     CacheDurationMap pythonCacheDuration;
     SpinLock mutex;
     // 算子缓存大小上限
-    const uint64_t allCapacity = 100000000;
+    const uint64_t allCapacity;
     // 当前缓存大小
     uint64_t curCapacity = 0;
+    uint64_t cacheGeneration = 0;
+
+    void PutSliceSnapshot(
+        const std::string &trackId, Snapshot snapshot, const SliceQuery &slicePagedQuery, uint64_t generation) {
+        if (snapshot->empty()) {
+            return;
+        }
+        std::vector<Snapshot> retired;
+        {
+            SpinLockGuard lock(mutex);
+            if (generation != cacheGeneration) {
+                return;
+            }
+            const std::string key = slicePagedQuery.GetDataSourceId() + "@" + trackId;
+            auto it = cache.find(key);
+            const auto size = snapshot->size();
+            if (it == cache.end()) {
+                // Preserve the existing soft row-count budget and its LRU trigger, not a new paging policy.
+                while (curCapacity >= allCapacity && !used.empty()) {
+                    const std::string evictKey = used.back();
+                    auto evicted = cache.find(evictKey);
+                    const auto evictedSize = evicted->second.first->size();
+                    retired.emplace_back(std::move(evicted->second.first));
+                    curCapacity -= evictedSize;
+                    cache.erase(evicted);
+                    cacheDuration.erase(evictKey);
+                    used.pop_back();
+                }
+                used.push_front(key);
+                try {
+                    cache.emplace(key, CacheValue{snapshot, used.begin()});
+                    cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
+                } catch (...) {
+                    cache.erase(key);
+                    used.pop_front();
+                    throw;
+                }
+                curCapacity += size;
+            } else {
+                if (slicePagedQuery.endTime != 0) {
+                    cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
+                }
+                Touch(it);
+                const auto previousSize = it->second.first->size();
+                retired.emplace_back(std::move(it->second.first));
+                it->second.first = std::move(snapshot);
+                curCapacity = curCapacity - previousSize + size;
+            }
+        }
+    }
 
     // rankId@trackId 是否存在 Python Function。不同导入文件可能复用相同 trackId，不能跨 rank 共享状态。
     std::unordered_map<std::string, PYTHON_FUNCTION_STATUS> trackIdAndPythonFunctionMap;
@@ -250,9 +323,7 @@ class SliceCacheManager {
 
     // 更新算子缓存使用记录
     void Touch(CacheMap::iterator it) {
-        std::string key = it->first;
-        used.erase(it->second.second);
-        used.push_front(key);
+        used.splice(used.begin(), used, it->second.second);
         it->second.second = used.begin();
     }
 

@@ -27,6 +27,100 @@ class SliceAnalyzerTest : public ::testing::Test {
     void TearDown() override { CacheManager::Instance().ClearAll(); }
 };
 
+class ColdClearTest : public SliceAnalyzerTest, public ::testing::WithParamInterface<bool> {};
+
+TEST_P(ColdClearTest, ClearDuringColdReadDoesNotRepublishObsoleteRows) {
+    class RepositoryMock : public TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &, std::vector<SliceDomain> &slices) override {
+            if (++loads == 1) {
+                SliceCacheManager::Instance().Clear();
+            }
+            slices = {SliceDomain{static_cast<uint64_t>(loads), 0, 100, 4, "group"}};
+        }
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &) override { return 0; }
+        int loads = 0;
+    };
+    auto repository = std::make_shared<RepositoryMock>();
+    SliceAnalyzer analyzer;
+    analyzer.SetRepository(repository);
+    SliceQuery query;
+    query.rankId = "cold-clear";
+    query.trackId = 1;
+    query.endTime = 100;
+    std::set<uint64_t> ids;
+    uint64_t maxDepth = 0;
+    std::map<uint64_t, uint32_t> depths;
+    auto read = [&] {
+        if (GetParam()) {
+            std::vector<SliceDomain> slices;
+            analyzer.ComputeSliceDomainVecByTrackId(query, slices);
+            ASSERT_EQ(slices.size(), 1);
+            EXPECT_EQ(slices.front().id, repository->loads);
+            EXPECT_EQ(slices.front().depth, 4);
+        } else {
+            analyzer.ComputeScreenSliceIds(query, ids, maxDepth, depths);
+            EXPECT_EQ(ids, (std::set<uint64_t>{static_cast<uint64_t>(repository->loads)}));
+            EXPECT_EQ(maxDepth, 5);
+            EXPECT_EQ(depths.at(repository->loads), 4);
+        }
+    };
+    read();
+    EXPECT_TRUE(SliceCacheManager::Instance().GetSliceDomainVec("1", query.GetDataSourceId(), query).empty());
+    ids.clear();
+    depths.clear();
+    read();
+    EXPECT_EQ(repository->loads, 2);
+}
+
+INSTANTIATE_TEST_SUITE_P(ScreenAndDetail, ColdClearTest, ::testing::Bool());
+
+TEST_F(SliceAnalyzerTest, SnapshotSamplingKeepsTextAndDbRowsImmutableAcrossViewportsAndFilters) {
+    class RepositoryMock : public TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &, std::vector<SliceDomain> &slices) override {
+            ++loads;
+            slices = {SliceDomain{1, 0, 10000, 3, "long group"}, SliceDomain{2, 100, 200, 5, ""},
+                SliceDomain{3, 400, 1000, 7, "python"}};
+        }
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &) override { return 1; }
+        void QuerySliceIdsByCat(const SliceQuery &, std::vector<uint64_t> &ids) override { ids = {3}; }
+        int loads = 0;
+    };
+    for (const auto type : {PROCESS_TYPE::TEXT, PROCESS_TYPE::API}) {
+        auto repository = std::make_shared<RepositoryMock>();
+        SliceAnalyzer analyzer;
+        analyzer.SetRepository(repository);
+        SliceQuery query;
+        query.metaType = type;
+        query.rankId = "snapshot-range-" + std::to_string(static_cast<int>(type));
+        query.trackId = 2;
+        query.startTime = 100;
+        query.endTime = 1000;
+        std::set<uint64_t> ids;
+        uint64_t maxDepth = 0;
+        std::map<uint64_t, uint32_t> depths;
+        analyzer.ComputeScreenSliceIds(query, ids, maxDepth, depths);
+        EXPECT_EQ(ids, (std::set<uint64_t>{1, 2}));
+        EXPECT_EQ(maxDepth, 6);
+        auto snapshot = SliceCacheManager::Instance().GetSliceSnapshot("2", query.GetDataSourceId(), query);
+        ASSERT_NE(snapshot, nullptr);
+        query.startTime = 10000;
+        query.endTime = 20000;
+        ids.clear();
+        depths.clear();
+        analyzer.ComputeScreenSliceIds(query, ids, maxDepth, depths);
+        EXPECT_EQ(ids, (std::set<uint64_t>{1}));
+        EXPECT_EQ(maxDepth, 6);
+        EXPECT_EQ(depths.at(1), 3);
+        EXPECT_EQ(repository->loads, 1);
+        EXPECT_EQ(SliceCacheManager::Instance().GetSliceSnapshot("2", query.GetDataSourceId(), query), snapshot);
+        EXPECT_EQ((*snapshot)[0].groupId, "long group");
+        EXPECT_EQ((*snapshot)[1].depth, 5);
+        EXPECT_EQ((*snapshot)[2].depth, 7);
+    }
+}
+
 TEST_F(SliceAnalyzerTest, ComputeScreenSliceIdsUsesPersistedOrdinaryDepthsAndMaxDepth) {
     class RepositoryMock : public TextRepository {
       public:
