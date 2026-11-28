@@ -6,7 +6,7 @@
  * MindStudio is licensed under Mulan PSL v2.
  * -------------------------------------------------------------------------
  */
-import type { JsonObject, JsonPrimitive, JsonValue } from '../FrontendAgentCommand';
+import type { CommandUiEffect, JsonObject, JsonPrimitive, JsonValue } from '../FrontendAgentCommand';
 
 export type { JsonObject, JsonPrimitive, JsonValue } from '../FrontendAgentCommand';
 
@@ -233,6 +233,7 @@ export interface TableControllerAdapter {
 
 export interface TableCommandDefinition {
     id: TableCommandId;
+    uiEffect?: CommandUiEffect;
     title: string;
     description?: string;
     inputSchema: JsonObject;

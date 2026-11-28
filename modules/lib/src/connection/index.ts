@@ -17,6 +17,7 @@
  */
 import { customConsole as console } from '../utils/Console';
 import { getWindowMessageRouter, recordWindowMessageDebug } from '../WindowMessageRouter';
+import { connectWorkspaceInputChild, type WorkspaceInputChild } from '../WorkspaceInput';
 
 type ReservedEventHandler = 'request';
 type EventHanlder = string;
@@ -180,6 +181,7 @@ interface FetchRequest {
     id: FetchSequenceID;
 }
 export class ClientConnector extends BaseConnector {
+    private readonly workspaceInput?: WorkspaceInputChild;
     protected readonly _level: string = 'client';
     private readonly _msgSequence: Map<FetchSequenceID, { resolve: (value: unknown) => void; reject: (value: unknown) => void }> = new Map();
     private _curFetchSequenceID: FetchSequenceID = 0;
@@ -194,6 +196,12 @@ export class ClientConnector extends BaseConnector {
         super();
         this._module = module;
         this._level = 'client';
+        if (module !== 'insight_web_agent' && window.parent !== window) this.workspaceInput = connectWorkspaceInputChild();
+    }
+
+    dispose(): void {
+        this.workspaceInput?.dispose();
+        super.dispose();
     }
 
     send<T extends EventHanlder>(body: SendParams<T>, reject?: (err: Error) => void): void {

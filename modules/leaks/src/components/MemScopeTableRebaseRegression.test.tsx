@@ -153,7 +153,7 @@ describe.each<Kind>(['blocks', 'events'])('stop006 real %s component', kind => {
         handler(kind).mockResolvedValueOnce(undefined);
         await act(async () => {
             await expect(execute(controller, 'table.refresh')).rejects.toMatchObject({
-                code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED, retryable: true,
+                code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED, retryable: true, details: undefined,
             });
         });
         expect(rows(session, kind)[0].ID).toBe(1);
@@ -250,9 +250,29 @@ describe.each<Kind>(['blocks', 'events'])('stop006 real %s component', kind => {
         expect(page(session, kind)).toBe(1);
         await act(async () => { await execute(controller, 'table.goToPage', { page: 2 }, commandContext('new-page')); });
         await act(async () => { old.resolve(result(kind, 99)); });
-        expect((await observedError).code).toBe(TABLE_ERROR_CODES.COMMAND_SUPERSEDED);
+        expect(await observedError).toMatchObject({ code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED, details: undefined });
         expect(page(session, kind)).toBe(2);
         expect(rows(session, kind)[0].ID).toBe(1);
+    });
+
+    test.each(['page', 'slice'])('identifies a running command displaced by a different %s', async change => {
+        const { session, controller } = await mount(kind);
+        const pending = deferred();
+        handler(kind).mockReturnValueOnce(pending.promise);
+        let error!: Promise<unknown>;
+        act(() => { error = execute(controller, 'table.goToPage', { page: 3 }).catch(reason => reason); });
+        if (change === 'page') {
+            act(() => mockTableProps.get(`${kind}Table`).pagination.onChange(2, 10));
+        } else {
+            act(() => runInAction(() => {
+                session.selectedSliceIndex = 1;
+                session.loadedMemoryBlockContextKey = createMemoryBlockContextKey(session);
+            }));
+        }
+        await act(async () => { pending.resolve(result(kind)); await error; });
+        expect(await error).toMatchObject({
+            code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED, details: { reason: 'workspace_target_changed' },
+        });
     });
 
     test.each([true, false])('checks an aborted signal before accepting a response (reason=%s)', async withReason => {

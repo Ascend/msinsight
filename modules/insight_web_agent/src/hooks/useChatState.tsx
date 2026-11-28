@@ -31,7 +31,7 @@ import { t } from 'i18next';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, deleteSession, exportSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, renameSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { downloadSessionExport } from '../sessionExportDownload';
-import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
+import { cancelFrontendCommand, requestFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { deliverReceipt, prepareReceipt, type ReceiptBody } from '../bridge/frontendCommandReceipt';
 import { subscribeEvents } from '../eventStream';
 import { shouldPersistSessionExport } from '../env';
@@ -73,6 +73,7 @@ interface ChatStateValue {
     exportSession: (session: SessionItem) => Promise<void>;
     renameSession: (session: SessionItem, title: string) => Promise<void>;
     sendMessage: () => Promise<void>;
+    resumeWorkspaceAnalysis: () => Promise<void>;
     cancelMessage: () => Promise<void>;
     selectSession: (session: SessionItem) => Promise<void>;
     setInput: (value: string) => void;
@@ -206,7 +207,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => ({ ...current, sessions: mergeSessionStatuses(sessions, current.sessionRecords) }));
     };
 
-    const refreshInitialState = async (sessionInitializationRevision?: number): Promise<Partial<AppState>> => {
+    const refreshInitialState = useCallback(async (sessionInitializationRevision?: number): Promise<Partial<AppState>> => {
         const discoveryRevision = discoveryRevisionRef.current;
         const nextState = await fetchState();
         if (discoveryRevision !== discoveryRevisionRef.current
@@ -230,7 +231,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             availableCapabilities: nextState.availableCapabilities ?? current.availableCapabilities,
         }));
         return nextState;
-    };
+    }, []);
 
     const refreshAgentList = async (): Promise<{ activeAgentName?: string; discoveryLoading?: boolean }> => {
         const startRevision = discoveryStartRevisionRef.current;
@@ -565,8 +566,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             if (controller.signal.aborted || Date.now() >= event.deadline) return;
             let receipt: ReceiptBody;
             try {
-                const result = await executeFrontendCommand(event.command, event.args, event.requestId, event.deadline);
-                receipt = { requestId: event.requestId, claimToken, status: 'completed', result };
+                const response = await requestFrontendCommand(event.command, event.args, event.requestId, event.deadline, 'agent');
+                receipt = { requestId: event.requestId, claimToken, status: 'completed', ...response };
             } catch (error) {
                 receipt = { requestId: event.requestId, claimToken, status: 'failed', error: toCommandError(error) };
             }
@@ -844,7 +845,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         });
     };
 
-    const sendPromptNow = async (prompt: QueuedPrompt, isDraftSession: boolean, sessionId?: string): Promise<void> => {
+    const sendPromptNow = useCallback(async (prompt: QueuedPrompt, isDraftSession: boolean, sessionId?: string): Promise<void> => {
         const pendingSession = stateRef.current.sessions.find((session) => session.sessionId === sessionId && session.isPending);
         const optimisticSession = isDraftSession || !sessionId
             ? createOptimisticSession(prompt, `__pending_session__:${++pendingSessionSequenceRef.current}`)
@@ -867,7 +868,16 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 pendingCreationsRef.current.delete(optimisticSession.sessionId);
             }
         }
-    };
+    }, [refreshInitialState]);
+
+    const resumeWorkspaceAnalysis = useCallback(async (): Promise<void> => {
+        const current = stateRef.current;
+        const sessionId = current.activeSessionId;
+        if (!sessionId || current.isDraftSession) return;
+        const record = getSessionRecord(current, sessionId);
+        if (record.pendingPrompt || !pausedByWorkspace(record.messages)) return;
+        await sendPromptNow({ text: t('insightWebAgent:resumeWorkspacePrompt'), images: [] }, false, sessionId);
+    }, [sendPromptNow]);
 
     const addImages = (nextImages: ImageAttachment[]): void => {
         setImages((current) => [...current, ...nextImages]);
@@ -1167,6 +1177,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         exportSession: handleExportSession,
         renameSession: handleRenameSession,
         sendMessage,
+        resumeWorkspaceAnalysis,
         cancelMessage,
         selectSession: handleSelectSession,
         setInput,
@@ -1334,12 +1345,15 @@ const getNextQueuedPrompt = (state: ChatState, inFlight: Set<string>): { prompt:
     }
 
     for (const record of Object.values(state.sessionRecords)) {
-        if (!inFlight.has(record.sessionId) && !record.pendingPrompt && record.queuedPrompts.length) {
+        if (!inFlight.has(record.sessionId) && !record.pendingPrompt && record.queuedPrompts.length && !pausedByWorkspace(record.messages)) {
             return { prompt: record.queuedPrompts[0], isDraftSession: false, sessionId: record.sessionId };
         }
     }
     return undefined;
 };
+
+const pausedByWorkspace = (messages: ChatMessage[]): boolean =>
+    messages.findLast((message) => !message.permission)?.completionStatus === 'workspace_interference';
 
 const dequeuePrompt = (
     state: ChatState,
@@ -1556,7 +1570,7 @@ const markPromptFailed = (
         ...state.sessionRecords,
         [sessionId]: {
             ...record,
-            messages: markLastAssistantComplete(record.messages, 'failed'),
+            messages: pausedByWorkspace(record.messages) ? record.messages : markLastAssistantComplete(record.messages, 'failed'),
             pendingPrompt: false,
             status: 'error' as SessionStatus,
         },

@@ -21,6 +21,7 @@ export interface ReceiptBody {
     claimToken: string;
     status: 'completed' | 'failed' | 'cancelled';
     result?: unknown;
+    workspaceAction?: true;
     error?: unknown;
 }
 export interface PreparedReceipt { readonly requestId: string; readonly json: string }

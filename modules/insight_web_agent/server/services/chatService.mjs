@@ -24,10 +24,39 @@ import { randomUUID } from "node:crypto";
 import { boundedDiagnosticText } from "../utils/toolErrorBudget.mjs";
 import { processSummary, toolContentText } from "../utils/toolDisplay.mjs";
 import { formatToolError, isToolDiagnosticId, normalizeToolError } from "../utils/toolError.mjs";
+import { visibleWorkspaceResult } from "./workspaceTurnCorrelation.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, getPromptConfigurationError, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
+const WORKSPACE_INTERRUPTION_LIMIT = 3;
+
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, workspaceCorrelation, permissionService, getPromptConfigurationError, memoryTuningPrompt = "", slowCardAnalysisPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state, hiddenPromptTexts: [memoryTuningPrompt, slowCardAnalysisPrompt] };
+    const workspaceTurns = new WeakMap();
+    const currentTurn = (sessionId) => workspaceTurns.get(state.sessionContexts.get(sessionId));
+    const captureWorkspaceTurn = (sessionId) => {
+        const assistant = currentTurn(sessionId)?.assistant;
+        return state.sessionContexts.get(sessionId)?.pendingPrompt && !assistant?.completionStatus ? assistant?.id : undefined;
+    };
+    const isWorkspacePaused = (sessionId) => currentTurn(sessionId)?.assistant.completionStatus === "workspace_interference";
+    const recordWorkspaceOutcome = (sessionId, turnId, outcome) => {
+        if (!turnId || captureWorkspaceTurn(sessionId) !== turnId) return false;
+        const turn = currentTurn(sessionId);
+        if (outcome === "completed") {
+            turn.interruptions = 0;
+            return false;
+        }
+        if (outcome !== "interrupted") return false;
+        turn.interruptions += 1;
+        if (turn.interruptions < WORKSPACE_INTERRUPTION_LIMIT) return false;
+        // Latch before settling the triggering receipt. Cancel sibling commands afterwards.
+        turn.assistant.completionStatus = "workspace_interference";
+        queueMicrotask(() => {
+            if (currentTurn(sessionId) === turn && state.sessionContexts.get(sessionId)?.pendingPrompt) {
+                void cancel(sessionId, "workspace_interference");
+            }
+        });
+        return true;
+    };
 
     const initialize = async ({ targetAdapter = adapter, broadcast = true, refreshSessions = true } = {}) => {
         try {
@@ -152,6 +181,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 ],
             };
             sessionContext.messages.push(userMessage, assistant);
+            workspaceTurns.set(sessionContext, { assistant, interruptions: 0, toolCalls: new Map() });
             eventBus.broadcast({ type: "message_added", sessionId, message: userMessage });
             eventBus.broadcast({ type: "message_added", sessionId, message: assistant });
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: true });
@@ -186,23 +216,25 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             });
             console.log(`Prompt execution completed: sessionId=${sessionId}`);
 
-            if (!assistant.content.length) {
+            if (!assistant.content.length && assistant.completionStatus !== "workspace_interference") {
                 const sessionContext = getSessionContext(state, sessionId);
                 sessionContext.messages = sessionContext.messages.filter((message) => message !== assistant);
                 eventBus.broadcast({ type: "message_removed", sessionId, id: assistant.id });
             }
         } catch (error) {
             console.error(`Prompt execution failed: sessionId=${sessionId}, error=${error.message}`);
-            if (assistant.completionStatus !== "cancelled") {
+            if (!wasStopped(assistant)) {
                 assistant.completionStatus = "failed";
                 appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
             }
         } finally {
+            const turn = currentTurn(sessionId);
+            if (turn?.assistant === assistant) turn.toolCalls.clear();
             assistant.completionStatus ??= "completed";
             assistant.completedAt ??= Date.now();
             const sessionContext = getSessionContext(state, sessionId);
             // Cancellation already ended this turn; a late result must not end a newer prompt.
-            if (assistant.completionStatus !== "cancelled") {
+            if (!wasStopped(assistant)) {
                 setAgentActivity(serviceContext, sessionId, undefined);
                 sessionContext.pendingPrompt = false;
                 eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false, completionStatus: assistant.completionStatus, completedAt: assistant.completedAt });
@@ -210,7 +242,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         }
     };
 
-    const cancel = async (sessionId) => {
+    const cancel = async (sessionId, completionStatus = "cancelled") => {
         if (!sessionId) {
             console.warn("Cancel rejected: sessionId is required");
             return errorResult("session_id_required", "sessionId is required to cancel a message", 400);
@@ -218,18 +250,22 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         frontendCommandService?.cancelSession?.(sessionId);
         permissionService?.rejectSessionRequests?.(sessionId, "invalidated");
         const sessionContext = getSessionContext(state, sessionId);
-        const assistant = sessionContext.messages.findLast((message) => message.role === "assistant" && !message.permission);
+        const turn = currentTurn(sessionId);
+        const assistant = turn?.assistant ?? sessionContext.messages.findLast((message) => message.role === "assistant" && !message.permission);
         if (assistant && sessionContext.pendingPrompt) {
-            assistant.completionStatus = "cancelled";
+            assistant.completionStatus = completionStatus;
             assistant.completedAt = Date.now();
+            turn?.toolCalls.clear();
         }
         try {
-            if (adapter.notify) adapter.notify("session/cancel", { sessionId });
+            if (adapter.notify) await adapter.notify("session/cancel", { sessionId });
             else await adapter.request("session/cancel", { sessionId });
             console.log(`ACP session cancel sent: sessionId=${sessionId}`);
         } catch (error) {
             console.warn(`Failed to cancel session ${sessionId} with ACP: ${error.message}`);
         }
+        // A late transport acknowledgement must not clear the activity of a resumed turn.
+        if (currentTurn(sessionId) !== turn || state.sessionContexts.get(sessionId) !== sessionContext) return { ok: true };
         setAgentActivity(serviceContext, sessionId, undefined);
         sessionContext.pendingPrompt = false;
         eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false, completionStatus: assistant?.completionStatus, completedAt: assistant?.completedAt });
@@ -267,7 +303,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         }
 
         const sessionContext = getSessionContext(state, sessionId);
-        if (!sessionContext.pendingPrompt && !sessionContext.replayingHistory) return;
+        if (!sessionContext.replayingHistory && (!sessionContext.pendingPrompt || wasStopped(currentTurn(sessionId)?.assistant))) return;
         // Replay fragments are private until session/load completes and history is filtered.
         // Configuration updates above remain independent of history presentation.
         const sourceMessageId = update.messageId ?? update.message_id;
@@ -288,6 +324,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             )?.toolCall;
             const toolCall = normalizeToolCall(update, previous, { nativeErrorContract: state.activeAgentName === "msinsight-native" });
             if (toolCall) upsertToolCall(contentContext, sessionId, toolCall);
+            if (toolCall) workspaceCorrelation?.consume(sessionId, source, toolCall, previous?.status, currentTurn(sessionId)?.toolCalls);
             if (toolCall?.status === "failed") {
                 try { console.warn("Tool diagnostic", JSON.stringify({
                     toolCallId: boundedDiagnosticText(toolCall.toolCallId, 128), diagnosticText: toolCall.output,
@@ -328,8 +365,10 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         for (const block of content) appendContentBlock(contentContext, sessionId, "assistant", block);
     };
 
-    return { cancel, handleAcpNotification, initialize, prompt };
+    return { cancel, captureWorkspaceTurn, handleAcpNotification, initialize, isWorkspacePaused, prompt, recordWorkspaceOutcome };
 };
+
+const wasStopped = (assistant) => assistant?.completionStatus === "cancelled" || assistant?.completionStatus === "workspace_interference";
 
 const normalizeImages = (images = []) => images
     .map((image) => ({
@@ -477,13 +516,14 @@ export const normalizeToolCall = (update, previous, { nativeErrorContract = fals
     const toolCallId = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
     if (!toolCallId) return undefined;
     const status = source.status === undefined ? previous?.status : normalizeToolStatus(source.status);
-    const progressValue = source.progress ?? source.content ?? source.message;
+    const progressValue = visibleWorkspaceResult(source.progress ?? source.content ?? source.message);
     const progress = progressValue === undefined ? undefined : toolContentText(progressValue);
-    const rawOutput = source.output ?? source.rawOutput ?? source.raw_output;
+    const rawOutput = visibleWorkspaceResult(source.output ?? source.rawOutput ?? source.raw_output);
     const process = rawOutput?.schema === "msinsight.tool-process.v1" ? processSummary(rawOutput.process) : undefined;
     const nativeOutput = nativeErrorContract && status === "failed" ? nativeErrorText(rawOutput) : undefined;
     let output = nativeOutput ?? (process && typeof rawOutput.text === "string" ? boundedDiagnosticText(rawOutput.text, 3600)
-        : status === "failed" ? toolContentText(rawOutput) || toolContentText(source.content ?? source.message) : limitedToolValue(rawOutput));
+        : status === "failed" ? toolContentText(rawOutput?.result?.content ?? rawOutput) ||
+            toolContentText(visibleWorkspaceResult(source.content ?? source.message)) : limitedToolValue(rawOutput));
     if (status === "failed" && rawOutput && typeof rawOutput === "object" && !Array.isArray(rawOutput)
         && typeof rawOutput.message === "string") {
         output = formatToolError(normalizeToolError(rawOutput, {

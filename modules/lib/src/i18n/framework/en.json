@@ -1,5 +1,7 @@
 {
   "framework": {
+    "workspaceControlActive": "Agent is operating Insight",
+    "workspaceControlInput": "Manual input detected",
     "buildVersion": "Build {{version}}, built on {{modifyTime}}",
     "copyRight": "Copyright © {{copyrightYear}} Huawei Technologies Co., Ltd. All Rights Reserved.",
     "Data Manager": "Data Manager",

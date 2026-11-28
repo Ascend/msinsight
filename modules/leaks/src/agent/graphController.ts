@@ -72,12 +72,14 @@ export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient):
     const unregister = [
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.getSummary',
+            uiEffect: 'none',
             title: 'Get memory lifecycle graph summary',
             description: 'Returns bounded lifecycle graph metadata and the selected block without returning block paths or full graph data.',
             inputSchema: emptySchema(),
         }, lifecycleSummary),
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.getVisibleRange',
+            uiEffect: 'none',
             title: 'Get visible lifecycle graph data range',
             description: [
                 'Returns the data-coordinate range covered by the current lifecycle graph window after intersecting it with the loaded graph domain.',
@@ -91,18 +93,21 @@ export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient):
         }, lifecycleVisibleRange),
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.selectBlock',
+            uiEffect: 'workspace',
             title: 'Select a block in the lifecycle graph',
             description: 'Locates and selects one memory block by its numeric block ID.',
             inputSchema: objectSchema({ blockId: { type: 'integer', minimum: 0 } }, ['blockId']),
         }, (args) => selectBlock(args)),
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.getBlockDetail',
+            uiEffect: 'none',
             title: 'Get bounded memory block detail',
             description: 'Returns bounded snapshot detail for one block ID, including limited related events or call stack fields when available.',
             inputSchema: detailSchema('blockId'),
         }, async (args) => getBlockDetail(args)),
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.queryBlocks',
+            uiEffect: 'none',
             title: 'Query lifecycle block candidates',
             description: 'Scans lifecycle metadata inside the graph worker and returns at most 20 block summaries ranked by size or lifetime. Block paths are never returned.',
             inputSchema: objectSchema({
@@ -115,30 +120,35 @@ export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient):
         }, async (args) => queryBlocks(args)),
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.resetView',
+            uiEffect: 'workspace',
             title: 'Reset memory lifecycle graph view',
             description: 'Resets lifecycle graph pan and zoom to the default view.',
             inputSchema: emptySchema(),
         }, resetLifecycleView),
         client.registerCommand({
             name: 'MemScope.memoryPool.getSummary',
+            uiEffect: 'none',
             title: 'Get memory pool state summary',
             description: 'Returns aggregate memory pool statistics and at most five largest segments without returning full segment or block arrays.',
             inputSchema: emptySchema(),
         }, poolSummary),
         client.registerCommand({
             name: 'MemScope.memoryPool.selectEvent',
+            uiEffect: 'workspace',
             title: 'Select a memory pool event',
             description: 'Locates an event in the memory pool event list and updates the state diagram.',
             inputSchema: objectSchema({ eventId: { type: 'integer', minimum: 0 } }, ['eventId']),
         }, (args) => selectEvent(args)),
         client.registerCommand({
             name: 'MemScope.memoryPool.getEventDetail',
+            uiEffect: 'none',
             title: 'Get bounded memory event detail',
             description: 'Returns bounded snapshot detail for one memory event ID without returning unrestricted nested arrays.',
             inputSchema: detailSchema('eventId'),
         }, async (args) => getEventDetail(args)),
         client.registerCommand({
             name: 'MemScope.memoryPool.getSegmentDetail',
+            uiEffect: 'none',
             title: 'Get bounded memory segment detail',
             description: 'Returns bounded detail for one segment at a selected memory state event.',
             inputSchema: objectSchema({
@@ -150,12 +160,14 @@ export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient):
         }, async (args) => getSegmentDetail(args)),
         client.registerCommand({
             name: 'MemScope.memoryPool.clearSelection',
+            uiEffect: 'workspace',
             title: 'Clear graph selection',
             description: 'Clears selected lifecycle blocks, memory pool items, and events.',
             inputSchema: emptySchema(),
         }, clearSelection),
         client.registerCommand({
             name: 'MemScope.memoryPool.resetView',
+            uiEffect: 'workspace',
             title: 'Reset memory pool state view',
             description: 'Resets memory pool state graph pan and zoom to the default view.',
             inputSchema: emptySchema(),

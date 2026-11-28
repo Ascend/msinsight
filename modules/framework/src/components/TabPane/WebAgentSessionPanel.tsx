@@ -135,6 +135,7 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
         width: sessionPanelWidth,
     }}>
         <Resizer
+            className="acp-session-resizer"
             callback={resizeSessionPanel}
             style={{
                 left: -8,

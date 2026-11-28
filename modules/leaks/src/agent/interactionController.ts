@@ -142,6 +142,7 @@ const controlState = (current: string | number | null, optionCount: number): Jso
 export const registerMemScopeInteractionCommands = (client: ModuleAgentCommandClient): (() => void) => {
     const unregisterResident = client.registerCommand({
         name: 'MemScope.context.getOptions',
+        uiEffect: 'none',
         title: 'Get bounded context control options',
         description: 'Returns bounded valid options for a MemScope context control. Function options support query filtering.',
         inputSchema: objectSchema({
@@ -164,6 +165,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'bottomDrawer.setOpen': {
         definition: {
             name: 'MemScope.bottomDrawer.setOpen',
+            uiEffect: 'workspace',
             title: 'Open or close the bottom drawer',
             description: 'Sets the MemScope bottom drawer to an explicit open or closed state without toggling it.',
             inputSchema: objectSchema({ open: { type: 'boolean' } }, ['open']),
@@ -173,6 +175,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'bottomDrawer.selectTab': {
         definition: {
             name: 'MemScope.bottomDrawer.selectTab',
+            uiEffect: 'workspace',
             title: 'Select a bottom drawer tab',
             description: 'Selects a tab in the bottom drawer. "sliceDetail" shows detail panels for the currently selected memory event or block (not a table); "systemView" shows the system-level Blocks and Events tables. Open the drawer with MemScope.bottomDrawer.setOpen to inspect the selected content.',
             inputSchema: objectSchema({ tab: { type: 'string', enum: ['sliceDetail', 'systemView'] } }, ['tab']),
@@ -182,6 +185,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'systemTable.selectView': {
         definition: {
             name: 'MemScope.systemTable.selectView',
+            uiEffect: 'workspace',
             title: 'Select the system table view',
             description: 'Switches the table in the System View tab of the bottom drawer between Blocks and Events, applying the same reset behavior as the page control. The drawer must be open on the System View tab.',
             inputSchema: objectSchema({ view: { type: 'string', enum: ['blocks', 'events'] } }, ['view']),
@@ -191,6 +195,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'context.selectDevice': {
         definition: {
             name: 'MemScope.context.selectDevice',
+            uiEffect: 'workspace',
             title: 'Select a memory device',
             description: 'Selects a currently available memory device and resets Event Type to that device\'s first option.',
             inputSchema: objectSchema({ deviceId: { type: 'string', minLength: 1 } }, ['deviceId']),
@@ -200,6 +205,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'context.selectEventType': {
         definition: {
             name: 'MemScope.context.selectEventType',
+            uiEffect: 'workspace',
             title: 'Select a memory event type',
             description: 'Selects an event type available for the current memory device.',
             inputSchema: objectSchema({ eventType: { type: 'string', minLength: 1 } }, ['eventType']),
@@ -209,6 +215,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'context.selectThread': {
         definition: {
             name: 'MemScope.context.selectThread',
+            uiEffect: 'workspace',
             title: 'Select a thread',
             description: 'Selects an available thread and clears the current function filter.',
             inputSchema: objectSchema({ threadId: { type: 'integer' } }, ['threadId']),
@@ -218,6 +225,7 @@ const INTERACTION_COMMANDS: Record<InteractionCommandId, DynamicCommandBinding> 
     'context.setFunctionFilter': {
         definition: {
             name: 'MemScope.context.setFunctionFilter',
+            uiEffect: 'workspace',
             title: 'Set the function filter',
             description: 'Sets the selected flame-graph functions. Pass an empty array to clear the filter.',
             inputSchema: objectSchema({

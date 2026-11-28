@@ -15,6 +15,7 @@ import {
     FRONTEND_AGENT_COMMAND_RESPONSE,
     FRONTEND_AGENT_EXECUTE_COMMAND,
     type FrontendAgentCommandResultMessage,
+    type FrontendAgentExecuteCommandMessage,
 } from '@insight/lib/FrontendAgentCommand';
 import {
     getWindowMessageRouter,
@@ -24,8 +25,13 @@ import {
     withWindowMessageChannel,
 } from '@insight/lib/WindowMessageRouter';
 
+interface CommandResponse {
+    result: unknown;
+    workspaceAction?: true;
+}
+
 interface PendingCommand {
-    resolve: (value: unknown) => void;
+    resolve: (value: CommandResponse) => void;
     reject: (reason: unknown) => void;
     timeoutId: number;
 }
@@ -40,16 +46,20 @@ getWindowMessageRouter().subscribe((event: MessageEvent<FrontendAgentCommandResu
     const command = pending.get(message.requestId);
     if (!command) return;
     finish(message.requestId);
-    if (message.event === FRONTEND_AGENT_COMMAND_RESPONSE) command.resolve(message.result);
-    else command.reject(new CommandError(message.error));
+    if (message.event === FRONTEND_AGENT_COMMAND_RESPONSE) {
+        command.resolve({ result: message.result, workspaceAction: message.workspaceAction === true ? true : undefined });
+    } else {
+        command.reject(new CommandError(message.error));
+    }
 }, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
 
-export const executeFrontendCommand = (
+export const requestFrontendCommand = (
     command: string,
     args: Record<string, unknown>,
     requestId: string,
     deadline: number,
-): Promise<unknown> => {
+    initiator?: FrontendAgentExecuteCommandMessage['initiator'],
+): Promise<CommandResponse> => {
     if (pending.has(requestId)) return Promise.reject(new Error(`Command request '${requestId}' is already pending.`));
     if (Date.now() >= deadline) return Promise.reject(commandTimeout());
     return new Promise((resolve, reject) => {
@@ -61,6 +71,7 @@ export const executeFrontendCommand = (
         pending.set(requestId, { resolve, reject, timeoutId });
         window.parent.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, {
             event: FRONTEND_AGENT_EXECUTE_COMMAND,
+            initiator,
             requestId,
             command,
             args,
@@ -68,6 +79,9 @@ export const executeFrontendCommand = (
         }), parentOrigin);
     });
 };
+
+export const executeFrontendCommand = async (...args: Parameters<typeof requestFrontendCommand>): Promise<unknown> =>
+    (await requestFrontendCommand(...args)).result;
 
 export const cancelFrontendCommand = (targetRequestId: string): void => {
     const command = pending.get(targetRequestId);

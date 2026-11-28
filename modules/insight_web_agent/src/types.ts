@@ -78,7 +78,7 @@ export interface ChatMessage {
     pending?: boolean;
     startedAt?: number;
     durationMs?: number;
-    completionStatus?: 'completed' | 'failed' | 'cancelled';
+    completionStatus?: 'completed' | 'failed' | 'cancelled' | 'workspace_interference';
     completedAt?: number;
     permission?: PermissionRequestItem;
 }

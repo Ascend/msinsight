@@ -22,6 +22,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { CAPABILITY_MCP_SERVER_INFO } from "../../capability-center/definitions.mjs";
 import { json } from "../../http/response.mjs";
 import { tokensEqual } from "../../http/security.mjs";
+import { workspaceReceiptBlock } from "../../services/workspaceTurnCorrelation.mjs";
 import { isToolDiagnosticId, normalizeToolError } from "../../utils/toolError.mjs";
 
 const MAX_MCP_SESSIONS = 64;
@@ -30,7 +31,7 @@ const MAX_MCP_SESSIONS = 64;
  * 将协议无关 Capability Center 投影为 MCP Streamable HTTP Server。
  * sessions 只保存 MCP 协议状态，用于跨 HTTP 请求关联响应与取消，不保存 Tool 业务状态。
  */
-export const createHttpMcpAdapter = ({ capabilityCenter, accessToken } = {}) => {
+export const createHttpMcpAdapter = ({ capabilityCenter, accessToken, workspaceCorrelation } = {}) => {
     const sessions = new Map();
     let connectionVersion = 0;
 
@@ -59,6 +60,7 @@ export const createHttpMcpAdapter = ({ capabilityCenter, accessToken } = {}) => 
             }
             entry = await createMcpSession({
                 capabilityCenter,
+                workspaceCorrelation,
                 sessions,
                 onInitialize: () => { connectionVersion += 1; },
             });
@@ -106,7 +108,7 @@ export const createHttpMcpAdapter = ({ capabilityCenter, accessToken } = {}) => 
     };
 };
 
-const createMcpSession = async ({ capabilityCenter, sessions, onInitialize }) => {
+const createMcpSession = async ({ capabilityCenter, sessions, onInitialize, workspaceCorrelation }) => {
     const server = new Server(
         CAPABILITY_MCP_SERVER_INFO,
         { capabilities: { tools: {} }, instructions: "Use the available MindStudio Insight capabilities when they are relevant to the user's task." },
@@ -125,17 +127,21 @@ const createMcpSession = async ({ capabilityCenter, sessions, onInitialize }) =>
     // tools/list 始终从 Registry 实时投影，不在 Adapter 中复制或缓存 Tool 定义。
     server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: capabilityCenter.list() }));
     server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+        const invocationId = randomUUID();
+        let response;
         try {
             const result = await capabilityCenter.invoke({
-                invocationId: `mcp:${String(extra.requestId)}:${randomUUID()}`,
+                invocationId,
                 name: request.params.name,
                 input: request.params.arguments ?? {},
                 signal: extra.signal,
             });
-            return capabilityResult(result);
+            response = capabilityResult(result);
         } catch (error) {
-            return capabilityFailure(error, request.params.name);
+            response = capabilityFailure(error, request.params.name);
         }
+        if (workspaceCorrelation?.has(invocationId)) response.content.push(workspaceReceiptBlock(invocationId));
+        return response;
     });
     await server.connect(transport);
     return { server, transport };

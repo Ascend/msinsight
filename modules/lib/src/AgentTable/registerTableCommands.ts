@@ -53,6 +53,7 @@ const toCommandDefinition = (
     definition: typeof TABLE_COMMAND_DEFINITIONS[number],
 ): CommandDefinition => ({
     name: commandName(moduleId, definition.id),
+    uiEffect: definition.uiEffect,
     title: definition.title,
     description: definition.description ?? definition.title,
     inputSchema: withTargetSchema(definition.inputSchema),

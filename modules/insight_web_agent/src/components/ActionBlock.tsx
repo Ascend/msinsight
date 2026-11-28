@@ -118,6 +118,7 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
                         { moduleId: targetModule },
                         pendingSwitch.current,
                         Date.now() + COMMAND_TIMEOUT_MS,
+                        'user',
                     );
                 } finally {
                     pendingSwitch.current = undefined;
@@ -136,6 +137,7 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
                 snapshot.args,
                 crypto.randomUUID(),
                 Date.now() + COMMAND_TIMEOUT_MS,
+                'user',
             );
             if (!mounted.current) return;
             const needsChoice = commandResult !== null && typeof commandResult === 'object' &&
@@ -233,7 +235,7 @@ const ActionContent = ({ action }: { action: ActionItem }): JSX.Element => {
 };
 
 const loadCommandDefinition = async (command: string): Promise<ActionCommandDefinition> => {
-    const result = await executeFrontendCommand('help', { command }, crypto.randomUUID(), Date.now() + COMMAND_TIMEOUT_MS);
+    const result = await executeFrontendCommand('help', { command }, crypto.randomUUID(), Date.now() + COMMAND_TIMEOUT_MS, 'user');
     return commandDefinitionFromHelp(result, command);
 };
 

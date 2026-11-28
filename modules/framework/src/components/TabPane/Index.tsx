@@ -46,6 +46,7 @@ import { WindowMessageDebugger } from './WindowMessageDebugger';
 import { ACP_SESSION_MIN_WIDTH, WebAgentSessionPanel } from './WebAgentSessionPanel';
 import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 import { useSwitchModuleCommand } from './useSwitchModuleCommand';
+import { useWorkspaceInput } from './useWorkspaceInput';
 import { reportTabKey } from '@insight/lib/AgentReport';
 import { AgentReportFrame } from './AgentReportFrame';
 import { useReportTabs } from './useReportTabs';
@@ -111,7 +112,8 @@ const Container = styled.div`
         display: flex;
         flex: 0 0 auto;
         align-items: center;
-        margin-right: 240px;
+        /* This row shares its right edge with the absolutely positioned ToolBox. */
+        margin-right: max(240px, calc(200px + var(--workspace-status-text-width)));
         gap: 8px;
     }
     .acp-session-panel {
@@ -232,6 +234,7 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
 
     const availableModules = useMemo(() => getAvailableModules(mergedModulesConfig, scene, dataCompose)
         , [scene, dataCompose, mergedModulesConfig]);
+    useWorkspaceInput(frontendAgentCommandController.workspaceControl, tabBodyRef, activeModule, availableModules);
     const isLeaks = useMemo(() => availableModules.some(module => module.isLeaks && module.name === MEM_SCOPE_MODULE_NAME)
         , [availableModules]);
     const isTriton = useMemo(() => availableModules.some(module => module.isTriton && module.name === ON_CHIP_MEMORY_MODULE_NAME)
@@ -272,6 +275,7 @@ const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabP
         </span>,
     }))], [selectableModules, reports, closeReport, t, reportT]);
     const onClick: MenuProps['onClick'] = e => {
+        if (e.domEvent.nativeEvent.isTrusted) frontendAgentCommandController.userSelectedModule(e.key);
         setActiveModule(e.key);
     };
 

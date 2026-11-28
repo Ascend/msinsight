@@ -15,12 +15,14 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useTheme } from '@emotion/react';
 import { useTranslation } from 'react-i18next';
 import { ACP_MESSAGE_CHANNEL } from '@insight/lib/FrontendAgentCommand';
 import { REPORT_CLOSE, REPORT_READY, type AgentReportReference } from '@insight/lib/AgentReport';
 import { frameWindowMessageOrigin, getWindowMessageRouter, isWindowMessageChannel, matchesWindowMessageOrigin } from '@insight/lib/WindowMessageRouter';
+import { attachWorkspaceInputFrame } from '@insight/lib/WorkspaceInput';
+import { frontendAgentCommandController } from '../../agent/frontendAgentCommandController';
 import { agentPageUrl } from './agentPageUrl';
 
 export const AgentReportFrame = ({ report, active, onClose }: {
@@ -31,6 +33,10 @@ export const AgentReportFrame = ({ report, active, onClose }: {
     const origin = useMemo(() => frameWindowMessageOrigin(src), [src]);
     const theme = useTheme();
     const { i18n } = useTranslation();
+    useLayoutEffect(() => {
+        if (active && frame.current) return attachWorkspaceInputFrame(frame.current, frontendAgentCommandController.workspaceControl);
+        return undefined;
+    }, [active, src]);
     useEffect(() => {
         const syncAppearance = (): void => {
             frame.current?.contentWindow?.postMessage({ event: 'setTheme', body: { isDark: theme.mode === 'dark' } }, origin);

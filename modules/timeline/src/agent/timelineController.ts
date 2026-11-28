@@ -91,6 +91,7 @@ export const registerTimelineCommands = (client: ModuleAgentCommandClient): (() 
         }),
         client.registerCommand({
             name: 'Timeline.zoom',
+            uiEffect: 'workspace',
             title: 'Zoom timeline view',
             description: 'Zoom one step with direction, or apply the equivalent bounded W/S zoom factor to approximately show a percentage of the entire timeline. Smaller percentages zoom in further. Uses the selection center when present, otherwise the viewport center. Supply exactly one of direction or percentage.',
             inputSchema: {
@@ -131,6 +132,7 @@ export const registerTimelineCommands = (client: ModuleAgentCommandClient): (() 
         ), focus),
         client.registerCommand({
             name: 'Timeline.pinByUnitName',
+            uiEffect: 'workspace',
             title: 'Pin lanes with the same name',
             description: 'Runs the Pin by Unit Name context-menu action for the currently selected lanes. Matches lanes at the same level by name (or legacy group), and pins at most 100 matching lanes per call. Select a slice first to select its lane. Available only when observation.actions.pinByUnitName is true.',
             inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -296,6 +298,7 @@ const commandDefinition = <T extends string>(
     values: readonly T[],
 ): CommandDefinition => ({
     name,
+    uiEffect: 'workspace',
     title,
     description,
     inputSchema: {

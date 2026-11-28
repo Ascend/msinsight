@@ -1276,3 +1276,20 @@ test.each([['completed', 'Time taken 2.0s'], ['failed', 'Analysis failed · Time
     expect(document.querySelector('.thinking-timeline > summary')).toHaveTextContent(label);
     jest.useRealTimers();
 });
+
+test('offers resume only for the current workspace pause, without exposing the interruption count', () => {
+    const resume = jest.fn().mockResolvedValue(undefined);
+    const paused: ChatMessage = { id: 'paused', role: 'assistant', content: [], startedAt: 1, completionStatus: 'workspace_interference' };
+    const permission: ChatMessage = {
+        id: 'permission', role: 'assistant', content: [],
+        permission: { sessionId: 'a', requestId: 'b', target: 'tool', actions: ['allow_once'], state: 'allowed_once' },
+    };
+    const { rerender } = render(<MessageList messages={[paused, permission]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} onResumeWorkspace={resume} />);
+    expect(screen.getByText('Analysis paused because changes to the workspace affected the current task.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue analysis' }));
+    expect(resume).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    expect(screen.queryByRole('button', { name: 'Continue analysis' })).toBeNull();
+    rerender(<MessageList messages={[paused, { id: 'next', role: 'user', content: [] }]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} onResumeWorkspace={resume} />);
+    expect(screen.queryByRole('button', { name: 'Continue analysis' })).toBeNull();
+});

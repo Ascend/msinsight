@@ -38,6 +38,7 @@ import { createContextAssembler } from "./services/contextAssembler.mjs";
 import { errorCause, errorResult } from "./services/errorResult.mjs";
 import { createFileReadService, createPermissionHostHandler } from "./services/fileReadService.mjs";
 import { createFrontendCommandService } from "./services/frontendCommandService.mjs";
+import { createWorkspaceTurnCorrelation } from "./services/workspaceTurnCorrelation.mjs";
 import { createPageContextService } from "./services/pageContextService.mjs";
 import { createPermissionService } from "./services/permissionService.mjs";
 import { createBackgroundRagService } from "./services/rag/backgroundRagService.mjs";
@@ -186,7 +187,18 @@ const ragService = createBackgroundRagService({
     onFatal: () => void shutdown(1),
 });
 state.ragStatus = ragService.getStatus();
-const frontendCommandService = createFrontendCommandService({ eventBus });
+let chatService;
+const workspaceCorrelation = createWorkspaceTurnCorrelation({
+    state,
+    captureWorkspaceTurn: (sessionId) => chatService?.captureWorkspaceTurn(sessionId),
+    recordWorkspaceOutcome: (...args) => chatService?.recordWorkspaceOutcome(...args),
+});
+const frontendCommandService = createFrontendCommandService({
+    eventBus, workspaceCorrelation,
+    captureWorkspaceTurn: (sessionId) => chatService?.captureWorkspaceTurn(sessionId),
+    isWorkspacePaused: (sessionId) => chatService?.isWorkspacePaused(sessionId),
+    recordWorkspaceOutcome: (...args) => chatService?.recordWorkspaceOutcome(...args),
+});
 // 两个 Token 都固定于当前 Host 进程且不写盘，分别隔离 MCP 与 Native 内部执行边界。
 const capabilityAccessToken = randomUUID();
 const nativeCapabilityAccessToken = randomUUID();
@@ -199,7 +211,7 @@ registerConfiguredCapabilities({
     cwd: config.rootDir,
 });
 state.availableCapabilities = capabilityCenter.list();
-const httpMcpAdapter = createHttpMcpAdapter({ capabilityCenter, accessToken: capabilityAccessToken });
+const httpMcpAdapter = createHttpMcpAdapter({ capabilityCenter, accessToken: capabilityAccessToken, workspaceCorrelation });
 const capabilitySessionIntegration = createCapabilitySessionIntegration({
     baseUrl: insightWebAgentBaseUrl(),
     accessToken: capabilityAccessToken,
@@ -208,7 +220,6 @@ const capabilitySessionIntegration = createCapabilitySessionIntegration({
     hasConnections: httpMcpAdapter.hasConnections,
 });
 const pageContextService = createPageContextService({ eventBus });
-let chatService;
 let activeAgentServer = config.agentServer;
 let discoveredAgentServers = [];
 const availableAgentServers = () => presentRunnableAgentServers({
@@ -265,6 +276,7 @@ const sessionService = createSessionService({
 chatService = createChatService({
     acpAdapter,
     eventBus,
+    workspaceCorrelation,
     sessionService,
     state,
     sessionManager,

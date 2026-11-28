@@ -143,7 +143,22 @@ describe('select slice through CategorySearch', () => {
 
     test('reports failed navigation rather than stale selection', async () => {
         jest.mocked(searchCategory).mockImplementation(async (_session, _criteria, options) => { options.onFailure(); return 1; });
-        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE' });
+        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE', details: undefined });
+    });
+
+    test.each(['lock', 'lanes', 'selection'])('reports a target change if %s changes during a pending search', async change => {
+        jest.mocked(searchCategory).mockImplementation(async (_session, _criteria, options) => {
+            if (change === 'lock') session.selectedRangeIsLock = true;
+            else if (change === 'lanes') session.units = [];
+            else session.selectedData = { name: 'Other operator', startTime: 100, duration: 2, threadId: 't1', processId: 'p1' };
+            expect(options.isCurrent()).toBe(false);
+            options.onFailure();
+            return 0;
+        });
+        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({
+            code: 'COMMAND_UNAVAILABLE', details: { reason: 'workspace_target_changed' },
+        });
+        if (change === 'selection') expect(session.selectedData?.name).toBe('Other operator');
     });
 
     test('invalidates delegated callbacks after cancellation', async () => {
@@ -164,7 +179,7 @@ describe('select slice through CategorySearch', () => {
 
     test('honors lock, concurrent navigation and deadline before delegation', async () => {
         session.selectedRangeIsLock = true;
-        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE' });
+        await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_UNAVAILABLE', details: undefined });
         session.selectedRangeIsLock = false;
         session.locateUnit = { target: () => false, onSuccess: () => {} };
         await expect(select({ name: 'MatMul' })).rejects.toMatchObject({ code: 'COMMAND_BUSY' });

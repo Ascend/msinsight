@@ -35,6 +35,7 @@ export type VisibleCommandEntry = BuiltinCommandEntry | GlobalCommandEntry | Mod
 
 const HELP_DEFINITION: CommandDefinition = {
     name: 'help',
+    uiEffect: 'none',
     title: 'Help',
     description: 'List available commands or show the full definition of one command.',
     inputSchema: {
@@ -46,6 +47,7 @@ const HELP_DEFINITION: CommandDefinition = {
 
 const OBSERVE_DEFINITION: CommandDefinition = {
     name: 'observe',
+    uiEffect: 'none',
     title: 'Observe page',
     description: 'Observe the current MindStudio Insight page and active module.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },

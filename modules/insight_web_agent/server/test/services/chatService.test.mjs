@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createChatService, createPromptContent } from "../../services/chatService.mjs";
+import { createWorkspaceTurnCorrelation, workspaceReceiptBlock } from "../../services/workspaceTurnCorrelation.mjs";
 import { createContextAssembler } from "../../services/contextAssembler.mjs";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
 import { getNativeConfigurationError } from "../../native-agent/config/modelConfiguration.mjs";
@@ -369,6 +370,7 @@ const createPromptTestService = (systemPrompt = "", promptRequest, ragService, m
         async request(method, params) {
             calls.push({ method, params });
             if (method === "session/prompt") return promptRequest ? promptRequest(params) : { stopReason: "end_turn" };
+            if (method === "session/cancel") return {};
             throw new Error(`unexpected ACP method: ${method}`);
         },
     };
@@ -514,4 +516,140 @@ test("cancelling a turn preserves its stopped state when the old request finishe
     assert.equal(firstAssistant.completionStatus, "cancelled");
     finish[1]({ stopReason: "end_turn" });
     await waitForPromptCompletion(state);
+});
+
+test("workspace interference stops only the originating turn, preserves partial output and starts fresh after resuming", async () => {
+    const finish = [];
+    const { service, state, events, calls } = createPromptTestService("", () => new Promise((resolve) => finish.push(resolve)));
+    const session = "session-1";
+    await service.prompt("analyze", { sessionId: session });
+    const turnId = service.captureWorkspaceTurn(session);
+    const context = state.sessionContexts.get(session);
+    const assistant = context.messages.at(-1);
+    service.handleAcpNotification({ method: "session/update", params: { sessionId: session, update: {
+        kind: "agent_message_chunk", content: { type: "text", text: "First finding" },
+    } } });
+    const interrupted = () => service.recordWorkspaceOutcome(session, turnId, "interrupted");
+    assert.equal(interrupted(), false);
+    assert.equal(interrupted(), false);
+    assert.equal(service.recordWorkspaceOutcome(session, turnId, "completed"), false);
+    assert.equal(interrupted(), false);
+    assert.equal(service.recordWorkspaceOutcome("another-session", turnId, "interrupted"), false);
+    assert.equal(interrupted(), false);
+    assert.equal(interrupted(), true);
+    assert.equal(interrupted(), false);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.filter((call) => call.method === "session/cancel").length, 1);
+    assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).completionStatus, "workspace_interference");
+    assert.equal(context.pendingPrompt, false);
+    assert.equal(service.isWorkspacePaused(session), true);
+    assert.equal(assistant.content.at(-1).text, "First finding");
+    await service.prompt("continue", { sessionId: session });
+    assert.equal(service.isWorkspacePaused(session), false);
+    assert.equal(interrupted(), false);
+    assert.equal(service.recordWorkspaceOutcome(session, service.captureWorkspaceTurn(session), "interrupted"), false);
+    finish[0]({});
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(context.pendingPrompt, true);
+    finish[1]({});
+    await waitForPromptCompletion(state);
+});
+
+const createSharedMcpTest = async (t, ...sessions) => {
+    const finish = [];
+    const { service, state } = createPromptTestService("", () => new Promise(resolve => finish.push(resolve)), undefined, "", "", {
+        workspaceCorrelation: { consume: (...args) => correlation.consume(...args) },
+    });
+    const correlation = createWorkspaceTurnCorrelation({
+        state, captureWorkspaceTurn: service.captureWorkspaceTurn, recordWorkspaceOutcome: service.recordWorkspaceOutcome,
+    });
+    for (const sessionId of sessions) await service.prompt("analyze", { sessionId });
+    t.after(() => finish.forEach(resolve => resolve({})));
+    const notify = (sessionId, kind, toolCallId, fields) => service.handleAcpNotification({
+        method: "session/update", params: { sessionId, update: { kind, toolCallId, ...fields } },
+    });
+    return { service, correlation, notify };
+};
+
+test("split ACP receipts count interruptions once and a successful module switch resets the streak", async t => {
+    const session = "session-1";
+    const { service, correlation, notify } = await createSharedMcpTest(t, session);
+    const run = (toolCallId, command, outcome) => {
+        // The wrapper identity and command can outlive the truncated input displayed in chat.
+        notify(session, "tool_call", toolCallId, { title: "Workspace action", status: "pending",
+            raw_input: { tool: "msinsight", arguments: { data: "x".repeat(4200), command } } });
+        notify(session, "tool_call_update", toolCallId, { status: "in_progress" });
+        const id = crypto.randomUUID();
+        correlation.remember(id, correlation.capture(), outcome, command);
+        const terminal = outcome === "completed"
+            ? { status: "completed", content: [{ type: "content", content: workspaceReceiptBlock(id) }] }
+            : { status: "failed", rawOutput: { ok: false, error: { details: { diagnosticId: id } } } };
+        notify(session, "tool_call_update", toolCallId, terminal);
+        notify(session, "tool_call_update", toolCallId, terminal);
+        assert.equal(correlation.has(id), false);
+    };
+    run("one", "Timeline.zoom", "interrupted");
+    run("two", "Timeline.zoom", "interrupted");
+    run("switch", "framework.switchModule", "completed");
+    run("three", "Timeline.zoom", "interrupted");
+    run("four", "Timeline.zoom", "interrupted");
+    assert.equal(service.isWorkspacePaused(session), false);
+    run("five", "Timeline.zoom", "interrupted");
+    assert.equal(service.isWorkspacePaused(session), true);
+});
+
+test("a sparse ACP receipt needs the same session, call and command, and cannot override a different tool", async t => {
+    const { service, correlation, notify } = await createSharedMcpTest(t, "a", "b");
+    const command = "Timeline.zoom";
+    const id = crypto.randomUUID();
+    const terminal = { status: "completed", raw_output: { content: [workspaceReceiptBlock(id)] } };
+    const name = "mcp.msinsight-capabilities.msinsight";
+    notify("b", "tool_call", "old-turn", { name, input: { command } });
+    await service.cancel("b");
+    await service.prompt("resume", { sessionId: "b" });
+    correlation.remember(id, correlation.capture(), "completed", command);
+    notify("a", "tool_call", "live", { name, input: { command } });
+    notify("b", "tool_call_update", "live", terminal);
+    notify("b", "tool_call_update", "old-turn", terminal);
+    notify("a", "tool_call_update", "unknown", terminal);
+    notify("a", "tool_call", "different-command", { name, input: { command: "observe" } });
+    notify("a", "tool_call_update", "different-command", terminal);
+    notify("a", "tool_call", "different-start", { name, rawInput: { tool: "shell" } });
+    notify("a", "tool_call_update", "different-start", { ...terminal, name });
+    notify("a", "tool_call", "different-end", { rawInput: { tool: "msinsight" } });
+    notify("a", "tool_call_update", "different-end", { ...terminal, name: "shell" });
+    // The output can be a later patch, even after the last displayed message changes.
+    notify("a", "tool_call_update", "live", { status: "completed" });
+    service.handleAcpNotification({ method: "session/update", params: { sessionId: "a", update: {
+        kind: "user_message_chunk", content: { type: "text", text: "Additional context" },
+    } } });
+    notify("a", "tool_call_update", "live", { content: "Result pending" });
+    assert.equal(correlation.has(id), true);
+    notify("a", "tool_call_update", "live", { raw_output: terminal.raw_output });
+    assert.equal(correlation.has(id), false);
+});
+
+test("an asynchronous stop transport failure cannot dispatch another turn or append late output", async () => {
+    let rejectStop;
+    let finish;
+    const acpAdapter = {
+        request: () => new Promise((resolve) => { finish = resolve; }),
+        notify: () => new Promise((_resolve, reject) => { rejectStop = reject; }),
+    };
+    const { service, state } = createPromptTestService("", undefined, undefined, "", "", { acpAdapter });
+    const id = "session-1";
+    await service.prompt("analyze", { sessionId: id });
+    const assistant = state.sessionContexts.get(id).messages.at(-1);
+    for (let index = 0; index < 3; index += 1) service.recordWorkspaceOutcome(id, assistant.id, "interrupted");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(state.sessionContexts.get(id).pendingPrompt, true);
+    service.handleAcpNotification({ method: "session/update", params: { sessionId: id, update: {
+        kind: "agent_message_chunk", content: { type: "text", text: "stale reply" },
+    } } });
+    rejectStop(new Error("transport disconnected"));
+    finish({});
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(state.sessionContexts.get(id).pendingPrompt, false);
+    assert.equal(assistant.completionStatus, "workspace_interference");
+    assert.deepEqual(assistant.content, []);
 });

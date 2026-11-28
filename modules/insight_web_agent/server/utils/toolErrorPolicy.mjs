@@ -77,6 +77,8 @@ register([
     "TOOL_EXECUTION_FAILED", "TOOL_NOT_FOUND", "TOOL_CANCELLED",
 ], ["reason", "causeCode"]);
 register(["CAPABILITY_CONCURRENT"], ["reason"], { retry: true });
+register(["COMMAND_WORKSPACE_INTERRUPTED"], [], { retry: true });
+register(["COMMAND_WORKSPACE_INTERFERENCE_PAUSED"], []);
 register(["TOOL_OUTCOME_UNKNOWN"], ["reason", "causeCode", "httpStatus"]);
 register(["CAPABILITY_AUTH_FAILED", "CAPABILITY_REQUEST_FAILED", "CAPABILITY_RESPONSE_INVALID"], networkFields, { retry: true });
 register([

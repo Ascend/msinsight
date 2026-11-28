@@ -128,6 +128,7 @@ export const readVisibleSlices = (session: Session): { revision: string; slices:
 
 export const listVisibleSlicesDefinition: CommandDefinition = {
     name: 'Timeline.listVisibleSlices',
+    uiEffect: 'none',
     title: 'List visible timeline operators',
     description: 'Read only currently rendered, visible operators, deduplicating normal and pinned copies. Not an imported-data search. ' +
         'Returns at most 50 summaries (default 20). For offset > 0, pass the revision from the first page; restart at offset 0 if stale. ' +

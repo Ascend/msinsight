@@ -80,6 +80,7 @@ const InsightBotEntry = ({ active, onClick }: InsightBotEntryProps): JSX.Element
     >
         <EntryButton
             type="button"
+            data-agent-chat-toggle
             aria-label="Insight Bot"
             aria-pressed={active}
             onClick={onClick}

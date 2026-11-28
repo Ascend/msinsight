@@ -19,11 +19,12 @@
 import React, { useRef } from 'react';
 
 export type ResizerType = {
-    style?: React.CSSProperties
-    callback?: (moveWidthLength: number, moveHeightLength: number) => void
-}
+    className?: string;
+    style?: React.CSSProperties;
+    callback?: (moveWidthLength: number, moveHeightLength: number) => void;
+};
 
-export const Resizer = ({ style, callback }: ResizerType): JSX.Element => {
+export const Resizer = ({ className, style, callback }: ResizerType): JSX.Element => {
     const resizeRef = useRef<HTMLDivElement>(null);
     let isDrag = false;
     let offsetX: number;
@@ -60,7 +61,7 @@ export const Resizer = ({ style, callback }: ResizerType): JSX.Element => {
         document.removeEventListener('mouseup', handleMouseUp);
     };
 
-    return <div ref={resizeRef} onMouseDown={handleMouseDown}
+    return <div ref={resizeRef} className={className} onMouseDown={handleMouseDown}
         style={{
             position: 'absolute',
             width: 3,
