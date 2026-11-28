@@ -17,6 +17,7 @@
  */
 import React, { useState } from 'react';
 import { observer } from 'mobx-react';
+import { LocalStorageKey, localStorageService } from '@insight/lib';
 import { Session } from '@/entity/session';
 import TabPane from './TabPane/Index';
 import ToolBox from './ToolBox/Index';
@@ -25,15 +26,21 @@ interface IProps {
     session: Session;
 }
 const Main = observer(({ session }: IProps) => {
-    const [showSessionPanel, setShowSessionPanel] = useState(false);
+    const [showSessionPanel, setShowSessionPanel] = useState(
+        () => localStorageService.getItem(LocalStorageKey.INSIGHT_BOT_PANEL_OPEN) !== false,
+    );
+    const updateSessionPanel = (open: boolean): void => {
+        setShowSessionPanel(open);
+        localStorageService.setItem(LocalStorageKey.INSIGHT_BOT_PANEL_OPEN, open);
+    };
 
     return <div style={{ height: '100%' }}>
         <ToolBox
             insightBotActive={showSessionPanel}
-            onInsightBotClick={() => setShowSessionPanel(value => !value)}
+            onInsightBotClick={() => updateSessionPanel(!showSessionPanel)}
         />
         <TabPane
-            onCloseSessionPanel={() => setShowSessionPanel(false)}
+            onCloseSessionPanel={() => updateSessionPanel(false)}
             session={session}
             showSessionPanel={showSessionPanel}
         />
