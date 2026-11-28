@@ -24,6 +24,7 @@ import { createSecretCrypto, nativeApiKeyAad, SecretCryptoError } from "../secur
 import { normalizeModelCatalog } from "../native-agent/config/modelCatalog.mjs";
 import { isTransitEnvelope, projectSnapshot, SECRET_PLACEHOLDER } from "../security/secretProjection.mjs";
 import { fetchProviderModels, modelListEndpoint } from "./modelListService.mjs";
+import { isRuntimeBusy } from "./runtimeOperationService.mjs";
 
 const AGENT_CONFIG_FILE = "agent-servers.json";
 const SESSION_CONFIG_FILE = "acp-session-conf.json";
@@ -500,10 +501,6 @@ const saveSection = async ({ path, value, readSnapshot, beforeReload, reloadRunt
     }
 };
 
-export const isBusy = (state) => {
-    if (!state) return false;
-    if ([...(state.sessionContexts?.values?.() ?? [])].some((context) => context?.pendingPrompt)) return true;
-    return [...(state.pendingPermissions?.values?.() ?? [])].some((request) => request?.state === "pending");
-};
+export const isBusy = isRuntimeBusy;
 
 const structuredError = (error, message, status, extra = {}) => ({ error, message, status, ...extra });

@@ -19,6 +19,7 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
+import { findHistoryTool } from "./historyMessageService.mjs";
 import { randomUUID } from "node:crypto";
 import { boundedDiagnosticText } from "../utils/toolErrorBudget.mjs";
 import { processSummary, toolContentText } from "../utils/toolDisplay.mjs";
@@ -99,6 +100,10 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         if (configurationError) {
             return errorResult("agent_not_configured", configurationError.message, 400);
         }
+        if (state.runtimeReloading) {
+            return errorResult("agent_busy", "Wait for the Agent runtime operation to finish before sending a message", 409);
+        }
+        let ownedPromptContext;
         try {
             let sessionId = String(options.sessionId ?? "").trim() || undefined;
             if (options.newSession) {
@@ -118,7 +123,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 return errorResult("session_id_required", "sessionId is required to send a message", 400);
             }
             const sessionContext = getSessionContext(state, sessionId);
-            if (sessionContext.pendingPrompt) {
+            if (state.runtimeReloading || sessionContext.collectingHistory || sessionContext.pendingPrompt) {
                 console.warn(`Prompt rejected: another prompt is running, sessionId=${sessionId}`);
                 return errorResult(
                     "prompt_in_progress",
@@ -127,9 +132,9 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                     { sessionId },
                 );
             }
-            const hiddenContext = await contextAssembler?.assemble?.(sessionContext, options.pageObservation);
-
             sessionContext.pendingPrompt = true;
+            ownedPromptContext = sessionContext;
+            const hiddenContext = await contextAssembler?.assemble?.(sessionContext, options.pageObservation);
             await sessionService.applyPreferredModel(sessionId);
 
             const displayText = promptText || imagePromptTitle(images);
@@ -155,10 +160,9 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             sessionService.refreshSessions();
             return { ok: true, sessionId };
         } catch (error) {
-            const sessionId = String(options.sessionId ?? "").trim();
-            const sessionContext = getSessionContext(state, sessionId);
-            if (sessionContext) {
-                sessionContext.pendingPrompt = false;
+            const sessionId = ownedPromptContext?.sessionId ?? String(options.sessionId ?? "").trim();
+            if (ownedPromptContext) {
+                ownedPromptContext.pendingPrompt = false;
             }
             const cause = errorCause(error);
             appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${cause}`);
@@ -278,7 +282,8 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         if (kind === "tool_call" || kind === "tool_call_update") {
             const source = update.toolCall ?? update.tool_call ?? update;
             const id = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
-            const previous = sessionContext.messages.at(-1)?.content?.find(
+            const owner = sessionContext.collectingHistory ? findHistoryTool(sessionContext.messages, id) : undefined;
+            const previous = owner?.block.toolCall ?? sessionContext.messages.at(-1)?.content?.find(
                 (block) => block.type === "tool" && block.toolCall.toolCallId === id,
             )?.toolCall;
             const toolCall = normalizeToolCall(update, previous, { nativeErrorContract: state.activeAgentName === "msinsight-native" });

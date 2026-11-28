@@ -503,12 +503,16 @@ test("rejects env keys that collide after trimming without writing or reloading"
 });
 
 test("blocks saves while a prompt or permission is pending without writing or reloading", async () => {
-    for (const busy of ["prompt", "permission"]) {
+    for (const busy of ["prompt", "permission", "history", "reload"]) {
         const fixture = await createFixture();
         const beforeAgentConfig = await readFile(join(fixture.rootDir, "agent-servers.json"), "utf8");
         const beforeSessionConfig = await readFile(join(fixture.rootDir, "acp-session-conf.json"), "utf8");
         if (busy === "prompt") {
             getSessionContext(fixture.state, "session-1").pendingPrompt = true;
+        } else if (busy === "history") {
+            getSessionContext(fixture.state, "session-1").collectingHistory = true;
+        } else if (busy === "reload") {
+            fixture.state.runtimeReloading = true;
         } else {
             fixture.state.pendingPermissions.set("session-1:req-1", { sessionId: "session-1", requestId: "req-1", state: "pending" });
         }

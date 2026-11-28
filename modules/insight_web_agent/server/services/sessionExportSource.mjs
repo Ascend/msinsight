@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 import { createAcpAdapter } from "../infrastructure/acpAdapter.mjs";
 import { normalizeAgentCapabilities } from "./capabilityService.mjs";
 import { filterHistoryMessages, isHiddenResource } from "./historyContentFilter.mjs";
-import { ensureHistoryMessage } from "./historyMessageService.mjs";
+import { ensureHistoryMessage, findHistoryTool } from "./historyMessageService.mjs";
 
 const error = (code, message) => Object.assign(new Error(message), { code });
 const hasCapability = (value) => value !== undefined && value !== null && value !== false;
@@ -118,7 +118,8 @@ const collectUpdate = (collector, update) => {
         const source = update.toolCall ?? update.tool_call ?? update;
         const toolCallId = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
         if (!toolCallId) return;
-        const message = ensureHistoryMessage(collector.messages, "assistant", update.messageId ?? update.message_id);
+        const owner = findHistoryTool(collector.messages, toolCallId);
+        const message = owner?.message ?? ensureHistoryMessage(collector.messages, "assistant", update.messageId ?? update.message_id);
         const block = message.content.find((part) => part.type === "tool" && part.toolCall.toolCallId === toolCallId);
         const fields = {
             ...source,

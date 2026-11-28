@@ -5,13 +5,49 @@
  */
 
 const CONTEXT_REF = "insight-(?:hidden-context|system-prompt|assistant-preset)://project";
-const contextMarker = () => new RegExp(`<context\\s+ref=["'](${CONTEXT_REF})["']\\s*(/?)>|\\[(${CONTEXT_REF})\\]`, "g");
+const contextMarker = () => new RegExp(`<context\\s+ref=["'](${CONTEXT_REF})["']\\s*(/?)>|\\[(${CONTEXT_REF})\\]|(${CONTEXT_REF})`, "g");
 const legacyContextHead = new RegExp(CONTEXT_REF);
 
-const nextContextMarker = (pattern, text) => {
+const payloadOffset = (text, start) => {
+    while (start < text.length && /\s/.test(text[start])) {
+        start++;
+    }
+    return start;
+};
+
+const matchingPrompt = (text, start, prompts) => prompts.find((prompt) => text.startsWith(prompt, start));
+
+const standaloneHeader = (text, start, end) => {
+    let index = start - 1;
+    while (index >= 0 && (text[index] === " " || text[index] === "\t")) {
+        index--;
+    }
+    if (index >= 0 && text[index] !== "\n") {
+        return false;
+    }
+    index = end;
+    while (text[index] === " " || text[index] === "\t" || text[index] === "\r") {
+        index++;
+    }
+    return text[index] === "\n";
+};
+
+const nextContextMarker = (pattern, text, prompts) => {
     let marker = pattern.exec(text);
-    // Bracketed URIs can also be ordinary references in an assistant explanation.
-    while (marker?.[3] && marker.index >= 200) {
+    while (marker) {
+        if (marker[1]) {
+            return marker;
+        }
+        const ref = marker[3] ?? marker[4];
+        const start = payloadOffset(text, pattern.lastIndex);
+        const knownPayload = (ref === "insight-hidden-context://project" && text[start] === "{")
+            || matchingPrompt(text, start, prompts);
+        // URI mentions are visible prose. Replay headers have a standalone line
+        // or a recognizable payload, regardless of their absolute text offset.
+        if ((marker[3] && (knownPayload || standaloneHeader(text, marker.index, pattern.lastIndex)))
+            || (marker[4] && knownPayload && standaloneHeader(text, marker.index, pattern.lastIndex))) {
+            return marker;
+        }
         marker = pattern.exec(text);
     }
     return marker;
@@ -57,17 +93,17 @@ const visibleTextRanges = (text, hiddenPromptTexts) => {
         return [[0, text.length]];
     }
     const pattern = contextMarker();
-    let marker = nextContextMarker(pattern, text);
+    const prompts = hiddenPromptTexts.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim());
+    let marker = nextContextMarker(pattern, text, prompts);
     if (!marker) {
-        // Compatibility with agents that prefix a URI without a context tag.
-        return legacyContextHead.test(text.slice(0, 200)) ? [] : [[0, text.length]];
+        return [[0, text.length]];
     }
     const ranges = [];
     let cursor = 0;
     while (marker) {
         ranges.push([cursor, marker.index]);
         const bodyStart = pattern.lastIndex;
-        const ref = marker[1] ?? marker[3];
+        const ref = marker[1] ?? marker[3] ?? marker[4];
         let end;
         if (marker[1] && !marker[2]) {
             const closing = text.indexOf("</context>", bodyStart);
@@ -75,29 +111,25 @@ const visibleTextRanges = (text, hiddenPromptTexts) => {
                 end = closing + "</context>".length;
             }
         }
-        let payloadStart = bodyStart;
-        while (payloadStart < text.length && /\s/.test(text[payloadStart])) {
-            payloadStart++;
-        }
+        const payloadStart = payloadOffset(text, bodyStart);
         if (end === undefined && ref === "insight-hidden-context://project") {
             end = jsonObjectEnd(text, payloadStart);
         }
         if (end === undefined) {
-            const prompt = hiddenPromptTexts.find((candidate) => typeof candidate === "string"
-                && candidate.trim() && text.startsWith(candidate.trim(), payloadStart));
+            const prompt = matchingPrompt(text, payloadStart, prompts);
             if (prompt) {
-                end = payloadStart + prompt.trim().length;
+                end = payloadStart + prompt.length;
             }
         }
         if (end === undefined) {
             // Old/unknown unbounded resource text has no reliable visible-body delimiter.
             // Do not guess its length or expose its continuation chunks.
-            const next = nextContextMarker(pattern, text);
+            const next = nextContextMarker(pattern, text, prompts);
             end = next?.index ?? text.length;
         }
         cursor = end;
         pattern.lastIndex = end;
-        marker = nextContextMarker(pattern, text);
+        marker = nextContextMarker(pattern, text, prompts);
     }
     ranges.push([cursor, text.length]);
     // Trim leading replay separators without losing source offsets or block identities.

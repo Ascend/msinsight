@@ -54,6 +54,34 @@ const fixture = (options = {}) => {
     return { source, calls, emit, get disconnects() { return disconnects; }, get unsubscribes() { return unsubscribes; }, get adapterOptions() { return adapterOptions; } };
 };
 
+test("detached export routes delayed tool updates to the original assistant message", async () => {
+    const f = fixture({ request: async (method, params, emit) => {
+        assert.equal(method, "session/load");
+        for (const update of [
+            { sessionUpdate: "agent_message_chunk", messageId: "first", content: { type: "text", text: "First" } },
+            { sessionUpdate: "tool_call", toolCallId: "call", title: "Original tool", status: "in_progress" },
+            { sessionUpdate: "agent_message_chunk", messageId: "second", content: { type: "text", text: "Second" } },
+            { sessionUpdate: "tool_call_update", toolCallId: "call", status: "completed", rawOutput: "Done" },
+        ]) {
+            emit(params.sessionId, update);
+        }
+        return {};
+    } });
+    const source = await f.source();
+    try {
+        const messages = await source.load("s");
+        const tools = messages.flatMap((message) => message.content.filter((block) => block.type === "tool"));
+        assert.equal(tools.length, 1);
+        assert.equal(tools[0].toolCall.status, "completed");
+        assert.equal(tools[0].toolCall.name, "Original tool");
+        assert.equal(tools[0].toolCall.output, "Done");
+        assert.ok(messages[0].content.includes(tools[0]));
+        assert.equal(messages[1].id, "second");
+    } finally {
+        await source.close();
+    }
+});
+
 test("initializes once without host capabilities, forwards every list cursor, never probes or prompts", async () => {
     const f = fixture();
     const source = await f.source();
