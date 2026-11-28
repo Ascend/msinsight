@@ -11,14 +11,14 @@ import * as testingLibrary from '@testing-library/react';
 import * as api from '../../api';
 import { ChatStateProvider, useChatState } from '../../hooks/useChatState';
 import type { AgentConfigSnapshot, ConfigOption, ServerEvent } from '../../types';
-import { executeFrontendCommand } from '../../bridge/frontendAgentCommandTransport';
+import { requestFrontendCommand } from '../../bridge/frontendAgentCommandTransport';
 import { message } from 'antd';
 
 const { act, render, waitFor } = testingLibrary;
 
 jest.mock('antd', () => ({ message: { error: jest.fn(), warning: jest.fn() } }));
 jest.mock('../../bridge/frontendAgentCommandTransport', () => ({
-    executeFrontendCommand: jest.fn(), cancelFrontendCommand: jest.fn(),
+    requestFrontendCommand: jest.fn(), cancelFrontendCommand: jest.fn(),
 }));
 jest.mock('../../env', () => ({
     apiUrl: (path: string) => path,
@@ -357,22 +357,22 @@ test.each(['switch', 'sessions'])('a failed agent %s request clears the switchin
 
 test('a lost completed receipt never reexecutes or changes to execution-failed', async () => {
     (api.claimFrontendCommand as jest.Mock).mockResolvedValue({ claimed: true, claimToken: 'owner' });
-    (executeFrontendCommand as jest.Mock).mockResolvedValue({ changed: true });
+    (requestFrontendCommand as jest.Mock).mockResolvedValue({ result: { changed: true }, workspaceAction: true });
     (api.respondFrontendCommand as jest.Mock).mockRejectedValue(new TypeError('lost'));
     const request = { type: 'frontend_command_request' as const, requestId: 'r', sessionId: 's', command: 'observe', args: {}, deadline: Date.now() + 5000 };
     emit(request);
     emit(request);
     await waitFor(() => expect(message.warning).toHaveBeenCalledTimes(1));
-    expect(executeFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(requestFrontendCommand).toHaveBeenCalledTimes(1);
     expect(api.respondFrontendCommand).toHaveBeenCalledTimes(2);
     const bodies = (api.respondFrontendCommand as jest.Mock).mock.calls.map(([receipt]) => JSON.parse(receipt.json));
-    expect(bodies[0].status).toBe('completed');
+    expect(bodies[0]).toMatchObject({ status: 'completed', result: { changed: true }, workspaceAction: true });
     expect(bodies[1]).toEqual(bodies[0]);
 });
 
 test.each(['cancel', 'unmount'])('receipt %s aborts the active send without resending', async (action) => {
     (api.claimFrontendCommand as jest.Mock).mockResolvedValue({ claimed: true, claimToken: 'owner' });
-    (executeFrontendCommand as jest.Mock).mockResolvedValue({ changed: true });
+    (requestFrontendCommand as jest.Mock).mockResolvedValue({ result: { changed: true }, workspaceAction: true });
     let signal: AbortSignal | undefined;
     (api.respondFrontendCommand as jest.Mock).mockImplementation((_receipt, options) => new Promise((_resolve, reject) => {
         signal = options.signal;
@@ -383,7 +383,7 @@ test.each(['cancel', 'unmount'])('receipt %s aborts the active send without rese
     if (action === 'cancel') emit({ type: 'frontend_command_cancel', requestId: 'active', reason: 'cancelled' });
     else testingLibrary.cleanup();
     await waitFor(() => expect(signal?.aborted).toBe(true));
-    expect(executeFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(requestFrontendCommand).toHaveBeenCalledTimes(1);
     expect(api.respondFrontendCommand).toHaveBeenCalledTimes(1);
     expect(message.warning).not.toHaveBeenCalled();
 });
@@ -859,6 +859,21 @@ test('independent background queues run without waiting for another session ackn
     await act(async () => queuedA.resolve({ sessionId: 'session-a' }));
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(5));
     expect(mockSendPrompt.mock.calls[4].slice(0, 3)).toEqual(['queued-a2', false, 'session-a']);
+});
+
+test('a workspace pause holds queued prompts until an explicit resume in that conversation', async () => {
+    await send('inspect the workspace');
+    emit({ type: 'message_added', sessionId: 'session-a', message: { id: 'paused', role: 'assistant', content: [], startedAt: 1 } });
+    await send('queued follow-up');
+    emit({ type: 'prompt_status', sessionId: 'session-a', pendingPrompt: false, completionStatus: 'workspace_interference' });
+    expect(chat.queuedCount).toBe(1);
+    expect(mockSendPrompt).toHaveBeenCalledTimes(1);
+    const resume = chat.resumeWorkspaceAnalysis;
+    act(() => chat.setInput('draft'));
+    expect(chat.resumeWorkspaceAnalysis).toBe(resume);
+    await act(async () => { await resume(); });
+    expect(mockSendPrompt).toHaveBeenCalledTimes(2);
+    expect(mockSendPrompt.mock.calls[1].slice(0, 3)).toEqual([expect.stringMatching(/workspace|工作区/iu), false, 'session-a']);
 });
 
 test('cancelling an initial request waits for its real ID and does not cancel the new draft', async () => {

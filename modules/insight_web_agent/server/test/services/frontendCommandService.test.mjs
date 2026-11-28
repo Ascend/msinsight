@@ -11,6 +11,36 @@ import { test } from "node:test";
 import { createFrontendCommandService } from "../../services/frontendCommandService.mjs";
 import { createCapabilityCenter } from "../../capability-center/service.mjs";
 
+test("only a claimed terminal receipt affects its captured turn and pause errors prohibit retry", async () => {
+    const outcomes = [];
+    const bus = eventBusStub();
+    const service = createFrontendCommandService({
+        eventBus: bus, captureWorkspaceTurn: () => "original-turn", isWorkspacePaused: () => false,
+        recordWorkspaceOutcome: (...args) => { outcomes.push(args); return args[2] === "interrupted"; },
+    });
+    const request = (requestId) => service.request({ requestId, sessionId: "conversation", command: "Timeline.zoom", args: {} });
+    const read = request("read");
+    service.respond({ requestId: "read", claimToken: service.claim("read").claimToken, status: "completed" });
+    await read;
+    const successful = service.request({
+        requestId: "target", sessionId: "conversation", command: "framework.switchModule", args: { moduleId: "Timeline" },
+    });
+    service.respond({ requestId: "target", claimToken: service.claim("target").claimToken, status: "completed", workspaceAction: true });
+    await successful;
+    const failed = request("interrupted");
+    const claimToken = service.claim("interrupted").claimToken;
+    const receipt = { requestId: "interrupted", status: "failed", error: { code: "COMMAND_WORKSPACE_INTERRUPTED" } };
+    service.respond({ ...receipt, claimToken: "wrong" });
+    service.respond({ ...receipt, claimToken });
+    service.respond({ ...receipt, claimToken });
+    await assert.rejects(failed, (error) => error.code === "COMMAND_WORKSPACE_INTERFERENCE_PAUSED" && !error.retryable &&
+        error.details.retryAdvice === "do_not_retry");
+    assert.deepEqual(outcomes, [
+        ["conversation", "original-turn", "completed"], ["conversation", "original-turn", "interrupted"],
+    ]);
+    service.dispose();
+});
+
 test("request broadcasts, claims once, and resolves from a terminal receipt", async () => {
     const bus = eventBusStub();
     const service = createFrontendCommandService({ eventBus: bus, timeoutMs: 5000 });

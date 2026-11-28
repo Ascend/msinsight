@@ -11,11 +11,14 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
 
+export type CommandUiEffect = 'workspace' | 'none';
+
 export interface CommandDefinition {
     name: string;
     title: string;
     description: string;
     inputSchema: JsonObject;
+    uiEffect?: CommandUiEffect;
     approval?: 'none' | 'required';
     timeoutMs?: number;
 }

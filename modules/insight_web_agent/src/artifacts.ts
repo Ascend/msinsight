@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type { ToolCallItem } from './types';
+import { reportBodyInputScript } from './bridge/reportInput';
 
 export interface ReportArtifact {
     kind: 'visualization';
@@ -69,10 +70,10 @@ export const reportKey = (report: ReportArtifact): string => `${report.artifactI
 
 // This policy precedes all untrusted markup. The opaque-origin iframe supplies the
 // other half of isolation: never add allow-same-origin, forms or navigation flags.
-export const reportSrcDoc = (html: string): string => `<!doctype html><html><head>
+export const reportSrcDoc = (html: string, workspaceInput = false): string => `<!doctype html><html><head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>html{color-scheme:light}body{margin:0;padding:24px;font-family:system-ui,sans-serif;color:#202632;background:#fff;box-sizing:border-box}*,*:before,*:after{box-sizing:border-box}img,svg,canvas{max-width:100%}</style>
-</head><body>${html}</body></html>`;
+${workspaceInput ? reportBodyInputScript : ''}</head><body>${html}</body></html>`;

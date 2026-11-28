@@ -50,3 +50,18 @@
 .no-remote-manager .bottomC {
   display: none !important;
 }
+
+.spin-global {
+  --workspace-status-text-width: 16rem;
+}
+
+@media (max-width: 1100px) {
+  .spin-global {
+    --workspace-status-text-width: 0px;
+  }
+
+  .workspace-control-status > span {
+    width: 0;
+    overflow: hidden;
+  }
+}

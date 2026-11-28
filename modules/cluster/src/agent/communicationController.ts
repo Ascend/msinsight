@@ -423,6 +423,7 @@ export const registerCommunicationCommands = (client: ModuleAgentCommandClient):
     const unregister = [
         client.registerCommand({
             name: 'Communication.switchAnalysis',
+            uiEffect: 'workspace',
             title: 'Switch communication analysis',
             description: 'Switch between Communication Matrix and Communication Duration Analysis. Completes after normalized filters and the analysis view are committed, not after all data loads.',
             inputSchema: {
@@ -434,6 +435,7 @@ export const registerCommunicationCommands = (client: ModuleAgentCommandClient):
         }, switchAnalysis),
         client.registerCommand({
             name: 'Communication.highlightSlowRank',
+            uiEffect: 'workspace',
             title: 'Highlight a slow-rank operator',
             description: 'Automatically open Communication Duration Analysis and highlight an operator from current valid slow-rank advice after its data and chart are ready. Defaults to the first advised operator on that rank.',
             inputSchema: {
@@ -445,6 +447,7 @@ export const registerCommunicationCommands = (client: ModuleAgentCommandClient):
         }, highlightSlowRank),
         client.registerCommand({
             name: 'Communication.locateInTimeline',
+            uiEffect: 'workspace',
             title: 'Locate slow-rank operator in Timeline',
             description: 'Automatically prepare Communication Duration Analysis, then open Timeline at the explicitly specified operator from current valid slow-rank advice (parsed cluster and duration, non-compare, Timeline data available). No prior highlight is required. Navigation selects the exact operator and loads its available connections using the chart-click behavior.',
             inputSchema: {

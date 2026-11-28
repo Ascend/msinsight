@@ -199,7 +199,7 @@ const Container = styled.section`
 
 export const ChatPanel = (): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
-    const { currentSessionId, isDraftSession, messages, messagesRef, notices = [], pendingPrompt, respondToPermission, sessions, scrollToLatestRequest = 0 } = useChatState();
+    const { currentSessionId, isDraftSession, messages, messagesRef, notices = [], pendingPrompt, respondToPermission, resumeWorkspaceAnalysis, sessions, scrollToLatestRequest = 0 } = useChatState();
     const { contentRef, showLatest, onScroll, onWheel, scrollToLatest } = useChatScroll({
         containerRef: messagesRef, messages, notices, sessionId: currentSessionId, isDraftSession, scrollRequest: scrollToLatestRequest,
     });
@@ -221,6 +221,7 @@ export const ChatPanel = (): JSX.Element => {
                                 messages={messages}
                                 notices={notices}
                                 pendingPrompt={pendingPrompt}
+                                onResumeWorkspace={resumeWorkspaceAnalysis}
                                 onPermissionDecision={respondToPermission}
                             />
                         </div>

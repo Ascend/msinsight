@@ -206,6 +206,7 @@ const EventsTable = observer(({
     const tableRef = useRef<ResizeTableRef>(null);
     const controllerRef = useRef<TableController>();
     const latestRequestRef = useRef(0);
+    const manualQueryVersion = useRef(0);
     const lastAutoQueryKeyRef = useRef<string>();
     const mountedRef = useRef(false);
     const requestSequencesRef = useRef(new Map<string, { sequence: number; isCurrentContext: () => boolean }>());
@@ -285,6 +286,8 @@ const EventsTable = observer(({
             });
         }
         const requestSequence = ++latestRequestRef.current;
+        const manualVersionAtStart = manualQueryVersion.current;
+        const targetAtStart = stableContextKeyRef.current;
         const frozenContextKey = requestContextKey();
         const frozenDeviceIds = session.deviceIds;
         const isCurrentContext = (): boolean => mountedRef.current && contextIdentityRef.current.session === session &&
@@ -304,6 +307,8 @@ const EventsTable = observer(({
                     code: TABLE_ERROR_CODES.COMMAND_SUPERSEDED,
                     message: 'The MemScope event table context or command was superseded.',
                     retryable: true,
+                    details: stableContextKeyRef.current !== targetAtStart || manualQueryVersion.current !== manualVersionAtStart
+                        ? { reason: 'workspace_target_changed' } : undefined,
                 });
             }
         };
@@ -390,7 +395,8 @@ const EventsTable = observer(({
         contextGeneration, deviceIds, tableKey, minTime, maxTime, sliceReady, blockLoadReady,
         loadedMemoryBlockContextKey, loadingBlocks, tableHeaderKey]);
 
-    const runUserQuery = (query: TableQueryState): void => {
+    const runUiQuery = (query: TableQueryState, manual: boolean): void => {
+        if (manual) manualQueryVersion.current++;
         const context: TransitionContext = {
             requestId: crypto.randomUUID(),
             transitionId: crypto.randomUUID(),
@@ -413,7 +419,7 @@ const EventsTable = observer(({
     const onTableChange = (_pagination: any, filters: Record<string, unknown>, sorter: any, extra: any): void => {
         if (extra.action !== 'sort' && extra.action !== 'filter') return;
         const current = stableQueryRef.current;
-        runUserQuery({
+        runUiQuery({
             ...current,
             ...(extra.action === 'sort'
                 ? {
@@ -424,17 +430,17 @@ const EventsTable = observer(({
                 : {}),
             ...(extra.action === 'filter' ? { filters: filtersToAgentQuery(filters, viewRef.current.columns) } : {}),
             page: 1,
-        });
+        }, true);
     };
 
     const onChange = (newCurrent: number, newPageSize: number): void => {
         const current = stableQueryRef.current;
         if (current.page === newCurrent && current.pageSize === newPageSize) return;
-        runUserQuery({
+        runUiQuery({
             ...current,
             page: current.pageSize === newPageSize ? newCurrent : 1,
             pageSize: newPageSize,
-        });
+        }, true);
     };
 
     useEffect(() => {
@@ -465,7 +471,7 @@ const EventsTable = observer(({
         lastAutoQueryKeyRef.current = queryKey;
         stableQueryRef.current = queryFromSession(session);
         viewRef.current = { ...viewRef.current, query: stableQueryRef.current };
-        runUserQuery(stableQueryRef.current);
+        runUiQuery(stableQueryRef.current, false);
     }, [fileHash, module, deviceId, eventType, selectedSliceIndex, deviceIds, contextGeneration,
         tableKey, minTime, maxTime, sliceReady, blockLoadReady, loadedMemoryBlockContextKey, loadingBlocks]);
 

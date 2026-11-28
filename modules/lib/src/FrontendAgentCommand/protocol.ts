@@ -27,6 +27,7 @@ export const MODULE_AGENT_COMMAND_ERROR = 'moduleAgent/commandError';
 
 export interface FrontendAgentExecuteCommandMessage {
     event: typeof FRONTEND_AGENT_EXECUTE_COMMAND;
+    initiator?: 'agent' | 'user';
     requestId: string;
     command: string;
     args: JsonObject;
@@ -39,10 +40,14 @@ export interface FrontendAgentCancelCommandMessage {
     targetRequestId: string;
 }
 
-export interface FrontendAgentCommandResponseMessage {
+export interface FrontendAgentCommandOutcome {
+    result: unknown;
+    workspaceAction?: true;
+}
+
+export interface FrontendAgentCommandResponseMessage extends FrontendAgentCommandOutcome {
     event: typeof FRONTEND_AGENT_COMMAND_RESPONSE;
     requestId: string;
-    result: unknown;
 }
 
 export interface FrontendAgentCommandErrorMessage {

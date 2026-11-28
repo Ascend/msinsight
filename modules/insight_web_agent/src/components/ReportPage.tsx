@@ -37,7 +37,7 @@ export const ReportPage = (): JSX.Element => {
     return <Page>
         {report
             ? <ReportPreview report={{ ...report, kind: 'visualization', description: '', createdAt: '' }}
-                onClose={requestHostCloseReport} />
+                onClose={requestHostCloseReport} workspaceInput />
             : <div role="alert">{t('reportLoadFailed')}</div>}
     </Page>;
 };

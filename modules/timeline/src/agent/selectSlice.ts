@@ -14,6 +14,7 @@ import { readVisibleSlices } from './visibleSlices';
 
 export const selectSliceDefinition: CommandDefinition = {
     name: 'Timeline.selectSlice',
+    uiEffect: 'workspace',
     title: 'View or select a timeline operator (查看、选中算子)',
     description: 'Use when the user wants to view, inspect, locate or select a named operator, e.g. 查看 MatMul 算子. ' +
         'Pass the operator name as name, e.g. {"name":"MatMul"}. Questions about operator meaning do not imply selection. ' +
@@ -47,14 +48,23 @@ export const selectSlice = async (
         throw error(COMMAND_ERROR_CODES.INVALID, 'Provide name with optional cardId and boolean match options.');
     }
     const units = session.units;
-    const check = (): void => {
+    const previousSelection = session.selectedData;
+    let selected = false;
+    const check = (atStart = false): void => {
         if (context.signal.aborted) throw error(COMMAND_ERROR_CODES.CANCELLED, 'Slice selection was cancelled.');
         if (Date.now() >= context.deadline) throw error(COMMAND_ERROR_CODES.TIMEOUT, 'Slice selection timed out.');
-        if (!isCurrent() || session.units !== units || session.selectedRangeIsLock) {
-            throw error(COMMAND_ERROR_CODES.UNAVAILABLE, 'Timeline changed or the selection is locked. Search again.');
+        if (!isCurrent() || session.units !== units || session.selectedRangeIsLock ||
+            (!selected && session.selectedData !== previousSelection)) {
+            if (atStart) throw error(COMMAND_ERROR_CODES.UNAVAILABLE, 'The Timeline or its selection is unavailable.');
+            throw new CommandError({
+                code: COMMAND_ERROR_CODES.UNAVAILABLE,
+                message: 'The Timeline changed during slice selection. Search again.',
+                retryable: false,
+                details: { reason: 'workspace_target_changed' },
+            });
         }
     };
-    check();
+    check(true);
     if (session.locateUnit !== undefined) throw error(COMMAND_ERROR_CODES.BUSY, 'Another slice navigation is in progress.');
     const name = (args.name as string).trim();
     const normalize = (value: string): string => args.isMatchCase === true ? value : value.toLowerCase();
@@ -75,7 +85,6 @@ export const selectSlice = async (
             abort = () => reject(error(COMMAND_ERROR_CODES.CANCELLED, 'Slice selection was cancelled.'));
             context.signal.addEventListener('abort', abort, { once: true });
             timer = setTimeout(() => reject(error(COMMAND_ERROR_CODES.TIMEOUT, 'Slice selection timed out.')), Math.max(0, context.deadline - Date.now()));
-            let selected = false;
             let totalCount: number | undefined;
             const finish = (): void => { if (selected && totalCount !== undefined) resolve({ status: 'selected', totalCount, requiresObserve: true }); };
             searchCategory(session, {
@@ -89,10 +98,11 @@ export const selectSlice = async (
                 onFailure: () => { try { check(); reject(error(COMMAND_ERROR_CODES.UNAVAILABLE, 'The search or owning lane is unavailable.')); } catch (err) { reject(err); } },
                 onSuccess: unit => {
                     try {
+                        // The guarded navigation has just installed its own selection.
+                        selected = true;
                         check();
                         const chart = unit.chart as ChartDesc<'stackStatus'> | undefined;
                         chart?.onClick?.(session.selectedData, session, unit.metadata);
-                        selected = true;
                         finish();
                     } catch (err) { reject(err); }
                 },

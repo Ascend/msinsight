@@ -775,14 +775,17 @@ interface MessageListProps {
     messages: ChatMessage[];
     notices?: ConversationNotice[];
     pendingPrompt: boolean;
+    onResumeWorkspace?: () => Promise<void>;
     onPermissionDecision: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }
 
 const EMPTY_NOTICES: ConversationNotice[] = [];
 
-const MessageListInner = ({ messages, notices = EMPTY_NOTICES, pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
+const MessageListInner = ({ messages, notices = EMPTY_NOTICES, pendingPrompt, onPermissionDecision, onResumeWorkspace }: MessageListProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const now = useToolClock(pendingPrompt);
+    const [dismissedPause, setDismissedPause] = useState<string>();
+    const lastMessage = messages.findLast((message) => !message.permission);
     if (!messages.length) {
         return <Container>
             <div className="empty">{t('noLocalMessages')}</div>
@@ -824,6 +827,12 @@ const MessageListInner = ({ messages, notices = EMPTY_NOTICES, pendingPrompt, on
                                     now={now}
                                     pendingPrompt={pendingPrompt}
                                 />
+                                {message === lastMessage && message.completionStatus === 'workspace_interference' &&
+                                    !pendingPrompt && dismissedPause !== message.id && onResumeWorkspace &&
+                                    <div className="permission-actions">
+                                        <button type="button" className="primary" onClick={onResumeWorkspace}>{t('resumeWorkspaceAnalysis')}</button>
+                                        <button type="button" onClick={() => setDismissedPause(message.id)}>{t('dismissWorkspacePause')}</button>
+                                    </div>}
                                 {message.permission
                                     ? <PermissionCard message={message} onDecision={onPermissionDecision} />
                                     : null}
@@ -1244,6 +1253,7 @@ const ThinkingSparkle = (): JSX.Element => <span aria-hidden="true" className="t
 
 const analysisStatusLabel = (inProgress: boolean, message: ChatMessage, duration: string | undefined, t: TFunction): string => {
     if (inProgress) return t('analysisInProgress', { duration: duration ?? formatDuration(0) });
+    if (message.completionStatus === 'workspace_interference') return t('analysisPausedWorkspace');
     const elapsed = duration ? t('thinkingDuration', { duration }) : undefined;
     if (message.completionStatus === 'failed' || message.completionStatus === 'cancelled') {
         const status = t(message.completionStatus === 'failed' ? 'analysisFailed' : 'analysisCancelled');

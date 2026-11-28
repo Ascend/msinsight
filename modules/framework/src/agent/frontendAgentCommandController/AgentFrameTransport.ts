@@ -14,6 +14,7 @@ import {
     FRONTEND_AGENT_EXECUTE_COMMAND,
     toCommandError,
     type FrontendAgentCommandRequestMessage,
+    type FrontendAgentCommandOutcome,
 } from '@insight/lib/FrontendAgentCommand';
 import {
     frameWindowMessageOrigin,
@@ -27,7 +28,8 @@ import {
 
 interface AgentFrameTransportOptions {
     frame: HTMLIFrameElement;
-    execute: (message: Extract<FrontendAgentCommandRequestMessage, { event: typeof FRONTEND_AGENT_EXECUTE_COMMAND }>) => Promise<unknown>;
+    execute: (message: Extract<FrontendAgentCommandRequestMessage, { event: typeof FRONTEND_AGENT_EXECUTE_COMMAND }>) =>
+    Promise<FrontendAgentCommandOutcome>;
     cancel: (targetRequestId: string) => Promise<void> | void;
     onReload: () => void;
 }
@@ -66,16 +68,17 @@ export class AgentFrameTransport {
         }
         if (message.event !== FRONTEND_AGENT_EXECUTE_COMMAND) return;
         void this.options.execute(message).then(
-            result => this.respond(event.origin, message.requestId, result),
+            receipt => this.respond(event.origin, message.requestId, receipt.result, receipt.workspaceAction),
             error => this.reject(event.origin, message.requestId, error),
         );
     };
 
-    private respond(origin: string, requestId: string, result: unknown): void {
+    private respond(origin: string, requestId: string, result: unknown, workspaceAction?: true): void {
         this.post(origin, {
             event: FRONTEND_AGENT_COMMAND_RESPONSE,
             requestId,
             result,
+            ...(workspaceAction && { workspaceAction }),
         });
     }
 

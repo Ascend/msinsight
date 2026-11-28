@@ -23,6 +23,7 @@ import { DragDirection, SizeMethod, useDraggableContainer, SharedConfigProvider 
 import { useRootStore } from './context/context';
 import RemoteManager from './components/RemoteManager/Index';
 import Main from './components/Main';
+import { WorkspaceControlOverlay } from './components/WorkspaceControlOverlay';
 import { Session } from '@/entity/session';
 import { connectRemote } from '@/centralServer/server';
 import { JUPYTERLABPROXY, GLOBAL_HOST } from '@/centralServer/websocket/defs';
@@ -97,6 +98,7 @@ const App = observer(() => {
                         })
                     }
                 </Spin>
+                <WorkspaceControlOverlay />
             </SharedConfigProvider>
         </ThemeProvider>
         : <></>;

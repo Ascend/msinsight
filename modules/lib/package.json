@@ -14,6 +14,7 @@
     "./components": "./src/components/index.ts",
     "./connection": "./src/connection/index.ts",
     "./WindowMessageRouter": "./src/WindowMessageRouter/index.ts",
+    "./WorkspaceInput": "./src/WorkspaceInput/index.ts",
     "./FrontendAgentCommand": "./src/FrontendAgentCommand/index.ts",
     "./AgentTable": "./src/AgentTable/index.ts",
     "./AgentReport": "./src/AgentReport/index.ts",

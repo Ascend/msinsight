@@ -13,7 +13,9 @@ import { readDiagnosticProperty as read } from "../utils/toolErrorBudget.mjs";
 const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_TIMEOUT_MS = 60000;
 
-export const createFrontendCommandService = ({ eventBus, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) => {
+export const createFrontendCommandService = ({
+    eventBus, timeoutMs = DEFAULT_TIMEOUT_MS, captureWorkspaceTurn, isWorkspacePaused, recordWorkspaceOutcome, workspaceCorrelation,
+} = {}) => {
     const pending = new Map();
     const toRequestEvent = (item) => ({
         type: "frontend_command_request",
@@ -40,6 +42,7 @@ export const createFrontendCommandService = ({ eventBus, timeoutMs = DEFAULT_TIM
         const diagnosticId = isToolDiagnosticId(suppliedDiagnosticId) ? suppliedDiagnosticId
             : isToolDiagnosticId(normalizedRequestId) ? normalizedRequestId : randomUUID();
         if (signal?.aborted) return Promise.reject(cancellationError({ diagnosticId, state: "pending" }, cancellationReason(signal.reason)));
+        if (sessionId && isWorkspacePaused?.(sessionId)) return Promise.reject(workspacePaused(diagnosticId));
         return new Promise((resolve, reject) => {
             const settle = (handler, value) => {
                 const item = pending.get(normalizedRequestId);
@@ -62,6 +65,8 @@ export const createFrontendCommandService = ({ eventBus, timeoutMs = DEFAULT_TIM
                 requestId: normalizedRequestId,
                 diagnosticId,
                 sessionId: String(sessionId ?? ""),
+                turnId: sessionId ? captureWorkspaceTurn?.(sessionId) : undefined,
+                candidateTurns: sessionId ? undefined : workspaceCorrelation?.capture(),
                 state: "pending",
                 resolve: (value) => settle(resolve, value),
                 reject: (error) => settle(reject, error),
@@ -85,13 +90,19 @@ export const createFrontendCommandService = ({ eventBus, timeoutMs = DEFAULT_TIM
         return { ok: true, claimed: true, claimToken: item.claimToken };
     };
 
-    const respond = ({ requestId, claimToken, status, result, error } = {}) => {
+    const respond = ({ requestId, claimToken, status, result, error, workspaceAction } = {}) => {
         const item = pending.get(String(requestId ?? ""));
         if (!item) return { ok: true, settled: true };
         if (item.state !== "claimed" || !claimToken || claimToken !== item.claimToken) {
             return { ok: true, settled: false };
         }
-        if (status === "completed") item.resolve(result);
+        const outcome = status === "completed" && workspaceAction === true ? "completed"
+            : status === "failed" && read(error, "code") === "COMMAND_WORKSPACE_INTERRUPTED" ? "interrupted" : undefined;
+        let paused = false;
+        if (outcome && item.turnId) paused = recordWorkspaceOutcome?.(item.sessionId, item.turnId, outcome);
+        else if (outcome && !item.sessionId) workspaceCorrelation?.remember(item.diagnosticId, item.candidateTurns, outcome, item.command);
+        if (paused) item.reject(workspacePaused(item.diagnosticId));
+        else if (status === "completed") item.resolve(result);
         else if (status === "cancelled" || read(error, "code") === "COMMAND_CANCELLED") item.reject(cancellationError(item, "cancelled"));
         else {
             item.reject(createToolError(normalizeToolError(error ?? "Frontend command failed", {
@@ -142,6 +153,9 @@ const cancellationReason = (value) => ["cancelled", "user_cancelled", "session_c
 
 const receiptFailureContext = (error) => {
     const code = read(error, "code");
+    if (code === "COMMAND_WORKSPACE_INTERRUPTED") {
+        return { stage: "execute", outcome: "unknown", retryAdvice: "refresh_context" };
+    }
     if (code === "COMMAND_RESULT_INVALID") {
         return { stage: "respond", outcome: "completed", retryAdvice: "inspect_before_retry" };
     }
@@ -179,3 +193,9 @@ const cancellationError = (item, reason) => {
     }));
 };
 const commandError = (code, message, retryable) => Object.assign(new Error(message), { code, retryable });
+
+const workspacePaused = (diagnosticId) => createToolError(normalizeToolError({
+    code: "COMMAND_WORKSPACE_INTERFERENCE_PAUSED",
+    message: "Analysis paused because the workspace changed. Wait for the user to resume.",
+    retryable: false,
+}, { diagnosticId, source: "command", stage: "execute", outcome: "unknown", retryAdvice: "do_not_retry" }));

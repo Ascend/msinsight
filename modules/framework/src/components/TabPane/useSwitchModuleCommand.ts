@@ -9,6 +9,7 @@ import type { FrontendAgentCommandController } from '../../agent/frontendAgentCo
 
 export const SWITCH_MODULE_DEFINITION: CommandDefinition = {
     name: 'framework.switchModule',
+    uiEffect: 'workspace',
     title: 'Switch active module',
     description: 'Switch to a module in observe.app.availableModules. Completes after the active tab and command routing are updated, not after module loading.',
     approval: 'none',

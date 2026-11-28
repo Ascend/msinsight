@@ -61,6 +61,7 @@ const ROW_IDS_SCHEMA: JsonObject = {
 export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
     {
         id: 'table.setQuery',
+        uiEffect: 'workspace',
         title: 'Set table query',
         inputSchema: {
             type: 'object',
@@ -76,6 +77,7 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
     },
     {
         id: 'table.setFilters',
+        uiEffect: 'workspace',
         title: 'Set table filters',
         inputSchema: {
             type: 'object',
@@ -84,9 +86,10 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
             additionalProperties: false,
         },
     },
-    { id: 'table.clearFilters', title: 'Clear table filters', inputSchema: EMPTY_SCHEMA },
+    { id: 'table.clearFilters', uiEffect: 'workspace', title: 'Clear table filters', inputSchema: EMPTY_SCHEMA },
     {
         id: 'table.setSort',
+        uiEffect: 'workspace',
         title: 'Set table sort',
         inputSchema: {
             type: 'object',
@@ -95,9 +98,10 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
             additionalProperties: false,
         },
     },
-    { id: 'table.clearSort', title: 'Clear table sort', inputSchema: EMPTY_SCHEMA },
+    { id: 'table.clearSort', uiEffect: 'workspace', title: 'Clear table sort', inputSchema: EMPTY_SCHEMA },
     {
         id: 'table.goToPage',
+        uiEffect: 'workspace',
         title: 'Go to table page',
         inputSchema: {
             type: 'object',
@@ -108,6 +112,7 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
     },
     {
         id: 'table.setPageSize',
+        uiEffect: 'workspace',
         title: 'Set table page size',
         inputSchema: {
             type: 'object',
@@ -116,9 +121,10 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
             additionalProperties: false,
         },
     },
-    { id: 'table.refresh', title: 'Refresh table', inputSchema: EMPTY_SCHEMA },
+    { id: 'table.refresh', uiEffect: 'workspace', title: 'Refresh table', inputSchema: EMPTY_SCHEMA },
     {
         id: 'table.getDisplayedData',
+        uiEffect: 'none',
         title: 'Get displayed table data',
         inputSchema: {
             type: 'object',
@@ -131,6 +137,7 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
     },
     {
         id: 'table.getFilterOptions',
+        uiEffect: 'none',
         title: 'Get table filter options',
         inputSchema: {
             type: 'object',
@@ -144,11 +151,12 @@ export const TABLE_COMMAND_DEFINITIONS: TableCommandDefinition[] = [
             additionalProperties: false,
         },
     },
-    { id: 'table.copy', title: 'Copy displayed table data', inputSchema: EMPTY_SCHEMA },
-    { id: 'table.setSelectedRows', title: 'Set selected table rows', inputSchema: ROW_IDS_SCHEMA },
-    { id: 'table.setExpandedRows', title: 'Set expanded table rows', inputSchema: ROW_IDS_SCHEMA },
+    { id: 'table.copy', uiEffect: 'workspace', title: 'Copy displayed table data', inputSchema: EMPTY_SCHEMA },
+    { id: 'table.setSelectedRows', uiEffect: 'workspace', title: 'Set selected table rows', inputSchema: ROW_IDS_SCHEMA },
+    { id: 'table.setExpandedRows', uiEffect: 'workspace', title: 'Set expanded table rows', inputSchema: ROW_IDS_SCHEMA },
     {
         id: 'table.invokeCellCommand',
+        uiEffect: 'none',
         title: 'Invoke table cell command',
         inputSchema: {
             type: 'object',

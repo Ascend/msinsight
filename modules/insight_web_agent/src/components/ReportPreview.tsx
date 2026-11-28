@@ -15,11 +15,12 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
 import { fetchReport } from '../api';
 import { reportSrcDoc, type ReportArtifact, type ReportDocument } from '../artifacts';
+import { connectReportInput } from '../bridge/reportInput';
 
 const Preview = styled.section`
     min-width: 0; flex: 1; display: flex; flex-direction: column;
@@ -46,8 +47,8 @@ const Preview = styled.section`
     .report-footer { padding: 0 16px 12px; font-size: 11px; opacity: .6; }
 `;
 
-export const ReportPreview = ({ report, onClose }: {
-    report: ReportArtifact; onClose: () => void;
+export const ReportPreview = ({ report, onClose, workspaceInput = false }: {
+    report: ReportArtifact; onClose: () => void; workspaceInput?: boolean;
 }): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const [version, setVersion] = useState(report.version);
@@ -55,6 +56,7 @@ export const ReportPreview = ({ report, onClose }: {
     const [error, setError] = useState(false);
     const [attempt, setAttempt] = useState(0);
     const closeRef = useRef<HTMLButtonElement>(null);
+    const bodyFrame = useRef<HTMLIFrameElement>(null);
     useEffect(() => {
         const previousFocus = window.document.activeElement as HTMLElement | null;
         closeRef.current?.focus();
@@ -69,7 +71,11 @@ export const ReportPreview = ({ report, onClose }: {
         return () => controller.abort();
     }, [report.artifactId, version, attempt]);
     const ready = document?.version === version && !error;
-    const srcDoc = useMemo(() => ready && document ? reportSrcDoc(document.html) : undefined, [ready, document]);
+    const srcDoc = useMemo(() => ready && document ? reportSrcDoc(document.html, workspaceInput) : undefined, [ready, document, workspaceInput]);
+    useLayoutEffect(() => {
+        if (workspaceInput) return connectReportInput(bodyFrame.current);
+        return undefined;
+    }, [workspaceInput, srcDoc]);
     return <Preview aria-label={t('reportPreview')} onKeyDown={(event) => { if (event.key === 'Escape') onClose(); }}>
         <div className="report-toolbar">
             <div className="report-heading"><small>{t('reportPreview')}</small><h2>{ready ? document?.title : report.title}</h2></div>
@@ -85,7 +91,7 @@ export const ReportPreview = ({ report, onClose }: {
                 ? <div className="report-state" role="alert">{t('reportLoadFailed')}
                     <button type="button" onClick={() => setAttempt((value) => value + 1)}>{t('reportRetry')}</button></div>
                 : srcDoc
-                    ? <iframe key={version} title={document?.title ?? report.title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={srcDoc} />
+                    ? <iframe key={version} ref={bodyFrame} title={document?.title ?? report.title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={srcDoc} />
                     : <div className="report-state" role="status">{t('reportLoading')}</div>}
         </div>
         <div className="report-footer">{t('reportSnapshot')}</div>

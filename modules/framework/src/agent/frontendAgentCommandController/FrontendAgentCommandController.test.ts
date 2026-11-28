@@ -8,6 +8,7 @@
  */
 import {
     COMMAND_ERROR_CODES,
+    CommandError,
     FRONTEND_AGENT_EXECUTE_COMMAND,
     MODULE_AGENT_HELLO,
     MODULE_AGENT_MESSAGE_CHANNEL,
@@ -16,6 +17,7 @@ import {
     type FrontendAgentExecuteCommandMessage,
 } from '@insight/lib/FrontendAgentCommand';
 import { withWindowMessageChannel } from '@insight/lib/WindowMessageRouter';
+import { SWITCH_MODULE_DEFINITION } from '../../components/TabPane/useSwitchModuleCommand';
 import { FrontendAgentCommandController } from './FrontendAgentCommandController';
 import { ModuleFrameTransport } from './ModuleFrameTransport';
 
@@ -23,12 +25,14 @@ const execute = (
     controller: FrontendAgentCommandController,
     command: string,
     args: FrontendAgentExecuteCommandMessage['args'] = {},
+    initiator?: FrontendAgentExecuteCommandMessage['initiator'],
 ): Promise<unknown> => (controller as unknown as {
     execute: (message: FrontendAgentExecuteCommandMessage) => Promise<unknown>;
 }).execute({
     event: FRONTEND_AGENT_EXECUTE_COMMAND,
     requestId: `request-${command}`,
     command,
+    initiator,
     args,
     deadline: Date.now() + 1000,
 });
@@ -39,11 +43,12 @@ const attachFakeModule = (controller: FrontendAgentCommandController, moduleId: 
         .moduleTransports.set(moduleId, { dispose: () => undefined });
 };
 
-const registerCommands = (controller: FrontendAgentCommandController, moduleId: string, names: string[]): void => {
+const registerCommands = (controller: FrontendAgentCommandController, moduleId: string, names: string[], uiEffect?: CommandDefinition['uiEffect']): void => {
     const definitions: CommandDefinition[] = names.map(name => ({
         name,
         title: name,
         description: name,
+        uiEffect,
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }));
     (controller as unknown as { catalog: { replaceModule: (id: string, definitions: CommandDefinition[]) => void } })
@@ -164,6 +169,87 @@ describe('ModuleFrameTransport HELLO retry', () => {
         dispatchReady(token, frame.contentWindow, 'https://untrusted.test');
         jest.advanceTimersByTime(250);
         expect(postMessage).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('workspace interference', () => {
+    let controller: FrontendAgentCommandController;
+    let run: jest.Mock;
+    let cancel: jest.Mock;
+
+    beforeEach(() => {
+        controller = new FrontendAgentCommandController();
+        run = jest.fn();
+        cancel = jest.fn();
+        registerCommands(controller, 'Timeline', ['Timeline.zoom', 'Timeline.pan'], 'workspace');
+        (controller as unknown as { moduleTransports: Map<string, unknown> }).moduleTransports.set('Timeline', {
+            execute: run, cancel, dispose: () => undefined,
+        });
+        controller.setActiveModule('Timeline');
+    });
+
+    afterEach(() => controller.dispose());
+
+    test('only an agent-initiated module switch reports a completed workspace action', async () => {
+        controller.registerGlobalCommand(SWITCH_MODULE_DEFINITION, ({ moduleId }) => ({ activeModule: moduleId }));
+        const args = { moduleId: 'Memory' };
+        const result = { activeModule: 'Memory' };
+        await expect(execute(controller, 'framework.switchModule', args, 'agent')).resolves.toEqual({ result, workspaceAction: true });
+        await expect(execute(controller, 'framework.switchModule', args, 'user')).resolves.toEqual({ result });
+    });
+
+    test('one manual switch invalidates parallel actions but counts only once', async () => {
+        run.mockImplementation(() => new Promise(() => undefined));
+        const actions = Promise.allSettled([
+            execute(controller, 'Timeline.zoom', {}, 'agent'),
+            execute(controller, 'Timeline.pan', {}, 'agent'),
+        ]);
+        controller.userSelectedModule('Memory');
+        controller.setActiveModule('Memory');
+        const results = await actions;
+        expect(results).toMatchObject([
+            { status: 'rejected', reason: { code: COMMAND_ERROR_CODES.WORKSPACE_INTERRUPTED } },
+            { status: 'rejected', reason: { code: COMMAND_ERROR_CODES.CANCELLED } },
+        ]);
+        expect(cancel).toHaveBeenCalledTimes(2);
+    });
+
+    test('a manual switch between actions counts once when the next action actually loses its target', async () => {
+        run.mockResolvedValue('done');
+        await expect(execute(controller, 'Timeline.zoom', {}, 'agent')).resolves.toEqual({ result: 'done', workspaceAction: true });
+        controller.userSelectedModule('Memory');
+        controller.setActiveModule('Memory');
+        await expect(execute(controller, 'help', { command: 'Timeline.zoom' }, 'agent')).rejects.toMatchObject({ code: COMMAND_ERROR_CODES.UNAVAILABLE });
+        await expect(execute(controller, 'Timeline.zoom', {}, 'agent')).rejects.toMatchObject({ code: COMMAND_ERROR_CODES.WORKSPACE_INTERRUPTED });
+        await expect(execute(controller, 'Timeline.zoom', {}, 'agent')).rejects.toMatchObject({ code: COMMAND_ERROR_CODES.UNAVAILABLE });
+    });
+
+    test('a command can navigate to another module without ordinary input interrupting it', async () => {
+        let complete!: () => void;
+        run.mockImplementation(() => new Promise<void>(resolve => { complete = resolve; }));
+        const action = execute(controller, 'Timeline.zoom', {}, 'agent');
+        controller.setActiveModule('Memory');
+        controller.workspaceControl.recordInput();
+        controller.userSelectedModule('Memory');
+        complete();
+        await expect(action).resolves.toMatchObject({ workspaceAction: true });
+        expect(cancel).not.toHaveBeenCalled();
+    });
+
+    test('requires both new input and a confirmed target change for in-module errors', async () => {
+        const lostTarget = new CommandError({ code: 'TABLE_STATE_STALE', message: 'Target changed', retryable: true, details: { reason: 'workspace_target_changed' } });
+        run.mockRejectedValueOnce(lostTarget);
+        await expect(execute(controller, 'Timeline.zoom', {}, 'agent')).rejects.toBe(lostTarget);
+        run.mockImplementationOnce(() => {
+            controller.workspaceControl.recordInput();
+            throw lostTarget;
+        });
+        await expect(execute(controller, 'Timeline.zoom', {}, 'agent')).rejects.toMatchObject({ code: COMMAND_ERROR_CODES.WORKSPACE_INTERRUPTED });
+        run.mockImplementationOnce(() => {
+            controller.workspaceControl.recordInput();
+            return 'done';
+        });
+        await expect(execute(controller, 'Timeline.zoom', {}, 'agent')).resolves.toMatchObject({ result: 'done', workspaceAction: true });
     });
 });
 

@@ -1,5 +1,7 @@
 {
   "framework": {
+    "workspaceControlActive": "Agent 正在操作 Insight",
+    "workspaceControlInput": "检测到人工输入",
     "buildVersion": "版本号为 {{version}}，构建于 {{modifyTime}}",
     "copyRight": "版权所有 © {{copyrightYear}} 华为技术有限公司。 保留所有权利",
     "Data Manager": "数据管理",

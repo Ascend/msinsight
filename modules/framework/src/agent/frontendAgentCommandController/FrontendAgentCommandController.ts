@@ -14,11 +14,13 @@ import {
     type CommandDefinition,
     type CommandHandler,
     type FrontendAgentExecuteCommandMessage,
+    type FrontendAgentCommandOutcome,
     type JsonObject,
     type ObservationData,
     type ObservationProvider,
     withAbortSignal,
 } from '@insight/lib/FrontendAgentCommand';
+import { WorkspaceControlState } from '../WorkspaceControlState';
 import { AgentFrameTransport } from './AgentFrameTransport';
 import { CommandCatalog, type GlobalCommandEntry } from './CommandCatalog';
 import { ModuleFrameTransport } from './ModuleFrameTransport';
@@ -26,16 +28,22 @@ import { ModuleFrameTransport } from './ModuleFrameTransport';
 interface RunningCommand {
     controller: AbortController;
     cancel?: () => Promise<void> | void;
+    workspaceTarget?: string;
+    switchingModule?: boolean;
+    interruption?: CommandError;
 }
 
 const DEBUG_COMMAND_TIMEOUT_MS = 30000;
 
 export class FrontendAgentCommandController {
+    readonly workspaceControl = new WorkspaceControlState();
     private readonly catalog = new CommandCatalog();
     private readonly moduleTransports = new Map<string, ModuleFrameTransport>();
     private readonly running = new Map<string, RunningCommand>();
     private agentTransport?: AgentFrameTransport;
     private activeModule = '';
+    private manualDeparture?: { from: string; to: string; epoch: number };
+    private attributedInputRevision = 0;
     private frameworkObservation?: ObservationProvider;
     private disposed = false;
 
@@ -91,7 +99,28 @@ export class FrontendAgentCommandController {
 
     setActiveModule(moduleId: string): void {
         this.ensureActive();
+        if (moduleId !== this.activeModule && this.manualDeparture?.to !== moduleId) this.manualDeparture = undefined;
         this.activeModule = moduleId;
+    }
+
+    // Only the workspace tab menu calls this. Agent navigation and automatic tab updates go through setActiveModule.
+    userSelectedModule(moduleId: string): void {
+        const epoch = this.workspaceControl.getInputEpoch();
+        if (epoch === null) return;
+        let interrupted = false;
+        for (const running of this.running.values()) {
+            if (!running.workspaceTarget || running.workspaceTarget === moduleId || running.controller.signal.aborted) continue;
+            if (!running.switchingModule && running.workspaceTarget !== this.activeModule) continue;
+            // Parallel commands can lose their target together. Attribute this selection only once.
+            if (!interrupted) running.interruption = workspaceInterrupted();
+            running.controller.abort(running.interruption ?? cancelled());
+            void ignoreCancelError(running.cancel);
+            interrupted = true;
+        }
+        if (interrupted) this.attributedInputRevision = this.workspaceControl.getInputRevision();
+        if (moduleId !== this.activeModule) {
+            this.manualDeparture = interrupted ? undefined : { from: this.activeModule, to: moduleId, epoch };
+        }
     }
 
     /**
@@ -107,7 +136,7 @@ export class FrontendAgentCommandController {
             command,
             args,
             deadline: Date.now() + DEBUG_COMMAND_TIMEOUT_MS,
-        });
+        }).then(receipt => receipt.result);
     }
 
     dispose(): void {
@@ -116,11 +145,12 @@ export class FrontendAgentCommandController {
         this.agentTransport?.dispose();
         this.agentTransport = undefined;
         this.abortRunning(connectionLost('The framework command controller was disposed.'));
+        this.workspaceControl.dispose();
         [...this.moduleTransports.keys()].forEach(moduleId => this.detachModule(moduleId));
         this.frameworkObservation = undefined;
     }
 
-    private async execute(message: FrontendAgentExecuteCommandMessage): Promise<unknown> {
+    private async execute(message: FrontendAgentExecuteCommandMessage): Promise<FrontendAgentCommandOutcome> {
         this.ensureActive();
         if (typeof message.command !== 'string' || !message.command.trim() ||
             typeof message.requestId !== 'string' || !message.requestId.trim() ||
@@ -132,12 +162,27 @@ export class FrontendAgentCommandController {
         if (Date.now() >= message.deadline) throw timeout();
         if (this.running.has(message.requestId)) throw invalid(`Request '${message.requestId}' is already running.`);
         const entry = this.catalog.getVisible(commandName, this.activeModule);
-        if (!entry) throw this.commandUnavailable(commandName);
-        if (commandName === 'help') return this.help(args);
+        if (!entry) {
+            const departure = this.manualDeparture;
+            if (message.initiator === 'agent' && departure?.to === this.activeModule &&
+                departure.epoch === this.workspaceControl.getInputEpoch() &&
+                this.catalog.getVisible(commandName, departure.from)?.definition.uiEffect === 'workspace') {
+                this.manualDeparture = undefined;
+                throw workspaceInterrupted();
+            }
+            throw this.commandUnavailable(commandName);
+        }
+        if (commandName === 'help') return { result: this.help(args) };
         const controller = new AbortController();
+        const running: RunningCommand = { controller };
+        const dispatchedAt = Date.now();
+        const inputAtDispatch = this.workspaceControl.getInputRevision();
+        let finishIndicator: (() => void) | undefined;
         const timeoutId = window.setTimeout(() => {
+            const running = this.running.get(message.requestId);
+            if (running?.controller !== controller) return;
             controller.abort(timeout());
-            void ignoreCancelError(this.running.get(message.requestId)?.cancel);
+            void ignoreCancelError(running.cancel);
         }, message.deadline - Date.now());
         try {
             if (commandName === 'observe') {
@@ -147,28 +192,58 @@ export class FrontendAgentCommandController {
                     controller,
                     cancel: moduleTransport ? () => moduleTransport.cancel(message.requestId) : undefined,
                 });
-                return await this.observe(moduleTransport, message.requestId, message.deadline, controller.signal);
+                return { result: await this.observe(moduleTransport, message.requestId, message.deadline, controller.signal) };
             }
             if (entry.source === 'global') {
-                this.running.set(message.requestId, { controller });
-                return await this.executeGlobal(entry, args, message, controller.signal);
+                const switchTarget = commandName === 'framework.switchModule' && typeof args.moduleId === 'string'
+                    ? args.moduleId.trim()
+                    : undefined;
+                finishIndicator = this.trackDispatch(message, entry.definition, running, switchTarget);
+                const result = await this.executeGlobal(entry, args, message, controller.signal);
+                return finishIndicator ? { result, workspaceAction: true } : { result };
             }
             // Built-in help/observe are handled above; reaching here means the catalog returned an entry that cannot be dispatched.
             if (entry.source !== 'module') throw this.commandUnavailable(commandName);
             const transport = this.requireModuleTransport(entry.moduleId);
-            this.running.set(message.requestId, {
-                controller,
-                cancel: () => transport.cancel(message.requestId),
-            });
-            return await withAbortSignal(
+            running.cancel = () => transport.cancel(message.requestId);
+            finishIndicator = this.trackDispatch(message, entry.definition, running, entry.moduleId);
+            const result = await withAbortSignal(
                 transport.execute(entry.definition.name, args, message.requestId, message.deadline),
                 controller.signal,
                 cancelled,
             );
+            if (finishIndicator && this.manualDeparture?.to === entry.moduleId) this.manualDeparture = undefined;
+            return finishIndicator ? { result, workspaceAction: true } : { result };
+        } catch (error) {
+            if (running.interruption) throw running.interruption;
+            const inputRevision = this.workspaceControl.getInputRevision(dispatchedAt);
+            if (finishIndicator && !controller.signal.aborted && error instanceof CommandError &&
+                error.details?.reason === 'workspace_target_changed' &&
+                inputRevision > inputAtDispatch && inputRevision > this.attributedInputRevision) {
+                this.attributedInputRevision = inputRevision;
+                throw workspaceInterrupted();
+            }
+            throw error;
         } finally {
             window.clearTimeout(timeoutId);
             if (this.running.get(message.requestId)?.controller === controller) this.running.delete(message.requestId);
+            finishIndicator?.();
         }
+    }
+
+    private trackDispatch(
+        message: FrontendAgentExecuteCommandMessage,
+        definition: CommandDefinition,
+        running: RunningCommand,
+        target?: string,
+    ): (() => void) | undefined {
+        this.running.set(message.requestId, running);
+        if (message.initiator === 'agent' && definition.uiEffect === 'workspace') {
+            running.workspaceTarget = target;
+            running.switchingModule = definition.name === 'framework.switchModule';
+            return this.workspaceControl.begin(message.requestId, running.controller.signal);
+        }
+        return undefined;
     }
 
     private help(args: JsonObject): JsonObject {
@@ -256,7 +331,7 @@ export class FrontendAgentCommandController {
         if (!running) return;
         running.controller.abort(cancelled());
         await ignoreCancelError(running.cancel);
-        this.running.delete(targetRequestId);
+        if (this.running.get(targetRequestId) === running) this.running.delete(targetRequestId);
     }
 
     private detachModule(moduleId: string): void {
@@ -266,6 +341,7 @@ export class FrontendAgentCommandController {
     }
 
     private abortRunning(error: CommandError): void {
+        this.manualDeparture = undefined;
         this.running.forEach(({ controller, cancel }) => {
             controller.abort(error);
             void ignoreCancelError(cancel);
@@ -367,6 +443,11 @@ const timeout = (): CommandError => new CommandError({
 const cancelled = (): CommandError => new CommandError({
     code: COMMAND_ERROR_CODES.CANCELLED,
     message: 'The frontend command was cancelled.',
+    retryable: true,
+});
+const workspaceInterrupted = (): CommandError => new CommandError({
+    code: COMMAND_ERROR_CODES.WORKSPACE_INTERRUPTED,
+    message: 'The workspace target changed after user input. Inspect the current view before continuing.',
     retryable: true,
 });
 const connectionLost = (message: string): CommandError => new CommandError({
