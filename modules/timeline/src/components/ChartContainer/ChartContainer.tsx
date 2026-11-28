@@ -47,6 +47,8 @@ import { ActionManager } from '../../actions/manager';
 import KeyInfoTooltip from './KeyInfoTooltip';
 import FloatingToolbar from './FloatingToolbar';
 import { isMac } from '../../utils/is';
+import { SliceMarkList } from '../SliceMarkList';
+import { handleSliceMarkShortcut } from '../../utils/sliceMark';
 
 const DEFAULT_LANE_INFO_WIDTH = 275;
 const DEFAULT_LANE_CHART_WIDTH = 100;
@@ -186,6 +188,9 @@ export const ChartContainer = observer((props: Props) => {
         });
     };
     const handleKeyDownEvent = (e: KeyboardEvent): void => {
+        if (handleSliceMarkShortcut(session, e)) {
+            return;
+        }
         if (isPanModifierPressed(e)) {
             setPanModifierState(true);
         }
@@ -218,7 +223,7 @@ export const ChartContainer = observer((props: Props) => {
             document.removeEventListener('keyup', handleKeyUpEvent);
             window.removeEventListener('blur', handleBlurEvent);
         };
-    }, []);
+    }, [keyHoldAction, session]);
     return <Container
         {...otherInteractors}
         ref={(dom): void => {
@@ -248,6 +253,7 @@ export const ChartContainer = observer((props: Props) => {
             scrollerRef={scrollerRef}
         />
         <FloatingToolbar session={session} />
+        <SliceMarkList session={session} />
         <KeyInfoTooltip session={session} />
     </Container>;
 });

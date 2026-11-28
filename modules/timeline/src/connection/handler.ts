@@ -33,6 +33,7 @@ import { calculateDomainRange } from '../components/CategorySearch';
 import i18n from '@insight/lib/i18n';
 import { forEach, groupBy, isEmpty, cloneDeep } from 'lodash';
 import { savePageSetting, recoverPageSetting, updatePageSetting } from '../utils/PageSetting';
+import { removeSliceMarksForUnits } from '../utils/sliceMark';
 import { errorCenter, getRankInfoKey, WsError, ErrorCode } from '@insight/lib/utils';
 import type { RankInfo } from '../api/interface';
 import { queryOneKernel } from '../components/detailViews/Common';
@@ -762,6 +763,7 @@ function resetSession(): void {
         session.ridLineType = '';
         session.drawLineMode = 'all';
         session.selectedData = undefined;
+        session.sliceMarks.clear();
     });
 }
 
@@ -849,6 +851,10 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
                 return metadata.cardId === removedMetadata.cardId &&
                     metadata.dataSource.remote === removedMetadata.dataSource.remote;
             }));
+            removeSliceMarksForUnits(session, removeUnits.map((unit) => {
+                const metadata = unit.metadata as any;
+                return { cardId: metadata.cardId as string, dbPath: metadata.dbPath as string };
+            }));
             clearTimeMarkerFlags(session);
             // 取消对比时，删除底部面板Rank ID下拉框对比卡的数据选项
             for (const [key, info] of session.rankCardInfoMap) {
@@ -929,6 +935,10 @@ export const removeSingleRemoteHandler: NotificationHandler = async (data): Prom
             return metadata.dataSource.remote !== dataSource.remote || !(metadata.dataSource.dataPath as string[]).includes(singleDataPath);
         });
         await remoteDeleteRequest(session, dataSource, removeCardInfos);
+        removeSliceMarksForUnits(session, removeUnits.map((unit) => {
+            const metadata = unit.metadata as any;
+            return { cardId: metadata.cardId as string, dbPath: metadata.dbPath as string };
+        }));
         clearTimeMarkerFlags(session);
         clearIpynbInfo(session);
         connector.send({ event: 'deleteCard', body: { info: removeCardInfos } });

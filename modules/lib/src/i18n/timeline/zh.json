@@ -17,6 +17,7 @@
     "Slice List": "选中列表",
     "Find": "查找",
     "Details": "详情",
+    "SliceMarkAlreadyBound": "该色块已绑定快捷键 {{key}}，请先删除原标记后再绑定。",
     "Returning Data": "返回数据中...",
     "classificationRules": {
       "Classification Rules": "分类规则",

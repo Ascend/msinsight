@@ -67,6 +67,7 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                 session.selectedData = {
                     id,
                     startTime,
+                    timestamp,
                     name,
                     color: colorPalette[hashToNumber(name, colorPalette.length)],
                     duration,
