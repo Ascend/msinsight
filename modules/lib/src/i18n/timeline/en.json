@@ -17,6 +17,7 @@
     "Slice List": "Slice List",
     "Find": "Find",
     "Details": "Details",
+    "SliceMarkAlreadyBound": "This slice is already bound to shortcut {{key}}. Delete the existing mark before binding another shortcut.",
     "Returning Data": "Returning data...",
     "classificationRules": {
       "Classification Rules": "Classification Rules",

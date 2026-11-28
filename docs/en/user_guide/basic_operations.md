@@ -200,6 +200,7 @@ This section describes the common shortcut keys of MindStudio Insight. You can a
 |R|On the **Timeline** page, select an operator and press **R** to align the end time (right boundary) of the selected operator with that of the reference operator.|
 |Q|Collapses or expands the panel at the bottom of the **Timeline** tab page.|
 |K|On the **Timeline** tab page, you can press **K** to quickly set area marks and single-point marks.|
+|1~9|On the **Timeline** tab page, after selecting a slice, press an unbound number key to mark it. Press a bound number key again to jump to and highlight the target slice.|
 |Shift+mouse wheel/Ctrl+mouse drag|Moves the pipeline parallelism chart and communication operator thumbnail to the left or right.|
 |Ctrl+mouse wheel|Zooms in or out on the pipeline parallelism chart and communication operator thumbnail.|
 |Ctrl + F|Displays the search box in the source file code area on the **Source** tab page. In macOS, press **Command** and **F**.|

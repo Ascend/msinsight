@@ -40,6 +40,7 @@ import { getAutoKey } from '../utils/dataAutoKey';
 import type { FlowPoint } from '../insight/units/AscendUnit';
 import { MergedThreadData } from './mergedThreadData';
 import { TimelineCard } from '../connection/baseline';
+import type { SliceMark, SliceMarkKey } from '../utils/sliceMark';
 
 export const MAX_ZOOM_COUNT = 10000;
 
@@ -279,6 +280,9 @@ export class Session {
 
     // set this field with a new matcher to trigger jump-to-target-lane
     locateUnit?: UnitMatcher;
+
+    // Runtime-only shortcuts for returning to important Timeline slices.
+    sliceMarks: Map<SliceMarkKey, SliceMark> = new Map();
 
     timer: ReturnType<typeof setInterval> | undefined;
 
