@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { filterHistoryText, isHiddenResource } from "./historyContentFilter.mjs";
-import { ensureHistoryMessage } from "./historyMessageService.mjs";
+import { ensureHistoryMessage, findHistoryTool } from "./historyMessageService.mjs";
 
 export const appendChunk = (serviceContext, sessionId, role, type, delta) => {
     const { eventBus, historyBlockId } = serviceContext;
@@ -65,11 +65,13 @@ export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
 };
 
 export const upsertToolCall = (serviceContext, sessionId, toolCall) => {
-    const { eventBus } = serviceContext;
+    const { eventBus, state } = serviceContext;
     if (!toolCall?.toolCallId) {
         return;
     }
-    const message = ensureMessage(serviceContext, sessionId, "assistant");
+    const context = state.sessionContexts.get(sessionId);
+    const existing = context?.collectingHistory ? findHistoryTool(context.messages, toolCall.toolCallId) : undefined;
+    const message = existing?.message ?? ensureMessage(serviceContext, sessionId, "assistant");
     if (!message) {
         return;
     }

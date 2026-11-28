@@ -19,6 +19,7 @@ import { publicCapabilities } from "../services/capabilityService.mjs";
 
 export const createRuntimeState = () => ({
     initialized: false,
+    runtimeReloading: false,
     ragStatus: { enabled: false, phase: "disabled", reason: "disabled" },
     agentDiscoveryLoading: false,
     sessions: [],
@@ -156,6 +157,10 @@ export const resetRuntimeForAgent = (state, { agentServers, activeAgentName }) =
 
 const cloneSessionContexts = (contexts) => new Map([...contexts].map(([sessionId, context]) => [sessionId, {
     ...context,
+    // These flags belong to an in-flight operation, not to restorable state.
+    collectingHistory: false,
+    replayingHistory: false,
+    refreshingConfigOnly: false,
     grants: new Set(context.grants ?? []),
     messages: [...(context.messages ?? [])],
     configOptions: [...(context.configOptions ?? [])],

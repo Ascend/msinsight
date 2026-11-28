@@ -190,6 +190,9 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             console.warn("Load session rejected: sessionId is required");
             return errorResult("session_id_required", "sessionId is required to load a session", 400);
         }
+        if (state.runtimeReloading) {
+            return errorResult("agent_busy", "Wait for the Agent runtime operation to finish before loading history", 409);
+        }
         if (!supportsSessionLoad(state) && !supportsSessionResume(state)) {
             return errorResult(
                 "session_load_unsupported",
@@ -201,8 +204,8 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         console.log(`Loading session context: sessionId=${targetSessionId}`);
         const hadExistingContext = state.sessionContexts.has(targetSessionId);
         const context = getOrCreateSessionContext(targetSessionId);
-        if (context.collectingHistory) {
-            return errorResult("session_busy", "Session history is already being loaded", 409);
+        if (context.collectingHistory || context.pendingPrompt) {
+            return errorResult("session_busy", "Session history cannot be loaded while another operation is running", 409);
         }
         context.messages = [];
         context.replayingHistory = true;

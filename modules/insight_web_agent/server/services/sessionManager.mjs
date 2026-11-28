@@ -98,7 +98,12 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
         const targetSessionId = String(sessionId ?? "").trim();
         if (!targetSessionId) throw new Error("sessionId is required");
         const context = getSessionContext(state, targetSessionId);
-        if (context.pendingPrompt) throw new Error("another prompt is running");
+        if (context.pendingPrompt) {
+            throw new Error("another prompt is running");
+        }
+        if (state.runtimeReloading || context.collectingHistory) {
+            throw new Error("another session operation is running");
+        }
         if (mode) context.mode = mode;
         const prompt = createPromptContent(String(text ?? "").trim(), images);
         context.pendingPrompt = true;

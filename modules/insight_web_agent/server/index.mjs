@@ -29,6 +29,7 @@ import { config, reloadConfig, saveActiveAgent, secretCrypto } from "./config/in
 import { createAcpAdapter } from "./infrastructure/acpAdapter.mjs";
 import { createAuditLogger } from "./observability/auditLogger.mjs";
 import { createAgentConfigService } from "./services/agentConfigService.mjs";
+import { isRuntimeBusy, withRuntimeReload } from "./services/runtimeOperationService.mjs";
 import { agentConfigForLog, discoverAgents, presentListedAgentServers, presentRunnableAgentServers, resolveAgentServer, sameAgentLaunch } from "./services/agentDiscoveryService.mjs";
 import { agentLaunchKey } from "./services/agentIdentityService.mjs";
 import { createChatService } from "./services/chatService.mjs";
@@ -291,7 +292,7 @@ const restoreRuntimeConfig = (previousConfig) => {
     Object.assign(config, previousConfig);
 };
 
-const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, reloadFromDisk = false, broadcast = true } = {}) => {
+const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, reloadFromDisk = false, broadcast = true } = {}) => withRuntimeReload(state, async () => {
     frontendCommandService.cancelAll("runtime_reloading");
     const previousConfig = cloneRuntimeConfig();
     const previousAgentServer = activeAgentServer;
@@ -365,7 +366,7 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
         if (activeAcpMessageBuffer === previousClientMessages) activeAcpMessageBuffer = undefined;
         if (nextClient) stagedAcpMessageBuffers.delete(nextClient);
     }
-};
+});
 
 let agentRefreshPromise;
 const logAgentDiscoveryResults = (label, results) => {
@@ -438,8 +439,7 @@ const refreshDiscoveredAgents = async () => {
     return agentRefreshPromise;
 };
 
-const isAgentRuntimeBusy = () => [...(state.sessionContexts?.values?.() ?? [])].some((context) => context?.pendingPrompt)
-    || [...(state.pendingPermissions?.values?.() ?? [])].some((request) => request?.state === "pending");
+const isAgentRuntimeBusy = () => isRuntimeBusy(state);
 
 const agentService = {
     list() {
@@ -474,6 +474,9 @@ const agentService = {
             await reloadRuntime({ activeAgentName: nextAgentServer.name, persistActiveAgent: true });
             return { ok: true, ...this.list() };
         } catch (error) {
+            if (error.code === "agent_busy") {
+                return errorResult("agent_busy", "Wait for pending session operations to finish before switching Agents", 409);
+            }
             return errorResult(
                 "agent_switch_failed",
                 `Failed to start Agent '${nextAgentServer.name}'`,
