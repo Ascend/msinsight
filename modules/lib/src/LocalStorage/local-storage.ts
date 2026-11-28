@@ -20,6 +20,7 @@ import { customConsole as console, safeJSONParse } from '../utils';
 export enum LocalStorageKey {
     LANGUAGE = 'language',
     THEME = 'theme',
+    INSIGHT_BOT_PANEL_OPEN = 'insight_bot_panel_open',
     LAST_FILE_PATH = 'last_file_path',
     OVERALL_METRICS_CLASSIFICATION_RULES = 'overall_metrics_classification_rules',
 }
